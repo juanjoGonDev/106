@@ -1,22 +1,38 @@
+const config = window.__MINUTO106_CONFIG__ ?? {};
+const apiBaseUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
+const configured = Boolean(apiBaseUrl) && !apiBaseUrl.includes('YOUR_PROJECT_REF');
 const TARGET_MS = 10_600;
 
 const state = {
   team: null,
   nick: localStorage.getItem('minuto106:nick') ?? '',
+  deviceId: getDeviceId(),
+  challengeId: null,
   startedAt: 0,
   animationFrame: null,
   lastResult: null,
+  turnstileToken: '',
+  turnstileWidgetId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const panels = ['setup', 'playing', 'result'];
-
 const nickInput = $('#nick');
 const startButton = $('#startButton');
 const stopButton = $('#stopButton');
 const timer = $('#timer');
 
 nickInput.value = state.nick;
+$('#configWarning').hidden = configured;
+
+function getDeviceId() {
+  const key = 'minuto106:device-id';
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(key, id);
+  return id;
+}
 
 function showPanel(id) {
   panels.forEach((panel) => $(`#${panel}`).classList.toggle('active', panel === id));
@@ -31,12 +47,21 @@ function teamLabel(team) {
 }
 
 function validateSetup() {
-  startButton.disabled = nickInput.value.trim().length < 2 || !state.team;
+  const captchaReady = !config.turnstileSiteKey || Boolean(state.turnstileToken);
+  startButton.disabled = !configured || nickInput.value.trim().length < 2 || !state.team || !captchaReady;
 }
 
-async function request(url, options) {
-  const response = await fetch(url, options);
-  const body = await response.json();
+async function request(action, payload = {}) {
+  if (!configured) throw new Error('Supabase aún no está configurado.');
+  const response = await fetch(apiBaseUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-device-id': state.deviceId,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'No se pudo completar la operación.');
   return body;
 }
@@ -44,13 +69,16 @@ async function request(url, options) {
 async function refreshNickStatus() {
   const nick = nickInput.value.trim();
   const status = $('#nickStatus');
+  if (!configured) {
+    status.textContent = 'Configura Supabase para activar los intentos y el ranking.';
+    return;
+  }
   if (nick.length < 2) {
     status.textContent = 'Cada nick dispone de 5 intentos.';
     return;
   }
-
   try {
-    const data = await request(`/api/nicks/${encodeURIComponent(nick)}`);
+    const data = await request('nick-status', { nick });
     status.textContent = data.attemptsLeft
       ? `${data.attemptsLeft} de 5 intentos disponibles para este nick.`
       : 'Este nick ya agotó sus intentos. Usa otro para volver a competir.';
@@ -66,15 +94,33 @@ function updateTimer() {
   state.animationFrame = requestAnimationFrame(updateTimer);
 }
 
-function startGame() {
+async function startGame() {
+  startButton.disabled = true;
+  startButton.textContent = 'Preparando reto…';
   state.nick = nickInput.value.trim();
   localStorage.setItem('minuto106:nick', state.nick);
-  $('#playingTeam').textContent = teamLabel(state.team);
-  timer.textContent = '0.000';
-  timer.classList.remove('hidden');
-  showPanel('playing');
-  state.startedAt = performance.now();
-  state.animationFrame = requestAnimationFrame(updateTimer);
+
+  try {
+    const challenge = await request('start', {
+      nick: state.nick,
+      team: state.team,
+      turnstileToken: state.turnstileToken || undefined,
+    });
+    state.challengeId = challenge.challengeId;
+    $('#playingTeam').textContent = teamLabel(state.team);
+    timer.textContent = '0.000';
+    timer.classList.remove('hidden');
+    showPanel('playing');
+    state.startedAt = performance.now();
+    state.animationFrame = requestAnimationFrame(updateTimer);
+  } catch (error) {
+    alert(error.message);
+    await refreshNickStatus();
+  } finally {
+    startButton.textContent = 'Comenzar';
+    resetTurnstile();
+    validateSetup();
+  }
 }
 
 function resultCopy(differenceMs, team) {
@@ -89,18 +135,20 @@ function resultCopy(differenceMs, team) {
 async function stopGame() {
   stopButton.disabled = true;
   cancelAnimationFrame(state.animationFrame);
-  const elapsedMs = Math.round(performance.now() - state.startedAt);
+  const clientElapsedMs = Math.round(performance.now() - state.startedAt);
 
   try {
-    const data = await request('/api/attempts', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ nick: state.nick, team: state.team, elapsedMs }),
+    const data = await request('finish', {
+      challengeId: state.challengeId,
+      clientElapsedMs,
     });
-
     state.lastResult = data.attempt;
     $('#resultTime').textContent = formatMs(data.attempt.elapsedMs);
     $('#resultMessage').textContent = `${resultCopy(data.attempt.differenceMs, state.team)} Te separaron ${data.attempt.differenceMs} ms.`;
+    $('#verificationStatus').textContent = data.attempt.verified
+      ? '✓ Intento validado por el servidor y apto para el ranking.'
+      : 'Intento excluido del ranking por las comprobaciones anti-trampas.';
+    $('#verificationStatus').classList.toggle('unverified', !data.attempt.verified);
     $('#attemptsLeft').textContent = data.attemptsLeft
       ? `Te quedan ${data.attemptsLeft} intentos con ${state.nick}.`
       : `${state.nick} ha agotado sus 5 intentos. Puedes usar otro nick.`;
@@ -112,16 +160,16 @@ async function stopGame() {
     showPanel('setup');
     await refreshNickStatus();
   } finally {
+    state.challengeId = null;
     stopButton.disabled = false;
   }
 }
 
 function renderStats(stats) {
-  const spain = stats.teams.find((team) => team.team === 'spain');
-  const argentina = stats.teams.find((team) => team.team === 'argentina');
+  const spain = stats.teams.find((team) => team.team === 'spain') ?? { score: 0 };
+  const argentina = stats.teams.find((team) => team.team === 'argentina') ?? { score: 0 };
   const totalScore = spain.score + argentina.score;
   const spainPercent = totalScore ? Math.round((spain.score / totalScore) * 100) : 50;
-
   $('#spainScore').textContent = spain.score.toLocaleString('es-ES');
   $('#argentinaScore').textContent = argentina.score.toLocaleString('es-ES');
   $('#battleFill').style.width = `${spainPercent}%`;
@@ -130,10 +178,9 @@ function renderStats(stats) {
 
   const leaderboard = $('#leaderboard');
   if (!stats.leaderboard.length) {
-    leaderboard.innerHTML = '<li class="empty">Aún no hay marcas. Sé el primero.</li>';
+    leaderboard.innerHTML = '<li class="empty">Aún no hay marcas verificadas. Sé el primero.</li>';
     return;
   }
-
   leaderboard.innerHTML = stats.leaderboard.map((entry, index) => `
     <li>
       <span class="rank">#${index + 1}</span>
@@ -144,7 +191,7 @@ function renderStats(stats) {
 }
 
 function escapeHtml(value) {
-  return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+  return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 }
 
 async function shareResult() {
@@ -156,6 +203,29 @@ async function shareResult() {
     await navigator.clipboard.writeText(`${text} ${location.href}`);
     $('#shareButton').textContent = 'Enlace copiado';
   }
+}
+
+function resetTurnstile() {
+  state.turnstileToken = '';
+  if (state.turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(state.turnstileWidgetId);
+}
+
+function initializeTurnstile() {
+  if (!config.turnstileSiteKey) return;
+  $('#turnstileContainer').hidden = false;
+  const script = document.createElement('script');
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    state.turnstileWidgetId = window.turnstile.render('#turnstileWidget', {
+      sitekey: config.turnstileSiteKey,
+      callback: (token) => { state.turnstileToken = token; validateSetup(); },
+      'expired-callback': () => { state.turnstileToken = ''; validateSetup(); },
+      'error-callback': () => { state.turnstileToken = ''; validateSetup(); },
+    });
+  };
+  document.head.append(script);
 }
 
 document.querySelectorAll('.team-button').forEach((button) => {
@@ -173,9 +243,16 @@ nickInput.addEventListener('input', () => {
   nickDebounce = setTimeout(refreshNickStatus, 300);
 });
 
-startButton.addEventListener('click', startGame);
-stopButton.addEventListener('click', stopGame);
-$('#retryButton').addEventListener('click', startGame);
+startButton.addEventListener('click', () => startGame().catch(() => {}));
+stopButton.addEventListener('click', () => stopGame().catch(() => {}));
+$('#retryButton').addEventListener('click', () => {
+  if (config.turnstileSiteKey) {
+    showPanel('setup');
+    validateSetup();
+  } else {
+    startGame().catch(() => {});
+  }
+});
 $('#changeNickButton').addEventListener('click', () => {
   nickInput.focus();
   showPanel('setup');
@@ -183,6 +260,7 @@ $('#changeNickButton').addEventListener('click', () => {
 });
 $('#shareButton').addEventListener('click', () => shareResult().catch(() => {}));
 
-request('/api/stats').then(renderStats).catch(() => {});
+initializeTurnstile();
+if (configured) request('stats').then(renderStats).catch(() => {});
 validateSetup();
 refreshNickStatus();
