@@ -1,17 +1,14 @@
 {
   "name": "minuto-106",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch server.js",
-    "start": "node server.js",
-    "check": "node --check server.js && node --check public/app.js"
+    "dev": "node scripts/serve.mjs",
+    "build:config": "node scripts/generate-config.mjs",
+    "check": "node --check public/app.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs"
   },
   "engines": {
     "node": ">=20"
-  },
-  "dependencies": {
-    "express": "4.21.2"
   }
 }
