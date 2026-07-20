@@ -16,6 +16,10 @@ const monotonicMetrics = [
   'referrals',
   'completedReferrals',
   'bonusAttempts',
+  'duels',
+  'completedDuels',
+  'leagues',
+  'leagueMembers',
 ];
 
 const regressions = [];
@@ -32,7 +36,7 @@ for (const metric of monotonicMetrics) {
 if (regressions.length > 0) {
   console.error('Production history regression detected after deployment:');
   for (const regression of regressions) console.error(`- ${regression}`);
-  console.error('The encrypted pre-deployment backup artifact must be used to investigate or restore data.');
+  console.error('Stop further deployments and investigate using Supabase backups/PITR and game_deployment_snapshots.');
   process.exit(1);
 }
 
