@@ -5,116 +5,103 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
   <title>Minuto 106 — España vs. Argentina</title>
-  <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos, compite en el ranking y defiende a tu selección.">
-  <meta property="og:title" content="Minuto 106 — España vs. Argentina">
-  <meta property="og:description" content="¿Puedes detener el reloj exactamente en 10,600 segundos?">
+  <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos, reta a tus amigos y compite en miniligas.">
+  <meta property="og:title" content="Minuto 106 — ¿puedes clavar los 10,600 segundos?">
+  <meta property="og:description" content="Compite contra España, Argentina y tus amigos. Rankings, retos y miniligas de 3 días.">
+  <meta property="og:image" content="./assets/social-preview.svg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <p class="eyebrow">EL MINUTO 106 SIGUE EN JUEGO</p>
-      <h1>10.600</h1>
-      <p class="subtitle">Detén el reloj exactamente en 10,600 segundos. Tienes 5 intentos por nick.</p>
+    <section class="hero game-hero">
+      <img class="hero-trophy" src="./assets/trophy.svg" alt="Trofeo de fútbol">
+      <div><p class="eyebrow">EL MINUTO 106 SIGUE EN JUEGO</p><h1>10.600</h1><p class="subtitle">Detén el reloj exactamente en 10,600 segundos. Tienes 5 intentos por nick.</p></div>
+      <img class="hero-ball" src="./assets/football.svg" alt="Balón de fútbol">
+    </section>
+
+    <section class="how-to-play" aria-labelledby="howToTitle">
+      <div class="section-heading"><div><p class="eyebrow">CÓMO SE JUEGA</p><h2 id="howToTitle">Tres pasos. Una sola misión.</h2></div></div>
+      <div class="steps-grid">
+        <article><strong>1</strong><span>Elige España o Argentina y escribe tu nick.</span></article>
+        <article><strong>2</strong><span>Pulsa comenzar. El reloj desaparecerá al llegar a 2 segundos.</span></article>
+        <article><strong>3</strong><span>Pulsa PARAR cuando creas que han pasado exactamente 10,600 segundos.</span></article>
+      </div>
     </section>
 
     <div id="configWarning" class="config-warning" hidden>Falta configurar la URL pública de la Edge Function de Supabase.</div>
 
     <section class="battle-card" aria-label="Marcador global verificado">
-      <div class="team-score team-score--spain">
-        <div class="team-identity"><span class="flag flag--spain" aria-hidden="true"></span><span>España</span></div>
-        <strong id="spainScore">0</strong>
-      </div>
-      <div class="battle-center">
-        <div id="battleTrack" class="battle-track" role="meter" aria-label="Porcentaje de puntos de España" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-          <div id="battleFill" class="battle-fill"></div><span id="battlePercent">50% · 50%</span>
-        </div>
-        <small>puntos verificados</small>
-      </div>
-      <div class="team-score team-score--argentina">
-        <div class="team-identity"><span>Argentina</span><span class="flag flag--argentina" aria-hidden="true"></span></div>
-        <strong id="argentinaScore">0</strong>
-      </div>
+      <div class="team-score team-score--spain"><div class="team-identity"><span class="flag flag--spain" aria-hidden="true"></span><span>España</span></div><strong id="spainScore">0</strong></div>
+      <div class="battle-center"><div id="battleTrack" class="battle-track" role="meter" aria-label="Porcentaje de puntos de España" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><div id="battleFill" class="battle-fill"></div><span id="battlePercent">50% · 50%</span></div><small>puntos verificados</small></div>
+      <div class="team-score team-score--argentina"><div class="team-identity"><span>Argentina</span><span class="flag flag--argentina" aria-hidden="true"></span></div><strong id="argentinaScore">0</strong></div>
     </section>
 
-    <section class="stats-strip" aria-label="Estadísticas globales">
-      <div><strong id="globalPlayers">0</strong><span>jugadores</span></div>
-      <div><strong id="verifiedAttempts">0</strong><span>intentos validados</span></div>
-      <div><strong id="perfectAttempts">0</strong><span>tiempos perfectos</span></div>
+    <section class="stats-strip" aria-label="Estadísticas globales"><div><strong id="globalPlayers">0</strong><span>jugadores</span></div><div><strong id="verifiedAttempts">0</strong><span>intentos validados</span></div><div><strong id="perfectAttempts">0</strong><span>tiempos perfectos</span></div></section>
+
+    <section id="awardsCard" class="awards-card">
+      <div class="section-heading"><div><p class="eyebrow">PREMIOS DE HOY</p><h2>Los dueños del día</h2></div><span>Se actualizan en tiempo real</span></div>
+      <div class="awards-grid">
+        <article><span class="award-icon">⚽</span><small>Bota de Oro</small><strong id="goldenBoot">—</strong><p>Mejor marca del día</p></article>
+        <article><span class="award-icon">🧤</span><small>Guante de Oro</small><strong id="goldenGlove">—</strong><p>Mejor media con 3+ intentos</p></article>
+        <article><span class="award-icon">🏆</span><small>Balón de Oro</small><strong id="goldenBall">—</strong><p>Mayor actividad verificada</p></article>
+      </div>
     </section>
 
     <section class="game-card">
       <div id="setup" class="panel active">
-        <label for="nick">Tu nick</label>
-        <input id="nick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96">
-        <p id="nickStatus" class="hint">Cada nick dispone de 5 intentos.</p>
+        <label for="nick">Tu nick</label><input id="nick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"><p id="nickStatus" class="hint">Cada nick dispone de 5 intentos.</p>
         <p id="referralNotice" class="referral-notice" hidden>Has entrado desde una invitación. Completa 5 intentos válidos para dar un intento extra a quien te invitó.</p>
-
+        <p id="duelNotice" class="duel-notice" hidden></p>
+        <p id="leagueNotice" class="league-notice" hidden></p>
         <p class="label">Elige tu selección</p>
-        <div class="team-picker">
-          <button class="team-button" type="button" data-team="spain"><span class="flag flag--spain flag--large" aria-hidden="true"></span><span>España</span></button>
-          <button class="team-button" type="button" data-team="argentina"><span class="flag flag--argentina flag--large" aria-hidden="true"></span><span>Argentina</span></button>
-        </div>
+        <div class="team-picker"><button class="team-button" type="button" data-team="spain"><span class="flag flag--spain flag--large" aria-hidden="true"></span><span>España</span></button><button class="team-button" type="button" data-team="argentina"><span class="flag flag--argentina flag--large" aria-hidden="true"></span><span>Argentina</span></button></div>
         <div id="turnstileContainer" class="turnstile-container" hidden><div id="turnstileWidget"></div><p class="hint">Verificación anti-bots.</p></div>
         <button id="startButton" class="primary" type="button" disabled>Comenzar</button>
       </div>
 
       <div id="playing" class="panel">
         <p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p>
+        <div class="play-instruction"><strong>Tu objetivo:</strong> pulsa PARAR cuando creas que el reloj ha llegado a <b>10.600</b>.</div>
         <div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div>
-        <p class="hint timer-hint">A los 2 segundos el número se elimina por completo. Confía en tu intuición.</p>
+        <p class="hint timer-hint">El número desaparece a los 2 segundos, pero esta zona mantiene siempre la misma altura.</p>
         <p id="gameError" class="game-error" hidden></p>
-        <button id="stopButton" class="stop" type="button">PARAR</button>
+        <button id="stopButton" class="stop" type="button"><img src="./assets/football.svg" alt="" aria-hidden="true">PARAR</button>
       </div>
 
       <div id="result" class="panel">
-        <p class="result-label">Tu tiempo</p>
-        <div id="resultTime" class="result-time">10.600</div>
-        <p id="resultMessage" class="result-message"></p>
-        <div id="achievementBanner" class="achievement-banner" hidden></div>
-        <p id="verificationStatus" class="verification-status"></p>
-        <p id="attemptsLeft" class="attempts-left"></p>
-        <div class="actions">
-          <button id="retryButton" class="primary" type="button">Otro intento</button>
-          <button id="shareButton" class="secondary" type="button">Compartir resultado</button>
-          <button id="changeNickButton" class="ghost" type="button">Cambiar nick</button>
-        </div>
+        <p class="result-label">Tu tiempo</p><div id="resultTime" class="result-time">10.600</div><p id="resultMessage" class="result-message"></p><div id="achievementBanner" class="achievement-banner" hidden></div><p id="verificationStatus" class="verification-status"></p><p id="attemptsLeft" class="attempts-left"></p>
+        <div class="actions"><button id="retryButton" class="primary" type="button">Otro intento</button><button id="shareButton" class="secondary" type="button">Compartir resultado</button><button id="downloadCardButton" class="secondary" type="button">Descargar tarjeta</button><button id="createDuelButton" class="secondary" type="button">Retar a alguien</button><button id="changeNickButton" class="ghost" type="button">Cambiar nick</button></div>
       </div>
+    </section>
+
+    <section id="competitiveHub" class="competitive-hub">
+      <div class="section-heading"><div><p class="eyebrow">COMPITE CON LOS TUYOS</p><h2>Retos y miniligas</h2></div></div>
+      <div class="competitive-grid">
+        <article class="feature-card"><img src="./assets/football.svg" alt=""><div><h3>Reto directo</h3><p>Comparte tu marca. Si te superan, el rival gana 3 intentos. Si resistes, tú ganas 1.</p><button id="quickDuelButton" class="secondary compact" type="button">Crear reto</button></div></article>
+        <article class="feature-card"><img src="./assets/trophy.svg" alt=""><div><h3>Miniliga de 3 días</h3><p>Crea un torneo privado y comparte el código con tus amigos.</p><div class="inline-form"><input id="leagueName" maxlength="40" placeholder="Nombre de la liga"><button id="createLeagueButton" class="secondary compact" type="button">Crear</button></div><div class="inline-form"><input id="leagueCode" maxlength="6" placeholder="Código"><button id="joinLeagueButton" class="ghost compact" type="button">Unirme</button></div></div></article>
+      </div>
+      <section id="leaguePanel" class="league-panel" hidden><div class="section-heading"><div><p class="eyebrow">MINILIGA</p><h3 id="leagueTitle"></h3></div><span id="leagueEnds"></span></div><ol id="leagueLeaderboard" class="leaderboard"></ol></section>
     </section>
 
     <section id="profileCard" class="profile-card" hidden>
-      <div class="section-heading">
-        <div><p class="eyebrow">TU HISTÓRICO</p><h2 id="profileTitle">Resumen</h2></div>
-        <span id="profileAttempts">0 / 5</span>
-      </div>
-      <div class="profile-grid">
-        <div><span>Media</span><strong id="profileAverage">—</strong></div>
-        <div><span>Mejor</span><strong id="profileBest">—</strong></div>
-        <div><span>Puesto por media</span><strong id="profileAverageRank">—</strong></div>
-        <div><span>Puesto por mejor marca</span><strong id="profileBestRank">—</strong></div>
-      </div>
+      <div class="section-heading"><div><p class="eyebrow">TU HISTÓRICO</p><h2 id="profileTitle">Resumen</h2></div><span id="profileAttempts">0 / 5</span></div>
+      <div class="profile-grid"><div><span>Media</span><strong id="profileAverage">—</strong></div><div><span>Mejor</span><strong id="profileBest">—</strong></div><div><span>Puesto por media</span><strong id="profileAverageRank">—</strong></div><div><span>Puesto por mejor marca</span><strong id="profileBestRank">—</strong></div></div>
       <div id="profileSummary" class="profile-summary"></div>
-      <div class="referral-box">
-        <div><strong>Consigue intentos extra</strong><p>Por cada persona distinta que complete 5 intentos válidos desde tu enlace, recibes 1 intento adicional.</p></div>
-        <button id="copyReferralButton" class="secondary compact" type="button">Copiar invitación</button>
-      </div>
+      <div class="referral-box"><div><strong>Consigue intentos extra</strong><p>Por cada persona distinta que complete 5 intentos válidos desde tu enlace, recibes 1 intento adicional.</p></div><button id="copyReferralButton" class="secondary compact" type="button">Copiar invitación</button></div>
       <ol id="attemptHistory" class="attempt-history"></ol>
     </section>
 
-    <section class="leaderboard-card">
-      <div class="section-heading"><div><p class="eyebrow">TOP 10 VERIFICADO</p><h2>Los más precisos</h2></div><span id="totalAttempts">0 intentos</span></div>
-      <ol id="leaderboard" class="leaderboard"></ol>
-    </section>
+    <section class="leaderboard-card"><div class="section-heading"><div><p class="eyebrow">TOP 10 VERIFICADO</p><h2>Los más precisos</h2></div><span id="totalAttempts">0 intentos</span></div><p class="leaderboard-help">Pulsa sobre un jugador para consultar su histórico y estadísticas.</p><ol id="leaderboard" class="leaderboard clickable-leaderboard"></ol></section>
   </main>
 
-  <div id="celebration" class="celebration" hidden aria-live="polite">
-    <div class="celebration-glow"></div>
-    <div class="celebration-content"><span id="celebrationIcon">★</span><strong id="celebrationTitle"></strong><p id="celebrationText"></p></div>
-  </div>
+  <dialog id="profileDialog" class="profile-dialog"><button id="closeProfileDialog" class="dialog-close" type="button" aria-label="Cerrar">×</button><div id="publicProfileContent"></div></dialog>
+  <canvas id="shareCanvas" width="1200" height="630" hidden></canvas>
 
-  <script src="./config.js"></script>
-  <script type="module" src="./app.js"></script>
+  <div id="celebration" class="celebration" hidden aria-live="polite"><div id="confettiLayer" class="confetti-layer"></div><img id="celebrationBall" class="celebration-ball" src="./assets/football.svg" alt=""><div class="celebration-glow"></div><div class="celebration-content"><img class="celebration-trophy" src="./assets/trophy.svg" alt=""><span id="celebrationIcon">★</span><strong id="celebrationTitle"></strong><p id="celebrationText"></p></div></div>
+
+  <script src="./config.js"></script><script type="module" src="./app.js"></script>
 </body>
 </html>
