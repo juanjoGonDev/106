@@ -1,12 +1,13 @@
 {
   "name": "minuto-106",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build:config": "node scripts/generate-config.mjs",
-    "check": "node --check public/app.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs"
+    "check:migrations": "node scripts/check-production-migrations.mjs",
+    "check": "node --check public/app.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs"
   },
   "engines": {
     "node": ">=20"
