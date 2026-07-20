@@ -5,10 +5,34 @@ function readConsent() {
   try { return JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); } catch { return null; }
 }
 
+function ensurePrivacyChip() {
+  let chip = document.querySelector('#privacyChip');
+  if (chip) return chip;
+  chip = document.createElement('button');
+  chip.id = 'privacyChip';
+  chip.className = 'privacy-chip';
+  chip.type = 'button';
+  chip.textContent = 'Privacidad';
+  chip.addEventListener('click', openSettings);
+  document.body.append(chip);
+  return chip;
+}
+
+function closeConsentUi() {
+  const banner = document.querySelector('#cookieBanner');
+  if (banner) {
+    banner.hidden = true;
+    banner.setAttribute('aria-hidden', 'true');
+  }
+  document.querySelector('#cookieDialog')?.close();
+  ensurePrivacyChip().hidden = false;
+}
+
 function writeConsent(value) {
   const consent = { analytics: Boolean(value.analytics), ads: Boolean(value.ads), updatedAt: new Date().toISOString() };
   localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
   applyConsent(consent);
+  closeConsentUi();
   return consent;
 }
 
@@ -41,8 +65,6 @@ function loadAds() {
 function applyConsent(consent) {
   if (consent?.analytics) loadAnalytics();
   if (consent?.ads) loadAds();
-  const banner = document.querySelector('#cookieBanner');
-  if (banner) banner.hidden = true;
 }
 
 function openSettings() {
@@ -58,8 +80,15 @@ function openSettings() {
 document.addEventListener('DOMContentLoaded', () => {
   const existing = readConsent();
   const banner = document.querySelector('#cookieBanner');
-  if (existing) applyConsent(existing);
-  else if (banner) banner.hidden = false;
+  const chip = ensurePrivacyChip();
+  if (existing) {
+    applyConsent(existing);
+    if (banner) banner.hidden = true;
+    chip.hidden = false;
+  } else {
+    if (banner) banner.hidden = false;
+    chip.hidden = true;
+  }
 
   document.querySelector('#acceptCookies')?.addEventListener('click', () => writeConsent({ analytics: true, ads: true }));
   document.querySelector('#rejectCookies')?.addEventListener('click', () => writeConsent({ analytics: false, ads: false }));
@@ -71,6 +100,5 @@ document.addEventListener('DOMContentLoaded', () => {
       analytics: document.querySelector('#analyticsConsent')?.checked,
       ads: document.querySelector('#adsConsent')?.checked,
     });
-    document.querySelector('#cookieDialog')?.close();
   });
 });
