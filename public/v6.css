@@ -1,0 +1,6 @@
+:root{--desktop-center:820px;--desktop-rail:260px;--desktop-gap:22px}
+
+/* The hidden attribute must always win over component display rules. */
+[hidden],.cookie-banner[hidden],.privacy-chip[hidden]{display:none!important}
+
+.privacy-chip{position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #ffffff26;border-radius:999px;background:#111319e8;color:#d8dbe2;box-shadow:0 10
