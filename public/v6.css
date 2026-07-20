@@ -1,6 +1,20 @@
-:root{--desktop-center:820px;--desktop-rail:260px;--desktop-gap:22px}
-
-/* The hidden attribute must always win over component display rules. */
+:root{--center-column:760px;--side-column:240px;--desktop-gap:22px}
 [hidden],.cookie-banner[hidden],.privacy-chip[hidden]{display:none!important}
-
-.privacy-chip{position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #ffffff26;border-radius:999px;background:#111319e8;color:#d8dbe2;box-shadow:0 10
+.privacy-chip{position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border:1px solid #ffffff26;border-radius:999px;background:#111319e8;color:#d8dbe2;box-shadow:0 10px 34px #0009;font-size:.75rem;font-weight:800;cursor:pointer;backdrop-filter:blur(14px)}
+.privacy-chip:hover{border-color:#f4c95d70;color:#fff}
+@media(min-width:1320px){
+ html body main.shell{display:grid!important;grid-template-columns:var(--side-column) minmax(0,var(--center-column)) var(--side-column);grid-auto-flow:row;column-gap:var(--desktop-gap);align-items:start;width:calc((var(--side-column)*2) + var(--center-column) + (var(--desktop-gap)*2))!important;max-width:calc(100% - 32px)!important;margin-inline:auto!important;padding-top:28px!important}
+ main.shell>*{grid-column:2;min-width:0}
+ main.shell>.leaderboard-card{position:static!important;grid-column:1!important;grid-row:1 / span 8!important;align-self:start;width:auto!important;max-height:none!important;margin:0!important;padding:18px!important;overflow:visible!important;border-radius:20px!important}
+ main.shell>.awards-card{position:static!important;grid-column:3!important;grid-row:1!important;align-self:start;margin:0!important;padding:18px!important}
+ main.shell>.competitive-hub{position:static!important;grid-column:3!important;grid-row:2 / span 5!important;align-self:start;margin-top:16px!important;padding:18px!important}
+ .leaderboard-card .section-heading,.awards-card .section-heading,.competitive-hub .section-heading{align-items:flex-start;flex-direction:column;gap:6px}
+ .leaderboard-card .section-heading h2,.awards-card .section-heading h2,.competitive-hub .section-heading h2{font-size:1.15rem}
+ .leaderboard-card .leaderboard-help{font-size:.68rem;line-height:1.4}
+ .leaderboard-card .leaderboard{margin-top:12px;gap:6px}
+ .leaderboard-card .leaderboard li{grid-template-columns:24px minmax(0,1fr)!important;gap:7px!important;padding:9px!important}
+ .leaderboard-card .player{font-size:.78rem}.leaderboard-card .player small{font-size:.64rem}.leaderboard-card .difference{grid-column:2!important;font-size:.68rem!important}.leaderboard-card .empty{padding:16px 8px!important;font-size:.72rem}
+ .awards-grid{grid-template-columns:1fr!important;gap:8px!important;margin-top:12px!important}.awards-grid article{padding:12px!important;text-align:left!important}.award-icon{display:inline-block!important;margin-right:7px;font-size:1.25rem!important}.awards-grid small{display:inline!important;font-size:.62rem!important}.awards-grid strong{font-size:.86rem!important}.awards-grid p{font-size:.68rem!important}
+ .competitive-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:12px!important}.feature-card{padding:13px!important;gap:10px!important}.feature-card>img{width:38px!important;height:38px!important}.feature-card h3{font-size:.9rem}.feature-card p{font-size:.72rem}.inline-form{flex-direction:column}.inline-form button{width:100%}
+}
+@media(min-width:900px) and (max-width:1319px){html body main.shell{width:min(900px,calc(100% - 40px))!important;margin-inline:auto!important}}
