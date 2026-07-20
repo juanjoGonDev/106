@@ -4,51 +4,49 @@ Juego viral de precisión España vs. Argentina. El jugador elige selección, in
 
 ## Reglas
 
-- 5 intentos por nick normalizado.
+- 5 intentos base por nick normalizado.
 - Se permite volver a competir con otro nick.
+- Los referidos válidos conceden intentos adicionales.
 - El ranking conserva la mejor marca verificada de cada nick y selección.
-- El cronómetro se oculta tras 2 segundos.
-- Los intentos sospechosos no puntúan ni aparecen en el ranking.
+- Los intentos sospechosos se conservan para auditoría, pero no puntúan.
+- El cronómetro numérico desaparece completamente después de 2 segundos.
 
 ## Arquitectura
 
 ```text
-GitHub Pages (HTML/CSS/JS)
-          │
-          ▼
+GitHub Pages
+      │
+      ▼
 Supabase Edge Function: game-api
-          │ service role, solo en servidor
-          ▼
-PostgreSQL con RLS y RPC atómicas
+      │ service role, solo en servidor
+      ▼
+PostgreSQL + RLS + RPC atómicas
 ```
 
-El navegador no contiene claves secretas ni escribe directamente en PostgreSQL. La Edge Function crea un desafío antes de cada partida, registra su hora en el servidor y valida el tiempo real transcurrido al finalizar.
-
-## Seguridad anti-trampas
-
-La puntuación precisa se mide con `performance.now()` para no sumar la latencia de red, pero el servidor no confía ciegamente en ella:
-
-1. Emite un `challengeId` de un solo uso.
-2. Comprueba que realmente hayan transcurrido unos 10,6 segundos.
-3. Rechaza desafíos caducados, reutilizados o terminados desde otro dispositivo.
-4. Aplica los 5 intentos por nick dentro de una transacción con bloqueo.
-5. Limita ráfagas por dispositivo e IP.
-6. Excluye patrones repetidos casi perfectos.
-7. Admite Cloudflare Turnstile opcional.
-
-No existe una protección perfecta en un juego ejecutado en un navegador: un bot puede esperar 10,6 segundos reales. Esta arquitectura impide falsificar un resultado instantáneo, escribir directamente en la base de datos, reutilizar retos o extraer credenciales.
+El navegador no contiene secretos ni escribe directamente en PostgreSQL. Los tiempos, jugadores, perfiles, bonus y referencias se almacenan en tablas persistentes de Supabase.
 
 ## Desarrollo local
 
-Requiere Node.js 20 o posterior.
+Requiere Node.js 20 o posterior, Docker y Supabase CLI.
 
 ```bash
-npm run dev
+npm run check
+npx supabase start
+npx supabase db reset
+npx supabase functions serve game-api --no-verify-jwt --env-file supabase/functions/.env.local
+node --env-file=.env.local scripts/generate-config.mjs
+node --env-file=.env.local scripts/serve.mjs
 ```
 
-Abre `http://localhost:3000`. Para usar Supabase localmente, cambia temporalmente `public/config.js` y coloca únicamente la URL pública de la Edge Function. Nunca pongas allí `service_role`, secret keys, access tokens ni contraseñas.
+Abre `http://localhost:3000`.
 
-## Configuración de GitHub Actions
+Genera `HASH_PEPPER` en Windows, macOS o Linux sin depender de OpenSSL:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Variables y secretos de GitHub Actions
 
 En **Settings → Secrets and variables → Actions** configura:
 
@@ -65,40 +63,125 @@ En **Settings → Secrets and variables → Actions** configura:
 
 | Nombre | Uso |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | Despliegue mediante Supabase CLI |
-| `SUPABASE_DB_PASSWORD` | Aplicar migraciones |
-| `HASH_PEPPER` | Anonimizar IP y dispositivo |
+| `SUPABASE_ACCESS_TOKEN` | Autenticación de Supabase CLI |
+| `SUPABASE_DB_PASSWORD` | Aplicación de migraciones mediante Supabase CLI |
+| `SUPABASE_DB_URL` | Conexión PostgreSQL completa para snapshots y verificaciones |
+| `HASH_PEPPER` | Hash irreversible de IP y dispositivo |
 | `TURNSTILE_SECRET_KEY` | Clave privada opcional de Turnstile |
 
-Genera el pepper con:
+Obtén `SUPABASE_DB_URL` en Supabase Dashboard → **Connect**. Debe ser una cadena PostgreSQL apta para `psql`. Guárdala únicamente como secret.
+
+## Persistencia entre despliegues
+
+Los despliegues **no recrean la base de datos**. El workflow de producción usa `supabase db push`, que aplica únicamente migraciones pendientes registradas en `supabase_migrations.schema_migrations`.
+
+Nunca se ejecutan en producción:
 
 ```bash
-openssl rand -hex 32
+supabase db reset
+supabase stop --no-backup
 ```
+
+El workflow `.github/workflows/supabase.yml` realiza estas fases en orden:
+
+1. Bloquea despliegues simultáneos mediante `concurrency`.
+2. Analiza las migraciones nuevas y rechaza operaciones destructivas.
+3. Ejecuta `supabase db push --dry-run`.
+4. Captura contadores de histórico antes del despliegue.
+5. Registra una referencia previa en `game_deployment_snapshots` cuando la tabla ya existe.
+6. Aplica únicamente migraciones incrementales.
+7. Despliega la Edge Function.
+8. Captura los contadores posteriores.
+9. Falla si disminuyen intentos, jugadores, referencias o bonus.
+10. Registra el commit, workflow run, versión de migración y estadísticas posteriores.
+11. Publica un artefacto no sensible con los contadores durante 90 días.
+
+### Datos protegidos por la verificación
+
+Los siguientes contadores se consideran monotónicos y no pueden disminuir durante un despliegue normal:
+
+- Intentos totales.
+- Intentos verificados.
+- Jugadores.
+- Referencias creadas.
+- Referencias completadas.
+- Intentos bonus concedidos.
+
+La tabla `game_deployment_snapshots` permite relacionar el histórico con:
+
+- Commit desplegado.
+- ID de ejecución de GitHub Actions.
+- Fase previa o posterior.
+- Versión de migración.
+- Contadores agregados.
+- Fecha del despliegue.
+
+Consulta de auditoría:
+
+```sql
+select *
+from public.game_deployment_snapshots
+order by created_at desc;
+```
+
+## Política de migraciones
+
+Todas las evoluciones del esquema deben ser aditivas y compatibles con datos existentes:
+
+- Añadir tablas con `create table if not exists`.
+- Añadir columnas como nullable o con un default seguro.
+- Rellenar datos antiguos antes de imponer `not null`.
+- Crear nuevos índices sin borrar los anteriores hasta verificar producción.
+- Mantener funciones y contratos antiguos durante una transición.
+- Separar cambios complejos en expand → backfill → switch → contract.
+
+El guard rechaza automáticamente:
+
+- `DROP TABLE`.
+- `DROP SCHEMA`.
+- `TRUNCATE`.
+- `DELETE FROM`.
+- Eliminación de columnas o constraints.
+- `DROP FUNCTION`.
+- `DROP TYPE`.
+
+Una operación destructiva deliberada requiere revisión manual y esta marca dentro de la migración:
+
+```sql
+-- production-data-loss-approved: MOTIVO_O_TICKET
+```
+
+La marca no hace segura la operación; solo evita que el guard la bloquee después de una revisión explícita.
+
+## Backups y recuperación
+
+La protección del workflow detecta regresiones, pero no sustituye una copia de seguridad real. Activa en Supabase:
+
+- Backups diarios administrados.
+- Point-in-Time Recovery cuando el plan lo permita.
+- Retención adecuada antes de lanzar tráfico público.
+
+No se exporta la base completa a artefactos de GitHub porque contendría información operacional y aumentaría la superficie de exposición.
+
+Ante una regresión:
+
+1. Detén nuevos despliegues.
+2. Conserva el workflow run y sus snapshots.
+3. Revisa el commit y la migración aplicada.
+4. Consulta `game_deployment_snapshots`.
+5. Restaura desde Supabase Backup/PITR si hubo pérdida real.
+6. Crea una migración correctiva; no edites una migración ya aplicada.
 
 ## Despliegue
 
 Al hacer push o merge a `main`:
 
-- `pages.yml` genera la configuración pública y despliega `public/` en GitHub Pages.
-- `supabase.yml` aplica migraciones y despliega la Edge Function cuando cambia `supabase/**`.
-- `ci.yml` valida JavaScript y busca credenciales privadas expuestas accidentalmente en `public/`.
+- `pages.yml` genera la configuración pública y despliega GitHub Pages.
+- `supabase.yml` protege el histórico, aplica migraciones y despliega `game-api`.
+- `ci.yml` valida JavaScript y busca secretos expuestos accidentalmente en el frontend.
 
-En **Settings → Pages → Build and deployment**, selecciona **GitHub Actions** como fuente. Para GitHub Pages público, el repositorio deberá ser público o usar un plan que permita Pages en repositorios privados.
+En **Settings → Pages → Build and deployment**, selecciona **GitHub Actions** como fuente.
 
-## Protección de datos
+## Seguridad anti-trampas
 
-Las tablas `game_challenges` y `game_attempts` tienen RLS activado, no tienen políticas públicas y revocan el acceso a `anon` y `authenticated`. La Edge Function almacena hashes con pepper, no IP ni identificadores de dispositivo en texto claro.
-
-## Validación
-
-```bash
-npm run check
-```
-
-Para ejecutar Supabase localmente:
-
-```bash
-supabase start
-supabase functions serve game-api --no-verify-jwt
-```
+La puntuación precisa se mide con `performance.now()`, pero el servidor valida un desafío de un solo uso, tiempo real transcurrido, dispositivo, IP, interacción, límites y patrones sospechosos. Ningún juego ejecutado en un navegador puede impedir por completo que un atacante avanzado espere 10,6 segundos mediante automatización.
