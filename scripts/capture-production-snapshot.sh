@@ -48,6 +48,10 @@ players="$(count_table game_players)"
 referrals="$(count_table game_referrals)"
 completed_referrals="$(count_where game_referrals 'completed_at is not null')"
 bonus_attempts="$(sum_column game_player_bonus bonus_attempts)"
+duels="$(count_table game_duels)"
+completed_duels="$(count_where game_duels "status in ('won','lost')")"
+leagues="$(count_table game_leagues)"
+league_members="$(count_table game_league_members)"
 
 mkdir -p "$(dirname "$output_path")"
 jq -n \
@@ -58,7 +62,11 @@ jq -n \
   --argjson referrals "$referrals" \
   --argjson completedReferrals "$completed_referrals" \
   --argjson bonusAttempts "$bonus_attempts" \
-  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts}' \
+  --argjson duels "$duels" \
+  --argjson completedDuels "$completed_duels" \
+  --argjson leagues "$leagues" \
+  --argjson leagueMembers "$league_members" \
+  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts, duels: $duels, completedDuels: $completedDuels, leagues: $leagues, leagueMembers: $leagueMembers}' \
   > "$output_path"
 
 cat "$output_path"
