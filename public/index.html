@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#7a0019" />
+  <title>Minuto 106 — España vs Argentina</title>
+  <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos y defiende a tu selección." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">EL MINUTO 106 SIGUE EN JUEGO</p>
+      <h1>10.600</h1>
+      <p class="subtitle">Detén el reloj exactamente en 10,600 segundos. Tienes 5 intentos por nick.</p>
+    </section>
+
+    <section class="battle-card" aria-label="Marcador global">
+      <div class="team-score spain"><span>🇪🇸 España</span><strong id="spainScore">0</strong></div>
+      <div class="battle-track"><div id="battleFill" class="battle-fill"></div><span id="battlePercent">50 / 50</span></div>
+      <div class="team-score argentina"><strong id="argentinaScore">0</strong><span>Argentina 🇦🇷</span></div>
+    </section>
+
+    <section class="game-card">
+      <div id="setup" class="panel active">
+        <label for="nick">Tu nick</label>
+        <input id="nick" maxlength="24" autocomplete="nickname" placeholder="Ej. Juanjo96" />
+        <p id="nickStatus" class="hint">Cada nick dispone de 5 intentos.</p>
+
+        <p class="label">Elige tu selección</p>
+        <div class="team-picker">
+          <button class="team-button" data-team="spain">🇪🇸<span>España</span></button>
+          <button class="team-button" data-team="argentina">🇦🇷<span>Argentina</span></button>
+        </div>
+        <button id="startButton" class="primary" disabled>Comenzar</button>
+      </div>
+
+      <div id="playing" class="panel">
+        <p class="playing-for">Jugando por <strong id="playingTeam"></strong></p>
+        <div id="timer" class="timer">0.000</div>
+        <p id="timerHint" class="hint">El reloj se ocultará. Confía en tu intuición.</p>
+        <button id="stopButton" class="stop">PARAR</button>
+      </div>
+
+      <div id="result" class="panel">
+        <p class="result-label">Tu tiempo</p>
+        <div id="resultTime" class="result-time">10.600</div>
+        <p id="resultMessage" class="result-message"></p>
+        <p id="attemptsLeft" class="attempts-left"></p>
+        <div class="actions">
+          <button id="retryButton" class="primary">Otro intento</button>
+          <button id="shareButton" class="secondary">Compartir resultado</button>
+          <button id="changeNickButton" class="ghost">Cambiar nick</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="leaderboard-card">
+      <div class="section-heading"><div><p class="eyebrow">CLASIFICACIÓN</p><h2>Los más precisos</h2></div><span id="totalAttempts">0 intentos</span></div>
+      <ol id="leaderboard" class="leaderboard"></ol>
+    </section>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
