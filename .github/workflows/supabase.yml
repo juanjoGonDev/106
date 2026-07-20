@@ -8,6 +8,7 @@ on:
       - 'scripts/check-production-migrations.mjs'
       - 'scripts/capture-production-snapshot.sh'
       - 'scripts/compare-production-snapshots.mjs'
+      - 'scripts/record-deployment-snapshot.sql'
       - '.github/workflows/supabase.yml'
   workflow_dispatch:
 
@@ -81,15 +82,21 @@ jobs:
         shell: bash
         run: bash scripts/capture-production-snapshot.sh deployment/pre-deploy.json
 
-      - name: Apply additive database migrations
-        run: supabase db push --linked --yes
-
-      - name: Record pre-deployment reference in Supabase
+      - name: Record pre-deployment reference when available
         shell: bash
         run: |
-          psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
-            --set commit_sha="$GITHUB_SHA" --set run_id="$GITHUB_RUN_ID" \
-            -f scripts/record-deployment-snapshot.sql
+          set -euo pipefail
+          exists="$(psql "$SUPABASE_DB_URL" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 --command "select to_regclass('public.game_deployment_snapshots') is not null;" | tr -d '\r\n')"
+          if [ "$exists" = "t" ]; then
+            psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+              --set=commit_sha="$GITHUB_SHA" --set=run_id="$GITHUB_RUN_ID" --set=phase="pre" \
+              -f scripts/record-deployment-snapshot.sql
+          else
+            echo 'Deployment snapshot table is not installed yet; the pre-deployment JSON artifact remains available.'
+          fi
+
+      - name: Apply additive database migrations
+        run: supabase db push --linked --yes
 
       - name: Set Edge Function secrets
         shell: bash
@@ -112,11 +119,9 @@ jobs:
 
       - name: Record post-deployment reference in Supabase
         shell: bash
-        env:
-          DEPLOYMENT_PHASE: post
         run: |
           psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
-            --set commit_sha="$GITHUB_SHA" --set run_id="$GITHUB_RUN_ID" \
+            --set=commit_sha="$GITHUB_SHA" --set=run_id="$GITHUB_RUN_ID" --set=phase="post" \
             -f scripts/record-deployment-snapshot.sql
 
       - name: Upload non-sensitive integrity report
