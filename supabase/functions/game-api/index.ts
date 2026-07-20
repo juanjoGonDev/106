@@ -66,6 +66,25 @@ function normalizeTeam(value: unknown) {
   return value === 'spain' || value === 'argentina' ? value : null;
 }
 
+function normalizeReferralCode(value: unknown) {
+  const code = String(value ?? '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(code)
+    ? code
+    : null;
+}
+
+function normalizeSignals(value: unknown) {
+  if (!value || typeof value !== 'object') return {};
+  const input = value as Record<string, unknown>;
+  return {
+    trustedStart: input.trustedStart === true,
+    trustedFinish: input.trustedFinish === true,
+    timerConcealed: input.timerConcealed === true,
+    visibilityChanges: Math.max(0, Math.min(20, Number(input.visibilityChanges) || 0)),
+    focusLosses: Math.max(0, Math.min(20, Number(input.focusLosses) || 0)),
+  };
+}
+
 function clientIp(request: Request) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || request.headers.get('cf-connecting-ip')
@@ -101,7 +120,7 @@ function statusForError(error: string) {
 function messageForError(error: string) {
   const messages: Record<string, string> = {
     invalid_input: 'Datos de partida inválidos.',
-    nick_limit: 'Este nick ya ha agotado sus 5 intentos. Puedes competir de nuevo con otro nick.',
+    nick_limit: 'Este nick ya ha agotado todos sus intentos disponibles. Comparte tu enlace para conseguir uno extra.',
     rate_limit: 'Demasiados intentos seguidos. Espera un momento.',
     daily_limit: 'Este dispositivo ha alcanzado el límite diario de seguridad.',
     challenge_not_found: 'El reto no existe o ya no está disponible.',
@@ -132,7 +151,7 @@ Deno.serve(async (request) => {
   }
   if (request.method !== 'POST') return jsonResponse(origin, { error: 'Method not allowed.' }, 405);
   if (origin && !allowedOrigins.has(origin)) return jsonResponse(origin, { error: 'Origin not allowed.' }, 403);
-  if (Number(request.headers.get('content-length') ?? 0) > 8_192) {
+  if (Number(request.headers.get('content-length') ?? 0) > 12_288) {
     return jsonResponse(origin, { error: 'Request too large.' }, 413);
   }
 
@@ -142,11 +161,12 @@ Deno.serve(async (request) => {
 
     if (action === 'stats') return jsonResponse(origin, await rpc('get_game_stats'));
 
-    if (action === 'nick-status') {
+    if (action === 'nick-status' || action === 'profile') {
       const nick = normalizeNick(body.nick);
       if (nick.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
-      const status = await rpc('get_game_nick_status', { p_nick_key: nick.toLocaleLowerCase('es') });
-      return jsonResponse(origin, { nick, ...status });
+      return jsonResponse(origin, await rpc('get_game_player_profile', {
+        p_nick_key: nick.toLocaleLowerCase('es'),
+      }));
     }
 
     const deviceId = request.headers.get('x-device-id') ?? '';
@@ -173,9 +193,13 @@ Deno.serve(async (request) => {
         p_team: team,
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
+        p_referral_code: normalizeReferralCode(body.referralCode),
       });
       if (result.error) {
-        return jsonResponse(origin, { error: messageForError(result.error), attemptsLeft: result.attemptsLeft }, statusForError(result.error));
+        return jsonResponse(origin, {
+          error: messageForError(result.error),
+          attemptsLeft: result.attemptsLeft,
+        }, statusForError(result.error));
       }
       return jsonResponse(origin, result, 201);
     }
@@ -192,11 +216,32 @@ Deno.serve(async (request) => {
         p_client_elapsed_ms: clientElapsedMs,
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
+        p_client_signals: normalizeSignals(body.clientSignals),
       });
       if (result.error) {
-        return jsonResponse(origin, { error: messageForError(result.error), attemptsLeft: result.attemptsLeft }, statusForError(result.error));
+        return jsonResponse(origin, {
+          error: messageForError(result.error),
+          attemptsLeft: result.attemptsLeft,
+        }, statusForError(result.error));
       }
-      return jsonResponse(origin, { ...result, stats: await rpc('get_game_stats') }, 201);
+
+      const nickKey = normalizeNick(result.attempt?.nick).toLocaleLowerCase('es');
+      const [stats, profile] = await Promise.all([
+        rpc('get_game_stats'),
+        rpc('get_game_player_profile', { p_nick_key: nickKey }),
+      ]);
+      const topIndex = Array.isArray(stats.leaderboard)
+        ? stats.leaderboard.findIndex((entry: Record<string, unknown>) => entry.id === result.attempt?.id)
+        : -1;
+      const achievement = {
+        enteredTop10: result.attempt?.verified === true && Number(profile.globalRankBest) <= 10,
+        topPosition: topIndex >= 0 ? topIndex + 1 : Number(profile.globalRankBest) || null,
+        isWorldRecord: result.attempt?.verified === true
+          && Number(profile.globalRankBest) === 1
+          && Number(result.attempt?.differenceMs) === Number(profile.bestDifferenceMs),
+        completedSet: Number(profile.attemptsLeft) === 0,
+      };
+      return jsonResponse(origin, { ...result, stats, profile, achievement }, 201);
     }
 
     return jsonResponse(origin, { error: 'Acción desconocida.' }, 404);
