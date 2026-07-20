@@ -1,62 +1,109 @@
-:root{--content-max:860px;--sidebar-width:270px;--desktop-gap:40px}
+:root{--center-column:760px;--side-column:240px;--desktop-gap:22px}
 
-@media (min-width:1360px){
-  html body:has(.leaderboard-card) main.shell{
-    width:var(--content-max)!important;
-    margin-right:auto!important;
-    margin-left:calc(50% - 325px)!important;
-    padding-top:30px!important;
+[hidden],.cookie-banner[hidden],.privacy-chip[hidden]{display:none!important}
+
+.privacy-chip{position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border:1px solid #ffffff26;border-radius:999px;background:#111319e8;color:#d8dbe2;box-shadow:0 10px 34px #0009;font-size:.75rem;font-weight:800;cursor:pointer;backdrop-filter:blur(14px)}
+.privacy-chip:hover{border-color:#f4c95d70;color:#fff}
+
+/* Three equal visual zones keep the game mathematically centered. */
+@media (min-width:1320px){
+  html body main.shell{
+    display:grid!important;
+    grid-template-columns:var(--side-column) minmax(0,var(--center-column)) var(--side-column);
+    grid-auto-flow:row;
+    column-gap:var(--desktop-gap);
+    align-items:start;
+    width:calc((var(--side-column) * 2) + var(--center-column) + (var(--desktop-gap) * 2))!important;
+    max-width:calc(100% - 32px)!important;
+    margin-inline:auto!important;
+    padding-top:28px!important;
   }
-  html body:has(.leaderboard-card) main.shell>.leaderboard-card{
-    position:fixed!important;
-    top:70px!important;
-    left:max(24px,calc(50% - 650px))!important;
-    z-index:25!important;
-    width:var(--sidebar-width)!important;
-    max-height:calc(100vh - 96px)!important;
+
+  main.shell> *{grid-column:2;min-width:0}
+
+  main.shell>.leaderboard-card{
+    position:sticky!important;
+    top:68px!important;
+    grid-column:1!important;
+    grid-row:1 / span 20!important;
+    width:auto!important;
+    max-height:calc(100vh - 88px)!important;
     margin:0!important;
-    padding:20px!important;
+    padding:18px!important;
     overflow:auto!important;
     border-radius:20px!important;
   }
-  main.shell>.leaderboard-card .section-heading{align-items:flex-start!important;flex-direction:column!important;gap:6px!important}
-  main.shell>.leaderboard-card .section-heading h2{font-size:1.28rem}
-  main.shell>.leaderboard-card .leaderboard-help{margin-top:10px;font-size:.7rem;line-height:1.4}
-  main.shell>.leaderboard-card .leaderboard{margin-top:14px;gap:6px}
-  main.shell>.leaderboard-card .leaderboard li{grid-template-columns:25px minmax(0,1fr)!important;gap:7px!important;padding:10px!important}
-  main.shell>.leaderboard-card .player{font-size:.82rem}
-  main.shell>.leaderboard-card .player small{font-size:.67rem}
-  main.shell>.leaderboard-card .difference{grid-column:2!important;font-size:.7rem!important}
-  main.shell>.leaderboard-card .ranking-more{margin-top:12px}
-  main.shell>.leaderboard-card .empty{padding:18px 10px!important;font-size:.76rem}
+
+  main.shell>.awards-card{
+    position:sticky;
+    top:68px;
+    grid-column:3!important;
+    grid-row:1!important;
+    margin:0!important;
+    padding:18px!important;
+  }
+
+  main.shell>.competitive-hub{
+    grid-column:3!important;
+    grid-row:2 / span 6!important;
+    margin-top:16px!important;
+    padding:18px!important;
+  }
+
+  .leaderboard-card .section-heading,.awards-card .section-heading,.competitive-hub .section-heading{align-items:flex-start;flex-direction:column;gap:6px}
+  .leaderboard-card .section-heading h2,.awards-card .section-heading h2,.competitive-hub .section-heading h2{font-size:1.15rem}
+  .leaderboard-card .leaderboard-help{font-size:.68rem;line-height:1.4}
+  .leaderboard-card .leaderboard{margin-top:12px;gap:6px}
+  .leaderboard-card .leaderboard li{grid-template-columns:24px minmax(0,1fr)!important;gap:7px!important;padding:9px!important}
+  .leaderboard-card .player{font-size:.78rem}
+  .leaderboard-card .player small{font-size:.64rem}
+  .leaderboard-card .difference{grid-column:2!important;font-size:.68rem!important}
+  .leaderboard-card .empty{padding:16px 8px!important;font-size:.72rem}
+
+  .awards-grid{grid-template-columns:1fr!important;gap:8px!important;margin-top:12px!important}
+  .awards-grid article{padding:12px!important;text-align:left!important}
+  .award-icon{display:inline-block!important;margin-right:7px;font-size:1.25rem!important}
+  .awards-grid small{display:inline!important;font-size:.62rem!important}
+  .awards-grid strong{font-size:.86rem!important}
+  .awards-grid p{font-size:.68rem!important}
+
+  .competitive-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:12px!important}
+  .feature-card{padding:13px!important;gap:10px!important}
+  .feature-card>img{width:38px!important;height:38px!important}
+  .feature-card h3{font-size:.9rem}
+  .feature-card p{font-size:.72rem}
+  .inline-form{flex-direction:column}
+  .inline-form button{width:100%}
 }
 
-@media (min-width:1000px) and (max-width:1359px){
-  html body:has(.leaderboard-card) main.shell{width:min(900px,calc(100% - 48px))!important;margin-inline:auto!important}
-  html body:has(.leaderboard-card) main.shell>.leaderboard-card{position:static!important;width:auto!important;max-height:none!important;margin-top:16px!important}
+@media (min-width:900px) and (max-width:1319px){
+  html body main.shell{width:min(900px,calc(100% - 40px))!important;margin-inline:auto!important}
+  main.shell>.leaderboard-card{position:static!important;width:auto!important;max-height:none!important;margin-top:16px!important}
 }
 
-.game-hero{grid-template-columns:74px minmax(0,1fr) 74px;gap:20px;min-height:206px;padding:16px 10px 22px}
+.game-hero{grid-template-columns:68px minmax(0,1fr) 68px;gap:16px;min-height:190px;padding:12px 8px 20px}
 .game-hero>div{min-width:0}
-.game-hero h1{font-size:clamp(5rem,9.4vw,7.6rem);line-height:.88;letter-spacing:-.075em}
-.game-hero .subtitle{max-width:620px;margin:18px auto 0;font-size:1rem;line-height:1.45}
-.hero-trophy,.hero-ball{width:68px;height:94px;max-height:none;justify-self:center}
-.hero-ball{width:76px;height:76px}
-.how-to-play,.awards-card,.competitive-hub{padding:22px}
-.steps-grid{gap:12px}
-.steps-grid article{min-height:90px;padding:14px}
-.battle-card{padding:18px 22px}
-.stats-strip>div{padding:14px 10px}
+.game-hero h1{font-size:clamp(4.8rem,8.4vw,7rem);line-height:.88;letter-spacing:-.075em}
+.game-hero .subtitle{max-width:590px;margin:16px auto 0;font-size:.96rem;line-height:1.45}
+.hero-trophy{width:60px;height:84px;max-height:none;justify-self:center}
+.hero-ball{width:66px;height:66px;max-height:none;justify-self:center}
+.how-to-play,.awards-card,.competitive-hub{padding:20px}
+.steps-grid{gap:10px}
+.steps-grid article{min-height:86px;padding:13px}
+.battle-card{padding:17px 20px}
+.stats-strip>div{padding:13px 9px}
 
 @media (max-width:760px){
-  .game-hero{grid-template-columns:52px minmax(0,1fr) 52px;min-height:168px;gap:8px;padding-top:8px}
-  .game-hero h1{font-size:clamp(4.6rem,22vw,6.3rem)}
-  .game-hero .subtitle{margin-top:14px;font-size:.92rem}
-  .hero-trophy{width:48px;height:68px}
-  .hero-ball{width:52px;height:52px}
+  .game-hero{grid-template-columns:48px minmax(0,1fr) 48px;min-height:158px;gap:7px;padding-top:6px}
+  .game-hero h1{font-size:clamp(4.4rem,21vw,6rem)}
+  .game-hero .subtitle{margin-top:12px;font-size:.9rem}
+  .hero-trophy{width:44px;height:62px}
+  .hero-ball{width:48px;height:48px}
 }
+
 @media (max-width:500px){
-  .game-hero{display:block;min-height:0;padding:0 0 14px}
-  .game-hero h1{font-size:clamp(4.6rem,25vw,6rem)}
-  .game-hero .subtitle{max-width:360px}
+  .game-hero{display:block;min-height:0;padding:0 0 12px}
+  .game-hero h1{font-size:clamp(4.4rem,24vw,5.8rem)}
+  .game-hero .subtitle{max-width:350px}
+  .privacy-chip{right:8px;bottom:8px}
 }
