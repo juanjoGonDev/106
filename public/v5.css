@@ -1,18 +1,102 @@
-:root{--content-max:860px;--sidebar-width:270px;--desktop-gap:46px}
+:root{--content-max:860px;--sidebar-width:270px;--desktop-gap:40px}
 
-/* Desktop composition: the game remains the main visual focus. */
+/* Keep the game visually dominant on wide desktop layouts. */
 @media (min-width:1360px){
   body:has(.leaderboard-card) .shell{
     width:var(--content-max);
     margin-right:auto;
-    margin-left:calc(50% - 330px);
+    margin-left:calc(50% - 325px);
     padding-top:30px;
   }
 
   body:has(.leaderboard-card) .leaderboard-card{
     position:fixed;
-    top:68px;
-    left:calc(50% - 650px);
+    top:70px;
+    left:max(24px,calc(50% - 650px));
     z-index:25;
     width:var(--sidebar-width);
-    max-height:calc(100vh - 92px);
+    max-height:calc(100vh - 96px);
+    margin:0;
+    padding:20px;
+    overflow:auto;
+    border-radius:20px;
+  }
+
+  .leaderboard-card .section-heading{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  .leaderboard-card .section-heading h2{font-size:1.28rem}
+  .leaderboard-card .leaderboard-help{margin-top:10px;font-size:.7rem;line-height:1.4}
+  .leaderboard-card .leaderboard{margin-top:14px;gap:6px}
+  .leaderboard-card .leaderboard li{
+    grid-template-columns:25px minmax(0,1fr);
+    gap:7px;
+    padding:10px;
+  }
+  .leaderboard-card .player{font-size:.82rem}
+  .leaderboard-card .player small{font-size:.67rem}
+  .leaderboard-card .difference{grid-column:2;font-size:.7rem}
+  .leaderboard-card .ranking-more{margin-top:12px}
+}
+
+/* Intermediate desktop widths: no sidebar, preserve a centered game column. */
+@media (min-width:1000px) and (max-width:1359px){
+  body:has(.leaderboard-card) .shell{width:min(900px,calc(100% - 48px));margin-inline:auto}
+  body:has(.leaderboard-card) .leaderboard-card{position:static;width:auto;max-height:none;margin-top:16px}
+}
+
+/* Hero proportions and spacing. */
+.game-hero{
+  grid-template-columns:74px minmax(0,1fr) 74px;
+  gap:20px;
+  min-height:206px;
+  padding:16px 10px 22px;
+}
+.game-hero>div{min-width:0}
+.game-hero h1{
+  font-size:clamp(5rem,9.4vw,7.6rem);
+  line-height:.88;
+  letter-spacing:-.075em;
+}
+.game-hero .subtitle{
+  max-width:620px;
+  margin:18px auto 0;
+  font-size:1rem;
+  line-height:1.45;
+}
+.hero-trophy,.hero-ball{
+  width:68px;
+  height:94px;
+  max-height:none;
+  justify-self:center;
+}
+.hero-ball{width:76px;height:76px}
+
+.how-to-play,.awards-card,.competitive-hub{padding:22px}
+.steps-grid{gap:12px}
+.steps-grid article{min-height:90px;padding:14px}
+
+.battle-card{padding:18px 22px}
+.stats-strip>div{padding:14px 10px}
+
+/* Avoid oversized empty states inside the compact sidebar. */
+@media (min-width:1360px){
+  .leaderboard-card .empty{padding:18px 10px!important;font-size:.76rem}
+}
+
+@media (max-width:760px){
+  .game-hero{grid-template-columns:52px minmax(0,1fr) 52px;min-height:168px;gap:8px;padding-top:8px}
+  .game-hero h1{font-size:clamp(4.6rem,22vw,6.3rem)}
+  .game-hero .subtitle{margin-top:14px;font-size:.92rem}
+  .hero-trophy{width:48px;height:68px}
+  .hero-ball{width:52px;height:52px}
+}
+
+@media (max-width:500px){
+  .game-hero{display:block;min-height:0;padding:0 0 14px}
+  .game-hero h1{font-size:clamp(4.6rem,25vw,6rem)}
+  .game-hero .subtitle{max-width:360px}
+}
