@@ -1,0 +1,18 @@
+:root{--content-max:860px;--sidebar-width:270px;--desktop-gap:46px}
+
+/* Desktop composition: the game remains the main visual focus. */
+@media (min-width:1360px){
+  body:has(.leaderboard-card) .shell{
+    width:var(--content-max);
+    margin-right:auto;
+    margin-left:calc(50% - 330px);
+    padding-top:30px;
+  }
+
+  body:has(.leaderboard-card) .leaderboard-card{
+    position:fixed;
+    top:68px;
+    left:calc(50% - 650px);
+    z-index:25;
+    width:var(--sidebar-width);
+    max-height:calc(100vh - 92px);
