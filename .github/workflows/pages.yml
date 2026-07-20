@@ -25,6 +25,9 @@ jobs:
         env:
           SUPABASE_FUNCTIONS_URL: ${{ vars.SUPABASE_FUNCTIONS_URL }}
           TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          GOOGLE_ANALYTICS_ID: ${{ vars.GOOGLE_ANALYTICS_ID }}
+          ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT }}
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site
