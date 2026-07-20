@@ -1,0 +1,25 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run check
+      - name: Reject accidental frontend secrets
+        run: |
+          if grep -RInE 'SUPABASE_(SERVICE_ROLE|SECRET)_KEY|SUPABASE_ACCESS_TOKEN|SUPABASE_DB_PASSWORD|TURNSTILE_SECRET_KEY|HASH_PEPPER=' public; then
+            echo 'A private credential name or value was found in public assets.'
+            exit 1
+          fi
