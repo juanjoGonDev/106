@@ -26,12 +26,13 @@ if (!supabaseUrl || !serviceKey || !hashPepper) throw new Error('Missing require
 
 const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PLAYER_TOKEN = /^[a-f0-9]{64}$/i;
 
 function corsHeaders(origin: string | null) {
   const allowedOrigin = origin && allowedOrigins.has(origin) ? origin : [...allowedOrigins][0];
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'content-type, x-device-id',
+    'Access-Control-Allow-Headers': 'content-type, x-device-id, x-player-token',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -94,7 +95,7 @@ async function rpc(name: string, parameters = {}) {
 }
 
 function statusForError(error: string) {
-  if (['nick_limit', 'challenge_used', 'duel_closed'].includes(error)) return 409;
+  if (['nick_limit', 'challenge_used', 'duel_closed', 'player_access_denied'].includes(error)) return 409;
   if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit'].includes(error)) return 429;
   if (['challenge_not_found', 'duel_not_found', 'league_not_found'].includes(error)) return 404;
   return 400;
@@ -105,9 +106,11 @@ function messageForError(error: string) {
     rate_limit: 'Demasiadas acciones seguidas. Espera un momento.', daily_limit: 'Has alcanzado el límite diario de seguridad.',
     challenge_not_found: 'El intento no existe.', challenge_used: 'Este intento ya fue utilizado.', challenge_expired: 'El intento ha caducado.',
     device_mismatch: 'Debes terminar desde el mismo dispositivo.', invalid_timing: 'La duración no es válida.', timing_mismatch: 'El tiempo no coincide con el comprobado por el servidor.',
+    player_token_required: 'Este nick necesita una clave de jugador.', player_access_denied: 'La clave de jugador no es válida para este nick.',
+    player_claim_original_device: 'Este nick antiguo debe protegerse primero desde el dispositivo donde se creó.',
     no_verified_attempt: 'Necesitas al menos un intento válido para crear un reto.', duel_daily_limit: 'Has creado demasiados retos hoy.',
     duel_not_found: 'El reto no existe.', duel_closed: 'El reto ya terminó o caducó.', duel_self: 'No puedes aceptar tu propio reto.',
-    duel_incomplete: 'Completa al menos un intento válido desde que aceptaste el reto.', invalid_league_name: 'El nombre de la liga no es válido.',
+    duel_incomplete: 'Completa los 5 intentos válidos del reto antes de comprobarlo.', invalid_league_name: 'El nombre de la liga no es válido.',
     league_limit: 'Has creado demasiadas ligas esta semana.', league_not_found: 'La miniliga no existe.', league_finished: 'La miniliga ya terminó.',
   };
   return messages[error] ?? 'No se pudo completar la operación.';
@@ -115,6 +118,20 @@ function messageForError(error: string) {
 function safeResult(origin: string | null, result: Record<string, unknown>, status = 200) {
   if (result?.error) return jsonResponse(origin, { ...result, error: messageForError(String(result.error)) }, statusForError(String(result.error)));
   return jsonResponse(origin, result, status);
+}
+
+async function authorizePlayer(request: Request, nick: string, deviceHash: string, ipHash: string) {
+  const rawToken = request.headers.get('x-player-token')?.trim() ?? '';
+  if (!PLAYER_TOKEN.test(rawToken)) return { error: 'player_token_required' };
+  const tokenHash = await sha256(`player:${rawToken.toLowerCase()}`);
+  return await rpc('ensure_game_player_access', {
+    p_nick: nick,
+    p_nick_key: nick.toLocaleLowerCase('es'),
+    p_device_hash: deviceHash,
+    p_ip_hash: ipHash,
+    p_token_hash: tokenHash,
+    p_new_token_hash: tokenHash,
+  });
 }
 
 Deno.serve(async (request) => {
@@ -140,6 +157,11 @@ Deno.serve(async (request) => {
       if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
       return jsonResponse(origin, await rpc('get_game_player_profile', { p_nick_key: key }));
     }
+    if (action === 'access-status') {
+      const key = nickKey(body.nick);
+      if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
+      return jsonResponse(origin, await rpc('get_game_player_access_status', { p_nick_key: key }));
+    }
     if (action === 'league') {
       const code = normalizeLeagueCode(body.code);
       if (!code) return jsonResponse(origin, { error: 'Código de liga inválido.' }, 400);
@@ -154,11 +176,14 @@ Deno.serve(async (request) => {
     if (action === 'start') {
       const nick = normalizeNick(body.nick); const team = normalizeTeam(body.team);
       if (nick.length < 2 || !team) return jsonResponse(origin, { error: 'Nick o selección inválidos.' }, 400);
+      const access = await authorizePlayer(request, nick, deviceHash, ipHash);
+      if (access.error) return safeResult(origin, access);
       if (!(await verifyTurnstile(body.turnstileToken, ip))) return jsonResponse(origin, { error: 'No se pudo completar la verificación anti-bots.' }, 400);
-      return safeResult(origin, await rpc('start_game_challenge', {
+      const game = await rpc('start_game_challenge', {
         p_nick: nick, p_nick_key: nick.toLocaleLowerCase('es'), p_team: team,
         p_device_hash: deviceHash, p_ip_hash: ipHash, p_referral_code: normalizeUuid(body.referralCode),
-      }), 201);
+      });
+      return safeResult(origin, { ...game, playerAccessCreated: access.created === true || access.claimed === true }, 201);
     }
 
     if (action === 'finish') {
@@ -181,8 +206,11 @@ Deno.serve(async (request) => {
       return jsonResponse(origin, { ...result, stats, profile, achievement }, 201);
     }
 
-    const key = nickKey(body.nick);
+    const nick = normalizeNick(body.nick);
+    const key = nick.toLocaleLowerCase('es');
     if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
+    const access = await authorizePlayer(request, nick, deviceHash, ipHash);
+    if (access.error) return safeResult(origin, access);
 
     if (action === 'create-duel') return safeResult(origin, await rpc('create_game_duel', { p_nick_key: key, p_device_hash: deviceHash, p_ip_hash: ipHash }), 201);
     if (action === 'resolve-duel') {
