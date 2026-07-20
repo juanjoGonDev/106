@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#7a0019">
-  <title>Minuto 106 — España vs Argentina</title>
+  <meta name="theme-color" content="#08090c">
+  <title>Minuto 106 — España vs. Argentina</title>
   <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos y defiende a tu selección.">
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -18,47 +18,49 @@
 
     <div id="configWarning" class="config-warning" hidden>Falta configurar la URL pública de la Edge Function de Supabase.</div>
 
-    <section class="battle-card" aria-label="Marcador global">
-      <div class="team-score"><span>🇪🇸 España</span><strong id="spainScore">0</strong></div>
-      <div class="battle-track"><div id="battleFill" class="battle-fill"></div><span id="battlePercent">50 / 50</span></div>
-      <div class="team-score argentina"><strong id="argentinaScore">0</strong><span>Argentina 🇦🇷</span></div>
+    <section class="battle-card" aria-label="Marcador global verificado">
+      <div class="team-score team-score--spain">
+        <div class="team-identity"><span class="flag flag--spain" aria-hidden="true"></span><span>España</span></div>
+        <strong id="spainScore">0</strong>
+      </div>
+      <div class="battle-center">
+        <div id="battleTrack" class="battle-track" role="meter" aria-label="Porcentaje de puntos de España" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+          <div id="battleFill" class="battle-fill"></div><span id="battlePercent">50% · 50%</span>
+        </div>
+        <small>puntos verificados</small>
+      </div>
+      <div class="team-score team-score--argentina">
+        <div class="team-identity"><span>Argentina</span><span class="flag flag--argentina" aria-hidden="true"></span></div>
+        <strong id="argentinaScore">0</strong>
+      </div>
     </section>
 
     <section class="game-card">
       <div id="setup" class="panel active">
         <label for="nick">Tu nick</label>
-        <input id="nick" maxlength="24" autocomplete="nickname" placeholder="Ej. Juanjo96">
+        <input id="nick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96">
         <p id="nickStatus" class="hint">Cada nick dispone de 5 intentos.</p>
         <p class="label">Elige tu selección</p>
         <div class="team-picker">
-          <button class="team-button" data-team="spain">🇪🇸<span>España</span></button>
-          <button class="team-button" data-team="argentina">🇦🇷<span>Argentina</span></button>
+          <button class="team-button" type="button" data-team="spain"><span class="flag flag--spain flag--large" aria-hidden="true"></span><span>España</span></button>
+          <button class="team-button" type="button" data-team="argentina"><span class="flag flag--argentina flag--large" aria-hidden="true"></span><span>Argentina</span></button>
         </div>
-        <div id="turnstileContainer" class="turnstile-container" hidden>
-          <div id="turnstileWidget"></div>
-          <p class="hint">Verificación anti-bots.</p>
-        </div>
-        <button id="startButton" class="primary" disabled>Comenzar</button>
+        <div id="turnstileContainer" class="turnstile-container" hidden><div id="turnstileWidget"></div><p class="hint">Verificación anti-bots.</p></div>
+        <button id="startButton" class="primary" type="button" disabled>Comenzar</button>
       </div>
 
       <div id="playing" class="panel">
-        <p class="playing-for">Jugando por <strong id="playingTeam"></strong></p>
-        <div id="timer" class="timer">0.000</div>
-        <p class="hint">El reloj se ocultará. Confía en tu intuición.</p>
-        <button id="stopButton" class="stop">PARAR</button>
+        <p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p>
+        <div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div>
+        <p class="hint timer-hint">A los 2 segundos el número se elimina por completo. Confía en tu intuición.</p>
+        <p id="gameError" class="game-error" hidden></p>
+        <button id="stopButton" class="stop" type="button">PARAR</button>
       </div>
 
       <div id="result" class="panel">
-        <p class="result-label">Tu tiempo</p>
-        <div id="resultTime" class="result-time">10.600</div>
-        <p id="resultMessage" class="result-message"></p>
-        <p id="verificationStatus" class="verification-status"></p>
-        <p id="attemptsLeft" class="attempts-left"></p>
-        <div class="actions">
-          <button id="retryButton" class="primary">Otro intento</button>
-          <button id="shareButton" class="secondary">Compartir resultado</button>
-          <button id="changeNickButton" class="ghost">Cambiar nick</button>
-        </div>
+        <p class="result-label">Tu tiempo</p><div id="resultTime" class="result-time">10.600</div>
+        <p id="resultMessage" class="result-message"></p><p id="verificationStatus" class="verification-status"></p><p id="attemptsLeft" class="attempts-left"></p>
+        <div class="actions"><button id="retryButton" class="primary" type="button">Otro intento</button><button id="shareButton" class="secondary" type="button">Compartir resultado</button><button id="changeNickButton" class="ghost" type="button">Cambiar nick</button></div>
       </div>
     </section>
 
@@ -67,7 +69,6 @@
       <ol id="leaderboard" class="leaderboard"></ol>
     </section>
   </main>
-  <script src="./config.js"></script>
-  <script type="module" src="./app.js"></script>
+  <script src="./config.js"></script><script type="module" src="./app.js"></script>
 </body>
 </html>
