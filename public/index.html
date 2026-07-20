@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
   <title>Minuto 106 — España vs. Argentina</title>
-  <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos y defiende a tu selección.">
+  <meta name="description" content="Detén el tiempo exactamente en 10,600 segundos, compite en el ranking y defiende a tu selección.">
+  <meta property="og:title" content="Minuto 106 — España vs. Argentina">
+  <meta property="og:description" content="¿Puedes detener el reloj exactamente en 10,600 segundos?">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
 </head>
 <body>
   <main class="shell">
@@ -35,11 +39,19 @@
       </div>
     </section>
 
+    <section class="stats-strip" aria-label="Estadísticas globales">
+      <div><strong id="globalPlayers">0</strong><span>jugadores</span></div>
+      <div><strong id="verifiedAttempts">0</strong><span>intentos validados</span></div>
+      <div><strong id="perfectAttempts">0</strong><span>tiempos perfectos</span></div>
+    </section>
+
     <section class="game-card">
       <div id="setup" class="panel active">
         <label for="nick">Tu nick</label>
         <input id="nick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96">
         <p id="nickStatus" class="hint">Cada nick dispone de 5 intentos.</p>
+        <p id="referralNotice" class="referral-notice" hidden>Has entrado desde una invitación. Completa 5 intentos válidos para dar un intento extra a quien te invitó.</p>
+
         <p class="label">Elige tu selección</p>
         <div class="team-picker">
           <button class="team-button" type="button" data-team="spain"><span class="flag flag--spain flag--large" aria-hidden="true"></span><span>España</span></button>
@@ -58,17 +70,51 @@
       </div>
 
       <div id="result" class="panel">
-        <p class="result-label">Tu tiempo</p><div id="resultTime" class="result-time">10.600</div>
-        <p id="resultMessage" class="result-message"></p><p id="verificationStatus" class="verification-status"></p><p id="attemptsLeft" class="attempts-left"></p>
-        <div class="actions"><button id="retryButton" class="primary" type="button">Otro intento</button><button id="shareButton" class="secondary" type="button">Compartir resultado</button><button id="changeNickButton" class="ghost" type="button">Cambiar nick</button></div>
+        <p class="result-label">Tu tiempo</p>
+        <div id="resultTime" class="result-time">10.600</div>
+        <p id="resultMessage" class="result-message"></p>
+        <div id="achievementBanner" class="achievement-banner" hidden></div>
+        <p id="verificationStatus" class="verification-status"></p>
+        <p id="attemptsLeft" class="attempts-left"></p>
+        <div class="actions">
+          <button id="retryButton" class="primary" type="button">Otro intento</button>
+          <button id="shareButton" class="secondary" type="button">Compartir resultado</button>
+          <button id="changeNickButton" class="ghost" type="button">Cambiar nick</button>
+        </div>
       </div>
     </section>
 
+    <section id="profileCard" class="profile-card" hidden>
+      <div class="section-heading">
+        <div><p class="eyebrow">TU HISTÓRICO</p><h2 id="profileTitle">Resumen</h2></div>
+        <span id="profileAttempts">0 / 5</span>
+      </div>
+      <div class="profile-grid">
+        <div><span>Media</span><strong id="profileAverage">—</strong></div>
+        <div><span>Mejor</span><strong id="profileBest">—</strong></div>
+        <div><span>Puesto por media</span><strong id="profileAverageRank">—</strong></div>
+        <div><span>Puesto por mejor marca</span><strong id="profileBestRank">—</strong></div>
+      </div>
+      <div id="profileSummary" class="profile-summary"></div>
+      <div class="referral-box">
+        <div><strong>Consigue intentos extra</strong><p>Por cada persona distinta que complete 5 intentos válidos desde tu enlace, recibes 1 intento adicional.</p></div>
+        <button id="copyReferralButton" class="secondary compact" type="button">Copiar invitación</button>
+      </div>
+      <ol id="attemptHistory" class="attempt-history"></ol>
+    </section>
+
     <section class="leaderboard-card">
-      <div class="section-heading"><div><p class="eyebrow">CLASIFICACIÓN VERIFICADA</p><h2>Los más precisos</h2></div><span id="totalAttempts">0 intentos</span></div>
+      <div class="section-heading"><div><p class="eyebrow">TOP 10 VERIFICADO</p><h2>Los más precisos</h2></div><span id="totalAttempts">0 intentos</span></div>
       <ol id="leaderboard" class="leaderboard"></ol>
     </section>
   </main>
-  <script src="./config.js"></script><script type="module" src="./app.js"></script>
+
+  <div id="celebration" class="celebration" hidden aria-live="polite">
+    <div class="celebration-glow"></div>
+    <div class="celebration-content"><span id="celebrationIcon">★</span><strong id="celebrationTitle"></strong><p id="celebrationText"></p></div>
+  </div>
+
+  <script src="./config.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
