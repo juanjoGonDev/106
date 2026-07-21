@@ -156,7 +156,7 @@
     document.body.classList.add('human-check-open');
 
     let completedCount = 0;
-    let startedAt = performance.now();
+    const startedAt = performance.now();
     let wrongUntil = 0;
     let resizeFrame = 0;
     drawScene(canvas, balls, completedCount);
@@ -174,9 +174,11 @@
     window.addEventListener('resize', onResize);
 
     return new Promise((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error('La verificación visual ha caducado.')), Math.max(1_000, new Date(expiresAt).getTime() - Date.now()));
+      let timer = 0;
       const clicks = [];
-
+      const onKeyDown = (event) => {
+        if (event.key === 'Escape') fail(new Error('Verificación visual cancelada.'));
+      };
       const cleanup = () => {
         window.clearTimeout(timer);
         window.removeEventListener('resize', onResize);
@@ -188,9 +190,11 @@
         cleanup();
         reject(error);
       };
-      const onKeyDown = (event) => {
-        if (event.key === 'Escape') fail(new Error('Verificación visual cancelada.'));
-      };
+
+      timer = window.setTimeout(
+        () => fail(new Error('La verificación visual ha caducado.')),
+        Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
+      );
       document.addEventListener('keydown', onKeyDown);
       cancel.addEventListener('click', () => fail(new Error('Verificación visual cancelada.')));
 
