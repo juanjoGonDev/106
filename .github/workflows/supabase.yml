@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/**'
       - 'scripts/check-production-migrations.mjs'
+      - 'scripts/check-snapshot-db.mjs'
       - 'scripts/build-allowed-origins.mjs'
       - 'scripts/capture-production-snapshot.sh'
       - 'scripts/compare-production-snapshots.mjs'
@@ -73,15 +74,6 @@ jobs:
             echo '::warning::ALLOWED_ORIGINS contains a wildcard. It is ignored and will not be deployed.'
           fi
 
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo '::warning::SUPABASE_DB_URL is not configured. Migrations and the Edge Function will deploy, but pre/post integrity snapshots will be skipped.'
-            {
-              echo '### Supabase integrity snapshot mode'
-              echo ''
-              echo '⚠️ `SUPABASE_DB_URL` is not configured. Database migrations remain protected by the migration guard and dry-run, but pre/post count snapshots are skipped for this run.'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
       - name: Guard against destructive migrations
         shell: bash
         env:
@@ -112,13 +104,48 @@ jobs:
       - name: Preview pending migrations
         run: supabase db push --linked --dry-run
 
+      - name: Probe snapshot database connectivity
+        id: snapshot_database
+        shell: bash
+        run: node scripts/check-snapshot-db.mjs >> "$GITHUB_OUTPUT"
+
+      - name: Report snapshot safety mode
+        if: always()
+        shell: bash
+        env:
+          SNAPSHOT_ENABLED: ${{ steps.snapshot_database.outputs.enabled }}
+          SNAPSHOT_REASON: ${{ steps.snapshot_database.outputs.reason }}
+          SNAPSHOT_DIRECT: ${{ steps.snapshot_database.outputs.direct }}
+        run: |
+          set -euo pipefail
+          if [ "$SNAPSHOT_ENABLED" = 'true' ]; then
+            {
+              echo '### Supabase integrity snapshot mode'
+              echo ''
+              echo '✅ Direct pre/post deployment snapshots are enabled.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo '### Supabase integrity snapshot mode'
+            echo ''
+            echo "⚠️ Direct snapshots are disabled for this run: ${SNAPSHOT_REASON:-probe-failed}."
+            echo ''
+            echo 'Migration guards, linked dry-run, incremental migrations and Edge Function deployment remain enabled.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$SNAPSHOT_DIRECT" = 'true' ]; then
+            echo '::warning::Replace the direct db.<project>.supabase.co URL with the Supabase Session pooler URI on port 5432 to restore snapshots on GitHub-hosted runners.'
+          fi
+
       - name: Capture pre-deployment history counters
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}
         shell: bash
         run: bash scripts/capture-production-snapshot.sh deployment/pre-deploy.json
 
       - name: Record pre-deployment reference when available
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -154,16 +181,16 @@ jobs:
         run: supabase functions deploy game-api --project-ref "$PROJECT_ID"
 
       - name: Capture post-deployment history counters
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}
         shell: bash
         run: bash scripts/capture-production-snapshot.sh deployment/post-deploy.json
 
       - name: Verify historical data was preserved
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}
         run: node scripts/compare-production-snapshots.mjs deployment/pre-deploy.json deployment/post-deploy.json
 
       - name: Record post-deployment reference in Supabase
-        if: ${{ env.SUPABASE_DB_URL != '' }}
+        if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}
         shell: bash
         run: |
           psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
