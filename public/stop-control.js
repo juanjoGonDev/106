@@ -1,25 +1,22 @@
 (() => {
   const TAGS = ['div', 'section', 'aside', 'figure'];
-  const PRESS_LABELS = ['PARA', 'CLAVA', 'REMATA', 'DISPARA'];
-  const RELEASE_LABELS = ['MANTÉN · SUELTA', 'PRESIONA · LIBERA', 'CARGA · SUELTA'];
+  const LABELS = ['PARA', 'CLAVA', 'REMATA', 'DISPARA'];
 
   function seedNumber(value) {
-    return Array.from(String(value || '')).reduce((total, character) => ((total * 33) ^ character.charCodeAt(0)) >>> 0, 106);
+    return Array.from(String(value || '')).reduce(
+      (total, character) => ((total * 33) ^ character.charCodeAt(0)) >>> 0,
+      106,
+    );
   }
 
   function normalizeInteraction(input = {}) {
-    const mode = input.mode === 'release' ? 'release' : 'press';
     const nonce = String(input.nonce || '');
     const seed = seedNumber(nonce);
-    const keyboardKey = input.keyboardKey === 'Enter' ? 'Enter' : ' ';
     return {
-      mode,
+      mode: 'press',
       nonce,
-      keyboardKey,
       xPercent: Math.max(28, Math.min(72, Number(input.xPercent) || 50)),
       yPercent: Math.max(30, Math.min(70, Number(input.yPercent) || 50)),
-      minHoldMs: mode === 'release' ? Math.max(100, Number(input.minHoldMs) || 160) : 0,
-      maxHoldMs: mode === 'release' ? Math.max(500, Number(input.maxHoldMs) || 900) : 0,
       variant: Number(input.variant ?? seed % 8) % 8,
       seed,
     };
@@ -34,7 +31,7 @@
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     const context = canvas.getContext('2d');
-    context.scale(ratio, ratio);
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
     const gradients = [
       ['#f4c95d', '#d89b22'],
@@ -58,14 +55,9 @@
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.font = '900 19px system-ui, sans-serif';
-    const labels = interaction.mode === 'release' ? RELEASE_LABELS : PRESS_LABELS;
-    context.fillText(labels[interaction.variant % labels.length], width / 2, 34);
+    context.fillText(LABELS[interaction.variant % LABELS.length], width / 2, 34);
     context.font = '700 11px system-ui, sans-serif';
-    const keyLabel = interaction.keyboardKey === 'Enter' ? 'ENTER' : 'ESPACIO';
-    const detail = interaction.mode === 'release'
-      ? `${interaction.minHoldMs}–${interaction.maxHoldMs} ms · ${keyLabel}`
-      : `UNA PULSACIÓN · ${keyLabel}`;
-    context.fillText(detail, width / 2, 59);
+    context.fillText('PULSA UNA VEZ', width / 2, 59);
   }
 
   function percent(value, start, size) {
@@ -73,21 +65,29 @@
     return Math.max(0, Math.min(100, ((value - start) / size) * 100));
   }
 
+  function updateInstruction() {
+    const instruction = document.querySelector('#playInstruction');
+    if (!instruction) return;
+    instruction.replaceChildren();
+    const strong = document.createElement('strong');
+    strong.textContent = 'Acción de este intento: ';
+    instruction.append(
+      strong,
+      document.createTextNode('pulsa una vez el control visual con ratón, lápiz o pantalla táctil cuando creas que llegas a 10.600.'),
+    );
+  }
+
   function create({ container, interaction: rawInteraction, getElapsedMs, onFinish, onInvalid }) {
     if (!(container instanceof Element)) throw new Error('El contenedor del control final no existe.');
     const interaction = normalizeInteraction(rawInteraction);
     const host = document.createElement(TAGS[interaction.seed % TAGS.length]);
-    host.tabIndex = 0;
-    host.setAttribute('role', 'button');
-    host.setAttribute('aria-label', `Control final ${interaction.nonce.slice(-6)}. ${interaction.mode === 'release' ? 'Mantén y suelta' : 'Pulsa'} para detener.`);
     host.setAttribute(`data-${interaction.nonce.slice(0, 8).replace(/[^a-z0-9]/gi, 'x').toLowerCase()}`, '');
     Object.assign(host.style, {
       display: 'block',
       position: 'relative',
       width: '100%',
-      minHeight: '132px',
+      minHeight: '150px',
       marginTop: '14px',
-      outline: 'none',
       userSelect: 'none',
       WebkitUserSelect: 'none',
       touchAction: 'none',
@@ -95,7 +95,7 @@
 
     const shadow = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
-    style.textContent = ':host{contain:layout style}.pad{position:absolute;width:230px;height:84px;transform:translate(-50%,-50%);cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:translate(-50%,-50%) scale(.97)}canvas{display:block;pointer-events:none}';
+    style.textContent = ':host{contain:layout style}.pad{position:absolute;width:min(230px,78vw);height:84px;transform:translate(-50%,-50%);cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease;touch-action:none;user-select:none}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:translate(-50%,-50%) scale(.97)}canvas{display:block;width:100%!important;height:84px!important;pointer-events:none}';
     const pad = document.createElement('div');
     pad.style.left = `${interaction.xPercent}%`;
     pad.style.top = `${interaction.yPercent}%`;
@@ -104,12 +104,11 @@
     pad.append(canvas);
     shadow.append(style, pad);
     drawControl(canvas, interaction);
+    updateInstruction();
 
     let disabled = false;
     let completed = false;
     let enteredAt = 0;
-    let downAt = 0;
-    let downPointerId = null;
     let moveCount = 0;
     let travel = 0;
     let lastPoint = null;
@@ -123,29 +122,29 @@
       };
     }
 
-    function finish(event, finishEvent, extra = {}) {
+    function finish(event) {
       if (disabled || completed || event.isTrusted !== true) return;
+      if (!['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
       completed = true;
       disabled = true;
       drawControl(canvas, interaction, false, true);
-      const point = 'clientX' in event ? coordinates(event) : { x: interaction.xPercent, y: interaction.yPercent };
+      const point = coordinates(event);
       const signal = {
-        interactionMode: interaction.mode,
+        interactionMode: 'press',
         controlNonce: interaction.nonce,
-        finishEvent,
-        pointerTrusted: event.isTrusted === true,
+        finishEvent: 'pointerdown',
+        pointerTrusted: true,
         userActivation: navigator.userActivation?.isActive === true,
         automationDetected: navigator.webdriver === true,
-        pointerType: String(event.pointerType || (finishEvent === 'keydown' ? 'keyboard' : 'unknown')).slice(0, 16),
+        pointerType: event.pointerType,
         pointerXPercent: Number(point.x.toFixed(2)),
         pointerYPercent: Number(point.y.toFixed(2)),
         pointerMoveCount: Math.min(500, moveCount),
         pointerTravelPx: Math.min(5000, Math.round(travel)),
         pointerDwellMs: enteredAt ? Math.min(30_000, Math.round(performance.now() - enteredAt)) : 0,
         pressureMax: Number(maxPressure.toFixed(3)),
-        holdDurationMs: extra.holdDurationMs || 0,
-        samePointer: extra.samePointer !== false,
-        keyboardKey: finishEvent === 'keydown' ? String(event.key || '') : '',
+        holdDurationMs: 0,
+        samePointer: true,
         clientElapsedMs: Math.round(Number(getElapsedMs?.()) || 0),
       };
       Promise.resolve(onFinish?.(signal)).catch((error) => onInvalid?.(error));
@@ -158,44 +157,21 @@
       if (lastPoint) travel += Math.hypot(event.clientX - lastPoint.x, event.clientY - lastPoint.y);
       lastPoint = { x: event.clientX, y: event.clientY };
     });
-    host.addEventListener('pointerdown', (event) => {
+    pad.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       if (disabled || completed || event.isTrusted !== true) return;
-      downAt = performance.now();
-      downPointerId = event.pointerId;
       maxPressure = Math.max(maxPressure, Number(event.pressure) || 0);
-      host.setPointerCapture?.(event.pointerId);
       drawControl(canvas, interaction, true, false);
-      if (interaction.mode === 'press') finish(event, 'pointerdown');
-    });
-    host.addEventListener('pointerup', (event) => {
-      event.preventDefault();
-      if (interaction.mode !== 'release' || disabled || completed) return;
-      finish(event, 'pointerup', {
-        holdDurationMs: Math.round(performance.now() - downAt),
-        samePointer: downPointerId === event.pointerId,
-      });
-    });
-    host.addEventListener('pointercancel', () => {
-      downAt = 0;
-      downPointerId = null;
-      drawControl(canvas, interaction);
-    });
-    host.addEventListener('keydown', (event) => {
-      const matches = interaction.keyboardKey === 'Enter' ? event.key === 'Enter' : event.key === ' ';
-      if (!matches || event.repeat) return;
-      event.preventDefault();
-      finish(event, 'keydown');
-    });
+      finish(event);
+    }, { passive: false });
 
     container.append(host);
-    requestAnimationFrame(() => host.focus({ preventScroll: true }));
 
     return {
       destroy() { host.remove(); },
       setDisabled(value) {
         disabled = Boolean(value);
-        host.tabIndex = disabled ? -1 : 0;
+        pad.style.pointerEvents = disabled ? 'none' : 'auto';
         drawControl(canvas, interaction, false, disabled);
       },
       interaction,
