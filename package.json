@@ -1,15 +1,28 @@
 {
   "name": "minuto-106",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build:config": "node scripts/generate-config.mjs",
     "check:migrations": "node scripts/check-production-migrations.mjs",
-    "check": "node --check public/app.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/compliance.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs"
+    "lint": "eslint . --max-warnings=0",
+    "knip": "knip",
+    "test": "vitest run",
+    "test:security": "vitest run tests/security",
+    "check:syntax": "node --check public/app.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/compliance.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs",
+    "check": "npm run check:syntax && npm run lint && npm run knip && npm test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.7.0",
+    "eslint-plugin-security": "4.0.1",
+    "globals": "17.7.0",
+    "knip": "6.25.0",
+    "vitest": "4.1.10"
   }
 }
