@@ -127,7 +127,8 @@ async function rpc(name: string, parameters = {}) {
   return data;
 }
 function statusForError(error: string) {
-  if (['nick_limit', 'challenge_used', 'duel_closed', 'player_access_denied'].includes(error)) return 409;
+  if (['nick_limit', 'challenge_used', 'duel_closed'].includes(error)) return 409;
+  if (['player_access_denied', 'league_membership_required'].includes(error)) return 403;
   if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit'].includes(error)) return 429;
   if (['challenge_not_found', 'duel_not_found', 'league_not_found'].includes(error)) return 404;
   return 400;
@@ -135,7 +136,7 @@ function statusForError(error: string) {
 function messageForError(error: string) {
   const messages: Record<string, string> = {
     invalid_input: 'Datos inválidos.',
-    nick_limit: 'Este nick ya ha agotado sus intentos disponibles.',
+    nick_limit: 'Has agotado los intentos disponibles en esta competición.',
     rate_limit: 'Demasiadas acciones seguidas. Espera un momento.',
     daily_limit: 'Has alcanzado el límite diario de seguridad.',
     challenge_not_found: 'El intento no existe.',
@@ -147,16 +148,17 @@ function messageForError(error: string) {
     account_token_required: 'Necesitas la clave privada de tu cuenta.',
     player_access_denied: 'Este nick pertenece a otra cuenta o la clave no es válida.',
     player_claim_original_device: 'Este nick antiguo debe vincularse primero desde su dispositivo original.',
-    no_verified_attempt: 'Necesitas al menos un intento válido para crear un reto.',
+    no_verified_attempt: 'Necesitas al menos un intento global válido para crear un reto.',
     duel_daily_limit: 'Has creado demasiados retos hoy.',
     duel_not_found: 'El reto no existe.',
     duel_closed: 'El reto ya terminó o caducó.',
     duel_self: 'No puedes aceptar tu propio reto.',
-    duel_incomplete: 'Completa los 5 intentos válidos del reto antes de comprobarlo.',
+    duel_incomplete: 'Completa los 5 intentos globales válidos del reto antes de comprobarlo.',
     invalid_league_name: 'El nombre de la liga no es válido.',
     league_limit: 'Has creado demasiadas ligas esta semana.',
     league_not_found: 'La miniliga no existe.',
     league_finished: 'La miniliga ya terminó.',
+    league_membership_required: 'Este nick no pertenece a la miniliga. Únete desde la vista Miniligas.',
   };
   return messages[error] ?? 'No se pudo completar la operación.';
 }
@@ -256,6 +258,9 @@ Deno.serve(async (request) => {
     if (action === 'start' || action === 'link-account-player') {
       const nick = normalizeNick(body.nick);
       const team = action === 'start' ? normalizeTeam(body.team) : null;
+      const requestedLeagueCode = String(body.leagueCode ?? '').trim();
+      const leagueCode = requestedLeagueCode ? normalizeLeagueCode(requestedLeagueCode) : null;
+      if (requestedLeagueCode && !leagueCode) return jsonResponse(origin, { error: 'Código de liga inválido.' }, 400);
       if (nick.length < 2 || (action === 'start' && !team)) {
         return jsonResponse(origin, { error: 'Nick o selección inválidos.' }, 400);
       }
@@ -275,6 +280,7 @@ Deno.serve(async (request) => {
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
         p_referral_code: normalizeUuid(body.referralCode),
+        p_league_code: leagueCode,
       });
       return safeResult(origin, {
         ...game,
@@ -297,22 +303,32 @@ Deno.serve(async (request) => {
       });
       if (result.error) return safeResult(origin, result);
       const key = nickKey(result.attempt?.nick);
-      const [stats, profile] = await Promise.all([
+      const leagueCode = normalizeLeagueCode(result.competition?.code);
+      const [stats, profile, league] = await Promise.all([
         rpc('get_game_stats'),
         rpc('get_game_player_profile', { p_nick_key: key }),
+        leagueCode ? rpc('get_game_league', { p_code: leagueCode }) : Promise.resolve(null),
       ]);
-      const topIndex = Array.isArray(stats.leaderboard)
+      const isGlobal = result.competition?.type !== 'league';
+      const topIndex = isGlobal && Array.isArray(stats.leaderboard)
         ? stats.leaderboard.findIndex((entry: Record<string, unknown>) => entry.id === result.attempt?.id)
         : -1;
+      const leagueEntry = !isGlobal && Array.isArray(league?.leaderboard)
+        ? league.leaderboard.find((entry: Record<string, unknown>) => nickKey(entry.nick) === key)
+        : null;
+      const leagueRank = Number(leagueEntry?.rank) || null;
       const achievement = {
-        enteredTop10: result.attempt?.verified === true && Number(profile.globalRankBest) <= 10,
-        topPosition: topIndex >= 0 ? topIndex + 1 : Number(profile.globalRankBest) || null,
-        isWorldRecord: result.attempt?.verified === true
+        enteredTop10: isGlobal && result.attempt?.verified === true && Number(profile.globalRankBest) <= 10,
+        topPosition: isGlobal ? (topIndex >= 0 ? topIndex + 1 : Number(profile.globalRankBest) || null) : null,
+        isWorldRecord: isGlobal
+          && result.attempt?.verified === true
           && Number(profile.globalRankBest) === 1
           && Number(result.attempt?.differenceMs) === Number(profile.bestDifferenceMs),
-        completedSet: Number(profile.attemptsLeft) === 0,
+        leagueRank,
+        isLeagueLeader: !isGlobal && result.attempt?.verified === true && leagueRank === 1,
+        completedSet: Number(result.attemptsLeft) === 0,
       };
-      return jsonResponse(origin, { ...result, stats, profile, achievement }, 201);
+      return jsonResponse(origin, { ...result, stats, profile, league, achievement }, 201);
     }
 
     const nick = normalizeNick(body.nick);
@@ -323,6 +339,17 @@ Deno.serve(async (request) => {
     const access = await authorizePlayer(request, nick, deviceHash, ipHash);
     if (access.error) return safeResult(origin, access);
 
+    if (action === 'player-leagues') {
+      return jsonResponse(origin, await rpc('get_game_player_leagues', { p_nick_key: key }));
+    }
+    if (action === 'league-status') {
+      const code = normalizeLeagueCode(body.code);
+      if (!code) return jsonResponse(origin, { error: 'Código de liga inválido.' }, 400);
+      return safeResult(origin, await rpc('get_game_league_player_status', {
+        p_code: code,
+        p_nick_key: key,
+      }));
+    }
     if (action === 'create-duel') {
       return safeResult(origin, await rpc('create_game_duel', {
         p_nick_key: key,
