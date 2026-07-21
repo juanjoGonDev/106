@@ -21,6 +21,16 @@ function repositoryPagesUrl(repository, owner) {
     : `https://${normalizedOwner}.github.io/${repositoryName}`;
 }
 
+function validHttpsUrl(value, expectedPath = null) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && (!expectedPath || url.pathname.replace(/\/$/, '') === expectedPath);
+  } catch {
+    return false;
+  }
+}
+
 export function buildRuntimeConfig(environment = process.env) {
   const explicitApiUrl = normalizedUrl(environment.SUPABASE_FUNCTIONS_URL);
   const projectRef = normalizedProjectRef(
@@ -47,10 +57,10 @@ export function validateRuntimeConfig(config) {
   if (!config.apiBaseUrl || config.apiBaseUrl.includes('YOUR_PROJECT_REF')) {
     errors.push('Set SUPABASE_FUNCTIONS_URL or SUPABASE_PROJECT_ID.');
   }
-  if (!/^https:\/\/[a-z0-9.-]+\.supabase\.co\/functions\/v1\/game-api$/i.test(config.apiBaseUrl)) {
+  if (!validHttpsUrl(config.apiBaseUrl, '/functions/v1/game-api')) {
     errors.push('The generated Supabase Edge Function URL is invalid.');
   }
-  if (!config.publicSiteUrl || !/^https:\/\//i.test(config.publicSiteUrl)) {
+  if (!validHttpsUrl(config.publicSiteUrl)) {
     errors.push('The public GitHub Pages URL could not be derived.');
   }
   return errors;
