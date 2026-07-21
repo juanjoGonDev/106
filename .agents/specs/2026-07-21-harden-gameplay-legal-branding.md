@@ -50,7 +50,7 @@
 ## Risks
 
 - Browser-controlled telemetry can be forged by a determined attacker; server checks reduce common automation but do not provide an absolute guarantee.
-- The additional verification adds one API round trip before each attempt.
+- The additional verification adds two API calls before each attempt.
 - SVG Open Graph support varies by platform; the repository keeps a 1200×630 SVG until a binary social asset pipeline is added.
 - Current legal text identifies the responsible project through the repository and is not a substitute for jurisdiction-specific professional advice if the service becomes commercial.
 
@@ -69,12 +69,14 @@
 
 ## Validation
 
-- `pnpm check:syntax`
-- `pnpm lint`
-- `pnpm knip`
-- `pnpm test`
-- Local Supabase stack, all migrations, Edge Function and full global/league journey.
-- Pull Request Quality Pipeline.
+- `pnpm check:syntax`: passed in CI.
+- `pnpm lint`: passed in CI with zero warnings.
+- `pnpm knip`: passed in CI.
+- `pnpm test`: passed in CI, including content and security contracts.
+- Local Supabase stack: passed.
+- All migrations applied from an empty database: passed.
+- Edge Function and complete global/league API journey: passed.
+- Pull Request Quality Pipeline run `29873682968`: passed.
 
 ## Rollback
 
@@ -85,9 +87,9 @@
 ## Delivery
 
 - Branch: `agent/harden-gameplay-legal-branding`
-- Normal pull request to `main`.
+- Pull request: `#6` to `main`.
 - No production deployment or merge without explicit approval.
 
 ## Status
 
-Implemented; validation pending.
+Implemented and validated. Ready for review.
