@@ -20,9 +20,10 @@ describe('Edge Function attack surface', () => {
     expect(apiSource).toContain("'X-Content-Type-Options': 'nosniff'");
   });
 
-  it('validates identifiers and authentication tokens before private actions', () => {
+  it('validates identifiers and account tokens before private actions', () => {
     expect(apiSource).toContain('const UUID =');
-    expect(apiSource).toContain('const PLAYER_TOKEN =');
+    expect(apiSource).toContain('const PRIVATE_TOKEN =');
+    expect(apiSource).toContain("request.headers.get('x-account-token')");
     expect(apiSource).toContain('authorizePlayer(request');
     expect(apiSource).toContain('normalizeLeagueCode');
     expect(apiSource).toContain('normalizeTeam');
@@ -40,9 +41,7 @@ describe('Edge Function attack surface', () => {
   it('uses named RPC calls with parameter objects', () => {
     const rpcCalls = [...apiSource.matchAll(/rpc\(([^\n;]+)\)/g)].map((match) => match[1]);
     expect(rpcCalls.length).toBeGreaterThan(5);
-    for (const call of rpcCalls) {
-      expect(call.trim()).not.toMatch(/^body\./);
-    }
+    for (const call of rpcCalls) expect(call.trim()).not.toMatch(/^body\./);
   });
 });
 
@@ -55,6 +54,8 @@ describe('PostgreSQL access controls', () => {
       'game_duels',
       'game_leagues',
       'game_league_members',
+      'game_accounts',
+      'game_account_players',
     ]) {
       expect(migrationSource).toMatch(new RegExp(`alter table public\\.${table} enable row level security`, 'i'));
     }
