@@ -1,25 +1,66 @@
-name: Validate
+name: Pull Request Quality Gate
 
 on:
   pull_request:
-  push:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
-  static-checks:
+  quality:
+    name: ESLint, Knip and tests
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: npm run check
-      - name: Reject accidental frontend secrets
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Install exact development dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax validation
+        run: npm run check:syntax
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Knip
+        run: npm run knip
+
+      - name: Unit and security tests
+        run: npm test
+
+      - name: Dependency vulnerability audit
+        run: npm audit --audit-level=high
+
+      - name: Reject secrets in public assets
+        shell: bash
         run: |
+          set -euo pipefail
           if grep -RInE 'SUPABASE_(SERVICE_ROLE|SECRET)_KEY|SUPABASE_ACCESS_TOKEN|SUPABASE_DB_PASSWORD|TURNSTILE_SECRET_KEY|HASH_PEPPER=' public; then
             echo 'A private credential name or value was found in public assets.'
+            exit 1
+          fi
+
+      - name: Reject dangerous source primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=node_modules --exclude='*.test.js' '\beval\s*\(|new Function\s*\(|document\.write\s*\(' public scripts supabase/functions; then
+            echo 'A prohibited dynamic execution primitive was found.'
             exit 1
           fi
