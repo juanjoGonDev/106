@@ -10,6 +10,41 @@
   const messageQueue = [];
   let activeMessage = null;
 
+  function setNavigationOpen(header, button, open) {
+    header.dataset.menuOpen = String(open);
+    button.setAttribute('aria-expanded', String(open));
+    button.setAttribute('aria-label', open ? 'Cerrar menú principal' : 'Abrir menú principal');
+  }
+
+  function installNavigationBehavior(header, navigation, button) {
+    if (header.dataset.navigationReady === 'true') return;
+    header.dataset.navigationReady = 'true';
+    setNavigationOpen(header, button, false);
+
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setNavigationOpen(header, button, button.getAttribute('aria-expanded') !== 'true');
+    });
+
+    navigation.addEventListener('click', (event) => {
+      if (event.target.closest('a')) setNavigationOpen(header, button, false);
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!header.contains(event.target)) setNavigationOpen(header, button, false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || button.getAttribute('aria-expanded') !== 'true') return;
+      setNavigationOpen(header, button, false);
+      button.focus();
+    });
+
+    window.matchMedia('(min-width: 701px)').addEventListener('change', (event) => {
+      if (event.matches) setNavigationOpen(header, button, false);
+    });
+  }
+
   function renderSiteChrome() {
     const header = document.querySelector('.site-header') || document.createElement('header');
     header.className = 'site-header';
@@ -21,6 +56,8 @@
     brand.textContent = 'MINUTO 106';
 
     const navigation = document.createElement('nav');
+    navigation.id = 'siteNavigation';
+    navigation.className = 'site-navigation';
     navigation.setAttribute('aria-label', 'Navegación principal');
     for (const [page, href, label] of links) {
       const anchor = document.createElement('a');
@@ -30,8 +67,22 @@
       if (activePage === page) anchor.setAttribute('aria-current', 'page');
       navigation.append(anchor);
     }
-    header.append(brand, navigation);
+
+    const menuButton = document.createElement('button');
+    menuButton.className = 'site-menu-toggle';
+    menuButton.type = 'button';
+    menuButton.setAttribute('aria-controls', navigation.id);
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('aria-label', 'Abrir menú principal');
+    for (let index = 0; index < 3; index += 1) {
+      const line = document.createElement('span');
+      line.setAttribute('aria-hidden', 'true');
+      menuButton.append(line);
+    }
+
+    header.append(brand, menuButton, navigation);
     if (!header.isConnected) document.body.prepend(header);
+    installNavigationBehavior(header, navigation, menuButton);
 
     const footer = document.querySelector('.site-footer') || document.createElement('footer');
     footer.className = 'site-footer';
