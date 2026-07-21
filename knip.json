@@ -10,6 +10,7 @@
     "public/profile-enhancements.js",
     "public/ranking.js",
     "public/ligas.js",
+    "public/stop-control.js",
     "public/v3.js",
     "public/v4.js",
     "scripts/*.mjs",
