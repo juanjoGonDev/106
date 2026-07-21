@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const EXPECTED_NODE = '22.13.0';
 const EXPECTED_PNPM = '11.15.1';
-const EXACT_SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const FORBIDDEN_LOCKFILES = [
   'package-lock.json',
   'npm-shrinkwrap.json',
@@ -41,6 +40,59 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+function isNumericIdentifier(value) {
+  if (value.length === 0 || (value.length > 1 && value.startsWith('0'))) return false;
+  return [...value].every((character) => character >= '0' && character <= '9');
+}
+
+function isValidSemverIdentifier(value, allowLeadingZero) {
+  if (value.length === 0) return false;
+
+  const validCharacters = [...value].every((character) => (
+    (character >= '0' && character <= '9')
+    || (character >= 'A' && character <= 'Z')
+    || (character >= 'a' && character <= 'z')
+    || character === '-'
+  ));
+
+  if (!validCharacters) return false;
+  if (!allowLeadingZero && [...value].every((character) => character >= '0' && character <= '9')) {
+    return isNumericIdentifier(value);
+  }
+  return true;
+}
+
+function isExactSemver(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) return false;
+
+  const buildParts = value.split('+');
+  if (buildParts.length > 2) return false;
+  const [versionAndPrerelease, buildMetadata] = buildParts;
+
+  const prereleaseSeparator = versionAndPrerelease.indexOf('-');
+  const core = prereleaseSeparator === -1
+    ? versionAndPrerelease
+    : versionAndPrerelease.slice(0, prereleaseSeparator);
+  const prerelease = prereleaseSeparator === -1
+    ? undefined
+    : versionAndPrerelease.slice(prereleaseSeparator + 1);
+
+  const coreParts = core.split('.');
+  if (coreParts.length !== 3 || !coreParts.every(isNumericIdentifier)) return false;
+
+  if (prerelease !== undefined) {
+    const identifiers = prerelease.split('.');
+    if (!identifiers.every((identifier) => isValidSemverIdentifier(identifier, false))) return false;
+  }
+
+  if (buildMetadata !== undefined) {
+    const identifiers = buildMetadata.split('.');
+    if (!identifiers.every((identifier) => isValidSemverIdentifier(identifier, true))) return false;
+  }
+
+  return true;
+}
+
 function lockfileContainsPackage(lockfile, name) {
   return [
     `${name}:`,
@@ -66,7 +118,7 @@ if (manifest.volta?.node !== EXPECTED_NODE || manifest.volta?.pnpm !== EXPECTED_
 
 for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
   for (const [name, version] of Object.entries(manifest[section] ?? {})) {
-    if (!EXACT_SEMVER.test(version)) {
+    if (!isExactSemver(version)) {
       fail(`${section}.${name} must use an exact semantic version, received ${version}`);
     }
   }
