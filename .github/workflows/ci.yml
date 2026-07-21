@@ -22,12 +22,18 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js with npm cache
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
-          cache: npm
-          cache-dependency-path: package.json
+
+      - name: Restore npm download cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-node-22-${{ hashFiles('package.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-node-22-
 
       - name: Install exact development dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
