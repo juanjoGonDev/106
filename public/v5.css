@@ -1,85 +1,40 @@
-:root{--center-column:760px;--side-column:240px;--desktop-gap:22px}
+:root{--layout-center:760px;--layout-rail:250px;--layout-gap:24px}
 
 [hidden],.cookie-banner[hidden],.privacy-chip[hidden]{display:none!important}
 
 .privacy-chip{position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border:1px solid #ffffff26;border-radius:999px;background:#111319e8;color:#d8dbe2;box-shadow:0 10px 34px #0009;font-size:.75rem;font-weight:800;cursor:pointer;backdrop-filter:blur(14px)}
 .privacy-chip:hover{border-color:#f4c95d70;color:#fff}
 
-/* Three equal visual zones keep the game mathematically centered. */
-@media (min-width:1320px){
-  html body main.shell{
-    display:grid!important;
-    grid-template-columns:var(--side-column) minmax(0,var(--center-column)) var(--side-column);
-    grid-auto-flow:row;
-    column-gap:var(--desktop-gap);
-    align-items:start;
-    width:calc((var(--side-column) * 2) + var(--center-column) + (var(--desktop-gap) * 2))!important;
-    max-width:calc(100% - 32px)!important;
-    margin-inline:auto!important;
-    padding-top:28px!important;
-  }
+.shell{width:min(1320px,calc(100% - 32px));margin:0 auto;padding:28px 0 80px}
+.app-layout{display:grid;grid-template-columns:minmax(0,var(--layout-rail)) minmax(0,var(--layout-center)) minmax(0,var(--layout-rail));gap:var(--layout-gap);align-items:start;justify-content:center}
+.layout-rail,.layout-center{display:flex;min-width:0;flex-direction:column;gap:16px}
+.layout-rail>*{width:100%;margin:0!important}
+.layout-center>*{width:100%}
 
-  main.shell> *{grid-column:2;min-width:0}
+.layout-rail .leaderboard-card,.layout-rail .awards-card,.layout-rail .competitive-hub{position:static!important;inset:auto!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;z-index:auto!important;width:100%!important;max-width:none!important;max-height:none!important;overflow:visible!important;transform:none!important}
 
-  main.shell>.leaderboard-card{
-    position:sticky!important;
-    top:68px!important;
-    grid-column:1!important;
-    grid-row:1 / span 20!important;
-    width:auto!important;
-    max-height:calc(100vh - 88px)!important;
-    margin:0!important;
-    padding:18px!important;
-    overflow:auto!important;
-    border-radius:20px!important;
-  }
-
-  main.shell>.awards-card{
-    position:sticky;
-    top:68px;
-    grid-column:3!important;
-    grid-row:1!important;
-    margin:0!important;
-    padding:18px!important;
-  }
-
-  main.shell>.competitive-hub{
-    grid-column:3!important;
-    grid-row:2 / span 6!important;
-    margin-top:16px!important;
-    padding:18px!important;
-  }
-
-  .leaderboard-card .section-heading,.awards-card .section-heading,.competitive-hub .section-heading{align-items:flex-start;flex-direction:column;gap:6px}
-  .leaderboard-card .section-heading h2,.awards-card .section-heading h2,.competitive-hub .section-heading h2{font-size:1.15rem}
-  .leaderboard-card .leaderboard-help{font-size:.68rem;line-height:1.4}
-  .leaderboard-card .leaderboard{margin-top:12px;gap:6px}
-  .leaderboard-card .leaderboard li{grid-template-columns:24px minmax(0,1fr)!important;gap:7px!important;padding:9px!important}
-  .leaderboard-card .player{font-size:.78rem}
-  .leaderboard-card .player small{font-size:.64rem}
-  .leaderboard-card .difference{grid-column:2!important;font-size:.68rem!important}
-  .leaderboard-card .empty{padding:16px 8px!important;font-size:.72rem}
-
-  .awards-grid{grid-template-columns:1fr!important;gap:8px!important;margin-top:12px!important}
-  .awards-grid article{padding:12px!important;text-align:left!important}
-  .award-icon{display:inline-block!important;margin-right:7px;font-size:1.25rem!important}
-  .awards-grid small{display:inline!important;font-size:.62rem!important}
-  .awards-grid strong{font-size:.86rem!important}
-  .awards-grid p{font-size:.68rem!important}
-
-  .competitive-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:12px!important}
-  .feature-card{padding:13px!important;gap:10px!important}
-  .feature-card>img{width:38px!important;height:38px!important}
-  .feature-card h3{font-size:.9rem}
-  .feature-card p{font-size:.72rem}
-  .inline-form{flex-direction:column}
-  .inline-form button{width:100%}
-}
-
-@media (min-width:900px) and (max-width:1319px){
-  html body main.shell{width:min(900px,calc(100% - 40px))!important;margin-inline:auto!important}
-  main.shell>.leaderboard-card{position:static!important;width:auto!important;max-height:none!important;margin-top:16px!important}
-}
+.layout-rail .section-heading{align-items:flex-start;flex-direction:column;gap:6px}
+.layout-rail .section-heading h2{font-size:1.15rem}
+.layout-rail .leaderboard-help{font-size:.7rem;line-height:1.45}
+.layout-rail .leaderboard{margin-top:12px;gap:6px}
+.layout-rail .leaderboard li{grid-template-columns:24px minmax(0,1fr)!important;gap:7px!important;padding:9px!important}
+.layout-rail .player{font-size:.78rem}
+.layout-rail .player small{font-size:.64rem}
+.layout-rail .difference{grid-column:2!important;font-size:.68rem!important}
+.layout-rail .empty{padding:16px 8px!important;font-size:.72rem}
+.layout-rail .awards-grid{grid-template-columns:1fr!important;gap:8px!important;margin-top:12px!important}
+.layout-rail .awards-grid article{padding:12px!important;text-align:left!important}
+.layout-rail .award-icon{display:inline-block!important;margin-right:7px;font-size:1.25rem!important}
+.layout-rail .awards-grid small{display:inline!important;font-size:.62rem!important}
+.layout-rail .awards-grid strong{font-size:.86rem!important}
+.layout-rail .awards-grid p{font-size:.68rem!important}
+.layout-rail .competitive-grid{grid-template-columns:1fr!important;gap:10px!important;margin-top:12px!important}
+.layout-rail .feature-card{padding:13px!important;gap:10px!important}
+.layout-rail .feature-card>img{width:38px!important;height:38px!important}
+.layout-rail .feature-card h3{font-size:.9rem}
+.layout-rail .feature-card p{font-size:.72rem}
+.layout-rail .inline-form{flex-direction:column}
+.layout-rail .inline-form button{width:100%}
 
 .game-hero{grid-template-columns:68px minmax(0,1fr) 68px;gap:16px;min-height:190px;padding:12px 8px 20px}
 .game-hero>div{min-width:0}
@@ -93,15 +48,29 @@
 .battle-card{padding:17px 20px}
 .stats-strip>div{padding:13px 9px}
 
-@media (max-width:760px){
+@media(max-width:1180px){
+  .app-layout{grid-template-columns:minmax(0,1fr);max-width:900px;margin-inline:auto}
+  .layout-center{order:1}
+  .layout-rail--left{order:2}
+  .layout-rail--right{order:3}
+  .layout-rail{display:block}
+  .layout-rail>*{margin-top:16px!important}
+  .layout-rail .leaderboard-card,.layout-rail .awards-card,.layout-rail .competitive-hub{padding:22px!important}
+  .layout-rail .awards-grid{grid-template-columns:repeat(3,1fr)!important}
+  .layout-rail .competitive-grid{grid-template-columns:1fr 1fr!important}
+}
+
+@media(max-width:760px){
+  .shell{width:min(100% - 24px,760px);padding-top:20px}
   .game-hero{grid-template-columns:48px minmax(0,1fr) 48px;min-height:158px;gap:7px;padding-top:6px}
   .game-hero h1{font-size:clamp(4.4rem,21vw,6rem)}
   .game-hero .subtitle{margin-top:12px;font-size:.9rem}
   .hero-trophy{width:44px;height:62px}
   .hero-ball{width:48px;height:48px}
+  .layout-rail .awards-grid,.layout-rail .competitive-grid{grid-template-columns:1fr!important}
 }
 
-@media (max-width:500px){
+@media(max-width:500px){
   .game-hero{display:block;min-height:0;padding:0 0 12px}
   .game-hero h1{font-size:clamp(4.4rem,24vw,5.8rem)}
   .game-hero .subtitle{max-width:350px}
