@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "public/app.js",
+    "public/access.js",
+    "public/compliance.js",
+    "public/ranking.js",
+    "public/ligas.js",
+    "public/v3.js",
+    "public/v4.js",
+    "scripts/*.mjs",
+    "tests/**/*.test.js"
+  ],
+  "project": [
+    "public/**/*.js",
+    "scripts/**/*.mjs",
+    "tests/**/*.js",
+    "eslint.config.js"
+  ],
+  "ignore": [
+    "public/config.js",
+    "supabase/functions/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "eslint-plugin-security"
+  ]
+}
