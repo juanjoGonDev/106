@@ -1,0 +1,41 @@
+{
+  "name": "minuto-106",
+  "version": "2.7.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": "22.13.0",
+    "pnpm": "11.15.1"
+  },
+  "volta": {
+    "node": "22.13.0",
+    "pnpm": "11.15.1"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build:config": "node scripts/generate-config.mjs",
+    "check:package-policy": "node scripts/check-package-policy.mjs",
+    "check:migrations": "node scripts/check-production-migrations.mjs",
+    "supabase:start": "node scripts/supabase-local.mjs start",
+    "supabase:setup": "node scripts/supabase-local.mjs reset",
+    "supabase:migrate": "node scripts/supabase-local.mjs migrate",
+    "supabase:status": "node scripts/supabase-local.mjs status",
+    "supabase:stop": "node scripts/supabase-local.mjs stop",
+    "lint": "eslint public/**/*.js scripts/**/*.mjs tests/**/*.js eslint.config.js --max-warnings=0",
+    "knip": "knip",
+    "test": "vitest run",
+    "test:security": "vitest run tests/security",
+    "test:supabase": "node scripts/test-supabase-local.mjs",
+    "check:syntax": "node --check public/layout.js && node --check public/app.js && node --check public/stop-control.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/account.js && node --check public/compliance.js && node --check public/format.js && node --check public/competition.js && node --check public/profile-overlay.js && node --check public/player-stats.js && node --check public/profile-enhancements.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/supabase-local.mjs && node --check scripts/check-package-policy.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs && node --check scripts/test-supabase-local.mjs",
+    "check": "pnpm check:package-policy && pnpm check:syntax && pnpm lint && pnpm knip && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.7.0",
+    "eslint-plugin-security": "4.0.1",
+    "globals": "17.7.0",
+    "knip": "6.25.0",
+    "vitest": "4.1.10"
+  }
+}

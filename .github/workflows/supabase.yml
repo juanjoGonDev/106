@@ -1,0 +1,137 @@
+name: Deploy Supabase backend safely
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'scripts/check-production-migrations.mjs'
+      - 'scripts/capture-production-snapshot.sh'
+      - 'scripts/compare-production-snapshots.mjs'
+      - 'scripts/record-deployment-snapshot.sql'
+      - '.github/workflows/supabase.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22.13.0
+  SUPABASE_CLI_VERSION: 2.101.0
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      HASH_PEPPER: ${{ secrets.HASH_PEPPER }}
+      TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+      ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || (echo 'Missing SUPABASE_ACCESS_TOKEN secret' && exit 1)
+          test -n "$SUPABASE_DB_PASSWORD" || (echo 'Missing SUPABASE_DB_PASSWORD secret' && exit 1)
+          test -n "$SUPABASE_DB_URL" || (echo 'Missing SUPABASE_DB_URL secret' && exit 1)
+          test -n "$PROJECT_ID" || (echo 'Missing SUPABASE_PROJECT_ID variable' && exit 1)
+          test -n "$HASH_PEPPER" || (echo 'Missing HASH_PEPPER secret' && exit 1)
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Guard against destructive migrations
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$EVENT_BEFORE"
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+          MIGRATION_DIFF_BASE="$base" MIGRATION_DIFF_HEAD="HEAD" node scripts/check-production-migrations.mjs
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Link production project
+        run: supabase link --project-ref "$PROJECT_ID"
+
+      - name: Preview pending migrations
+        run: supabase db push --linked --dry-run
+
+      - name: Capture pre-deployment history counters
+        shell: bash
+        run: bash scripts/capture-production-snapshot.sh deployment/pre-deploy.json
+
+      - name: Record pre-deployment reference when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          exists="$(psql "$SUPABASE_DB_URL" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 --command "select to_regclass('public.game_deployment_snapshots') is not null;" | tr -d '\r\n')"
+          if [ "$exists" = "t" ]; then
+            psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+              --set=commit_sha="$GITHUB_SHA" --set=run_id="$GITHUB_RUN_ID" --set=phase="pre" \
+              -f scripts/record-deployment-snapshot.sql
+          else
+            echo 'Deployment snapshot table is not installed yet; the pre-deployment JSON artifact remains available.'
+          fi
+
+      - name: Apply additive database migrations
+        run: supabase db push --linked --yes
+
+      - name: Set Edge Function secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          secrets=("HASH_PEPPER=$HASH_PEPPER")
+          if [ -n "$TURNSTILE_SECRET_KEY" ]; then secrets+=("TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY"); fi
+          if [ -n "$ALLOWED_ORIGINS" ]; then secrets+=("ALLOWED_ORIGINS=$ALLOWED_ORIGINS"); fi
+          supabase secrets set "${secrets[@]}" --project-ref "$PROJECT_ID"
+
+      - name: Deploy Edge Function
+        run: supabase functions deploy game-api --project-ref "$PROJECT_ID"
+
+      - name: Capture post-deployment history counters
+        shell: bash
+        run: bash scripts/capture-production-snapshot.sh deployment/post-deploy.json
+
+      - name: Verify historical data was preserved
+        run: node scripts/compare-production-snapshots.mjs deployment/pre-deploy.json deployment/post-deploy.json
+
+      - name: Record post-deployment reference in Supabase
+        shell: bash
+        run: |
+          psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+            --set=commit_sha="$GITHUB_SHA" --set=run_id="$GITHUB_RUN_ID" --set=phase="post" \
+            -f scripts/record-deployment-snapshot.sql
+
+      - name: Upload non-sensitive integrity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-integrity-${{ github.run_id }}
+          path: deployment/*.json
+          if-no-files-found: warn
+          retention-days: 90

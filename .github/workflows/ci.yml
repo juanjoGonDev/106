@@ -1,0 +1,329 @@
+name: Pull Request Quality Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22.13.0
+  PNPM_VERSION: 11.15.1
+  SUPABASE_CLI_VERSION: 2.101.0
+
+jobs:
+  build:
+    name: 🟢 Build · Prepare workspace
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Validate package-manager policy before installation
+        run: node scripts/check-package-policy.mjs
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Generate static application configuration
+        run: pnpm build:config
+
+      - name: Validate JavaScript syntax
+        run: pnpm check:syntax
+
+  tests:
+    name: 🚧 Tests · Unit & security
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run Vitest suite
+        id: vitest
+        continue-on-error: true
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile=vitest-results.json
+
+      - name: Upload failed test report
+        if: steps.vitest.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results-${{ github.run_id }}
+          path: vitest-results.json
+          retention-days: 7
+
+      - name: Enforce test result
+        if: steps.vitest.outcome == 'failure'
+        run: |
+          cat vitest-results.json
+          exit 1
+
+  eslint:
+    name: 🧹 ESLint · Static analysis
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run ESLint
+        id: eslint-check
+        continue-on-error: true
+        run: pnpm exec eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
+
+      - name: Upload failed ESLint report
+        if: steps.eslint-check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-results-${{ github.run_id }}
+          path: eslint-results.json
+          retention-days: 7
+
+      - name: Enforce ESLint result
+        if: steps.eslint-check.outcome == 'failure'
+        run: |
+          node -e "const r=require('./eslint-results.json'); for(const f of r.filter(x=>x.errorCount)){console.error(f.filePath); for(const m of f.messages) console.error('  '+m.line+':'+m.column+' '+m.ruleId+' '+m.message)}"
+          exit 1
+
+  knip:
+    name: 🧩 Knip · Dead code analysis
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Detect unused files and dependencies
+        run: pnpm knip
+
+  security:
+    name: 🛡️ Security · Dependency & policy checks
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Validate package-manager policy
+        run: pnpm check:package-policy
+
+      - name: Audit dependency vulnerabilities
+        run: pnpm audit --audit-level=high
+
+      - name: Reject native browser dialogs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --include='*.js' '(^|[^[:alnum:]_$.])(alert|confirm|prompt)[[:space:]]*\(' public; then
+            echo 'Native browser dialogs are forbidden. Use window.Minuto106UI.'
+            exit 1
+          fi
+
+      - name: Reject static finish selectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -InE 'id="stopButton"|#stopButton|<button[^>]*>[^<]*(PARAR|DETENER)' public/index.html public/app.js; then
+            echo 'The finish interaction must remain ephemeral and selector-independent.'
+            exit 1
+          fi
+          grep -Fq "attachShadow({ mode: 'closed' })" public/stop-control.js
+
+      - name: Reject secrets in public assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'SUPABASE_(SERVICE_ROLE|SECRET)_KEY|SUPABASE_ACCESS_TOKEN|SUPABASE_DB_PASSWORD|TURNSTILE_SECRET_KEY|HASH_PEPPER=' public; then
+            echo 'A private credential name or value was found in public assets.'
+            exit 1
+          fi
+
+      - name: Reject dangerous source primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=node_modules --exclude='*.test.js' '\beval\s*\(|new Function\s*\(|document\.write\s*\(' public scripts supabase/functions; then
+            echo 'A prohibited dynamic execution primitive was found.'
+            exit 1
+          fi
+
+  supabase-integration:
+    name: 🧪 Supabase · Local API integration
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Run local stack, Edge Function and API journey
+        id: supabase-suite
+        continue-on-error: true
+        shell: bash
+        run: bash scripts/run-supabase-ci.sh
+
+      - name: Upload failed Supabase diagnostics
+        if: steps.supabase-suite.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-local-diagnostics-${{ github.run_id }}
+          path: |
+            supabase-integration.log
+            supabase-functions.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Enforce Supabase integration result
+        if: steps.supabase-suite.outcome == 'failure'
+        run: exit 1
+
+  quality-gate:
+    name: ✅ Quality Gate · Ready to merge
+    if: always() && github.event.pull_request.draft == false
+    needs:
+      - build
+      - tests
+      - eslint
+      - knip
+      - security
+      - supabase-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify all pipeline stages
+        shell: bash
+        run: |
+          set -euo pipefail
+          results=(
+            "build=${{ needs.build.result }}"
+            "tests=${{ needs.tests.result }}"
+            "eslint=${{ needs.eslint.result }}"
+            "knip=${{ needs.knip.result }}"
+            "security=${{ needs.security.result }}"
+            "supabase=${{ needs.supabase-integration.result }}"
+          )
+
+          failed=0
+          for result in "${results[@]}"; do
+            name="${result%%=*}"
+            status="${result#*=}"
+            printf '%-12s %s\n' "$name" "$status"
+            if [[ "$status" != "success" ]]; then
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo 'One or more required pipeline stages did not succeed.'
+            exit 1
+          fi
