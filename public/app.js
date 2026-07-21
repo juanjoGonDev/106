@@ -18,6 +18,8 @@ const state = {
   turnstileToken: '',
   turnstileWidgetId: null,
   stopPending: false,
+  stopControl: null,
+  interaction: null,
   integrity: null,
   referralCode: referralCodeFromUrl,
 };
@@ -26,9 +28,9 @@ const $ = (selector) => document.querySelector(selector);
 const panels = ['setup', 'playing', 'result'];
 const nickInput = $('#nick');
 const startButton = $('#startButton');
-const stopButton = $('#stopButton');
 const timer = $('#timer');
 const gameError = $('#gameError');
+const playInstruction = $('#playInstruction');
 
 nickInput.value = state.nick;
 $('#configWarning').hidden = configured;
@@ -66,6 +68,11 @@ function teamFlagClass(team) {
 
 function teamInlineHtml(team) {
   return `<span class="flag ${teamFlagClass(team)}" aria-hidden="true"></span><span>${teamName(team)}</span>`;
+}
+
+function uiError(error, title = 'No se pudo completar') {
+  const message = error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.');
+  return window.Minuto106UI?.error({ title, message }) ?? Promise.resolve();
 }
 
 function validateSetup() {
@@ -160,6 +167,37 @@ function showGameError(message) {
   gameError.hidden = !message;
 }
 
+function destroyStopControl() {
+  state.stopControl?.destroy();
+  state.stopControl = null;
+  state.interaction = null;
+}
+
+function renderInteractionInstruction(interaction) {
+  const keyboard = interaction.keyboardKey === 'Enter' ? 'Enter' : 'Espacio';
+  playInstruction.replaceChildren();
+  const strong = document.createElement('strong');
+  strong.textContent = 'Acción de este intento: ';
+  const text = document.createTextNode(interaction.mode === 'release'
+    ? `mantén pulsado y suelta cuando creas que llegas a 10.600. También puedes usar ${keyboard}.`
+    : `pulsa una vez cuando creas que llegas a 10.600. También puedes usar ${keyboard}.`);
+  playInstruction.append(strong, text);
+}
+
+function mountStopControl(interaction) {
+  destroyStopControl();
+  if (!window.Minuto106StopControl) throw new Error('No se pudo preparar el control final.');
+  state.interaction = interaction;
+  renderInteractionInstruction(interaction);
+  state.stopControl = window.Minuto106StopControl.create({
+    container: $('#playing'),
+    interaction,
+    getElapsedMs: () => performance.now() - state.startedAt,
+    onFinish: (signal) => stopGame(signal),
+    onInvalid: (error) => uiError(error, 'Control final'),
+  });
+}
+
 async function startGame(event) {
   if (event?.isTrusted !== true || state.phase === 'playing') return;
   startButton.disabled = true;
@@ -182,9 +220,10 @@ async function startGame(event) {
     resetTimerPresentation();
     showPanel('playing');
     state.startedAt = performance.now();
+    mountStopControl(challenge.interaction ?? {});
     state.animationFrame = requestAnimationFrame(updateTimer);
   } catch (error) {
-    alert(error.message);
+    await uiError(error, 'No se pudo iniciar el intento');
     await refreshNickStatus();
   } finally {
     startButton.textContent = 'Comenzar';
@@ -243,17 +282,21 @@ function showCelebration(icon, title, text, duration = 3200) {
   }, duration);
 }
 
-async function stopGame(event) {
+async function stopGame(signal) {
   if (state.phase !== 'playing' || state.stopPending) return;
-  if (event?.isTrusted !== true) {
-    showGameError('La parada debe proceder de una pulsación real del usuario.');
+  if (signal?.pointerTrusted !== true || !Number.isFinite(Number(signal.clientElapsedMs))) {
+    showGameError('La parada debe proceder del control generado para este intento.');
     return;
   }
 
   state.stopPending = true;
-  stopButton.disabled = true;
-  state.integrity.trustedFinish = true;
-  const clientElapsedMs = Math.round(performance.now() - state.startedAt);
+  state.stopControl?.setDisabled(true);
+  state.integrity = {
+    ...state.integrity,
+    ...signal,
+    trustedFinish: true,
+  };
+  const clientElapsedMs = Math.round(Number(signal.clientElapsedMs));
   concealTimer();
 
   try {
@@ -279,14 +322,14 @@ async function stopGame(event) {
     showPanel('result');
     renderStats(data.stats);
   } catch (error) {
-    alert(error.message);
+    await uiError(error, 'No se pudo validar la parada');
     showPanel('setup');
     await refreshNickStatus();
   } finally {
     state.challengeId = null;
     state.integrity = null;
     state.stopPending = false;
-    stopButton.disabled = false;
+    destroyStopControl();
     clearTimerFrame();
   }
 }
@@ -367,15 +410,12 @@ function buildShareText() {
   const result = state.lastResult;
   const parts = [];
   if (result) {
-    parts.push(`${teamName(result.team)}: he parado el Minuto 106 en ${formatMs(result.elapsedMs)}, a solo ${result.differenceMs} ms.`);
+    parts.push(`${teamName(result.team)}: me he quedado a ${result.differenceMs} ms del 10.600.`);
   } else {
-    parts.push('Estoy compitiendo en el Minuto 106: ¿puedes detener el reloj exactamente en 10,600 segundos?');
+    parts.push('¿Puedes clavar el Minuto 106?');
   }
-  if (profile?.verifiedAttempts) {
-    parts.push(`Histórico: ${profile.attemptsUsed} intentos, media ${formatDifference(profile.averageDifferenceMs)}, mejor ${formatDifference(profile.bestDifferenceMs)} y puesto global #${profile.globalRankBest}.`);
-    parts.push(`Mi invitación ya ha conseguido ${profile.completedReferrals} jugadores completados.`);
-  }
-  parts.push('Completa tus 5 intentos desde mi enlace y me darás un intento extra.');
+  if (profile?.globalRankBest) parts.push(`Voy #${profile.globalRankBest}.`);
+  parts.push('Completa tus 5 tiros y ganas 1 tiro extra.');
   return parts.join(' ');
 }
 
@@ -444,36 +484,28 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('blur', () => {
   if (state.phase === 'playing' && state.integrity) state.integrity.focusLosses += 1;
 });
-startButton.addEventListener('click', (event) => startGame(event).catch(() => {}));
-stopButton.addEventListener('pointerdown', (event) => {
-  event.preventDefault();
-  stopGame(event).catch(() => {});
-});
-stopButton.addEventListener('keydown', (event) => {
-  if (event.key !== 'Enter' && event.key !== ' ') return;
-  event.preventDefault();
-  stopGame(event).catch(() => {});
-});
+startButton.addEventListener('click', (event) => startGame(event).catch((error) => uiError(error)));
 $('#retryButton').addEventListener('click', (event) => {
   if (!event.isTrusted) return;
   if (config.turnstileSiteKey) {
     showPanel('setup');
     validateSetup();
   } else {
-    startGame(event).catch(() => {});
+    startGame(event).catch((error) => uiError(error));
   }
 });
 $('#changeNickButton').addEventListener('click', (event) => {
   if (!event.isTrusted) return;
+  destroyStopControl();
   showPanel('setup');
   nickInput.focus();
   refreshNickStatus();
 });
 $('#shareButton').addEventListener('click', (event) => {
-  if (event.isTrusted) shareResult().catch(() => {});
+  if (event.isTrusted) shareResult().catch((error) => uiError(error, 'No se pudo compartir'));
 });
 $('#copyReferralButton').addEventListener('click', (event) => {
-  if (event.isTrusted) copyReferral().catch(() => {});
+  if (event.isTrusted) copyReferral().catch((error) => uiError(error, 'No se pudo copiar'));
 });
 
 initializeTurnstile();
