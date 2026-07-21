@@ -65,16 +65,12 @@ async function runSmokeChecks() {
   assert.equal(methodResponse.status, 405);
   logStep('Unsupported HTTP methods are rejected');
 
-  const forbiddenOrigin = await fetch(endpoint, {
-    method: 'OPTIONS',
-    headers: {
-      origin: 'https://malicious.example',
-      'access-control-request-method': 'POST',
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.equal(forbiddenOrigin.status, 403);
-  logStep('CORS rejects untrusted origins');
+  const forbiddenOrigin = await api(
+    { action: 'stats' },
+    { headers: { origin: 'https://malicious.example' } },
+  );
+  assert.equal(forbiddenOrigin.response.status, 403);
+  logStep('CORS rejects untrusted origins on requests handled by the Edge Function');
 
   const reserved = await api({ action: 'access-status', nick: 'admin' });
   assert.equal(reserved.response.status, 400);
