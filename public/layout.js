@@ -7,6 +7,8 @@
     ['ligas.html', './ligas.html', 'Miniligas'],
     ['cuenta.html', './cuenta.html', 'Mi cuenta'],
   ];
+  const messageQueue = [];
+  let activeMessage = null;
 
   function renderSiteChrome() {
     const header = document.querySelector('.site-header') || document.createElement('header');
@@ -100,6 +102,109 @@
       celebration.append(closeButton);
     }
   }
+
+  function createMessageDialog() {
+    const existing = document.querySelector('#appMessageDialog');
+    if (existing) return existing;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'appMessageDialog';
+    dialog.className = 'app-message-dialog';
+    dialog.innerHTML = '<div class="app-message-icon" aria-hidden="true"></div><div class="app-message-copy"><p class="eyebrow">MINUTO 106</p><h2></h2><p class="app-message-text"></p></div><div class="app-message-actions"><button class="ghost app-message-cancel" type="button"></button><button class="primary app-message-accept" type="button"></button></div>';
+    document.body.append(dialog);
+    document.dispatchEvent(new CustomEvent('minuto106:dialog-created'));
+
+    dialog.querySelector('.app-message-accept').addEventListener('click', () => settleMessage(true));
+    dialog.querySelector('.app-message-cancel').addEventListener('click', () => settleMessage(false));
+    dialog.addEventListener('close', () => {
+      if (activeMessage) settleMessage(false, false);
+    });
+    return dialog;
+  }
+
+  function settleMessage(result, close = true) {
+    if (!activeMessage) return;
+    const current = activeMessage;
+    activeMessage = null;
+    const dialog = document.querySelector('#appMessageDialog');
+    if (close && dialog?.open) dialog.close();
+    current.resolve(result);
+    queueMicrotask(showNextMessage);
+  }
+
+  function showNextMessage() {
+    if (activeMessage || messageQueue.length === 0) return;
+    activeMessage = messageQueue.shift();
+    const dialog = createMessageDialog();
+    const options = activeMessage.options;
+    dialog.dataset.tone = options.tone;
+    dialog.querySelector('h2').textContent = options.title;
+    dialog.querySelector('.app-message-text').textContent = options.message;
+    dialog.querySelector('.app-message-icon').textContent = options.tone === 'error' ? '!' : options.tone === 'success' ? '✓' : '⚽';
+    const accept = dialog.querySelector('.app-message-accept');
+    const cancel = dialog.querySelector('.app-message-cancel');
+    accept.textContent = options.acceptLabel;
+    cancel.textContent = options.cancelLabel;
+    cancel.hidden = !options.cancelLabel;
+    dialog.showModal();
+    accept.focus();
+  }
+
+  function normalizeMessage(input, defaults) {
+    const options = typeof input === 'string' ? { message: input } : input || {};
+    return {
+      title: String(options.title || defaults.title),
+      message: String(options.message || defaults.message),
+      tone: ['info', 'success', 'error'].includes(options.tone) ? options.tone : defaults.tone,
+      acceptLabel: String(options.acceptLabel || defaults.acceptLabel),
+      cancelLabel: options.cancelLabel === undefined ? defaults.cancelLabel : String(options.cancelLabel || ''),
+    };
+  }
+
+  function enqueueMessage(options) {
+    return new Promise((resolve) => {
+      messageQueue.push({ options, resolve });
+      showNextMessage();
+    });
+  }
+
+  window.Minuto106UI = {
+    notify(input) {
+      return enqueueMessage(normalizeMessage(input, {
+        title: 'Información',
+        message: '',
+        tone: 'info',
+        acceptLabel: 'Entendido',
+        cancelLabel: '',
+      }));
+    },
+    success(input) {
+      return enqueueMessage(normalizeMessage(input, {
+        title: 'Operación completada',
+        message: '',
+        tone: 'success',
+        acceptLabel: 'Continuar',
+        cancelLabel: '',
+      }));
+    },
+    error(input) {
+      return enqueueMessage(normalizeMessage(input, {
+        title: 'Ha ocurrido un error',
+        message: 'No se pudo completar la operación.',
+        tone: 'error',
+        acceptLabel: 'Cerrar',
+        cancelLabel: '',
+      }));
+    },
+    ask(input) {
+      return enqueueMessage(normalizeMessage(input, {
+        title: 'Confirma la acción',
+        message: '',
+        tone: 'info',
+        acceptLabel: 'Confirmar',
+        cancelLabel: 'Cancelar',
+      }));
+    },
+  };
 
   function buildGameColumns() {
     const shell = document.querySelector('main.shell');
