@@ -13,6 +13,13 @@ async function v4Request(action, payload = {}) {
   return body;
 }
 
+function showV4Error(error) {
+  return window.Minuto106UI?.error({
+    title: 'No se pudo compartir',
+    message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
+  }) ?? Promise.resolve();
+}
+
 function escapeV4(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 }
@@ -85,7 +92,7 @@ async function handleCompactShare(event) {
 }
 
 document.addEventListener('click', (event) => {
-  if (event.target.closest('#shareButton, #copyReferralButton')) handleCompactShare(event).catch((error) => alert(error.message));
+  if (event.target.closest('#shareButton, #copyReferralButton')) handleCompactShare(event).catch(showV4Error);
 }, true);
 
 document.addEventListener('DOMContentLoaded', () => ensureInitialRanking());
