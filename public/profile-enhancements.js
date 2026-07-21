@@ -39,6 +39,7 @@
     input.placeholder = 'Nick para comparar';
     input.autocomplete = 'off';
     input.dataset.bwignore = 'true';
+    input.dataset['1pIgnore'] = 'true';
     input.setAttribute('aria-label', 'Nick del jugador para comparar');
     const button = document.createElement('button');
     button.type = 'button';
