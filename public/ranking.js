@@ -61,7 +61,7 @@ function renderProfile(profile, comparedProfile = null) {
       <h3>${comparedProfile ? 'Comparación de jugadores' : 'Perfil de juego global'}</h3>
       <div id="rankingRadar"></div>
       <div class="profile-compare">
-        <input id="rankingCompareNick" maxlength="24" autocomplete="off" data-bwignore="true" placeholder="Nick para comparar" aria-label="Nick para comparar">
+        <input id="rankingCompareNick" maxlength="24" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="Nick para comparar" aria-label="Nick para comparar">
         <button id="rankingCompareButton" class="secondary compact" type="button">Comparar</button>
       </div>
     </section>`;
