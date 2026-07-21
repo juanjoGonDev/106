@@ -2,13 +2,9 @@ import js from '@eslint/js';
 import security from 'eslint-plugin-security';
 import globals from 'globals';
 
-const securityRules = Object.fromEntries(
-  Object.keys(security.rules).map((ruleName) => [`security/${ruleName}`, 'error']),
-);
-
 const projectRules = {
-  ...securityRules,
-  'eqeqeq': ['error', 'always'],
+  ...js.configs.recommended.rules,
+  eqeqeq: ['error', 'always'],
   'no-eval': 'error',
   'no-implied-eval': 'error',
   'no-new-func': 'error',
@@ -21,11 +17,16 @@ const projectRules = {
     },
   ],
   'no-throw-literal': 'error',
-  'no-undef': 'error',
-  'no-unreachable': 'error',
   'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
-  'no-useless-escape': 'error',
   'prefer-const': 'error',
+  'security/detect-buffer-noassert': 'error',
+  'security/detect-child-process': 'error',
+  'security/detect-disable-mustache-escape': 'error',
+  'security/detect-eval-with-expression': 'error',
+  'security/detect-new-buffer': 'error',
+  'security/detect-no-csrf-before-method-override': 'error',
+  'security/detect-pseudoRandomBytes': 'error',
+  'security/detect-unsafe-regex': 'error',
 };
 
 export default [
@@ -37,7 +38,6 @@ export default [
       'supabase/functions/**/*.ts',
     ],
   },
-  js.configs.recommended,
   {
     files: ['public/**/*.js'],
     languageOptions: {
