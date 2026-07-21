@@ -1,6 +1,6 @@
 # Minuto 106
 
-Juego viral de precisión España vs. Argentina. El jugador elige selección, introduce un nick y trata de detener el reloj exactamente en **10,600 segundos**.
+Juego de precisión España vs. Argentina. El jugador elige selección, introduce un nick y trata de detener el reloj exactamente en **10,600 segundos**.
 
 ## Reglas
 
@@ -16,7 +16,7 @@ Juego viral de precisión España vs. Argentina. El jugador elige selección, in
 
 ## Puntuación global
 
-La puntuación por selecciones usa una escala contenida para poder crecer durante una campaña viral sin dispararse demasiado pronto:
+La puntuación por selecciones usa una escala contenida para mantener los marcadores legibles durante periodos prolongados:
 
 - Máximo de 100 puntos por jugador y selección.
 - La puntuación disminuye aproximadamente 1 punto por cada 10 ms de diferencia.
@@ -200,8 +200,8 @@ En **Settings → Secrets and variables → Actions** configura:
 | `ALLOWED_ORIGINS` | `https://juanjogondev.github.io,http://localhost:3000` |
 | `TURNSTILE_SITE_KEY` | Clave pública opcional de Turnstile |
 | `PUBLIC_SITE_URL` | URL pública canónica del juego |
-| `GOOGLE_ANALYTICS_ID` | Identificador opcional, vacío mientras no se habilite analítica |
-| `ADSENSE_CLIENT` | Identificador opcional, vacío mientras no se habilite publicidad |
+| `GOOGLE_ANALYTICS_ID` | Identificador de Google Analytics; se mantiene vacío mientras el servicio no esté activo |
+| `ADSENSE_CLIENT` | Identificador de Google AdSense; se mantiene vacío mientras la publicidad no esté activa |
 
 ### Secrets
 
@@ -211,9 +211,9 @@ En **Settings → Secrets and variables → Actions** configura:
 | `SUPABASE_DB_PASSWORD` | Aplicación de migraciones mediante Supabase CLI |
 | `SUPABASE_DB_URL` | Conexión PostgreSQL completa para snapshots y verificaciones |
 | `HASH_PEPPER` | Hash irreversible de IP y dispositivo |
-| `TURNSTILE_SECRET_KEY` | Clave privada opcional de Turnstile |
+| `TURNSTILE_SECRET_KEY` | Clave privada de Turnstile cuando la verificación está activa |
 
-Obtén `SUPABASE_DB_URL` en Supabase Dashboard → **Connect**. Debe ser una cadena PostgreSQL apta para `psql`. Guárdala únicamente como secret.
+Obtén `SUPABASE_DB_URL` en Supabase Dashboard → **Connect** usando la URI **Session pooler** en el puerto `5432`. Debe ser una cadena PostgreSQL apta para `psql`. Guárdala únicamente como secret.
 
 ## Persistencia entre despliegues
 
@@ -226,16 +226,16 @@ supabase db reset
 supabase stop --no-backup
 ```
 
-El workflow `.github/workflows/supabase.yml` realiza estas fases en orden:
+El workflow `.github/workflows/supabase.yml` solo se inicia cuando cambian migraciones, Edge Functions, la configuración de Supabase o los scripts que intervienen en ese despliegue. Realiza estas fases en orden:
 
 1. Bloquea despliegues simultáneos mediante `concurrency`.
 2. Analiza las migraciones nuevas y rechaza operaciones destructivas.
 3. Ejecuta `supabase db push --dry-run`.
-4. Captura contadores de histórico antes del despliegue.
+4. Captura contadores de histórico antes del despliegue cuando la conexión de snapshots está disponible.
 5. Registra una referencia previa en `game_deployment_snapshots` cuando la tabla ya existe.
 6. Aplica únicamente migraciones incrementales.
 7. Despliega la Edge Function.
-8. Captura los contadores posteriores.
+8. Captura los contadores posteriores cuando la conexión de snapshots está disponible.
 9. Falla si disminuyen intentos, jugadores, referencias, bonus, retos, ligas o membresías.
 10. Registra el commit, workflow run, versión de migración y estadísticas posteriores.
 11. Publica un artefacto no sensible con los contadores durante 90 días.
@@ -321,11 +321,13 @@ Ante una regresión:
 Al hacer push o merge a `main`:
 
 - `pages.yml` genera la configuración pública y despliega GitHub Pages.
-- `supabase.yml` protege el histórico, aplica migraciones y despliega `game-api`.
+- `supabase.yml` protege el histórico, aplica migraciones y despliega `game-api` cuando cambia el backend.
 - `ci.yml` instala desde `pnpm-lock.yaml`, valida la política de paquetes, ejecuta análisis estático, tests y una instancia local completa de Supabase.
 
 En **Settings → Pages → Build and deployment**, selecciona **GitHub Actions** como fuente.
 
 ## Seguridad anti-trampas
 
-La puntuación precisa se mide con `performance.now()`, pero el servidor valida un desafío de un solo uso, tiempo real transcurrido, dispositivo, IP, interacción, contexto de competición, límites y patrones sospechosos. Ningún juego ejecutado en un navegador puede impedir por completo que un atacante avanzado espere 10,6 segundos mediante automatización.
+Antes de iniciar cada intento, el navegador presenta un reto visual de balones dibujado en canvas y exige completarlo mediante puntero en el orden mostrado. La parada final también se realiza únicamente mediante puntero sobre un control efímero dibujado en canvas. El servidor valida un desafío de un solo uso, tiempo real transcurrido, dispositivo, IP, interacción, contexto de competición, límites y patrones sospechosos. Cuando Turnstile está configurado, su token se valida además en la Edge Function.
+
+El canvas evita selectores DOM estables, pero no convierte el navegador en un entorno secreto. Un atacante con control total del cliente puede observar red y JavaScript; por ello la seguridad efectiva depende de la validación de servidor, el consumo único, los límites, la telemetría y Turnstile.
