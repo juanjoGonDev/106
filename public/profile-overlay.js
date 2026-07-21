@@ -58,7 +58,7 @@
 
   function renderProfile(profile) {
     content.innerHTML = `
-      <p class="eyebrow">PERFIL PÚBLICO</p>
+      <p class="eyebrow">PERFIL PÚBLICO GLOBAL</p>
       <h2 id="publicProfileTitle">${escapeHtml(profile.nick)}</h2>
       <div class="public-profile-grid">
         <div><span>Mejor marca global</span><strong>${hasValue(profile.bestDifferenceMs) ? `±${profile.bestDifferenceMs} ms` : '—'}</strong></div>
@@ -108,7 +108,11 @@
     openProfile(nick);
   }, true);
 
-  closeButton?.addEventListener('click', closeOverlay);
+  closeButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeOverlay();
+  }, true);
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) closeOverlay();
   });
