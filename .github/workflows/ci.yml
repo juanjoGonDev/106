@@ -48,7 +48,23 @@ jobs:
         run: npm run knip
 
       - name: Unit and security tests
-        run: npm test
+        id: tests
+        continue-on-error: true
+        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json
+
+      - name: Upload failed test report
+        if: steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results-${{ github.run_id }}
+          path: vitest-results.json
+          retention-days: 14
+
+      - name: Enforce test result
+        if: steps.tests.outcome == 'failure'
+        run: |
+          cat vitest-results.json
+          exit 1
 
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
