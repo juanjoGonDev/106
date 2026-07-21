@@ -18,7 +18,6 @@ const injectionPayloads = [
 
 describe('nickname security normalization', () => {
   it.each([
-    ['M1NUT0-106', 'minutaia6'],
     ['m.i.n.u.t.o', 'minuto'],
     ['áéíóú', 'aeiou'],
     ['a\u200Bb\uFEFFc', 'abc'],
@@ -26,12 +25,16 @@ describe('nickname security normalization', () => {
     expect(compactNickname(input)).toBe(expected);
   });
 
-  it.each(['admin', 'Adm1n', 'moderador', 'support', 'MINUTO-106'])(
-    'blocks reserved identity %s',
-    (input) => {
-      expect(isReservedNickname(input)).toBe(true);
-    },
-  );
+  it.each([
+    'admin',
+    'Adm1n',
+    'moderador',
+    'support',
+    'MINUTO-106',
+    'M1NUT0-106',
+  ])('blocks reserved identity %s', (input) => {
+    expect(isReservedNickname(input)).toBe(true);
+  });
 
   it.each(injectionPayloads)('treats attack payload as inert text: %s', (payload) => {
     const variants = nicknameVariants(payload);
