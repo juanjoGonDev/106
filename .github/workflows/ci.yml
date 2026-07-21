@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-node-22-${{ hashFiles('package.json') }}
+          key: npm-${{ runner.os }}-node-22-${{ hashFiles('package.json', 'package-lock.json', 'npm-shrinkwrap.json') }}
           restore-keys: |
             npm-${{ runner.os }}-node-22-
 
@@ -84,6 +84,25 @@ jobs:
 
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
+
+      - name: Reject native browser dialogs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --include='*.js' '(^|[^[:alnum:]_$.])(alert|confirm|prompt)[[:space:]]*\(' public; then
+            echo 'Native browser dialogs are forbidden. Use window.Minuto106UI.'
+            exit 1
+          fi
+
+      - name: Reject static finish selectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -InE 'id="stopButton"|#stopButton|<button[^>]*>[^<]*(PARAR|DETENER)' public/index.html public/app.js; then
+            echo 'The finish interaction must remain ephemeral and selector-independent.'
+            exit 1
+          fi
+          grep -Fq "attachShadow({ mode: 'closed' })" public/stop-control.js
 
       - name: Reject secrets in public assets
         shell: bash
