@@ -45,8 +45,34 @@ Do not bypass a frozen-lockfile, release-age, integrity or build-script failure 
 
 The frontend must not access `game_challenges` or `game_attempts` through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. All writes go through `game-api` and private RPC functions executed with `service_role`.
 
+## Competition isolation
+
+A challenge is issued with an immutable competition context:
+
+- `league_id = null` for global play.
+- A concrete `league_id` for a miniliga attempt.
+
+The finish request contains only the challenge identifier. The server reads the stored context and copies it into the attempt; it never accepts a client-selected league during `finish`.
+
+Consequences:
+
+- A league attempt cannot be promoted to the global ranking.
+- A global attempt cannot be copied into a league.
+- Attempts cannot move between leagues.
+- Global profiles, scores, awards, referrals and duels explicitly filter `league_id is null`.
+- League standings filter by their exact `league_id`.
+- Starting a league attempt requires active membership and an unexpired league.
+
+## Local database commands
+
+`pnpm supabase:setup` runs `supabase db reset --local`. It is intentionally destructive and must only be used for the local stack.
+
+`pnpm supabase:migrate` runs a local dry-run followed by `supabase db push --local`. It applies pending local migrations without resetting existing local data.
+
+Never alter these scripts to target a linked production project. Production changes remain behind the protected deployment workflow, migration guard, dry-run and pre/post integrity snapshots.
+
 ## Anti-cheat scope
 
-Server-issued challenges, wall-clock validation, one-time consumption, database locks, rate limits and optional Turnstile prevent basic request forgery and direct database manipulation. They cannot completely prevent a determined user from automating a real 10.6-second wait.
+Server-issued challenges, wall-clock validation, one-time consumption, database locks, rate limits, competition scoping and optional Turnstile prevent basic request forgery and direct database manipulation. They cannot completely prevent a determined user from automating a real 10.6-second wait.
 
 Do not attach monetary prizes to the current model without stronger identity, risk scoring, server-side telemetry and manual review.
