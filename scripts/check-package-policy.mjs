@@ -41,6 +41,14 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+function lockfileContainsPackage(lockfile, name) {
+  return [
+    `${name}:`,
+    `'${name}':`,
+    `"${name}":`,
+  ].some((key) => lockfile.includes(key));
+}
+
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 
 if (manifest.packageManager !== `pnpm@${EXPECTED_PNPM}`) {
@@ -88,7 +96,7 @@ if (!existsSync('pnpm-lock.yaml')) {
   const lockfile = readFileSync('pnpm-lock.yaml', 'utf8');
   for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
     for (const name of Object.keys(manifest[section] ?? {})) {
-      if (!lockfile.includes(`${name}:`)) {
+      if (!lockfileContainsPackage(lockfile, name)) {
         fail(`pnpm-lock.yaml does not contain ${name}`);
       }
     }
