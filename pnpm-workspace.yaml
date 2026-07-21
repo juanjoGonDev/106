@@ -16,8 +16,7 @@ autoInstallPeers: false
 
 strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
-allowBuilds:
-  esbuild: true
+allowBuilds: {}
 
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
