@@ -69,7 +69,7 @@ jobs:
             *) echo "Generated CORS allowlist is missing $pages_origin" && exit 1 ;;
           esac
 
-          if [[ ",${ALLOWED_ORIGINS:-}," == *",*,"* ]] || [[ "${ALLOWED_ORIGINS:-}" == '*' ]]; then
+          if [[ "${ALLOWED_ORIGINS:-}" == *'*'* ]]; then
             echo '::warning::ALLOWED_ORIGINS contains a wildcard. It is ignored and will not be deployed.'
           fi
 
