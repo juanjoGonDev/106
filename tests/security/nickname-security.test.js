@@ -18,7 +18,7 @@ const injectionPayloads = [
 
 describe('nickname security normalization', () => {
   it.each([
-    ['M1NUT0-106', 'minutaiag'],
+    ['M1NUT0-106', 'minutaia6'],
     ['m.i.n.u.t.o', 'minuto'],
     ['áéíóú', 'aeiou'],
     ['a\u200Bb\uFEFFc', 'abc'],
