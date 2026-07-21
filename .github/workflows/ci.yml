@@ -1,4 +1,4 @@
-name: Pull Request Quality Gate
+name: Pull Request Quality Pipeline
 
 on:
   pull_request:
@@ -12,12 +12,16 @@ concurrency:
   group: pr-quality-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: 22.13.0
+  DEPENDENCY_CACHE_VERSION: v1
+
 jobs:
-  quality:
-    name: ESLint, Knip and tests
+  build:
+    name: 🟢 Build · Prepare workspace
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - name: Checkout pull request
         uses: actions/checkout@v6
@@ -25,64 +29,174 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.0
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Restore npm download cache
+      - name: Restore or create dependency cache
+        id: dependency-cache
         uses: actions/cache@v4
         with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-node-22-${{ hashFiles('package.json', 'package-lock.json', 'npm-shrinkwrap.json') }}
-          restore-keys: |
-            npm-${{ runner.os }}-node-22-
+          path: |
+            ~/.npm
+            node_modules
+            package-lock.json
+          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
 
-      - name: Install exact development dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Generate deterministic npm lockfile
+        if: steps.dependency-cache.outputs.cache-hit != 'true'
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Syntax validation
+      - name: Install exact dependencies
+        if: steps.dependency-cache.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
+
+      - name: Verify restored dependencies
+        if: steps.dependency-cache.outputs.cache-hit == 'true'
+        run: npm ls --depth=0
+
+      - name: Generate static application configuration
+        run: npm run build:config
+
+      - name: Validate JavaScript syntax
         run: npm run check:syntax
 
-      - name: ESLint
-        id: eslint
-        continue-on-error: true
-        run: npx eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
+  tests:
+    name: 🚧 Tests · Unit & security
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
 
-      - name: Upload failed ESLint report
-        if: steps.eslint.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          name: eslint-results-${{ github.run_id }}
-          path: eslint-results.json
-          retention-days: 14
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Enforce ESLint result
-        if: steps.eslint.outcome == 'failure'
-        run: |
-          node -e "const r=require('./eslint-results.json'); for(const f of r.filter(x=>x.errorCount)){console.error(f.filePath); for(const m of f.messages) console.error('  '+m.line+':'+m.column+' '+m.ruleId+' '+m.message)}"
-          exit 1
+      - name: Restore build dependency cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            package-lock.json
+          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
+          fail-on-cache-miss: true
 
-      - name: Knip
-        run: npm run knip
-
-      - name: Unit and security tests
-        id: tests
+      - name: Run Vitest suite
+        id: vitest
         continue-on-error: true
         run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json
 
       - name: Upload failed test report
-        if: steps.tests.outcome == 'failure'
+        if: steps.vitest.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: vitest-results-${{ github.run_id }}
           path: vitest-results.json
-          retention-days: 14
+          retention-days: 7
 
       - name: Enforce test result
-        if: steps.tests.outcome == 'failure'
+        if: steps.vitest.outcome == 'failure'
         run: |
           cat vitest-results.json
           exit 1
 
-      - name: Dependency vulnerability audit
+  eslint:
+    name: 🧹 ESLint · Static analysis
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore build dependency cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            package-lock.json
+          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
+          fail-on-cache-miss: true
+
+      - name: Run ESLint
+        id: eslint-check
+        continue-on-error: true
+        run: npx eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
+
+      - name: Upload failed ESLint report
+        if: steps.eslint-check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-results-${{ github.run_id }}
+          path: eslint-results.json
+          retention-days: 7
+
+      - name: Enforce ESLint result
+        if: steps.eslint-check.outcome == 'failure'
+        run: |
+          node -e "const r=require('./eslint-results.json'); for(const f of r.filter(x=>x.errorCount)){console.error(f.filePath); for(const m of f.messages) console.error('  '+m.line+':'+m.column+' '+m.ruleId+' '+m.message)}"
+          exit 1
+
+  knip:
+    name: 🧩 Knip · Dead code analysis
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore build dependency cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            package-lock.json
+          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
+          fail-on-cache-miss: true
+
+      - name: Detect unused files and dependencies
+        run: npm run knip
+
+  security:
+    name: 🛡️ Security · Dependency & policy checks
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore build dependency cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            package-lock.json
+          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
+          fail-on-cache-miss: true
+
+      - name: Audit dependency vulnerabilities
         run: npm audit --audit-level=high
 
       - name: Reject native browser dialogs
@@ -123,8 +237,8 @@ jobs:
           fi
 
   database-migrations:
-    name: Apply all Supabase migrations
-    if: github.event.pull_request.draft == false
+    name: 🗄️ Database · Migration integrity
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -137,7 +251,7 @@ jobs:
           version: latest
 
       - name: Start local PostgreSQL and apply migrations
-        id: migration_start
+        id: migration-start
         continue-on-error: true
         shell: bash
         run: |
@@ -145,15 +259,15 @@ jobs:
           supabase db start 2>&1 | tee supabase-migrations.log
 
       - name: Upload failed migration log
-        if: steps.migration_start.outcome == 'failure'
+        if: steps.migration-start.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: supabase-migrations-${{ github.run_id }}
           path: supabase-migrations.log
-          retention-days: 14
+          retention-days: 7
 
       - name: Enforce initial migration result
-        if: steps.migration_start.outcome == 'failure'
+        if: steps.migration-start.outcome == 'failure'
         run: |
           cat supabase-migrations.log
           exit 1
@@ -167,3 +281,44 @@ jobs:
       - name: Stop local Supabase services
         if: always()
         run: supabase stop --no-backup
+
+  quality-gate:
+    name: ✅ Quality Gate · Ready to merge
+    if: always() && github.event.pull_request.draft == false
+    needs:
+      - build
+      - tests
+      - eslint
+      - knip
+      - security
+      - database-migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify all pipeline stages
+        shell: bash
+        run: |
+          set -euo pipefail
+          results=(
+            "build=${{ needs.build.result }}"
+            "tests=${{ needs.tests.result }}"
+            "eslint=${{ needs.eslint.result }}"
+            "knip=${{ needs.knip.result }}"
+            "security=${{ needs.security.result }}"
+            "database=${{ needs.database-migrations.result }}"
+          )
+
+          failed=0
+          for result in "${results[@]}"; do
+            name="${result%%=*}"
+            status="${result#*=}"
+            printf '%-12s %s\n' "$name" "$status"
+            if [[ "$status" != "success" ]]; then
+              failed=1
+            fi
+          done
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo 'One or more required pipeline stages did not succeed.'
+            exit 1
+          fi
