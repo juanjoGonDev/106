@@ -7,6 +7,7 @@
     "public/compliance.js",
     "public/competition.js",
     "public/format.js",
+    "public/human-check.js",
     "public/layout.js",
     "public/player-stats.js",
     "public/profile-enhancements.js",
