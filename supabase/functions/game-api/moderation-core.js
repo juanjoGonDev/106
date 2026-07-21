@@ -27,17 +27,22 @@ const LEET_REPLACEMENTS = Object.freeze({
   '9': 'g',
 });
 
-export function compactNickname(value) {
+function unicodeAlphanumeric(value) {
   return String(value ?? '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f\u200B-\u200D\uFEFF]/g, '')
     .toLocaleLowerCase('und')
-    .replace(/[0@41!|35$7+89]/g, (character) => LEET_REPLACEMENTS[character] ?? character)
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
+export function compactNickname(value) {
+  return unicodeAlphanumeric(value)
+    .replace(/[0@41!|35$7+89]/g, (character) => LEET_REPLACEMENTS[character] ?? character);
+}
+
 export function isReservedNickname(value) {
-  return RESERVED_NICKNAMES.has(compactNickname(value));
+  const canonical = unicodeAlphanumeric(value);
+  return RESERVED_NICKNAMES.has(canonical) || RESERVED_NICKNAMES.has(compactNickname(value));
 }
 
 export function nicknameVariants(value) {
