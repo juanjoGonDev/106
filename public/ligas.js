@@ -9,7 +9,8 @@ async function leagueRequest(action, payload = {}) {
   if (!response.ok) throw new Error(body.error || 'No se pudo cargar la miniliga.');
   return body;
 }
-function escapeLeague(value) { return String(value).replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[c]); }
+function escapeLeague(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
+function hasValue(value) { return value !== null && value !== undefined; }
 async function loadLeague() {
   const code = String(document.querySelector('#leagueLookupCode').value || new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Introduce un código válido de seis caracteres.');
@@ -19,8 +20,13 @@ async function loadLeague() {
   document.querySelector('#leagueLookupTitle').textContent = `${league.name} · ${league.code}`;
   const remaining = Math.max(0, new Date(league.endsAt).getTime() - Date.now());
   document.querySelector('#leagueLookupEnds').textContent = remaining ? `Termina en ${Math.ceil(remaining / 3_600_000)} h` : 'Finalizada';
-  document.querySelector('#leagueLookupList').innerHTML = league.leaderboard?.length ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeLeague(entry.nick)}</span><span class="difference">${entry.bestDifferenceMs == null ? 'Sin marca' : `±${entry.bestDifferenceMs} ms`}</span></li>`).join('') : '<li class="empty">Todavía no hay participantes.</li>';
+  document.querySelector('#leagueLookupList').innerHTML = league.leaderboard?.length
+    ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeLeague(entry.nick)}</span><span class="difference">${hasValue(entry.bestDifferenceMs) ? `±${entry.bestDifferenceMs} ms` : 'Sin marca'}</span></li>`).join('')
+    : '<li class="empty">Todavía no hay participantes.</li>';
 }
 document.querySelector('#leagueLookupButton')?.addEventListener('click', () => loadLeague().catch((error) => alert(error.message)));
 const initialCode = new URLSearchParams(location.search).get('league');
-if (initialCode) { document.querySelector('#leagueLookupCode').value = initialCode.toUpperCase(); loadLeague().catch(() => {}); }
+if (initialCode) {
+  document.querySelector('#leagueLookupCode').value = initialCode.toUpperCase();
+  loadLeague().catch(() => {});
+}
