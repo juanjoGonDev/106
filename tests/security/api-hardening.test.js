@@ -30,6 +30,14 @@ describe('Edge Function attack surface', () => {
     expect(apiSource).toContain('moderateNickname');
   });
 
+  it('validates pointer-only human checks before starting an attempt', () => {
+    expect(apiSource).toContain('normalizeHumanClicks');
+    expect(apiSource).toContain("['mouse', 'touch', 'pen'].includes(pointerType)");
+    expect(apiSource).toContain("rpc('complete_game_human_check'");
+    expect(apiSource).toContain("rpc('consume_game_human_check'");
+    expect(apiSource).toContain("rpc('start_game_challenge_pointer_only'");
+  });
+
   it('does not execute or construct SQL from request input', () => {
     expect(apiSource).not.toMatch(/\b(eval|Function)\s*\(/);
     expect(apiSource).not.toMatch(/\b(exec|execute)\s*\(/i);
@@ -56,6 +64,7 @@ describe('PostgreSQL access controls', () => {
       'game_league_members',
       'game_accounts',
       'game_account_players',
+      'game_human_checks',
     ]) {
       expect(migrationSource).toMatch(new RegExp(`alter table public\\.${table} enable row level security`, 'i'));
     }

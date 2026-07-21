@@ -43,7 +43,7 @@ Do not bypass a frozen-lockfile, release-age, integrity or build-script failure 
 
 ## Data access
 
-The frontend must not access `game_challenges` or `game_attempts` through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. All writes go through `game-api` and private RPC functions executed with `service_role`.
+The frontend must not access `game_challenges`, `game_attempts` or `game_human_checks` through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. All writes go through `game-api` and private RPC functions executed with `service_role`.
 
 ## CORS origin policy
 
@@ -76,6 +76,22 @@ Consequences:
 - League standings filter by their exact `league_id`.
 - Starting a league attempt requires active membership and an unexpired league.
 
+## Visual human verification
+
+Every attempt requires a one-time visual check before the game challenge is created:
+
+- The Edge Function generates four numbered football positions with a minimum separation.
+- The browser draws the complete challenge on one canvas and accepts only trusted mouse, touch or pen presses.
+- The Edge Function bounds and normalizes click coordinates, order, timing and pointer type.
+- PostgreSQL validates each click against the server-issued geometry.
+- A successful completion returns a random proof token; only its peppered hash is stored.
+- The proof is bound to the device and IP hashes, expires quickly and is consumed once by `start`.
+- Cloudflare Turnstile is additionally verified when its site and secret keys are configured.
+
+The final stop is also pointer-only. It is rendered in a closed shadow root on canvas and accepts only a trusted `pointerdown` from mouse, touch or pen. Keyboard input is not a valid finish path.
+
+Canvas and closed shadow roots remove stable DOM selectors, but they do not make browser state secret. A determined attacker can inspect JavaScript and network traffic. The security boundary remains the server-issued proof, one-time consumption, wall-clock validation, rate limits, database locks, telemetry and optional Turnstile.
+
 ## Local database commands
 
 `pnpm supabase:setup` runs `supabase db reset --local`. It is intentionally destructive and must only be used for the local stack.
@@ -86,6 +102,6 @@ Never alter these scripts to target a linked production project. Production chan
 
 ## Anti-cheat scope
 
-Server-issued challenges, wall-clock validation, one-time consumption, database locks, rate limits, competition scoping and optional Turnstile prevent basic request forgery and direct database manipulation. They cannot completely prevent a determined user from automating a real 10.6-second wait.
+Server-issued challenges, visual proof, wall-clock validation, one-time consumption, database locks, rate limits, competition scoping and Turnstile prevent basic request forgery and common automation paths. They cannot completely prevent a determined user from controlling a browser and reproducing a valid 10.6-second wait.
 
 Do not attach monetary prizes to the current model without stronger identity, risk scoring, server-side telemetry and manual review.

@@ -1,1 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#5f0018"/><stop offset=".5" stop-color="#08090c"/><stop offset="1" stop-color="#122b61"/></linearGradient><radialGradient id="glow"><stop stop-color="#f4c95d" stop-opacity=".35"/><stop offset="1" stop-color="#f4c95d" stop-opacity="0"/></radialGradient></defs><rect width="1200" height="630" fill="url(#bg)"/><circle cx="600" cy="300" r="260" fill="url(#glow)"/><text x="600" y="150" text-anchor="middle" fill="#f4c95d" font-family="Arial,sans-serif" font-size="28" font-weight="700" letter-spacing="8">EL MINUTO 106 SIGUE EN JUEGO</text><text x="600" y="350" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="190" font-weight="900">10.600</text><text x="600" y="430" text-anchor="middle" fill="#d9dce4" font-family="Arial,sans-serif" font-size="34">¿Puedes detener el reloj en el instante exacto?</text><text x="600" y="515" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="30" font-weight="700">España vs. Argentina · Retos · Miniligas</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#7b001f"/>
+      <stop offset=".46" stop-color="#160914"/>
+      <stop offset=".54" stop-color="#081325"/>
+      <stop offset="1" stop-color="#15437d"/>
+    </linearGradient>
+    <radialGradient id="gold"><stop stop-color="#f4c95d" stop-opacity=".42"/><stop offset="1" stop-color="#f4c95d" stop-opacity="0"/></radialGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="20" flood-opacity=".55"/></filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <path d="M0 0h470L305 630H0Z" fill="#a9002f" opacity=".75"/>
+  <path d="M1200 0H730l165 630h305Z" fill="#65baf0" opacity=".72"/>
+  <path d="M0 132h410v78H0Z" fill="#ffd447" opacity=".94"/>
+  <path d="M790 112h410v56H790Zm0 98h410v56H790Z" fill="#f7f8fb" opacity=".95"/>
+  <circle cx="600" cy="316" r="285" fill="url(#gold)"/>
+  <text x="600" y="78" text-anchor="middle" fill="#f4c95d" font-family="Arial,sans-serif" font-size="27" font-weight="900" letter-spacing="8">ESPAÑA VS ARGENTINA</text>
+  <text x="600" y="262" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="168" font-weight="900" filter="url(#shadow)">10.600</text>
+  <circle cx="600" cy="365" r="62" fill="#f7f8fb" stroke="#11151d" stroke-width="8" filter="url(#shadow)"/>
+  <path d="m600 330 23 17-9 28h-28l-9-28Z" fill="#11151d"/>
+  <path d="m577 347-31-5m77 5 31-5m-68 33-22 25m50-25 22 25" stroke="#11151d" stroke-width="8" stroke-linecap="round"/>
+  <text x="600" y="493" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="45" font-weight="900">¿QUIÉN CLAVA EL MINUTO 106?</text>
+  <rect x="330" y="530" width="540" height="58" rx="29" fill="#08090c" stroke="#f4c95d" stroke-width="2"/>
+  <text x="600" y="568" text-anchor="middle" fill="#f4c95d" font-family="Arial,sans-serif" font-size="25" font-weight="800">5 INTENTOS · RANKING GLOBAL · MINILIGAS</text>
+  <text x="82" y="590" fill="#fff" font-family="Arial,sans-serif" font-size="24" font-weight="900">MINUTO 106</text>
+</svg>

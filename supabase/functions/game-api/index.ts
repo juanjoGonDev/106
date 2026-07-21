@@ -29,6 +29,9 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
+const HUMAN_BALL_COUNT = 4;
+const HUMAN_BALL_RADIUS = 8;
+const HUMAN_BALL_MINIMUM_DISTANCE = 26;
 
 function corsHeaders(origin: string | null) {
   return {
@@ -64,13 +67,78 @@ function boundedNumber(value: unknown, minimum: number, maximum: number, fallbac
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
 }
+function secureRandom() {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return values[0] / 0x1_0000_0000;
+}
+function randomHex(byteLength = 32) {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+function createBallLayout() {
+  const balls: Array<{ order: number; x: number; y: number; radius: number }> = [];
+  const fallback = [
+    { x: 20, y: 28 },
+    { x: 78, y: 25 },
+    { x: 27, y: 75 },
+    { x: 80, y: 72 },
+  ];
+
+  for (let order = 1; order <= HUMAN_BALL_COUNT; order += 1) {
+    let candidate = fallback[order - 1];
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const proposed = {
+        x: 14 + secureRandom() * 72,
+        y: 18 + secureRandom() * 64,
+      };
+      const separated = balls.every((ball) => Math.hypot(ball.x - proposed.x, ball.y - proposed.y) >= HUMAN_BALL_MINIMUM_DISTANCE);
+      if (separated) {
+        candidate = proposed;
+        break;
+      }
+    }
+    balls.push({
+      order,
+      x: Number(candidate.x.toFixed(2)),
+      y: Number(candidate.y.toFixed(2)),
+      radius: HUMAN_BALL_RADIUS,
+    });
+  }
+  return balls;
+}
+function normalizeHumanClicks(value: unknown) {
+  if (!Array.isArray(value) || value.length !== HUMAN_BALL_COUNT) return null;
+  const clicks: Array<{ x: number; y: number; atMs: number; pointerType: string; trusted: boolean }> = [];
+  let previousAt = -1;
+
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null;
+    const input = item as Record<string, unknown>;
+    const x = Number(input.x);
+    const y = Number(input.y);
+    const atMs = Math.round(Number(input.atMs));
+    const pointerType = String(input.pointerType ?? '');
+    if (!Number.isFinite(x) || x < 0 || x > 100
+      || !Number.isFinite(y) || y < 0 || y > 100
+      || !Number.isFinite(atMs) || atMs <= previousAt || atMs > 20_000
+      || !['mouse', 'touch', 'pen'].includes(pointerType)
+      || input.trusted !== true) return null;
+    clicks.push({
+      x: Number(x.toFixed(2)),
+      y: Number(y.toFixed(2)),
+      atMs,
+      pointerType,
+      trusted: true,
+    });
+    previousAt = atMs;
+  }
+  return clicks;
+}
 function normalizeSignals(value: unknown) {
   const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  const mode = input.interactionMode === 'release' ? 'release' : input.interactionMode === 'press' ? 'press' : '';
-  const finishEvent = ['pointerdown', 'pointerup', 'keydown'].includes(String(input.finishEvent))
-    ? String(input.finishEvent)
-    : '';
-  const pointerType = ['mouse', 'touch', 'pen', 'keyboard'].includes(String(input.pointerType))
+  const pointerType = ['mouse', 'touch', 'pen'].includes(String(input.pointerType))
     ? String(input.pointerType)
     : 'unknown';
   return {
@@ -79,9 +147,9 @@ function normalizeSignals(value: unknown) {
     timerConcealed: input.timerConcealed === true,
     visibilityChanges: Math.round(boundedNumber(input.visibilityChanges, 0, 20)),
     focusLosses: Math.round(boundedNumber(input.focusLosses, 0, 20)),
-    interactionMode: mode,
+    interactionMode: input.interactionMode === 'press' ? 'press' : '',
     controlNonce: normalizeUuid(input.controlNonce) ?? '',
-    finishEvent,
+    finishEvent: input.finishEvent === 'pointerdown' ? 'pointerdown' : '',
     pointerTrusted: input.pointerTrusted === true,
     userActivation: input.userActivation === true,
     automationDetected: input.automationDetected === true,
@@ -92,9 +160,8 @@ function normalizeSignals(value: unknown) {
     pointerTravelPx: Math.round(boundedNumber(input.pointerTravelPx, 0, 5000)),
     pointerDwellMs: Math.round(boundedNumber(input.pointerDwellMs, 0, 30000)),
     pressureMax: Number(boundedNumber(input.pressureMax, 0, 1).toFixed(3)),
-    holdDurationMs: Math.round(boundedNumber(input.holdDurationMs, 0, 3000)),
-    samePointer: input.samePointer === true,
-    keyboardKey: input.keyboardKey === 'Enter' ? 'Enter' : input.keyboardKey === ' ' ? ' ' : '',
+    holdDurationMs: 0,
+    samePointer: true,
   };
 }
 function clientIp(request: Request) {
@@ -127,10 +194,10 @@ async function rpc(name: string, parameters = {}) {
   return data;
 }
 function statusForError(error: string) {
-  if (['nick_limit', 'challenge_used', 'duel_closed'].includes(error)) return 409;
-  if (['player_access_denied', 'league_membership_required'].includes(error)) return 403;
-  if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit'].includes(error)) return 429;
-  if (['challenge_not_found', 'duel_not_found', 'league_not_found'].includes(error)) return 404;
+  if (['nick_limit', 'challenge_used', 'duel_closed', 'human_check_used', 'human_check_completed'].includes(error)) return 409;
+  if (['player_access_denied', 'league_membership_required', 'human_check_mismatch'].includes(error)) return 403;
+  if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit', 'human_check_rate_limit'].includes(error)) return 429;
+  if (['challenge_not_found', 'duel_not_found', 'league_not_found', 'human_check_not_found'].includes(error)) return 404;
   return 400;
 }
 function messageForError(error: string) {
@@ -145,6 +212,7 @@ function messageForError(error: string) {
     device_mismatch: 'Debes terminar desde el mismo dispositivo.',
     invalid_timing: 'La duración no es válida.',
     timing_mismatch: 'El tiempo no coincide con el comprobado por el servidor.',
+    invalid_pointer_finish: 'La parada debe realizarse pulsando el control visual con ratón, lápiz o pantalla táctil.',
     account_token_required: 'Necesitas la clave privada de tu cuenta.',
     player_access_denied: 'Este nick pertenece a otra cuenta o la clave no es válida.',
     player_claim_original_device: 'Este nick antiguo debe vincularse primero desde su dispositivo original.',
@@ -159,6 +227,15 @@ function messageForError(error: string) {
     league_not_found: 'La miniliga no existe.',
     league_finished: 'La miniliga ya terminó.',
     league_membership_required: 'Este nick no pertenece a la miniliga. Únete desde la vista Miniligas.',
+    human_check_invalid: 'La verificación visual no es válida.',
+    human_check_not_found: 'La verificación visual no existe.',
+    human_check_expired: 'La verificación visual ha caducado. Repítela.',
+    human_check_used: 'La verificación visual ya fue utilizada.',
+    human_check_completed: 'La verificación visual ya fue completada.',
+    human_check_incomplete: 'Completa la verificación visual antes de comenzar.',
+    human_check_mismatch: 'La verificación visual no pertenece a este dispositivo.',
+    human_check_failed: 'El orden o las pulsaciones de la verificación visual no son correctos.',
+    human_check_rate_limit: 'Demasiadas verificaciones seguidas. Espera un momento.',
   };
   return messages[error] ?? 'No se pudo completar la operación.';
 }
@@ -255,25 +332,76 @@ Deno.serve(async (request) => {
       sha256(`ip:${ip}`),
     ]);
 
-    if (action === 'start' || action === 'link-account-player') {
+    if (action === 'human-check') {
+      const balls = createBallLayout();
+      const result = await rpc('create_game_human_check', {
+        p_device_hash: deviceHash,
+        p_ip_hash: ipHash,
+        p_balls: balls,
+      });
+      return safeResult(origin, { ...result, balls }, 201);
+    }
+
+    if (action === 'complete-human-check') {
+      const checkId = normalizeUuid(body.checkId);
+      const clicks = normalizeHumanClicks(body.clicks);
+      if (!checkId || !clicks) return safeResult(origin, { error: 'human_check_invalid' });
+      const proofToken = randomHex();
+      const result = await rpc('complete_game_human_check', {
+        p_check_id: checkId,
+        p_device_hash: deviceHash,
+        p_ip_hash: ipHash,
+        p_clicks: clicks,
+        p_proof_token_hash: await sha256(`human:${proofToken}`),
+      });
+      if (result.error) return safeResult(origin, result);
+      return jsonResponse(origin, {
+        checkId,
+        proofToken,
+        expiresAt: result.expiresAt,
+      }, 201);
+    }
+
+    if (action === 'link-account-player') {
       const nick = normalizeNick(body.nick);
-      const team = action === 'start' ? normalizeTeam(body.team) : null;
-      const requestedLeagueCode = String(body.leagueCode ?? '').trim();
-      const leagueCode = requestedLeagueCode ? normalizeLeagueCode(requestedLeagueCode) : null;
-      if (requestedLeagueCode && !leagueCode) return jsonResponse(origin, { error: 'Código de liga inválido.' }, 400);
-      if (nick.length < 2 || (action === 'start' && !team)) {
-        return jsonResponse(origin, { error: 'Nick o selección inválidos.' }, 400);
-      }
+      if (nick.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
       const moderationError = validateModeratedNick(origin, nick);
       if (moderationError) return moderationError;
       const access = await authorizePlayer(request, nick, deviceHash, ipHash);
-      if (access.error) return safeResult(origin, access);
-      if (action === 'link-account-player') return jsonResponse(origin, access);
+      return access.error ? safeResult(origin, access) : jsonResponse(origin, access);
+    }
+
+    if (action === 'start') {
+      const nick = normalizeNick(body.nick);
+      const team = normalizeTeam(body.team);
+      const requestedLeagueCode = String(body.leagueCode ?? '').trim();
+      const leagueCode = requestedLeagueCode ? normalizeLeagueCode(requestedLeagueCode) : null;
+      if (requestedLeagueCode && !leagueCode) return jsonResponse(origin, { error: 'Código de liga inválido.' }, 400);
+      if (nick.length < 2 || !team) return jsonResponse(origin, { error: 'Nick o selección inválidos.' }, 400);
+      const moderationError = validateModeratedNick(origin, nick);
+      if (moderationError) return moderationError;
 
       if (!(await verifyTurnstile(body.turnstileToken, ip))) {
         return jsonResponse(origin, { error: 'No se pudo completar la verificación anti-bots.' }, 400);
       }
-      const game = await rpc('start_game_challenge', {
+
+      const humanCheckId = normalizeUuid(body.humanCheckId);
+      const humanProofToken = String(body.humanProofToken ?? '').trim().toLowerCase();
+      if (!humanCheckId || !PRIVATE_TOKEN.test(humanProofToken)) {
+        return safeResult(origin, { error: 'human_check_incomplete' });
+      }
+      const humanCheck = await rpc('consume_game_human_check', {
+        p_check_id: humanCheckId,
+        p_device_hash: deviceHash,
+        p_ip_hash: ipHash,
+        p_proof_token_hash: await sha256(`human:${humanProofToken}`),
+      });
+      if (humanCheck.error) return safeResult(origin, humanCheck);
+
+      const access = await authorizePlayer(request, nick, deviceHash, ipHash);
+      if (access.error) return safeResult(origin, access);
+
+      const game = await rpc('start_game_challenge_pointer_only', {
         p_nick: nick,
         p_nick_key: nick.toLocaleLowerCase('es'),
         p_team: team,
@@ -294,7 +422,7 @@ Deno.serve(async (request) => {
       if (!challengeId || !Number.isFinite(clientElapsedMs)) {
         return jsonResponse(origin, { error: 'Intento inválido.' }, 400);
       }
-      const result = await rpc('finish_game_attempt', {
+      const result = await rpc('finish_game_attempt_pointer_only', {
         p_challenge_id: challengeId,
         p_client_elapsed_ms: clientElapsedMs,
         p_device_hash: deviceHash,

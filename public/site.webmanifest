@@ -1,0 +1,17 @@
+{
+  "name": "Minuto 106",
+  "short_name": "Minuto 106",
+  "description": "Juego de precisión España vs. Argentina: detén el reloj en 10,600 segundos.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#08090c",
+  "theme_color": "#08090c",
+  "icons": [
+    {
+      "src": "./assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
