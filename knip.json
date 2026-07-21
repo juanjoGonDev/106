@@ -3,8 +3,11 @@
   "entry": [
     "public/app.js",
     "public/access.js",
+    "public/account.js",
     "public/compliance.js",
     "public/layout.js",
+    "public/player-stats.js",
+    "public/profile-enhancements.js",
     "public/ranking.js",
     "public/ligas.js",
     "public/v3.js",
@@ -22,7 +25,5 @@
     "public/config.js",
     "supabase/functions/**/*.ts"
   ],
-  "ignoreDependencies": [
-    "eslint-plugin-security"
-  ]
+  "ignoreDependencies": []
 }
