@@ -98,4 +98,8 @@ document.querySelector('#rankingProfile')?.addEventListener('click', (event) => 
   if (event.target.closest('#closeRankingProfile')) closeProfile();
   if (event.target.closest('#rankingCompareButton')) compareProfile().catch((error) => alert(error.message));
 });
-loadRanking();
+
+const requestedNick = new URLSearchParams(location.search).get('nick')?.trim();
+loadRanking().then(() => {
+  if (requestedNick) showProfile(requestedNick).catch((error) => alert(error.message));
+});
