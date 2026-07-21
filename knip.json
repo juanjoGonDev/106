@@ -4,6 +4,7 @@
     "public/app.js",
     "public/access.js",
     "public/compliance.js",
+    "public/layout.js",
     "public/ranking.js",
     "public/ligas.js",
     "public/v3.js",
