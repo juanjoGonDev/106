@@ -93,6 +93,23 @@ async function runSmokeChecks() {
   assert.ok(Array.isArray(stats.body.leaderboard));
   logStep('Edge Function is reachable through the local Supabase gateway');
 
+  const preflight = await fetch(endpoint, {
+    method: 'OPTIONS',
+    headers: {
+      origin,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type,x-device-id,x-account-token',
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+  assert.match(
+    preflight.headers.get('access-control-allow-headers') ?? '',
+    /x-account-token/i,
+  );
+  logStep('CORS preflight succeeds for a configured browser origin');
+
   const methodResponse = await fetch(endpoint, {
     method: 'GET',
     headers: { origin },
