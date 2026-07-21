@@ -71,7 +71,7 @@ describe('Pages and mobile navigation regressions', () => {
   it('supports both legacy and workflow-based GitHub Pages publishing', async () => {
     const workflow = await readRepositoryFile('.github/workflows/pages.yml');
 
-    expect(workflow).toContain("build_type=\"$build_type\"");
+    expect(workflow).toContain('echo "build_type=$build_type"');
     expect(workflow).toContain("steps.pages-mode.outputs.build_type == 'legacy'");
     expect(workflow).toContain("steps.pages-mode.outputs.build_type == 'workflow'");
     expect(workflow).toContain('SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}');
