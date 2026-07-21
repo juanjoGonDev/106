@@ -1,7 +1,6 @@
 (() => {
   const CONTROL_WIDTH = 250;
   const CONTROL_HEIGHT = 88;
-  const FIXED_TARGET_PERCENT = 50;
 
   function seedNumber(value) {
     return Array.from(String(value || '')).reduce(
@@ -10,14 +9,19 @@
     );
   }
 
+  function boundedPercent(value, fallback = 50) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(20, Math.min(80, number)) : fallback;
+  }
+
   function normalizeInteraction(input = {}) {
     const nonce = String(input.nonce || '');
     const seed = seedNumber(nonce);
     return {
       mode: 'press',
       nonce,
-      xPercent: FIXED_TARGET_PERCENT,
-      yPercent: FIXED_TARGET_PERCENT,
+      xPercent: boundedPercent(input.xPercent),
+      yPercent: boundedPercent(input.yPercent),
       variant: Number(input.variant ?? seed % 4) % 4,
       seed,
     };
@@ -59,10 +63,10 @@
     context.fillText('PULSA UNA VEZ', CONTROL_WIDTH / 2, 62);
   }
 
-  function mappedControlCoordinate(value, start, size) {
-    if (!Number.isFinite(value) || size <= 0) return FIXED_TARGET_PERCENT;
+  function mappedControlCoordinate(value, start, size, target) {
+    if (!Number.isFinite(value) || size <= 0) return target;
     const local = Math.max(0, Math.min(1, (value - start) / size));
-    return 42 + local * 16;
+    return Math.max(20, Math.min(80, target - 8 + local * 16));
   }
 
   function updateInstruction() {
@@ -119,8 +123,8 @@
     function coordinates(event) {
       const bounds = pad.getBoundingClientRect();
       return {
-        x: mappedControlCoordinate(Number(event.clientX), bounds.left, bounds.width),
-        y: mappedControlCoordinate(Number(event.clientY), bounds.top, bounds.height),
+        x: mappedControlCoordinate(Number(event.clientX), bounds.left, bounds.width, interaction.xPercent),
+        y: mappedControlCoordinate(Number(event.clientY), bounds.top, bounds.height, interaction.yPercent),
       };
     }
 
