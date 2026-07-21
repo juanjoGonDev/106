@@ -4,12 +4,26 @@ Juego viral de precisión España vs. Argentina. El jugador elige selección, in
 
 ## Reglas
 
-- 5 intentos base por nick normalizado.
-- Se permite volver a competir con otro nick.
-- Los referidos válidos conceden intentos adicionales.
-- El ranking conserva la mejor marca verificada de cada nick y selección.
+- Cada nick dispone de 5 intentos base en la competición global.
+- Cada miniliga concede otros 5 intentos independientes por participante.
+- Un tiempo pertenece a un único contexto: global o una miniliga concreta.
+- Los intentos de miniliga no consumen intentos globales, no suman puntos a España o Argentina y no entran en el ranking, premios, perfiles o duelos globales.
+- El ranking global conserva la mejor marca global verificada de cada nick y selección.
+- Cada miniliga conserva exclusivamente las marcas generadas desde su enlace de competición.
+- Los referidos válidos conceden intentos globales adicionales.
 - Los intentos sospechosos se conservan para auditoría, pero no puntúan.
 - El cronómetro numérico desaparece completamente después de 2 segundos.
+
+## Puntuación global
+
+La puntuación por selecciones usa una escala contenida para poder crecer durante una campaña viral sin dispararse demasiado pronto:
+
+- Máximo de 100 puntos por jugador y selección.
+- La puntuación disminuye aproximadamente 1 punto por cada 10 ms de diferencia.
+- Siempre se concede un mínimo de 1 punto a una mejor marca global verificada.
+- Solo cuenta la mejor marca global de cada nick para cada selección.
+
+Los contadores grandes se muestran de forma compacta en la interfaz: `1.2k`, `1M`, `1.2M`, etc. El valor completo permanece disponible como texto auxiliar.
 
 ## Arquitectura
 
@@ -23,7 +37,27 @@ Supabase Edge Function: game-api
 PostgreSQL + RLS + RPC atómicas
 ```
 
-El navegador no contiene secretos ni escribe directamente en PostgreSQL. Los tiempos, jugadores, perfiles, bonus y referencias se almacenan en tablas persistentes de Supabase.
+El navegador no contiene secretos ni escribe directamente en PostgreSQL. Los tiempos, jugadores, perfiles, bonus, referencias y membresías se almacenan en tablas persistentes de Supabase.
+
+El servidor crea cada desafío con su contexto de competición. Al terminar, `finish` utiliza el `league_id` ya asociado al desafío; el navegador no puede convertir posteriormente un tiempo de liga en global ni moverlo entre ligas.
+
+## Miniligas
+
+La gestión de miniligas se concentra en `ligas.html`:
+
+- Crear una miniliga.
+- Unirse mediante código.
+- Consultar todas las ligas del nick autenticado.
+- Ver posición, mejor marca, intentos utilizados y tiempo restante.
+- Abrir el juego dentro de una liga concreta.
+- Compartir la invitación.
+
+El enlace de competición usa `?league=ABC123`. Antes de crear un desafío, el backend comprueba que:
+
+1. La liga existe.
+2. No ha finalizado.
+3. El nick pertenece a esa liga.
+4. Quedan intentos dentro del presupuesto independiente de 5.
 
 ## Toolchain fijado
 
@@ -62,9 +96,7 @@ Requiere Volta, Docker y Supabase CLI. Desde la raíz del repositorio:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm check
-supabase start
-supabase db reset
+pnpm supabase:setup
 supabase functions serve game-api --no-verify-jwt --env-file supabase/functions/.env.local
 node --env-file=.env.local scripts/generate-config.mjs
 pnpm dev
@@ -78,6 +110,37 @@ Genera `HASH_PEPPER` en Windows, macOS o Linux sin depender de OpenSSL:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
+### Gestión local de Supabase
+
+```bash
+pnpm supabase:start
+pnpm supabase:status
+pnpm supabase:migrate
+pnpm supabase:setup
+pnpm supabase:stop
+```
+
+#### `pnpm supabase:setup`
+
+- Arranca Supabase local cuando sea necesario.
+- Ejecuta `supabase db reset --local`.
+- Recrea exclusivamente la base local.
+- Vuelve a aplicar todas las migraciones desde cero.
+- **Elimina los datos locales existentes.**
+
+Úsalo para una instalación inicial, para verificar que todo el esquema puede reconstruirse o cuando los datos locales no deban conservarse.
+
+#### `pnpm supabase:migrate`
+
+- Arranca Supabase local cuando sea necesario.
+- Ejecuta primero un `dry-run` local.
+- Aplica únicamente las migraciones pendientes mediante `supabase db push --local`.
+- Conserva tablas, intentos y demás datos locales existentes.
+
+Es el comando normal después de descargar nuevas migraciones durante el desarrollo diario.
+
+`supabase:setup` y `supabase:migrate` están encapsulados con `--local`. No sustituyas esos comandos por una conexión enlazada ni ejecutes `db reset` contra producción.
+
 ### Comandos habituales
 
 ```bash
@@ -89,6 +152,7 @@ pnpm test:supabase
 pnpm lint
 pnpm knip
 pnpm audit --audit-level=high
+pnpm supabase:migrate
 ```
 
 ### Actualizar dependencias
@@ -133,6 +197,9 @@ En **Settings → Secrets and variables → Actions** configura:
 | `SUPABASE_FUNCTIONS_URL` | `https://PROJECT_REF.supabase.co/functions/v1/game-api` |
 | `ALLOWED_ORIGINS` | `https://juanjogondev.github.io,http://localhost:3000` |
 | `TURNSTILE_SITE_KEY` | Clave pública opcional de Turnstile |
+| `PUBLIC_SITE_URL` | URL pública canónica del juego |
+| `GOOGLE_ANALYTICS_ID` | Identificador opcional, vacío mientras no se habilite analítica |
+| `ADSENSE_CLIENT` | Identificador opcional, vacío mientras no se habilite publicidad |
 
 ### Secrets
 
@@ -167,7 +234,7 @@ El workflow `.github/workflows/supabase.yml` realiza estas fases en orden:
 6. Aplica únicamente migraciones incrementales.
 7. Despliega la Edge Function.
 8. Captura los contadores posteriores.
-9. Falla si disminuyen intentos, jugadores, referencias o bonus.
+9. Falla si disminuyen intentos, jugadores, referencias, bonus, retos, ligas o membresías.
 10. Registra el commit, workflow run, versión de migración y estadísticas posteriores.
 11. Publica un artefacto no sensible con los contadores durante 90 días.
 
@@ -175,11 +242,9 @@ El workflow `.github/workflows/supabase.yml` realiza estas fases en orden:
 
 Los siguientes contadores se consideran monotónicos y no pueden disminuir durante un despliegue normal:
 
-- Intentos totales.
-- Intentos verificados.
+- Intentos totales y verificados, con independencia de su contexto.
 - Jugadores.
-- Referencias creadas.
-- Referencias completadas.
+- Referencias creadas y completadas.
 - Intentos bonus concedidos.
 - Retos y retos completados.
 - Miniligas y sus miembros.
@@ -261,4 +326,4 @@ En **Settings → Pages → Build and deployment**, selecciona **GitHub Actions*
 
 ## Seguridad anti-trampas
 
-La puntuación precisa se mide con `performance.now()`, pero el servidor valida un desafío de un solo uso, tiempo real transcurrido, dispositivo, IP, interacción, límites y patrones sospechosos. Ningún juego ejecutado en un navegador puede impedir por completo que un atacante avanzado espere 10,6 segundos mediante automatización.
+La puntuación precisa se mide con `performance.now()`, pero el servidor valida un desafío de un solo uso, tiempo real transcurrido, dispositivo, IP, interacción, contexto de competición, límites y patrones sospechosos. Ningún juego ejecutado en un navegador puede impedir por completo que un atacante avanzado espere 10,6 segundos mediante automatización.
