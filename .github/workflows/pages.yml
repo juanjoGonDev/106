@@ -14,12 +14,21 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: 22.13.0
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Generate public runtime config
         run: node scripts/generate-config.mjs
         env:
@@ -28,8 +37,10 @@ jobs:
           GOOGLE_ANALYTICS_ID: ${{ vars.GOOGLE_ANALYTICS_ID }}
           ADSENSE_CLIENT: ${{ vars.ADSENSE_CLIENT }}
           PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
