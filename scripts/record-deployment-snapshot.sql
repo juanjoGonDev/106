@@ -10,6 +10,8 @@ insert into public.game_deployment_snapshots (
   referrals,
   completed_referrals,
   bonus_attempts,
+  accounts,
+  account_players,
   migration_version
 )
 select
@@ -22,6 +24,8 @@ select
   (select count(*) from public.game_referrals),
   (select count(*) from public.game_referrals where completed_at is not null),
   (select coalesce(sum(bonus_attempts), 0) from public.game_player_bonus),
+  case when to_regclass('public.game_accounts') is null then 0 else (select count(*) from public.game_accounts) end,
+  case when to_regclass('public.game_account_players') is null then 0 else (select count(*) from public.game_account_players) end,
   (select max(version) from supabase_migrations.schema_migrations)
 on conflict (workflow_run_id, phase) do update set
   commit_sha = excluded.commit_sha,
@@ -31,5 +35,7 @@ on conflict (workflow_run_id, phase) do update set
   referrals = excluded.referrals,
   completed_referrals = excluded.completed_referrals,
   bonus_attempts = excluded.bonus_attempts,
+  accounts = excluded.accounts,
+  account_players = excluded.account_players,
   migration_version = excluded.migration_version,
   created_at = clock_timestamp();
