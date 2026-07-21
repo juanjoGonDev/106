@@ -45,7 +45,7 @@ describe('production CORS origins', () => {
     ]);
   });
 
-  it('repairs CORS before migrations and treats snapshots as an optional safety layer', async () => {
+  it('repairs CORS before migrations and gates snapshots on verified connectivity', async () => {
     const workflow = await readFile(
       new URL('../.github/workflows/supabase.yml', import.meta.url),
       'utf8',
@@ -54,8 +54,9 @@ describe('production CORS origins', () => {
     expect(workflow).toContain('canonical_origins="$(node scripts/build-allowed-origins.mjs)"');
     expect(workflow).toContain('"ALLOWED_ORIGINS=$canonical_origins"');
     expect(workflow).toContain('GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}');
-    expect(workflow).toContain("if: ${{ env.SUPABASE_DB_URL != '' }}");
-    expect(workflow).not.toContain("test -n \"$SUPABASE_DB_URL\"");
+    expect(workflow).toContain('Probe snapshot database connectivity');
+    expect(workflow).toContain("if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}");
+    expect(workflow).not.toContain('test -n "$SUPABASE_DB_URL"');
     expect(workflow.indexOf('Repair production CORS allowlist')).toBeLessThan(
       workflow.indexOf('Apply additive database migrations'),
     );
