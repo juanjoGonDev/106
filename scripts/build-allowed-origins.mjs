@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url';
+
 const LOCAL_ORIGINS = Object.freeze([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -46,6 +48,5 @@ export function buildAllowedOrigins(environment = process.env) {
   return [...origins].join(',');
 }
 
-if (import.meta.url === `file://${process.argv[1].replaceAll('\\', '/')}`) {
-  process.stdout.write(buildAllowedOrigins());
-}
+const entryPoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
+if (import.meta.url === entryPoint) process.stdout.write(buildAllowedOrigins());
