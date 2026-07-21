@@ -15,27 +15,30 @@ Restore browser access from GitHub Pages to the deployed Supabase `game-api` Edg
 - Normalize every configured HTTP(S) URL to `URL.origin`.
 - Always retain the explicit local development origins and the canonical GitHub Pages origin.
 - Generate the production `ALLOWED_ORIGINS` secret from the repository owner, optional public site URL, and optional additional origins.
-- Keep disallowed origins rejected; do not use `*`.
-- Add an integration regression that serves the function with a path-bearing allowlist and verifies a successful GitHub Pages preflight.
+- Keep disallowed origins rejected; do not configure `*` in production.
+- Add unit regressions for path normalization and a Supabase integration regression that performs a successful browser preflight and authorized POST while preserving rejection of an untrusted origin.
 
 ## Acceptance
 
-- `OPTIONS` from `https://juanjogondev.github.io` returns 204 and the matching `Access-Control-Allow-Origin` header.
-- A configured URL containing `/106/` authorizes its origin correctly.
-- An untrusted origin still returns 403.
+- A browser preflight from an allowed origin returns an HTTP 2xx response with usable CORS headers through the Supabase gateway.
+- A configured URL containing `/106/` normalizes to and authorizes `https://juanjogondev.github.io`.
+- An untrusted origin still returns HTTP 403 on an Edge Function request.
 - Production deployment always writes a canonical Pages origin to `ALLOWED_ORIGINS`.
-- Unit/security/Supabase integration checks pass.
+- Unit, security, ESLint, Knip and Supabase integration checks pass.
 
 ## Validation
 
-- Vitest regression for source/config policy.
-- Local Supabase CLI stack and real Edge Function preflight.
-- Existing complete API and persistence journey.
+- Vitest covers explicit origin normalization, deduplication, invalid protocol rejection and workflow wiring.
+- Local Supabase CLI starts PostgreSQL, Kong and the Edge Runtime, then executes a real `OPTIONS` preflight and permitted/forbidden origin requests.
+- The complete API and persistence journey passes before and after rebuilding the local database from migrations.
+- Pull Request Quality Pipeline run `29854482184` completed successfully, including `✅ Quality Gate · Ready to merge`.
 
 ## Delivery
 
-Branch `agent/fix-production-cors`, normal PR to `main`; no direct production merge or deployment.
+- Branch: `agent/fix-production-cors`.
+- Pull request: `#3` to `main`.
+- Production deployment intentionally not executed before merge approval.
 
 ## Status
 
-In progress.
+Complete and ready for review. Production remains unchanged until PR #3 is merged and the protected Supabase deployment succeeds.
