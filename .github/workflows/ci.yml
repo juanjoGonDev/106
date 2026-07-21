@@ -315,41 +315,39 @@ jobs:
 
       - name: Rebuild database entirely from migrations
         id: database_reset
-        if: >-
-          steps.supabase_start.outcome == 'success' &&
-          steps.supabase_api_tests.outcome == 'success' &&
-          steps.database_lint.outcome == 'success' &&
-          steps.migration_history.outcome == 'success'
+        if: always()
         continue-on-error: true
-        run: supabase db reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.supabase_start.outcome }}" != "success" || \
+                "${{ steps.supabase_api_tests.outcome }}" != "success" || \
+                "${{ steps.database_lint.outcome }}" != "success" || \
+                "${{ steps.migration_history.outcome }}" != "success" ]]; then
+            echo 'Prerequisite Supabase stages did not succeed.'
+            exit 1
+          fi
+          supabase db reset
 
       - name: Re-run API smoke checks after database rebuild
         id: post_reset_smoke
-        if: steps.database_reset.outcome == 'success'
+        if: always()
         continue-on-error: true
+        shell: bash
         env:
           SUPABASE_SMOKE_ONLY: 'true'
-        run: npm run test:supabase
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.database_reset.outcome }}" != "success" ]]; then
+            echo 'Database rebuild did not succeed.'
+            exit 1
+          fi
+          npm run test:supabase
 
-      - name: Upload Supabase diagnostics
-        if: >-
-          steps.supabase_start.outcome == 'failure' ||
-          steps.supabase_api_tests.outcome == 'failure' ||
-          steps.database_lint.outcome == 'failure' ||
-          steps.migration_history.outcome == 'failure' ||
-          steps.database_reset.outcome == 'failure' ||
-          steps.post_reset_smoke.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: supabase-local-diagnostics-${{ github.run_id }}
-          path: |
-            supabase-start.log
-            supabase-functions.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Enforce local Supabase integration result
+      - name: Evaluate local Supabase integration
+        id: integration_gate
         if: always()
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -379,6 +377,17 @@ jobs:
             exit 1
           fi
 
+      - name: Upload failed Supabase diagnostics
+        if: steps.integration_gate.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-local-diagnostics-${{ github.run_id }}
+          path: |
+            supabase-start.log
+            supabase-functions.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Stop local Supabase services
         if: always()
         shell: bash
@@ -388,6 +397,10 @@ jobs:
           fi
           supabase stop --no-backup || true
           rm -f supabase/functions/.env
+
+      - name: Enforce local Supabase integration result
+        if: steps.integration_gate.outcome == 'failure'
+        run: exit 1
 
   quality-gate:
     name: ✅ Quality Gate · Ready to merge
