@@ -116,6 +116,7 @@ async function runGameJourney() {
 
   await delay(10_600);
   const interaction = started.body.interaction;
+  const keyboardKey = interaction.keyboardKey === 'Space' ? ' ' : interaction.keyboardKey;
   const finished = await api({
     action: 'finish',
     challengeId: started.body.challengeId,
@@ -141,7 +142,7 @@ async function runGameJourney() {
       pressureMax: 0,
       holdDurationMs: 0,
       samePointer: true,
-      keyboardKey: interaction.keyboardKey,
+      keyboardKey,
     },
   }, { headers: privateHeaders, timeoutMs: 20_000 });
   assert.equal(finished.response.status, 201, JSON.stringify(finished.body));
