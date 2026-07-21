@@ -42,7 +42,23 @@ jobs:
         run: npm run check:syntax
 
       - name: ESLint
-        run: npm run lint
+        id: eslint
+        continue-on-error: true
+        run: npx eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
+
+      - name: Upload failed ESLint report
+        if: steps.eslint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-results-${{ github.run_id }}
+          path: eslint-results.json
+          retention-days: 14
+
+      - name: Enforce ESLint result
+        if: steps.eslint.outcome == 'failure'
+        run: |
+          node -e "const r=require('./eslint-results.json'); for(const f of r.filter(x=>x.errorCount)){console.error(f.filePath); for(const m of f.messages) console.error('  '+m.line+':'+m.column+' '+m.ruleId+' '+m.message)}"
+          exit 1
 
       - name: Knip
         run: npm run knip
