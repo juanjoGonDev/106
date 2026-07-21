@@ -48,7 +48,7 @@ $env:VOLTA_FEATURE_PNPM = "1"
 volta install node@22.13.0 pnpm@11.15.1
 ```
 
-Para mantener la variable en futuras sesiones de Windows:
+Para mantener la variable en futuras sesiones de Windows, ejecútalo y abre una terminal nueva:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("VOLTA_FEATURE_PNPM", "1", "User")
