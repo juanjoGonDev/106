@@ -4,7 +4,7 @@ import globals from 'globals';
 
 const projectRules = {
   ...js.configs.recommended.rules,
-  eqeqeq: ['error', 'always'],
+  eqeqeq: ['error', 'smart'],
   'no-eval': 'error',
   'no-implied-eval': 'error',
   'no-new-func': 'error',
