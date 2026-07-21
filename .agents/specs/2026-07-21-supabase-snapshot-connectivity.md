@@ -30,11 +30,12 @@ Restore the production Supabase deployment after the optional PostgreSQL snapsho
 
 ## Validation
 
-- `pnpm check:syntax`
-- `pnpm lint`
-- `pnpm knip`
-- `pnpm test`
-- Pull Request Quality Pipeline
+- `pnpm check:syntax`: passed in CI.
+- `pnpm lint`: passed in CI.
+- `pnpm knip`: passed in CI.
+- `pnpm test`: passed in CI.
+- Local Supabase API integration: passed in CI.
+- Pull Request Quality Pipeline run `29863954415`: passed.
 - Production workflow execution after merge remains the authoritative remote deployment validation.
 
 ## Rollback
@@ -43,8 +44,8 @@ Revert the pull request. No database schema or application data is changed by th
 
 ## Delivery
 
-Branch `agent/fix-supabase-snapshot-connectivity`; normal pull request to `main`; no direct production mutation.
+Branch `agent/fix-supabase-snapshot-connectivity`; normal pull request #5 to `main`; no direct production mutation.
 
 ## Status
 
-In progress.
+Implemented and validated in the pull request. Awaiting merge and production workflow verification.
