@@ -7,7 +7,7 @@ beforeAll(async () => {
 
 describe('player radar statistics', () => {
   it('awards maximum precision and consistency to a perfect player', () => {
-    const stats = window.Minuto106PlayerStats.buildRadarStats({
+    const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       bestDifferenceMs: 0,
       averageDifferenceMs: 0,
       attemptsUsed: 20,
@@ -25,7 +25,7 @@ describe('player radar statistics', () => {
   });
 
   it('clamps every attribute between zero and one hundred', () => {
-    const stats = window.Minuto106PlayerStats.buildRadarStats({
+    const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       bestDifferenceMs: 999999,
       averageDifferenceMs: -500,
       attemptsUsed: 1,
@@ -40,7 +40,7 @@ describe('player radar statistics', () => {
   });
 
   it('uses verified ratio as the reliability score', () => {
-    const stats = window.Minuto106PlayerStats.buildRadarStats({
+    const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       attemptsUsed: 10,
       verifiedAttempts: 8,
     });
