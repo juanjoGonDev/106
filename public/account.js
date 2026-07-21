@@ -16,6 +16,13 @@ async function accountRequest(action, payload = {}) {
   return body;
 }
 
+function showAccountError(error, title = 'No se pudo completar') {
+  return window.Minuto106UI?.error({
+    title,
+    message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
+  }) ?? Promise.resolve();
+}
+
 function formatDifference(value) {
   return Number.isFinite(Number(value)) ? `±${Number(value).toLocaleString('es-ES')} ms` : 'Sin marca';
 }
@@ -137,17 +144,28 @@ document.querySelector('#createAccountKey')?.addEventListener('click', async () 
   window.Minuto106Access.getAccountToken(true);
   refreshAccountKey();
   await loadPlayers();
+  await window.Minuto106UI?.success({
+    title: 'Cuenta creada',
+    message: 'Guarda la clave en un gestor de contraseñas. La necesitarás para recuperar todos tus nicks en otro dispositivo.',
+  });
 });
-document.querySelector('#copyAccountKey')?.addEventListener('click', () => copyKey().catch((error) => alert(error.message)));
+document.querySelector('#copyAccountKey')?.addEventListener('click', () => copyKey().catch((error) => showAccountError(error, 'No se pudo copiar la clave')));
 document.querySelector('#showAccountKey')?.addEventListener('click', () => {
   keyIsVisible = !keyIsVisible;
   refreshAccountKey();
 });
-document.querySelector('#logoutAccount')?.addEventListener('click', () => {
+document.querySelector('#logoutAccount')?.addEventListener('click', async () => {
+  const accepted = await window.Minuto106UI?.ask({
+    title: 'Cerrar cuenta en este dispositivo',
+    message: 'Se eliminará la clave privada de este navegador. Tus nicks y estadísticas seguirán guardados, pero necesitarás la clave para recuperarlos.',
+    acceptLabel: 'Cerrar cuenta',
+    cancelLabel: 'Cancelar',
+  });
+  if (!accepted) return;
   window.Minuto106Access.clearAccountToken();
   keyIsVisible = false;
   refreshAccountKey();
-  loadPlayers().catch(() => {});
+  await loadPlayers().catch(() => {});
 });
 document.querySelector('#importAccountButton')?.addEventListener('click', async () => {
   const input = document.querySelector('#importAccountKey');
@@ -157,12 +175,17 @@ document.querySelector('#importAccountButton')?.addEventListener('click', async 
     keyIsVisible = false;
     refreshAccountKey();
     await loadPlayers();
+    await window.Minuto106UI?.success({
+      title: 'Cuenta recuperada',
+      message: 'Los nicks vinculados ya están disponibles en este dispositivo.',
+    });
   } catch (error) {
-    alert(error instanceof Error ? error.message : 'Clave inválida.');
+    await showAccountError(error, 'Clave no válida');
   }
 });
 document.addEventListener('minuto106:account-updated', refreshAccountKey);
 refreshAccountKey();
 loadPlayers().catch((error) => {
   document.querySelector('#accountPlayersStatus').textContent = error.message;
+  showAccountError(error, 'No se pudo sincronizar la cuenta');
 });
