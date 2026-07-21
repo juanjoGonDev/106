@@ -98,8 +98,7 @@ begin
     values (v_account.id, p_nick_key);
 
     update public.game_players
-      set nick = p_nick,
-          access_token_hash = p_account_token_hash,
+      set access_token_hash = p_account_token_hash,
           access_token_created_at = coalesce(access_token_created_at, clock_timestamp())
       where nick_key = p_nick_key;
 
