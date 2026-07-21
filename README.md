@@ -41,6 +41,8 @@ El navegador no contiene secretos ni escribe directamente en PostgreSQL. Los tie
 
 El servidor crea cada desafío con su contexto de competición. Al terminar, `finish` utiliza el `league_id` ya asociado al desafío; el navegador no puede convertir posteriormente un tiempo de liga en global ni moverlo entre ligas.
 
+Los perfiles públicos del ranking se muestran mediante un overlay HTML controlado por la aplicación, no mediante un diálogo modal nativo. Los campos de búsqueda y comparación se marcan como datos no credenciales para no interferir con los menús inline de gestores de contraseñas.
+
 ## Miniligas
 
 La gestión de miniligas se concentra en `ligas.html`:
