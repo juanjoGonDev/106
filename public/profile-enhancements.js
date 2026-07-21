@@ -61,7 +61,10 @@
           { profile: secondary, label: secondary.nick },
         ]);
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'No se pudo comparar.');
+        await window.Minuto106UI?.error({
+          title: 'No se pudo comparar',
+          message: error instanceof Error ? error.message : 'No se pudo cargar el segundo jugador.',
+        });
       } finally {
         button.disabled = false;
       }
