@@ -57,23 +57,53 @@ function validFinishSignals(interaction) {
     timerConcealed: true,
     visibilityChanges: 0,
     focusLosses: 0,
-    interactionMode: interaction.mode,
+    interactionMode: 'press',
     controlNonce: interaction.nonce,
-    finishEvent: 'keydown',
+    finishEvent: 'pointerdown',
     pointerTrusted: true,
     userActivation: true,
     automationDetected: false,
-    pointerType: 'keyboard',
-    pointerXPercent: -1,
-    pointerYPercent: -1,
-    pointerMoveCount: 0,
-    pointerTravelPx: 0,
-    pointerDwellMs: 0,
-    pressureMax: 0,
+    pointerType: 'mouse',
+    pointerXPercent: interaction.xPercent,
+    pointerYPercent: interaction.yPercent,
+    pointerMoveCount: 4,
+    pointerTravelPx: 72,
+    pointerDwellMs: 420,
+    pressureMax: 0.5,
     holdDurationMs: 0,
     samePointer: true,
-    keyboardKey: interaction.keyboardKey === 'Space' ? ' ' : interaction.keyboardKey,
   };
+}
+
+async function createHumanProof(headers) {
+  const created = await api({ action: 'human-check' }, { headers });
+  assert.equal(created.response.status, 201, JSON.stringify(created.body));
+  assert.match(String(created.body.checkId), /^[0-9a-f-]{36}$/i);
+  assert.equal(created.body.balls?.length, 4);
+
+  const clicks = created.body.balls.map((ball, index) => ({
+    x: ball.x,
+    y: ball.y,
+    atMs: 240 + index * 310,
+    pointerType: 'mouse',
+    trusted: true,
+  }));
+  const completed = await api({
+    action: 'complete-human-check',
+    checkId: created.body.checkId,
+    clicks,
+  }, { headers });
+  assert.equal(completed.response.status, 201, JSON.stringify(completed.body));
+  assert.match(String(completed.body.proofToken), /^[a-f0-9]{64}$/i);
+  return {
+    humanCheckId: completed.body.checkId,
+    humanProofToken: completed.body.proofToken,
+  };
+}
+
+async function startAttempt(payload, headers) {
+  const proof = await createHumanProof(headers);
+  return api({ action: 'start', ...payload, ...proof }, { headers });
 }
 
 async function completeAttempt(started, headers) {
@@ -157,17 +187,23 @@ async function runGameJourney() {
   assert.equal(missingToken.response.status, 400);
   logStep('Private account endpoints require the account token');
 
-  const started = await api({
+  const missingHumanProof = await api({
     action: 'start',
     nick,
     team: 'spain',
   }, { headers: privateHeaders });
+  assert.equal(missingHumanProof.response.status, 400);
+  assert.match(String(missingHumanProof.body.error), /verificación visual/i);
+  logStep('Starting an attempt requires a completed one-time visual verification');
+
+  const started = await startAttempt({ nick, team: 'spain' }, privateHeaders);
   assert.equal(started.response.status, 201, JSON.stringify(started.body));
   assert.match(String(started.body.challengeId), /^[0-9a-f-]{36}$/i);
   assert.equal(started.body.competition?.type, 'global');
-  assert.ok(['press', 'release'].includes(started.body.interaction?.mode));
+  assert.equal(started.body.interaction?.mode, 'press');
+  assert.equal('keyboardKey' in (started.body.interaction ?? {}), false);
   assert.match(String(started.body.interaction?.nonce), /^[0-9a-f-]{36}$/i);
-  logStep('A player account and global server-side game challenge can be created');
+  logStep('A player account and pointer-only global challenge can be created');
 
   const accountPlayers = await api({ action: 'account-players' }, { headers: privateHeaders });
   assert.equal(accountPlayers.response.status, 200, JSON.stringify(accountPlayers.body));
@@ -180,7 +216,7 @@ async function runGameJourney() {
   assert.equal(finished.body.attempt?.differenceMs, 0);
   assert.equal(finished.body.attempt?.competitionType, 'global');
   assert.equal(finished.body.profile?.verifiedAttempts, 1);
-  logStep('A full global attempt is persisted and verified through PostgreSQL RPCs');
+  logStep('A full pointer-only global attempt is persisted and verified through PostgreSQL RPCs');
 
   const duel = await api({ action: 'create-duel', nick }, { headers: privateHeaders });
   assert.equal(duel.response.status, 201, JSON.stringify(duel.body));
@@ -201,15 +237,15 @@ async function runGameJourney() {
   assert.equal(joinedLeaguesBefore.body[0]?.attemptsLeft, 5);
   logStep('The owner sees the newly created league in their private league list');
 
-  const leagueStarted = await api({
-    action: 'start',
+  const leagueStarted = await startAttempt({
     nick,
     team: 'argentina',
     leagueCode: league.body.code,
-  }, { headers: privateHeaders });
+  }, privateHeaders);
   assert.equal(leagueStarted.response.status, 201, JSON.stringify(leagueStarted.body));
   assert.equal(leagueStarted.body.competition?.type, 'league');
   assert.equal(leagueStarted.body.competition?.code, league.body.code);
+  assert.equal(leagueStarted.body.interaction?.mode, 'press');
 
   const leagueFinished = await completeAttempt(leagueStarted, privateHeaders);
   assert.equal(leagueFinished.response.status, 201, JSON.stringify(leagueFinished.body));
