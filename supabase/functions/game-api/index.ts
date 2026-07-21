@@ -60,14 +60,41 @@ function normalizeLeagueCode(value: unknown) {
   const code = String(value ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{6}$/.test(code) ? code : null;
 }
+function boundedNumber(value: unknown, minimum: number, maximum: number, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, number)) : fallback;
+}
 function normalizeSignals(value: unknown) {
   const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const mode = input.interactionMode === 'release' ? 'release' : input.interactionMode === 'press' ? 'press' : '';
+  const finishEvent = ['pointerdown', 'pointerup', 'keydown'].includes(String(input.finishEvent))
+    ? String(input.finishEvent)
+    : '';
+  const pointerType = ['mouse', 'touch', 'pen', 'keyboard'].includes(String(input.pointerType))
+    ? String(input.pointerType)
+    : 'unknown';
   return {
     trustedStart: input.trustedStart === true,
     trustedFinish: input.trustedFinish === true,
     timerConcealed: input.timerConcealed === true,
-    visibilityChanges: Math.max(0, Math.min(20, Number(input.visibilityChanges) || 0)),
-    focusLosses: Math.max(0, Math.min(20, Number(input.focusLosses) || 0)),
+    visibilityChanges: Math.round(boundedNumber(input.visibilityChanges, 0, 20)),
+    focusLosses: Math.round(boundedNumber(input.focusLosses, 0, 20)),
+    interactionMode: mode,
+    controlNonce: normalizeUuid(input.controlNonce) ?? '',
+    finishEvent,
+    pointerTrusted: input.pointerTrusted === true,
+    userActivation: input.userActivation === true,
+    automationDetected: input.automationDetected === true,
+    pointerType,
+    pointerXPercent: Number(boundedNumber(input.pointerXPercent, -1, 101, -1).toFixed(2)),
+    pointerYPercent: Number(boundedNumber(input.pointerYPercent, -1, 101, -1).toFixed(2)),
+    pointerMoveCount: Math.round(boundedNumber(input.pointerMoveCount, 0, 500)),
+    pointerTravelPx: Math.round(boundedNumber(input.pointerTravelPx, 0, 5000)),
+    pointerDwellMs: Math.round(boundedNumber(input.pointerDwellMs, 0, 30000)),
+    pressureMax: Number(boundedNumber(input.pressureMax, 0, 1).toFixed(3)),
+    holdDurationMs: Math.round(boundedNumber(input.holdDurationMs, 0, 3000)),
+    samePointer: input.samePointer === true,
+    keyboardKey: input.keyboardKey === 'Enter' ? 'Enter' : input.keyboardKey === ' ' ? ' ' : '',
   };
 }
 function clientIp(request: Request) {
