@@ -7,6 +7,8 @@ const protectedActions = new Set([
   'resolve-duel',
   'create-league',
   'join-league',
+  'player-leagues',
+  'league-status',
   'link-account-player',
 ]);
 const accountActions = new Set([...protectedActions, 'account-players']);
@@ -116,6 +118,7 @@ window.fetch = async (input, init = {}) => {
     const nick = String(
       body.nick
       || document.querySelector('#nick')?.value
+      || document.querySelector('#leagueNick')?.value
       || localStorage.getItem('minuto106:nick')
       || '',
     ).trim();
@@ -126,7 +129,12 @@ window.fetch = async (input, init = {}) => {
 
   const response = await originalFetch(input, init);
   if (body && protectedActions.has(action) && response.ok) {
-    const nick = String(body.nick || document.querySelector('#nick')?.value || '').trim();
+    const nick = String(
+      body.nick
+      || document.querySelector('#nick')?.value
+      || document.querySelector('#leagueNick')?.value
+      || '',
+    ).trim();
     if (nick) rememberAccountNick(nick);
   }
   if (!response.ok) {
@@ -141,7 +149,12 @@ window.fetch = async (input, init = {}) => {
 };
 
 function currentNick() {
-  return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
+  return String(
+    document.querySelector('#nick')?.value
+    || document.querySelector('#leagueNick')?.value
+    || localStorage.getItem('minuto106:nick')
+    || '',
+  ).trim();
 }
 
 function refreshAccessPanel() {
@@ -166,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (field) field.placeholder = 'Pega la clave privada de tu cuenta';
 
   document.querySelector('#nick')?.addEventListener('input', refreshAccessPanel);
+  document.querySelector('#leagueNick')?.addEventListener('input', refreshAccessPanel);
   copyButton?.addEventListener('click', async () => {
     const token = getAccountToken(true);
     await navigator.clipboard.writeText(token);
