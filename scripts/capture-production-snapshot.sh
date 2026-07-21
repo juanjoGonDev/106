@@ -52,6 +52,8 @@ duels="$(count_table game_duels)"
 completed_duels="$(count_where game_duels "status in ('won','lost')")"
 leagues="$(count_table game_leagues)"
 league_members="$(count_table game_league_members)"
+accounts="$(count_table game_accounts)"
+account_players="$(count_table game_account_players)"
 
 mkdir -p "$(dirname "$output_path")"
 jq -n \
@@ -66,7 +68,9 @@ jq -n \
   --argjson completedDuels "$completed_duels" \
   --argjson leagues "$leagues" \
   --argjson leagueMembers "$league_members" \
-  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts, duels: $duels, completedDuels: $completedDuels, leagues: $leagues, leagueMembers: $leagueMembers}' \
+  --argjson accounts "$accounts" \
+  --argjson accountPlayers "$account_players" \
+  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts, duels: $duels, completedDuels: $completedDuels, leagues: $leagues, leagueMembers: $leagueMembers, accounts: $accounts, accountPlayers: $accountPlayers}' \
   > "$output_path"
 
 cat "$output_path"
