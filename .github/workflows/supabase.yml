@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'supabase/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
       - 'scripts/check-production-migrations.mjs'
       - 'scripts/check-snapshot-db.mjs'
       - 'scripts/build-allowed-origins.mjs'
