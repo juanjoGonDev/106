@@ -265,141 +265,25 @@ jobs:
         with:
           version: latest
 
-      - name: Create isolated Edge Function environment
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > supabase/functions/.env <<'EOF'
-          HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
-          ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
-          TURNSTILE_SECRET_KEY=
-          EOF
-
-      - name: Start local Supabase application stack
-        id: supabase_start
+      - name: Run local stack, Edge Function and API journey
+        id: supabase-suite
         continue-on-error: true
         shell: bash
-        run: |
-          set -o pipefail
-          supabase start \
-            -x studio,imgproxy,mailpit,realtime,storage-api,postgres-meta,logflare,vector,supavisor \
-            2>&1 | tee supabase-start.log
-
-      - name: Serve game-api in the local Edge Runtime
-        if: steps.supabase_start.outcome == 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          supabase functions serve game-api \
-            --env-file supabase/functions/.env \
-            > supabase-functions.log 2>&1 &
-          echo $! > .supabase-functions.pid
-
-      - name: Run complete API and persistence journey
-        id: supabase_api_tests
-        if: steps.supabase_start.outcome == 'success'
-        continue-on-error: true
-        run: npm run test:supabase
-
-      - name: Lint PostgreSQL functions and schema
-        id: database_lint
-        if: steps.supabase_start.outcome == 'success'
-        continue-on-error: true
-        run: supabase db lint --level error
-
-      - name: Verify migration history
-        id: migration_history
-        if: steps.supabase_start.outcome == 'success'
-        continue-on-error: true
-        run: supabase migration list --local
-
-      - name: Rebuild database entirely from migrations
-        id: database_reset
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${{ steps.supabase_start.outcome }}" != "success" || \
-                "${{ steps.supabase_api_tests.outcome }}" != "success" || \
-                "${{ steps.database_lint.outcome }}" != "success" || \
-                "${{ steps.migration_history.outcome }}" != "success" ]]; then
-            echo 'Prerequisite Supabase stages did not succeed.'
-            exit 1
-          fi
-          supabase db reset
-
-      - name: Re-run API smoke checks after database rebuild
-        id: post_reset_smoke
-        if: always()
-        continue-on-error: true
-        shell: bash
-        env:
-          SUPABASE_SMOKE_ONLY: 'true'
-        run: |
-          set -euo pipefail
-          if [[ "${{ steps.database_reset.outcome }}" != "success" ]]; then
-            echo 'Database rebuild did not succeed.'
-            exit 1
-          fi
-          npm run test:supabase
-
-      - name: Evaluate local Supabase integration
-        id: integration_gate
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          results=(
-            "start=${{ steps.supabase_start.outcome }}"
-            "api=${{ steps.supabase_api_tests.outcome }}"
-            "lint=${{ steps.database_lint.outcome }}"
-            "history=${{ steps.migration_history.outcome }}"
-            "reset=${{ steps.database_reset.outcome }}"
-            "smoke=${{ steps.post_reset_smoke.outcome }}"
-          )
-
-          failed=0
-          for result in "${results[@]}"; do
-            name="${result%%=*}"
-            status="${result#*=}"
-            printf '%-10s %s\n' "$name" "$status"
-            if [[ "$status" != "success" ]]; then
-              failed=1
-            fi
-          done
-
-          if [[ "$failed" -ne 0 ]]; then
-            echo 'The local Supabase application did not pass all integration stages.'
-            [[ -f supabase-start.log ]] && tail -n 120 supabase-start.log || true
-            [[ -f supabase-functions.log ]] && tail -n 160 supabase-functions.log || true
-            exit 1
-          fi
+        run: bash scripts/run-supabase-ci.sh
 
       - name: Upload failed Supabase diagnostics
-        if: steps.integration_gate.outcome == 'failure'
+        if: steps.supabase-suite.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: supabase-local-diagnostics-${{ github.run_id }}
           path: |
-            supabase-start.log
+            supabase-integration.log
             supabase-functions.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Stop local Supabase services
-        if: always()
-        shell: bash
-        run: |
-          if [[ -f .supabase-functions.pid ]]; then
-            kill "$(cat .supabase-functions.pid)" 2>/dev/null || true
-          fi
-          supabase stop --no-backup || true
-          rm -f supabase/functions/.env
-
-      - name: Enforce local Supabase integration result
-        if: steps.integration_gate.outcome == 'failure'
+      - name: Enforce Supabase integration result
+        if: steps.supabase-suite.outcome == 'failure'
         run: exit 1
 
   quality-gate:
