@@ -252,12 +252,12 @@ begin
 
   if v_finish_event = 'keydown' then
     if coalesce(p_client_signals->>'pointerTrusted', 'false') <> 'true'
-       or v_keyboard_key <> case when v_challenge.keyboard_code = 'Space' then ' ' else 'Enter' end then
+       or v_keyboard_key <> (case when v_challenge.keyboard_code = 'Space' then ' ' else 'Enter' end) then
       v_verified := false;
       v_reasons := array_append(v_reasons, 'invalid_keyboard_finish');
     end if;
   else
-    if v_finish_event <> case when v_challenge.interaction_mode = 'release' then 'pointerup' else 'pointerdown' end
+    if v_finish_event <> (case when v_challenge.interaction_mode = 'release' then 'pointerup' else 'pointerdown' end)
        or coalesce(p_client_signals->>'pointerTrusted', 'false') <> 'true'
        or coalesce(p_client_signals->>'userActivation', 'false') <> 'true' then
       v_verified := false;
