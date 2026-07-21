@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4c95d"/>
+      <stop offset="1" stop-color="#d99b22"/>
+    </linearGradient>
+    <clipPath id="left"><rect width="32" height="64"/></clipPath>
+    <clipPath id="right"><rect x="32" width="32" height="64"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#090a0f"/>
+  <path d="M8 10h48v20c0 15-8.8 23.9-24 29C16.8 53.9 8 45 8 30Z" fill="#a9002f" clip-path="url(#left)"/>
+  <path d="M8 10h48v20c0 15-8.8 23.9-24 29C16.8 53.9 8 45 8 30Z" fill="#69bdf0" clip-path="url(#right)"/>
+  <path d="M8 10h48v20c0 15-8.8 23.9-24 29C16.8 53.9 8 45 8 30Z" fill="none" stroke="url(#shield)" stroke-width="3"/>
+  <path d="M10 21h22v8H10Z" fill="#ffd447" opacity=".95"/>
+  <path d="M32 18h22v6H32Zm0 12h22v6H32Z" fill="#f7f8fb" opacity=".95"/>
+  <circle cx="32" cy="34" r="13" fill="#f7f8fb" stroke="#11151d" stroke-width="2"/>
+  <path d="m32 27 5 4-2 6h-6l-2-6Z" fill="#11151d"/>
+  <path d="m27 31-6-1m16 1 6-1M29 37l-4 5m10-5 4 5" stroke="#11151d" stroke-width="2" stroke-linecap="round"/>
+  <text x="32" y="16" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="9" font-weight="900">106</text>
+</svg>
