@@ -1,6 +1,6 @@
 {
   "name": "minuto-106",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "knip": "knip",
     "test": "vitest run",
     "test:security": "vitest run tests/security",
-    "check:syntax": "node --check public/app.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/compliance.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs",
+    "check:syntax": "node --check public/layout.js && node --check public/app.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/compliance.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/serve.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs",
     "check": "npm run check:syntax && npm run lint && npm run knip && npm test"
   },
   "engines": {
