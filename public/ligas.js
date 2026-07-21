@@ -9,6 +9,12 @@ async function leagueRequest(action, payload = {}) {
   if (!response.ok) throw new Error(body.error || 'No se pudo cargar la miniliga.');
   return body;
 }
+function showLeagueError(error) {
+  return window.Minuto106UI?.error({
+    title: 'No se pudo consultar la miniliga',
+    message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
+  }) ?? Promise.resolve();
+}
 function escapeLeague(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]); }
 function hasValue(value) { return value !== null && value !== undefined; }
 async function loadLeague() {
@@ -24,9 +30,9 @@ async function loadLeague() {
     ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeLeague(entry.nick)}</span><span class="difference">${hasValue(entry.bestDifferenceMs) ? `±${entry.bestDifferenceMs} ms` : 'Sin marca'}</span></li>`).join('')
     : '<li class="empty">Todavía no hay participantes.</li>';
 }
-document.querySelector('#leagueLookupButton')?.addEventListener('click', () => loadLeague().catch((error) => alert(error.message)));
+document.querySelector('#leagueLookupButton')?.addEventListener('click', () => loadLeague().catch(showLeagueError));
 const initialCode = new URLSearchParams(location.search).get('league');
 if (initialCode) {
   document.querySelector('#leagueLookupCode').value = initialCode.toUpperCase();
-  loadLeague().catch(() => {});
+  loadLeague().catch(showLeagueError);
 }
