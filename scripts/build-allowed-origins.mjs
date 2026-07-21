@@ -4,6 +4,7 @@ const LOCAL_ORIGINS = Object.freeze([
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ]);
+const UNSAFE_WILDCARD = '*';
 
 function normalizeHttpOrigin(value) {
   const candidate = String(value ?? '').trim();
@@ -46,6 +47,13 @@ function githubPagesOrigin(owner) {
     : '';
 }
 
+function configuredOrigins(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin && origin !== UNSAFE_WILDCARD);
+}
+
 export function buildAllowedOrigins(environment = process.env) {
   const origins = new Set(LOCAL_ORIGINS);
   const pagesOrigin = githubPagesOrigin(environment.GITHUB_REPOSITORY_OWNER);
@@ -54,9 +62,8 @@ export function buildAllowedOrigins(environment = process.env) {
   const publicSiteOrigin = normalizeHttpOrigin(environment.PUBLIC_SITE_URL);
   if (publicSiteOrigin) origins.add(publicSiteOrigin);
 
-  for (const configuredOrigin of String(environment.ALLOWED_ORIGINS ?? '').split(',')) {
-    const normalizedOrigin = normalizeHttpOrigin(configuredOrigin);
-    if (normalizedOrigin) origins.add(normalizedOrigin);
+  for (const configuredOrigin of configuredOrigins(environment.ALLOWED_ORIGINS)) {
+    origins.add(normalizeHttpOrigin(configuredOrigin));
   }
 
   return [...origins].join(',');
