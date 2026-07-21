@@ -49,19 +49,19 @@ function renderProfile(profile, comparedProfile = null) {
   card.hidden = false;
   card.innerHTML = `
     <button class="ghost compact profile-close" id="closeRankingProfile" type="button">Cerrar</button>
-    <p class="eyebrow">PERFIL PÚBLICO</p>
+    <p class="eyebrow">PERFIL PÚBLICO GLOBAL</p>
     <h2>${rankingEscape(profile.nick)}</h2>
     <div class="profile-grid">
-      <div><span>Mejor marca</span><strong>${formatDifference(profile.bestDifferenceMs)}</strong></div>
-      <div><span>Media</span><strong>${formatDifference(profile.averageDifferenceMs)}</strong></div>
+      <div><span>Mejor marca global</span><strong>${formatDifference(profile.bestDifferenceMs)}</strong></div>
+      <div><span>Media global</span><strong>${formatDifference(profile.averageDifferenceMs)}</strong></div>
       <div><span>Puesto global</span><strong>${profile.globalRankBest ? `#${profile.globalRankBest}` : '—'}</strong></div>
-      <div><span>Intentos válidos</span><strong>${profile.verifiedAttempts || 0}</strong></div>
+      <div><span>Intentos globales válidos</span><strong>${profile.verifiedAttempts || 0}</strong></div>
     </div>
     <section class="player-radar">
-      <h3>${comparedProfile ? 'Comparación de jugadores' : 'Perfil de juego'}</h3>
+      <h3>${comparedProfile ? 'Comparación de jugadores' : 'Perfil de juego global'}</h3>
       <div id="rankingRadar"></div>
       <div class="profile-compare">
-        <input id="rankingCompareNick" maxlength="24" placeholder="Nick para comparar" aria-label="Nick para comparar">
+        <input id="rankingCompareNick" maxlength="24" autocomplete="off" data-bwignore="true" placeholder="Nick para comparar" aria-label="Nick para comparar">
         <button id="rankingCompareButton" class="secondary compact" type="button">Comparar</button>
       </div>
     </section>`;
