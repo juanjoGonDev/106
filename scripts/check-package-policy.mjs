@@ -12,23 +12,28 @@ const FORBIDDEN_LOCKFILES = [
   'bun.lockb',
 ];
 const INSTALL_LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall', 'prepare'];
+const FOREIGN_PACKAGE_MANAGER_COMMAND = /(^|[\s;&|])(npm|npx|yarn|bunx?|corepack\s+(?:npm|yarn))(?=$|[\s;&|])/;
 const REQUIRED_PNPM_SETTINGS = [
   'nodeVersion: 22.13.0',
   'engineStrict: true',
   'pmOnFail: error',
+  'lockfile: true',
   'preferFrozenLockfile: true',
   "savePrefix: ''",
   'verifyDepsBeforeRun: error',
+  'resolutionMode: time-based',
   'strictPeerDependencies: true',
   'autoInstallPeers: false',
   'strictDepBuilds: true',
   'dangerouslyAllowAllBuilds: false',
+  'allowBuilds: {}',
   'minimumReleaseAge: 10080',
   'minimumReleaseAgeStrict: true',
   'minimumReleaseAgeIgnoreMissingTime: false',
   'trustPolicy: no-downgrade',
   'trustLockfile: false',
   'blockExoticSubdeps: true',
+  'sideEffectsCache: false',
 ];
 
 function fail(message) {
@@ -65,6 +70,12 @@ for (const scriptName of INSTALL_LIFECYCLE_SCRIPTS) {
   }
 }
 
+for (const [scriptName, command] of Object.entries(manifest.scripts ?? {})) {
+  if (FOREIGN_PACKAGE_MANAGER_COMMAND.test(command)) {
+    fail(`script "${scriptName}" must use pnpm rather than another package manager`);
+  }
+}
+
 for (const path of FORBIDDEN_LOCKFILES) {
   if (existsSync(path)) {
     fail(`${path} is forbidden; pnpm-lock.yaml is the only accepted lockfile`);
@@ -75,9 +86,11 @@ if (!existsSync('pnpm-lock.yaml')) {
   fail('pnpm-lock.yaml must be committed');
 } else {
   const lockfile = readFileSync('pnpm-lock.yaml', 'utf8');
-  for (const name of Object.keys(manifest.devDependencies ?? {})) {
-    if (!lockfile.includes(`${name}:`)) {
-      fail(`pnpm-lock.yaml does not contain ${name}`);
+  for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    for (const name of Object.keys(manifest[section] ?? {})) {
+      if (!lockfile.includes(`${name}:`)) {
+        fail(`pnpm-lock.yaml does not contain ${name}`);
+      }
     }
   }
 }
