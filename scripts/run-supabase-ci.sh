@@ -41,7 +41,7 @@ echo "$FUNCTION_PID" > .supabase-functions.pid
 echo '::endgroup::'
 
 echo '::group::Run complete API and persistence journey'
-npm run test:supabase
+pnpm test:supabase
 echo '::endgroup::'
 
 echo '::group::Lint PostgreSQL functions and schema'
@@ -57,7 +57,7 @@ supabase db reset
 echo '::endgroup::'
 
 echo '::group::Re-run API smoke checks after database rebuild'
-SUPABASE_SMOKE_ONLY=true npm run test:supabase
+SUPABASE_SMOKE_ONLY=true pnpm test:supabase
 echo '::endgroup::'
 
 echo 'Local Supabase stack, Edge Function, migrations and integration journey passed.'
