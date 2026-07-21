@@ -137,7 +137,26 @@ jobs:
           version: latest
 
       - name: Start local PostgreSQL and apply migrations
-        run: supabase db start
+        id: migration_start
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          supabase db start 2>&1 | tee supabase-migrations.log
+
+      - name: Upload failed migration log
+        if: steps.migration_start.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-migrations-${{ github.run_id }}
+          path: supabase-migrations.log
+          retention-days: 14
+
+      - name: Enforce initial migration result
+        if: steps.migration_start.outcome == 'failure'
+        run: |
+          cat supabase-migrations.log
+          exit 1
 
       - name: Rebuild database entirely from migrations
         run: supabase db reset
