@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/**'
       - 'scripts/check-production-migrations.mjs'
+      - 'scripts/build-allowed-origins.mjs'
       - 'scripts/capture-production-snapshot.sh'
       - 'scripts/compare-production-snapshots.mjs'
       - 'scripts/record-deployment-snapshot.sql'
@@ -36,6 +37,8 @@ jobs:
       HASH_PEPPER: ${{ secrets.HASH_PEPPER }}
       TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
       ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+      PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+      GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
 
     steps:
       - name: Checkout full history
@@ -52,6 +55,7 @@ jobs:
           test -n "$SUPABASE_DB_URL" || (echo 'Missing SUPABASE_DB_URL secret' && exit 1)
           test -n "$PROJECT_ID" || (echo 'Missing SUPABASE_PROJECT_ID variable' && exit 1)
           test -n "$HASH_PEPPER" || (echo 'Missing HASH_PEPPER secret' && exit 1)
+          node scripts/build-allowed-origins.mjs >/dev/null
 
       - name: Set up pinned Node.js
         uses: actions/setup-node@v4
@@ -105,9 +109,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          secrets=("HASH_PEPPER=$HASH_PEPPER")
-          if [ -n "$TURNSTILE_SECRET_KEY" ]; then secrets+=("TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY"); fi
-          if [ -n "$ALLOWED_ORIGINS" ]; then secrets+=("ALLOWED_ORIGINS=$ALLOWED_ORIGINS"); fi
+          canonical_origins="$(node scripts/build-allowed-origins.mjs)"
+          test -n "$canonical_origins" || (echo 'No valid CORS origins were generated' && exit 1)
+
+          secrets=(
+            "HASH_PEPPER=$HASH_PEPPER"
+            "ALLOWED_ORIGINS=$canonical_origins"
+          )
+          if [ -n "$TURNSTILE_SECRET_KEY" ]; then
+            secrets+=("TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY")
+          fi
           supabase secrets set "${secrets[@]}" --project-ref "$PROJECT_ID"
 
       - name: Deploy Edge Function

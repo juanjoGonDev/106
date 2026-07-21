@@ -45,6 +45,19 @@ Do not bypass a frozen-lockfile, release-age, integrity or build-script failure 
 
 The frontend must not access `game_challenges` or `game_attempts` through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. All writes go through `game-api` and private RPC functions executed with `service_role`.
 
+## CORS origin policy
+
+The Edge Function uses an explicit origin allowlist and never uses `Access-Control-Allow-Origin: *`.
+
+- Browser `Origin` values contain only scheme, host and port. Repository paths such as `/106/` are not part of the origin.
+- Production deployment generates `ALLOWED_ORIGINS` with `scripts/build-allowed-origins.mjs`.
+- `PUBLIC_SITE_URL` and additional configured URLs are normalized through `URL.origin` before being stored as an Edge Function secret.
+- The canonical `https://<repository-owner>.github.io` origin and local development origins are always included.
+- Invalid schemes, embedded credentials and malformed URLs fail the deployment instead of weakening CORS.
+- The Supabase integration job performs a real `OPTIONS` preflight and verifies the returned allow-origin header.
+
+For this repository, both `https://juanjogondev.github.io` and a configured value such as `https://juanjogondev.github.io/106/` resolve to the same permitted browser origin.
+
 ## Competition isolation
 
 A challenge is issued with an immutable competition context:

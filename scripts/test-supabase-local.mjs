@@ -86,12 +86,35 @@ async function completeAttempt(started, headers) {
   }, { headers, timeoutMs: 20_000 });
 }
 
+function assertGatewayAllowsOrigin(response) {
+  const allowedOrigin = response.headers.get('access-control-allow-origin');
+  assert.ok(allowedOrigin === origin || allowedOrigin === '*', `Unexpected allow-origin: ${allowedOrigin}`);
+}
+
 async function runSmokeChecks() {
   const stats = await waitForFunction();
   assert.equal(stats.response.status, 200);
+  assertGatewayAllowsOrigin(stats.response);
   assert.equal(stats.body.targetMs, 10_600);
   assert.ok(Array.isArray(stats.body.leaderboard));
-  logStep('Edge Function is reachable through the local Supabase gateway');
+  logStep('Edge Function is reachable from a configured browser origin');
+
+  const preflight = await fetch(endpoint, {
+    method: 'OPTIONS',
+    headers: {
+      origin,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type,x-device-id,x-account-token',
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  assert.ok(preflight.status >= 200 && preflight.status < 300, `Unexpected preflight status ${preflight.status}`);
+  assertGatewayAllowsOrigin(preflight);
+  assert.match(
+    preflight.headers.get('access-control-allow-headers') ?? '',
+    /x-account-token/i,
+  );
+  logStep('Supabase gateway returns a successful browser preflight');
 
   const methodResponse = await fetch(endpoint, {
     method: 'GET',
