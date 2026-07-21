@@ -40,8 +40,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Validate package-manager policy
-        run: pnpm check:package-policy
+      - name: Validate package-manager policy before installation
+        run: node scripts/check-package-policy.mjs
 
       - name: Install exact dependencies from frozen lockfile
         run: pnpm install --frozen-lockfile --prefer-offline
