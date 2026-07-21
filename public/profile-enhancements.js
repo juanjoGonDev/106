@@ -29,7 +29,7 @@
     const section = document.createElement('section');
     section.className = 'player-radar';
     const title = document.createElement('h3');
-    title.textContent = 'Perfil de juego';
+    title.textContent = 'Perfil de juego global';
     const radar = document.createElement('div');
     radar.className = 'player-radar-chart';
     const compare = document.createElement('div');
@@ -37,6 +37,8 @@
     const input = document.createElement('input');
     input.maxLength = 24;
     input.placeholder = 'Nick para comparar';
+    input.autocomplete = 'off';
+    input.dataset.bwignore = 'true';
     input.setAttribute('aria-label', 'Nick del jugador para comparar');
     const button = document.createElement('button');
     button.type = 'button';
