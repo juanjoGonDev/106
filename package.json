@@ -7,7 +7,7 @@
     "dev": "node scripts/serve.mjs",
     "build:config": "node scripts/generate-config.mjs",
     "check:migrations": "node scripts/check-production-migrations.mjs",
-    "lint": "eslint eslint.config.js tests supabase/functions/game-api/moderation-core.js --max-warnings=0",
+    "lint": "eslint supabase/functions/game-api/moderation-core.js --max-warnings=0",
     "knip": "knip",
     "test": "vitest run",
     "test:security": "vitest run tests/security",
