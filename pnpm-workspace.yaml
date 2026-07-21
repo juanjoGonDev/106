@@ -1,0 +1,29 @@
+packages:
+  - '.'
+
+nodeVersion: 22.13.0
+engineStrict: true
+pmOnFail: error
+
+lockfile: true
+preferFrozenLockfile: true
+savePrefix: ''
+verifyDepsBeforeRun: error
+resolutionMode: time-based
+
+strictPeerDependencies: true
+autoInstallPeers: false
+
+strictDepBuilds: true
+dangerouslyAllowAllBuilds: false
+allowBuilds:
+  esbuild: true
+
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
+trustLockfile: false
+blockExoticSubdeps: true
+
+sideEffectsCache: false
