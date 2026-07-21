@@ -26,10 +26,24 @@ function normalizeHttpOrigin(value) {
   return url.origin;
 }
 
+function isLowercaseLetterOrDigit(character) {
+  return (character >= 'a' && character <= 'z')
+    || (character >= '0' && character <= '9');
+}
+
+function isValidGithubOwner(value) {
+  if (value.length === 0 || value.length > 39) return false;
+  if (!isLowercaseLetterOrDigit(value[0]) || !isLowercaseLetterOrDigit(value.at(-1))) {
+    return false;
+  }
+  return [...value].every((character) => isLowercaseLetterOrDigit(character) || character === '-');
+}
+
 function githubPagesOrigin(owner) {
   const normalizedOwner = String(owner ?? '').trim().toLowerCase();
-  if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(normalizedOwner)) return '';
-  return `https://${normalizedOwner}.github.io`;
+  return isValidGithubOwner(normalizedOwner)
+    ? `https://${normalizedOwner}.github.io`
+    : '';
 }
 
 export function buildAllowedOrigins(environment = process.env) {
