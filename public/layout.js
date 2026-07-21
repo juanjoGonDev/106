@@ -11,7 +11,7 @@
   function renderSiteChrome() {
     const header = document.querySelector('.site-header') || document.createElement('header');
     header.className = 'site-header';
-    header.innerHTML = '';
+    header.replaceChildren();
 
     const brand = document.createElement('a');
     brand.className = 'brand';
@@ -25,9 +25,7 @@
       anchor.href = href;
       anchor.textContent = label;
       if (page === 'cuenta.html') anchor.className = 'account-link';
-      if (activePage === page || (activePage === 'index.html' && page === 'index.html')) {
-        anchor.setAttribute('aria-current', 'page');
-      }
+      if (activePage === page) anchor.setAttribute('aria-current', 'page');
       navigation.append(anchor);
     }
     header.append(brand, navigation);
@@ -35,7 +33,7 @@
 
     const footer = document.querySelector('.site-footer') || document.createElement('footer');
     footer.className = 'site-footer';
-    footer.innerHTML = '';
+    footer.replaceChildren();
     const copyright = document.createElement('span');
     copyright.textContent = `Minuto 106 · ${new Date().getFullYear()}`;
     const footerNavigation = document.createElement('nav');
@@ -49,11 +47,18 @@
       anchor.textContent = label;
       footerNavigation.append(anchor);
     }
-    const privacyButton = document.createElement('button');
-    privacyButton.id = 'openCookieSettings';
-    privacyButton.type = 'button';
-    privacyButton.textContent = 'Gestionar cookies';
-    footerNavigation.append(privacyButton);
+    if (document.querySelector('#cookieDialog')) {
+      const privacyButton = document.createElement('button');
+      privacyButton.id = 'openCookieSettings';
+      privacyButton.type = 'button';
+      privacyButton.textContent = 'Gestionar cookies';
+      footerNavigation.append(privacyButton);
+    } else {
+      const privacyLink = document.createElement('a');
+      privacyLink.href = './cookies.html';
+      privacyLink.textContent = 'Gestionar cookies';
+      footerNavigation.append(privacyLink);
+    }
     footer.append(copyright, footerNavigation);
     if (!footer.isConnected) document.body.append(footer);
   }
@@ -73,9 +78,12 @@
         closeButton.addEventListener('click', () => closeDialog(dialog));
         dialog.prepend(closeButton);
       }
-      dialog.addEventListener('click', (event) => {
-        if (event.target === dialog) closeDialog(dialog);
-      });
+      if (dialog.dataset.dismissReady !== 'true') {
+        dialog.dataset.dismissReady = 'true';
+        dialog.addEventListener('click', (event) => {
+          if (event.target === dialog) closeDialog(dialog);
+        });
+      }
     }
 
     const celebration = document.querySelector('#celebration');
@@ -132,6 +140,5 @@
   renderSiteChrome();
   enhanceDialogs();
   buildGameColumns();
-
   document.addEventListener('minuto106:dialog-created', enhanceDialogs);
 })();
