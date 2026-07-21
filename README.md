@@ -25,17 +25,49 @@ PostgreSQL + RLS + RPC atómicas
 
 El navegador no contiene secretos ni escribe directamente en PostgreSQL. Los tiempos, jugadores, perfiles, bonus y referencias se almacenan en tablas persistentes de Supabase.
 
-## Desarrollo local
+## Toolchain fijado
 
-Requiere Node.js 20 o posterior, Docker y Supabase CLI.
+El proyecto usa exclusivamente:
+
+- Node.js `22.13.0`.
+- pnpm `11.15.1`.
+- `pnpm-lock.yaml` como único lockfile.
+- Volta para seleccionar automáticamente las versiones locales declaradas en `package.json`.
+
+El soporte de pnpm en Volta requiere habilitar su feature flag. En macOS o Linux:
 
 ```bash
-npm run check
-npx supabase start
-npx supabase db reset
-npx supabase functions serve game-api --no-verify-jwt --env-file supabase/functions/.env.local
+export VOLTA_FEATURE_PNPM=1
+volta install node@22.13.0 pnpm@11.15.1
+```
+
+En PowerShell:
+
+```powershell
+$env:VOLTA_FEATURE_PNPM = "1"
+volta install node@22.13.0 pnpm@11.15.1
+```
+
+Para mantener la variable en futuras sesiones de Windows:
+
+```powershell
+[Environment]::SetEnvironmentVariable("VOLTA_FEATURE_PNPM", "1", "User")
+```
+
+Al entrar en el repositorio, Volta utiliza las versiones fijadas en el bloque `volta` de `package.json`. `packageManager` y `engines` contienen las mismas versiones para que pnpm y CI también las validen.
+
+## Desarrollo local
+
+Requiere Volta, Docker y Supabase CLI. Desde la raíz del repositorio:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm check
+supabase start
+supabase db reset
+supabase functions serve game-api --no-verify-jwt --env-file supabase/functions/.env.local
 node --env-file=.env.local scripts/generate-config.mjs
-node --env-file=.env.local scripts/serve.mjs
+pnpm dev
 ```
 
 Abre `http://localhost:3000`.
@@ -45,6 +77,49 @@ Genera `HASH_PEPPER` en Windows, macOS o Linux sin depender de OpenSSL:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+### Comandos habituales
+
+```bash
+pnpm dev
+pnpm check
+pnpm test
+pnpm test:security
+pnpm test:supabase
+pnpm lint
+pnpm knip
+pnpm audit --audit-level=high
+```
+
+### Actualizar dependencias
+
+Las dependencias directas deben usar versiones exactas, sin `^`, `~`, tags, URLs ni alias. Para añadirlas:
+
+```bash
+pnpm add --save-exact nombre-paquete@1.2.3
+pnpm add --save-exact --save-dev nombre-paquete@1.2.3
+```
+
+Después se debe revisar y confirmar el cambio de `pnpm-lock.yaml`:
+
+```bash
+pnpm install --lockfile-only
+pnpm check:package-policy
+pnpm install --frozen-lockfile
+pnpm check
+```
+
+No se autorizan scripts de instalación de dependencias. `allowBuilds` está vacío y `strictDepBuilds` hace fallar la instalación si un paquete intenta ejecutar un build no aprobado. Cualquier excepción requiere auditar el paquete y su versión, documentar el motivo y añadir una autorización mínima en `pnpm-workspace.yaml`.
+
+La política también aplica:
+
+- Lockfile obligatorio y congelado en CI.
+- Dependencias con menos de 7 días bloqueadas por defecto.
+- Protección contra degradaciones de integridad del paquete.
+- Subdependencias procedentes de fuentes exóticas bloqueadas.
+- Peer dependencies estrictas y sin instalación automática.
+- Caché exclusiva del store de pnpm; no se restaura `node_modules`.
+- `package-lock.json`, `yarn.lock`, Bun y scripts lifecycle del proyecto rechazados automáticamente.
 
 ## Variables y secretos de GitHub Actions
 
@@ -106,6 +181,8 @@ Los siguientes contadores se consideran monotónicos y no pueden disminuir duran
 - Referencias creadas.
 - Referencias completadas.
 - Intentos bonus concedidos.
+- Retos y retos completados.
+- Miniligas y sus miembros.
 
 La tabla `game_deployment_snapshots` permite relacionar el histórico con:
 
@@ -178,7 +255,7 @@ Al hacer push o merge a `main`:
 
 - `pages.yml` genera la configuración pública y despliega GitHub Pages.
 - `supabase.yml` protege el histórico, aplica migraciones y despliega `game-api`.
-- `ci.yml` valida JavaScript y busca secretos expuestos accidentalmente en el frontend.
+- `ci.yml` instala desde `pnpm-lock.yaml`, valida la política de paquetes, ejecuta análisis estático, tests y una instancia local completa de Supabase.
 
 En **Settings → Pages → Build and deployment**, selecciona **GitHub Actions** como fuente.
 
