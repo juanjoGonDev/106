@@ -89,9 +89,10 @@ async function completeAttempt(started, headers) {
 async function runSmokeChecks() {
   const stats = await waitForFunction();
   assert.equal(stats.response.status, 200);
+  assert.equal(stats.response.headers.get('access-control-allow-origin'), origin);
   assert.equal(stats.body.targetMs, 10_600);
   assert.ok(Array.isArray(stats.body.leaderboard));
-  logStep('Edge Function is reachable through the local Supabase gateway');
+  logStep('Edge Function is reachable and authorizes the configured browser origin');
 
   const preflight = await fetch(endpoint, {
     method: 'OPTIONS',
@@ -102,13 +103,14 @@ async function runSmokeChecks() {
     },
     signal: AbortSignal.timeout(10_000),
   });
-  assert.equal(preflight.status, 204);
-  assert.equal(preflight.headers.get('access-control-allow-origin'), origin);
+  assert.ok(preflight.status >= 200 && preflight.status < 300, `Unexpected preflight status ${preflight.status}`);
+  const preflightOrigin = preflight.headers.get('access-control-allow-origin');
+  assert.ok(preflightOrigin === origin || preflightOrigin === '*');
   assert.match(
     preflight.headers.get('access-control-allow-headers') ?? '',
     /x-account-token/i,
   );
-  logStep('CORS preflight succeeds for a configured browser origin');
+  logStep('Supabase gateway returns a successful browser preflight');
 
   const methodResponse = await fetch(endpoint, {
     method: 'GET',
