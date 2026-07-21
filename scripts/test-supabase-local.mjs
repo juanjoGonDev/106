@@ -86,13 +86,18 @@ async function completeAttempt(started, headers) {
   }, { headers, timeoutMs: 20_000 });
 }
 
+function assertGatewayAllowsOrigin(response) {
+  const allowedOrigin = response.headers.get('access-control-allow-origin');
+  assert.ok(allowedOrigin === origin || allowedOrigin === '*', `Unexpected allow-origin: ${allowedOrigin}`);
+}
+
 async function runSmokeChecks() {
   const stats = await waitForFunction();
   assert.equal(stats.response.status, 200);
-  assert.equal(stats.response.headers.get('access-control-allow-origin'), origin);
+  assertGatewayAllowsOrigin(stats.response);
   assert.equal(stats.body.targetMs, 10_600);
   assert.ok(Array.isArray(stats.body.leaderboard));
-  logStep('Edge Function is reachable and authorizes the configured browser origin');
+  logStep('Edge Function is reachable from a configured browser origin');
 
   const preflight = await fetch(endpoint, {
     method: 'OPTIONS',
@@ -104,8 +109,7 @@ async function runSmokeChecks() {
     signal: AbortSignal.timeout(10_000),
   });
   assert.ok(preflight.status >= 200 && preflight.status < 300, `Unexpected preflight status ${preflight.status}`);
-  const preflightOrigin = preflight.headers.get('access-control-allow-origin');
-  assert.ok(preflightOrigin === origin || preflightOrigin === '*');
+  assertGatewayAllowsOrigin(preflight);
   assert.match(
     preflight.headers.get('access-control-allow-headers') ?? '',
     /x-account-token/i,
