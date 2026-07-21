@@ -3,7 +3,6 @@ const leagueApi = String(leagueConfig.apiBaseUrl ?? '').replace(/\/$/, '');
 const leagueDevice = localStorage.getItem('minuto106:device-id') || crypto.randomUUID();
 const initialCode = String(new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
 let selectedLeague = null;
-let selectedStatus = null;
 
 localStorage.setItem('minuto106:device-id', leagueDevice);
 
@@ -131,7 +130,6 @@ function renderLeagueAttempts(status) {
 
 function renderLeague(league, status = null) {
   selectedLeague = league;
-  selectedStatus = status;
   const section = document.querySelector('#leagueLookupResult');
   section.hidden = false;
   document.querySelector('#leagueLookupTitle').textContent = `${league.name} · ${league.code}`;
