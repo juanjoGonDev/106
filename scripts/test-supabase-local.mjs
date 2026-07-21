@@ -50,6 +50,42 @@ function logStep(message) {
   process.stdout.write(`✓ ${message}\n`);
 }
 
+function validFinishSignals(interaction) {
+  return {
+    trustedStart: true,
+    trustedFinish: true,
+    timerConcealed: true,
+    visibilityChanges: 0,
+    focusLosses: 0,
+    interactionMode: interaction.mode,
+    controlNonce: interaction.nonce,
+    finishEvent: 'keydown',
+    pointerTrusted: true,
+    userActivation: true,
+    automationDetected: false,
+    pointerType: 'keyboard',
+    pointerXPercent: -1,
+    pointerYPercent: -1,
+    pointerMoveCount: 0,
+    pointerTravelPx: 0,
+    pointerDwellMs: 0,
+    pressureMax: 0,
+    holdDurationMs: 0,
+    samePointer: true,
+    keyboardKey: interaction.keyboardKey === 'Space' ? ' ' : interaction.keyboardKey,
+  };
+}
+
+async function completeAttempt(started, headers) {
+  await delay(10_600);
+  return api({
+    action: 'finish',
+    challengeId: started.body.challengeId,
+    clientElapsedMs: 10_600,
+    clientSignals: validFinishSignals(started.body.interaction),
+  }, { headers, timeoutMs: 20_000 });
+}
+
 async function runSmokeChecks() {
   const stats = await waitForFunction();
   assert.equal(stats.response.status, 200);
@@ -105,56 +141,28 @@ async function runGameJourney() {
   }, { headers: privateHeaders });
   assert.equal(started.response.status, 201, JSON.stringify(started.body));
   assert.match(String(started.body.challengeId), /^[0-9a-f-]{36}$/i);
+  assert.equal(started.body.competition?.type, 'global');
   assert.ok(['press', 'release'].includes(started.body.interaction?.mode));
   assert.match(String(started.body.interaction?.nonce), /^[0-9a-f-]{36}$/i);
-  logStep('A player account and server-side game challenge can be created');
+  logStep('A player account and global server-side game challenge can be created');
 
   const accountPlayers = await api({ action: 'account-players' }, { headers: privateHeaders });
   assert.equal(accountPlayers.response.status, 200, JSON.stringify(accountPlayers.body));
   assert.match(JSON.stringify(accountPlayers.body), new RegExp(nick, 'i'));
   logStep('The created nickname is linked to the anonymous account');
 
-  await delay(10_600);
-  const interaction = started.body.interaction;
-  const keyboardKey = interaction.keyboardKey === 'Space' ? ' ' : interaction.keyboardKey;
-  const finished = await api({
-    action: 'finish',
-    challengeId: started.body.challengeId,
-    clientElapsedMs: 10_600,
-    clientSignals: {
-      trustedStart: true,
-      trustedFinish: true,
-      timerConcealed: true,
-      visibilityChanges: 0,
-      focusLosses: 0,
-      interactionMode: interaction.mode,
-      controlNonce: interaction.nonce,
-      finishEvent: 'keydown',
-      pointerTrusted: true,
-      userActivation: true,
-      automationDetected: false,
-      pointerType: 'keyboard',
-      pointerXPercent: -1,
-      pointerYPercent: -1,
-      pointerMoveCount: 0,
-      pointerTravelPx: 0,
-      pointerDwellMs: 0,
-      pressureMax: 0,
-      holdDurationMs: 0,
-      samePointer: true,
-      keyboardKey,
-    },
-  }, { headers: privateHeaders, timeoutMs: 20_000 });
+  const finished = await completeAttempt(started, privateHeaders);
   assert.equal(finished.response.status, 201, JSON.stringify(finished.body));
   assert.equal(finished.body.attempt?.verified, true, JSON.stringify(finished.body));
   assert.equal(finished.body.attempt?.differenceMs, 0);
+  assert.equal(finished.body.attempt?.competitionType, 'global');
   assert.equal(finished.body.profile?.verifiedAttempts, 1);
-  logStep('A full timed attempt is persisted and verified through PostgreSQL RPCs');
+  logStep('A full global attempt is persisted and verified through PostgreSQL RPCs');
 
   const duel = await api({ action: 'create-duel', nick }, { headers: privateHeaders });
   assert.equal(duel.response.status, 201, JSON.stringify(duel.body));
   assert.match(String(duel.body.code), /^[0-9a-f-]{36}$/i);
-  logStep('A verified player can create a direct challenge');
+  logStep('A verified global player can create a direct challenge');
 
   const league = await api({
     action: 'create-league',
@@ -164,15 +172,52 @@ async function runGameJourney() {
   assert.equal(league.response.status, 201, JSON.stringify(league.body));
   assert.match(String(league.body.code), /^[A-Z0-9]{6}$/);
 
+  const joinedLeaguesBefore = await api({ action: 'player-leagues', nick }, { headers: privateHeaders });
+  assert.equal(joinedLeaguesBefore.response.status, 200, JSON.stringify(joinedLeaguesBefore.body));
+  assert.equal(joinedLeaguesBefore.body[0]?.attemptsUsed, 0);
+  assert.equal(joinedLeaguesBefore.body[0]?.attemptsLeft, 5);
+  logStep('The owner sees the newly created league in their private league list');
+
+  const leagueStarted = await api({
+    action: 'start',
+    nick,
+    team: 'argentina',
+    leagueCode: league.body.code,
+  }, { headers: privateHeaders });
+  assert.equal(leagueStarted.response.status, 201, JSON.stringify(leagueStarted.body));
+  assert.equal(leagueStarted.body.competition?.type, 'league');
+  assert.equal(leagueStarted.body.competition?.code, league.body.code);
+
+  const leagueFinished = await completeAttempt(leagueStarted, privateHeaders);
+  assert.equal(leagueFinished.response.status, 201, JSON.stringify(leagueFinished.body));
+  assert.equal(leagueFinished.body.attempt?.verified, true, JSON.stringify(leagueFinished.body));
+  assert.equal(leagueFinished.body.attempt?.competitionType, 'league');
+  assert.equal(leagueFinished.body.attempt?.leagueCode, league.body.code);
+  logStep('A league attempt is persisted with an explicit league scope');
+
   const publicLeague = await api({ action: 'league', code: league.body.code });
   assert.equal(publicLeague.response.status, 200, JSON.stringify(publicLeague.body));
-  logStep('Miniligas can be created and queried through the public API');
+  assert.equal(publicLeague.body.totalAttempts, 1);
+  assert.match(JSON.stringify(publicLeague.body.leaderboard), new RegExp(nick, 'i'));
+
+  const leagueStatus = await api({ action: 'league-status', nick, code: league.body.code }, { headers: privateHeaders });
+  assert.equal(leagueStatus.response.status, 200, JSON.stringify(leagueStatus.body));
+  assert.equal(leagueStatus.body.attemptsUsed, 1);
+  assert.equal(leagueStatus.body.attemptsLeft, 4);
+  assert.equal(leagueStatus.body.history?.[0]?.differenceMs, 0);
+  logStep('League membership exposes its own attempt budget, rank and history');
 
   const finalStats = await api({ action: 'stats' });
   assert.equal(finalStats.response.status, 200);
-  assert.ok(Number(finalStats.body.totalAttempts) >= 1);
+  assert.equal(finalStats.body.totalAttempts, 1);
+  assert.equal(finalStats.body.verifiedAttempts, 1);
   assert.match(JSON.stringify(finalStats.body.leaderboard), new RegExp(nick, 'i'));
-  logStep('Rankings and aggregate statistics include the verified attempt');
+
+  const globalProfile = await api({ action: 'profile', nick });
+  assert.equal(globalProfile.body.attemptsUsed, 1);
+  assert.equal(globalProfile.body.verifiedAttempts, 1);
+  assert.equal(globalProfile.body.history?.length, 1);
+  logStep('League attempts never consume global attempts or enter global statistics and profiles');
 }
 
 await runSmokeChecks();
