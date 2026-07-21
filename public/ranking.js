@@ -15,6 +15,13 @@ async function rankingRequest(action, payload = {}) {
   return body;
 }
 
+function showRankingError(error, title = 'No se pudo cargar el jugador') {
+  return window.Minuto106UI?.error({
+    title,
+    message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
+  }) ?? Promise.resolve();
+}
+
 function rankingEscape(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
@@ -88,18 +95,18 @@ function closeProfile() {
 
 document.querySelector('#fullRanking')?.addEventListener('click', (event) => {
   const row = event.target.closest('[data-nick]');
-  if (row) showProfile(row.dataset.nick).catch((error) => alert(error.message));
+  if (row) showProfile(row.dataset.nick).catch(showRankingError);
 });
 document.querySelector('#rankingSearchButton')?.addEventListener('click', () => {
   const nick = document.querySelector('#rankingSearch').value.trim();
-  if (nick) showProfile(nick).catch((error) => alert(error.message));
+  if (nick) showProfile(nick).catch(showRankingError);
 });
 document.querySelector('#rankingProfile')?.addEventListener('click', (event) => {
   if (event.target.closest('#closeRankingProfile')) closeProfile();
-  if (event.target.closest('#rankingCompareButton')) compareProfile().catch((error) => alert(error.message));
+  if (event.target.closest('#rankingCompareButton')) compareProfile().catch((error) => showRankingError(error, 'No se pudo comparar'));
 });
 
 const requestedNick = new URLSearchParams(location.search).get('nick')?.trim();
 loadRanking().then(() => {
-  if (requestedNick) showProfile(requestedNick).catch((error) => alert(error.message));
+  if (requestedNick) showProfile(requestedNick).catch(showRankingError);
 });
