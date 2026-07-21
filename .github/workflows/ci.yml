@@ -276,7 +276,7 @@ jobs:
           EOF
 
       - name: Start local Supabase application stack
-        id: supabase-start
+        id: supabase_start
         continue-on-error: true
         shell: bash
         run: |
@@ -286,7 +286,7 @@ jobs:
             2>&1 | tee supabase-start.log
 
       - name: Serve game-api in the local Edge Runtime
-        if: steps.supabase-start.outcome == 'success'
+        if: steps.supabase_start.outcome == 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -296,36 +296,36 @@ jobs:
           echo $! > .supabase-functions.pid
 
       - name: Run complete API and persistence journey
-        id: supabase-api-tests
-        if: steps.supabase-start.outcome == 'success'
+        id: supabase_api_tests
+        if: steps.supabase_start.outcome == 'success'
         continue-on-error: true
         run: npm run test:supabase
 
       - name: Lint PostgreSQL functions and schema
-        id: database-lint
-        if: steps.supabase-start.outcome == 'success'
+        id: database_lint
+        if: steps.supabase_start.outcome == 'success'
         continue-on-error: true
         run: supabase db lint --level error
 
       - name: Verify migration history
-        id: migration-history
-        if: steps.supabase-start.outcome == 'success'
+        id: migration_history
+        if: steps.supabase_start.outcome == 'success'
         continue-on-error: true
         run: supabase migration list --local
 
       - name: Rebuild database entirely from migrations
-        id: database-reset
+        id: database_reset
         if: >-
-          steps.supabase-start.outcome == 'success' &&
-          steps.supabase-api-tests.outcome == 'success' &&
-          steps.database-lint.outcome == 'success' &&
-          steps.migration-history.outcome == 'success'
+          steps.supabase_start.outcome == 'success' &&
+          steps.supabase_api_tests.outcome == 'success' &&
+          steps.database_lint.outcome == 'success' &&
+          steps.migration_history.outcome == 'success'
         continue-on-error: true
         run: supabase db reset
 
       - name: Re-run API smoke checks after database rebuild
-        id: post-reset-smoke
-        if: steps.database-reset.outcome == 'success'
+        id: post_reset_smoke
+        if: steps.database_reset.outcome == 'success'
         continue-on-error: true
         env:
           SUPABASE_SMOKE_ONLY: 'true'
@@ -333,12 +333,12 @@ jobs:
 
       - name: Upload Supabase diagnostics
         if: >-
-          steps.supabase-start.outcome == 'failure' ||
-          steps.supabase-api-tests.outcome == 'failure' ||
-          steps.database-lint.outcome == 'failure' ||
-          steps.migration-history.outcome == 'failure' ||
-          steps.database-reset.outcome == 'failure' ||
-          steps.post-reset-smoke.outcome == 'failure'
+          steps.supabase_start.outcome == 'failure' ||
+          steps.supabase_api_tests.outcome == 'failure' ||
+          steps.database_lint.outcome == 'failure' ||
+          steps.migration_history.outcome == 'failure' ||
+          steps.database_reset.outcome == 'failure' ||
+          steps.post_reset_smoke.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: supabase-local-diagnostics-${{ github.run_id }}
@@ -354,12 +354,12 @@ jobs:
         run: |
           set -euo pipefail
           results=(
-            "start=${{ steps.supabase-start.outcome }}"
-            "api=${{ steps.supabase-api-tests.outcome }}"
-            "lint=${{ steps.database-lint.outcome }}"
-            "history=${{ steps.migration-history.outcome }}"
-            "reset=${{ steps.database-reset.outcome }}"
-            "smoke=${{ steps.post-reset-smoke.outcome }}"
+            "start=${{ steps.supabase_start.outcome }}"
+            "api=${{ steps.supabase_api_tests.outcome }}"
+            "lint=${{ steps.database_lint.outcome }}"
+            "history=${{ steps.migration_history.outcome }}"
+            "reset=${{ steps.database_reset.outcome }}"
+            "smoke=${{ steps.post_reset_smoke.outcome }}"
           )
 
           failed=0
