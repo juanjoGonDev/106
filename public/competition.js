@@ -154,6 +154,13 @@
     }
   }
 
+  function leagueAchievementText(payload) {
+    const rank = Number(payload.achievement?.leagueRank || 0);
+    if (rank === 1) return `LÍDER DE LA MINILIGA · Puesto #1 en ${contextLabel()}`;
+    if (rank > 0) return `Puesto #${rank} en ${contextLabel()}`;
+    return `Marca registrada en ${contextLabel()}`;
+  }
+
   function renderLeagueResult(payload) {
     if (payload?.competition?.type !== 'league') return;
     lastLeagueResult = payload;
@@ -182,14 +189,9 @@
 
     const banner = document.querySelector('#achievementBanner');
     if (banner) {
-      const rank = Number(payload.achievement?.leagueRank || 0);
       banner.className = 'achievement-banner league-achievement';
       banner.hidden = false;
-      banner.textContent = rank === 1
-        ? `LÍDER DE LA MINILIGA · Puesto #1 en ${contextLabel()}`
-        : rank > 0
-          ? `Puesto #${rank} en ${contextLabel()}`
-          : `Marca registrada en ${contextLabel()}`;
+      banner.textContent = leagueAchievementText(payload);
     }
 
     renderLeagueStatus();
@@ -255,6 +257,7 @@
       window.clearTimeout(statusDebounce);
       statusDebounce = window.setTimeout(syncLeagueStatus, 450);
     });
+    request('stats').then(applyCompactStats).catch(() => {});
     initializeLeagueContext().catch(() => {});
   }
 
