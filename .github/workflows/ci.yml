@@ -14,7 +14,8 @@ concurrency:
 
 env:
   NODE_VERSION: 22.13.0
-  DEPENDENCY_CACHE_VERSION: v1
+  PNPM_VERSION: 11.15.1
+  SUPABASE_CLI_VERSION: 2.101.0
 
 jobs:
   build:
@@ -26,38 +27,30 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore or create dependency cache
-        id: dependency-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
+      - name: Validate package-manager policy
+        run: pnpm check:package-policy
 
-      - name: Generate deterministic npm lockfile
-        if: steps.dependency-cache.outputs.cache-hit != 'true'
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-      - name: Install exact dependencies
-        if: steps.dependency-cache.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
-
-      - name: Verify restored dependencies
-        if: steps.dependency-cache.outputs.cache-hit == 'true'
-        run: npm ls --depth=0
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Generate static application configuration
-        run: npm run build:config
+        run: pnpm build:config
 
       - name: Validate JavaScript syntax
-        run: npm run check:syntax
+        run: pnpm check:syntax
 
   tests:
     name: 🚧 Tests · Unit & security
@@ -68,25 +61,26 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore build dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
-          fail-on-cache-miss: true
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run Vitest suite
         id: vitest
         continue-on-error: true
-        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json
+        run: pnpm exec vitest run --reporter=default --reporter=json --outputFile=vitest-results.json
 
       - name: Upload failed test report
         if: steps.vitest.outcome == 'failure'
@@ -111,25 +105,26 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore build dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
-          fail-on-cache-miss: true
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run ESLint
         id: eslint-check
         continue-on-error: true
-        run: npx eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
+        run: pnpm exec eslint public scripts tests eslint.config.js --max-warnings=0 --format=json --output-file=eslint-results.json
 
       - name: Upload failed ESLint report
         if: steps.eslint-check.outcome == 'failure'
@@ -154,23 +149,24 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore build dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
-          fail-on-cache-miss: true
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Detect unused files and dependencies
-        run: npm run knip
+        run: pnpm knip
 
   security:
     name: 🛡️ Security · Dependency & policy checks
@@ -181,23 +177,27 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore build dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
-          fail-on-cache-miss: true
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Validate package-manager policy
+        run: pnpm check:package-policy
 
       - name: Audit dependency vulnerabilities
-        run: npm audit --audit-level=high
+        run: pnpm audit --audit-level=high
 
       - name: Reject native browser dialogs
         shell: bash
@@ -245,25 +245,26 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm store cache
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Restore build dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            package-lock.json
-          key: ${{ env.DEPENDENCY_CACHE_VERSION }}-npm-${{ runner.os }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('package.json') }}
-          fail-on-cache-miss: true
+      - name: Install exact dependencies from frozen lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - name: Run local stack, Edge Function and API journey
         id: supabase-suite
