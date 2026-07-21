@@ -173,14 +173,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { copyButton.textContent = 'Copiar clave de cuenta'; }, 1600);
     refreshAccessPanel();
   });
-  importButton?.addEventListener('click', () => {
+  importButton?.addEventListener('click', async () => {
     try {
       setAccountToken(field?.value || '');
       if (field) field.value = '';
       refreshAccessPanel();
-      alert('Cuenta vinculada a este dispositivo. Consulta todos tus nicks en Mi cuenta.');
+      await window.Minuto106UI?.success({
+        title: 'Cuenta vinculada',
+        message: 'Este dispositivo ya puede utilizar todos los nicks vinculados. Puedes consultarlos desde Mi cuenta.',
+      });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Clave inválida.');
+      await window.Minuto106UI?.error({
+        title: 'Clave no válida',
+        message: error instanceof Error ? error.message : 'La clave introducida no es válida.',
+      });
     }
   });
   document.addEventListener('minuto106:access-denied', (event) => {
