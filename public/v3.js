@@ -20,6 +20,13 @@ async function v3Request(action, payload = {}) {
   return body;
 }
 
+function showV3Error(error, title = 'No se pudo completar') {
+  return window.Minuto106UI?.error({
+    title,
+    message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
+  }) ?? Promise.resolve();
+}
+
 function currentNick() {
   return String(v3$('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
 }
@@ -89,6 +96,10 @@ async function joinLeague(code = String(v3$('#leagueCode')?.value || leagueCodeF
   await loadLeague(league.code);
 }
 
+function hasValue(value) {
+  return value !== null && value !== undefined;
+}
+
 async function loadLeague(code) {
   if (!code) return;
   const league = await v3Request('league', { code });
@@ -101,7 +112,7 @@ async function loadLeague(code) {
   v3$('#leagueEnds').textContent = remaining ? `Termina en ${hours} h` : 'Finalizada';
   const list = v3$('#leagueLeaderboard');
   list.innerHTML = league.leaderboard?.length
-    ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeV3(entry.nick)}</span><span class="difference">${entry.bestDifferenceMs == null ? 'Sin marca' : `±${entry.bestDifferenceMs} ms`}</span></li>`).join('')
+    ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeV3(entry.nick)}</span><span class="difference">${hasValue(entry.bestDifferenceMs) ? `±${entry.bestDifferenceMs} ms` : 'Sin marca'}</span></li>`).join('')
     : '<li class="empty">Todavía no hay participantes.</li>';
 }
 
@@ -113,8 +124,8 @@ async function openPublicProfile(nick) {
     <p class="eyebrow">PERFIL PÚBLICO</p>
     <h2>${escapeV3(profile.nick)}</h2>
     <div class="public-profile-grid">
-      <div><span>Mejor marca</span><strong>${profile.bestDifferenceMs == null ? '—' : `±${profile.bestDifferenceMs} ms`}</strong></div>
-      <div><span>Media</span><strong>${profile.averageDifferenceMs == null ? '—' : `±${profile.averageDifferenceMs} ms`}</strong></div>
+      <div><span>Mejor marca</span><strong>${hasValue(profile.bestDifferenceMs) ? `±${profile.bestDifferenceMs} ms` : '—'}</strong></div>
+      <div><span>Media</span><strong>${hasValue(profile.averageDifferenceMs) ? `±${profile.averageDifferenceMs} ms` : '—'}</strong></div>
       <div><span>Puesto global</span><strong>${profile.globalRankBest ? `#${profile.globalRankBest}` : '—'}</strong></div>
       <div><span>Intentos válidos</span><strong>${profile.verifiedAttempts ?? 0}</strong></div>
       <div><span>Referidos</span><strong>${profile.completedReferrals ?? 0}</strong></div>
@@ -142,9 +153,9 @@ function drawResultCard(profile) {
   ctx.fillStyle = glow; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center'; ctx.fillStyle = '#f4c95d'; ctx.font = '700 28px Arial'; ctx.fillText('MINUTO 106', 600, 80);
   ctx.fillStyle = '#fff'; ctx.font = '900 82px Arial'; ctx.fillText(profile.nick || 'Jugador', 600, 185);
-  ctx.font = '900 150px Arial'; ctx.fillText(profile.bestDifferenceMs == null ? '—' : `±${profile.bestDifferenceMs} ms`, 600, 360);
+  ctx.font = '900 150px Arial'; ctx.fillText(hasValue(profile.bestDifferenceMs) ? `±${profile.bestDifferenceMs} ms` : '—', 600, 360);
   ctx.fillStyle = '#d4d7df'; ctx.font = '700 34px Arial';
-  ctx.fillText(`Puesto global ${profile.globalRankBest ? `#${profile.globalRankBest}` : '—'} · Media ${profile.averageDifferenceMs == null ? '—' : `±${profile.averageDifferenceMs} ms`}`, 600, 440);
+  ctx.fillText(`Puesto global ${profile.globalRankBest ? `#${profile.globalRankBest}` : '—'} · Media ${hasValue(profile.averageDifferenceMs) ? `±${profile.averageDifferenceMs} ms` : '—'}`, 600, 440);
   ctx.font = '600 27px Arial'; ctx.fillText(`${profile.verifiedAttempts ?? 0} intentos válidos · ${profile.completedReferrals ?? 0} rivales completados`, 600, 495);
   ctx.fillStyle = '#f4c95d'; ctx.font = '700 26px Arial'; ctx.fillText('¿PUEDES SUPERARME?', 600, 560);
   return canvas;
@@ -215,23 +226,22 @@ if (v3$('#achievementBanner')) achievementObserver.observe(v3$('#achievementBann
 v3$('#leaderboard')?.addEventListener('click', (event) => {
   const item = event.target.closest('li');
   const nick = item ? extractLeaderboardNick(item) : '';
-  if (nick) openPublicProfile(nick).catch((error) => alert(error.message));
+  if (nick) openPublicProfile(nick).catch((error) => showV3Error(error, 'No se pudo abrir el perfil'));
 });
 v3$('#closeProfileDialog')?.addEventListener('click', () => v3$('#profileDialog').close());
-v3$('#createDuelButton')?.addEventListener('click', () => createDuel().catch((error) => alert(error.message)));
-v3$('#quickDuelButton')?.addEventListener('click', () => createDuel().catch((error) => alert(error.message)));
-v3$('#createLeagueButton')?.addEventListener('click', () => createLeague().catch((error) => alert(error.message)));
-v3$('#joinLeagueButton')?.addEventListener('click', () => joinLeague().catch((error) => alert(error.message)));
-v3$('#downloadCardButton')?.addEventListener('click', () => downloadResultCard().catch((error) => alert(error.message)));
+v3$('#createDuelButton')?.addEventListener('click', () => createDuel().catch((error) => showV3Error(error, 'No se pudo crear el reto')));
+v3$('#quickDuelButton')?.addEventListener('click', () => createDuel().catch((error) => showV3Error(error, 'No se pudo crear el reto')));
+v3$('#createLeagueButton')?.addEventListener('click', () => createLeague().catch((error) => showV3Error(error, 'No se pudo crear la miniliga')));
+v3$('#joinLeagueButton')?.addEventListener('click', () => joinLeague().catch((error) => showV3Error(error, 'No se pudo entrar en la miniliga')));
+v3$('#downloadCardButton')?.addEventListener('click', () => downloadResultCard().catch((error) => showV3Error(error, 'No se pudo generar la tarjeta')));
 
 if (duelCode) {
   const notice = v3$('#duelNotice');
   notice.hidden = false;
-  notice.innerHTML = `Has aceptado un reto directo. Completa tus intentos y después <button id="resolveDuelButton" class="ghost compact" type="button">comprobar si ganaste</button>.`;
-  notice.querySelector('#resolveDuelButton').addEventListener('click', () => resolveDuel().catch((error) => alert(error.message)));
+  notice.innerHTML = 'Has aceptado un reto directo. Completa tus intentos y después <button id="resolveDuelButton" class="ghost compact" type="button">comprobar si ganaste</button>.';
+  notice.querySelector('#resolveDuelButton').addEventListener('click', () => resolveDuel().catch((error) => showV3Error(error, 'No se pudo resolver el duelo')));
 }
 if (leagueCodeFromUrl) {
-  v3$('#leagueNotice').hidden = false;
   v3$('#leagueNotice').textContent = `Has abierto la miniliga ${leagueCodeFromUrl}. Escribe tu nick y pulsa “Unirme”.`;
   v3$('#leagueCode').value = leagueCodeFromUrl;
   loadLeague(leagueCodeFromUrl).catch(() => {});
