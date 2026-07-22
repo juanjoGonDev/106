@@ -85,6 +85,11 @@ const headers = {
   'x-device-id': `ci-ready-${randomUUID()}`,
 };
 
+const health = await api(readyEndpoint, { action: 'health' }, {});
+assert.equal(health.response.status, 200, JSON.stringify(health.body));
+assert.deepEqual(health.body, { ok: true, contract: 'prepared-countdown-v1' });
+process.stdout.write('✓ Readiness backend publishes the deployment compatibility contract.\n');
+
 const firstCheck = await api(readyEndpoint, { action: 'human-check' }, headers);
 assert.equal(firstCheck.response.status, 201, JSON.stringify(firstCheck.body));
 assert.equal(firstCheck.body.balls?.length, 4);
