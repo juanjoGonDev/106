@@ -25,6 +25,15 @@ describe('player pages and ranking links', () => {
     expect(ranking).not.toContain('showProfile(');
   });
 
+  it('keeps flags and links when the delayed fallback ranking wins the request race', () => {
+    const fallbackRanking = read('public/v4.js');
+    expect(fallbackRanking).toContain('v4PlayerUi?.playerUrl(nick)');
+    expect(fallbackRanking).toContain('v4PlayerUi?.teamHtml(entry.team)');
+    expect(fallbackRanking).toContain('class="leaderboard-row-link"');
+    expect(fallbackRanking).toContain('data-player-nick=');
+    expect(fallbackRanking).not.toContain('<small>${teamLabel(entry.team)}');
+  });
+
   it('provides clean overview, achievements and trophies player sections', () => {
     const html = read('public/player.html');
     const script = read('public/player.js');
