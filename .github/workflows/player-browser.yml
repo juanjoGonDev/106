@@ -52,7 +52,7 @@ jobs:
     name: 🌐 Player pages · Desktop and mobile
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -75,9 +75,6 @@ jobs:
 
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Install pinned Chromium runtime
-        run: pnpm dlx @playwright/test@${{ env.PLAYWRIGHT_VERSION }} install --with-deps chromium
 
       - name: Run responsive browser journeys
         run: pnpm test:e2e
