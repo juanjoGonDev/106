@@ -55,7 +55,8 @@ assert.equal(htmlResponse.status, 200, html);
 assert.match(htmlResponse.headers.get('content-type') || '', /^text\/html/);
 assert.match(html, /property="og:image"/);
 assert.match(html, /twitter:card/);
-assert.match(html, /achievements\.png/);
+assert.match(html, new RegExp(`/functions/v1/player-share/${nick}/achievements\\.png`));
+assert.doesNotMatch(html, /achievements\/achievements\.png/);
 assert.match(html, new RegExp(player.nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 const pngResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements.png`, {
