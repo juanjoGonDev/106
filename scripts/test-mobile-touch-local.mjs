@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const endpoint = process.env.SUPABASE_FUNCTION_URL
   ?? 'http://127.0.0.1:54321/functions/v1/game-api';
 const origin = 'http://127.0.0.1:3000';
+const mobileElapsedMs = 10_750;
 
 async function readJson(response) {
   const text = await response.text();
@@ -71,11 +72,14 @@ assert.equal(started.response.status, 201, JSON.stringify(started.body));
 assert.equal(started.body.interaction?.mode, 'press');
 assert.match(String(started.body.interaction?.nonce), /^[0-9a-f-]{36}$/i);
 
-await delay(10_600);
+// Deliberately avoid another perfect result on the shared local gateway IP;
+// the anti-cheat heuristic correctly flags repeated near-perfect results from
+// the same IP, which is independent from the mobile-input contract under test.
+await delay(mobileElapsedMs);
 const finished = await api({
   action: 'finish',
   challengeId: started.body.challengeId,
-  clientElapsedMs: 10_600,
+  clientElapsedMs: mobileElapsedMs,
   clientSignals: {
     trustedStart: true,
     trustedFinish: true,
@@ -103,5 +107,5 @@ const finished = await api({
 
 assert.equal(finished.response.status, 201, JSON.stringify(finished.body));
 assert.equal(finished.body.attempt?.verified, true, JSON.stringify(finished.body));
-assert.equal(finished.body.attempt?.differenceMs, 0, JSON.stringify(finished.body));
+assert.equal(finished.body.attempt?.differenceMs, 150, JSON.stringify(finished.body));
 process.stdout.write('✓ A trusted mobile touch stop succeeds when the User Activation API is unavailable.\n');
