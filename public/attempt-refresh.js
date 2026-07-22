@@ -3,7 +3,7 @@
   window.__MINUTO106_ATTEMPT_REFRESH__ = true;
   const previousFetch = window.fetch.bind(window);
 
-  function requestAction(input, init) {
+  function requestAction(init) {
     const body = init?.body;
     if (typeof body !== 'string') return '';
     try {
@@ -14,7 +14,7 @@
   }
 
   window.fetch = async function minuto106AttemptRefreshFetch(input, init) {
-    const action = requestAction(input, init);
+    const action = requestAction(init);
     const response = await previousFetch(input, init);
     if (action !== 'finish' || !response.ok) return response;
 
