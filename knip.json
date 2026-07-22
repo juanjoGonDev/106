@@ -1,6 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
+    "public/privacy-bootstrap.js",
     "public/app.js",
     "public/access.js",
     "public/account.js",

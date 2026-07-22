@@ -43,8 +43,9 @@ describe('public product language', () => {
 
   it('describes the legal and privacy state in the present', () => {
     expect(legalPages).not.toMatch(/\ben el futuro\b|\bse activará\b|\bpodremos incorporar\b|\bprevisto\b/i);
-    expect(legalPages).toContain('La configuración publicada no carga Google Analytics ni Google AdSense');
-    expect(legalPages).toContain('Última actualización: 21 de julio de 2026');
+    expect(legalPages).toContain('Google Tag Manager administra etiquetas. Google Analytics solo se habilita tras consentimiento');
+    expect(legalPages).toContain('Google Analytics es opcional');
+    expect(legalPages).toContain('Última actualización: 22 de julio de 2026');
   });
 
   it('publishes a favicon, manifest and a rendered rivalry social image', () => {
