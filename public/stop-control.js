@@ -100,13 +100,12 @@
 
     const shadow = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
-    style.textContent = ':host{contain:layout style}.pad{position:relative;width:min(250px,78vw);height:88px;cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease;touch-action:none;user-select:none}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:scale(.97)}.pad[aria-disabled="true"]{cursor:not-allowed;filter:none}canvas{display:block;width:100%!important;height:88px!important;pointer-events:none}';
+    style.textContent = ':host{contain:layout style}.pad{position:relative;width:min(250px,78vw);height:88px;cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease;touch-action:none;user-select:none}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:scale(.97)}.pad[data-disabled="true"]{cursor:not-allowed;filter:none}canvas{display:block;width:100%!important;height:88px!important;pointer-events:none}';
     const pad = document.createElement('div');
     pad.className = 'pad';
-    pad.setAttribute('role', 'button');
-    pad.setAttribute('aria-label', 'Parar el cronómetro');
-    pad.setAttribute('aria-disabled', 'false');
+    pad.dataset.disabled = 'false';
     const canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-label', 'Control visual para parar el cronómetro');
     pad.append(canvas);
     shadow.append(style, pad);
     drawControl(canvas, interaction);
@@ -133,7 +132,7 @@
       if (!['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
       completed = true;
       disabled = true;
-      pad.setAttribute('aria-disabled', 'true');
+      pad.dataset.disabled = 'true';
       drawControl(canvas, interaction, false, true);
       const point = coordinates(event);
       const signal = {
@@ -179,7 +178,7 @@
       setDisabled(value) {
         disabled = Boolean(value);
         pad.style.pointerEvents = disabled ? 'none' : 'auto';
-        pad.setAttribute('aria-disabled', String(disabled));
+        pad.dataset.disabled = String(disabled);
         drawControl(canvas, interaction, false, disabled);
       },
       interaction,
