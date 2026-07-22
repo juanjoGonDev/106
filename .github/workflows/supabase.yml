@@ -179,8 +179,8 @@ jobs:
           fi
           supabase secrets set "${secrets[@]}" --project-ref "$PROJECT_ID"
 
-      - name: Deploy Edge Function
-        run: supabase functions deploy game-api --project-ref "$PROJECT_ID"
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$PROJECT_ID"
 
       - name: Capture post-deployment history counters
         if: ${{ steps.snapshot_database.outputs.enabled == 'true' }}

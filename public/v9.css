@@ -1,4 +1,4 @@
-/* Trophy history, explicit visual-check readiness, countdown, and share destinations. */
+/* Shared honours, captcha regeneration, readiness canvas, and share destinations. */
 .app-share-dialog {
   width: min(94vw, 34rem);
   border: 1px solid rgba(244, 201, 93, .35);
@@ -16,15 +16,74 @@
 .share-destinations a { display: flex; align-items: center; justify-content: center; min-height: 3rem; border-radius: .8rem; text-decoration: none; font-weight: 800; background: #f4c95d; color: #11141b; }
 .share-destinations a:hover, .share-destinations a:focus-visible { transform: translateY(-1px); filter: brightness(1.06); }
 
-.human-check-panel { min-height: min(38rem, calc(100dvh - 2rem)); display: grid; grid-template-rows: auto 1.5rem minmax(16rem, 1fr) minmax(5.25rem, auto) auto; align-content: stretch; }
-.human-check-progress[hidden] { visibility: hidden; display: block !important; }
-.human-check-action-stage { min-height: 5.25rem; display: grid; place-items: center; text-align: center; }
-.human-check-action-stage > * { grid-area: 1 / 1; }
-.human-check-status { margin: 0; align-self: center; }
-.human-check-continue { align-self: center; width: min(100%, 28rem); min-height: 3.5rem; }
-.human-check-countdown { color: #f4c95d; font-size: clamp(4rem, 16vw, 7rem); font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 0 2rem rgba(244, 201, 93, .38); }
-.human-check-canvas { min-height: 16rem; transition: opacity 160ms ease; }
-.human-check-overlay[data-phase="countdown"] .human-check-canvas { opacity: .62; }
+.human-check-panel {
+  min-height: min(38rem, calc(100dvh - 2rem));
+  display: grid;
+  grid-template-rows: auto 1.5rem minmax(16rem, 1fr) minmax(3rem, auto) auto;
+  align-content: stretch;
+  position: relative;
+}
+.human-check-progress { align-self: center; }
+.human-check-status { min-height: 3rem; margin: 0; display: grid; place-items: center; text-align: center; }
+.human-check-canvas { min-height: 16rem; transition: opacity 160ms ease, filter 160ms ease; }
+.human-check-canvas.is-loading { opacity: .38; filter: saturate(.45); pointer-events: none; }
+.human-check-loading {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 2;
+  translate: -50% -50%;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  padding: .8rem 1rem;
+  border: 1px solid rgba(244, 201, 93, .35);
+  border-radius: .9rem;
+  background: rgba(8, 9, 12, .92);
+  color: #f7f8fb;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, .45);
+}
+.human-check-loading[hidden] { display: none; }
+.human-check-loading span {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  border: .18rem solid rgba(244, 201, 93, .25);
+  border-top-color: #f4c95d;
+  border-radius: 50%;
+  animation: human-check-spin .75s linear infinite;
+}
+
+#playing { position: relative; isolation: isolate; }
+.game-stop-preview { position: relative; z-index: 1; opacity: .48; filter: saturate(.55); pointer-events: none; }
+.game-readiness-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .7rem;
+  padding: clamp(.65rem, 2vw, 1.25rem);
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(8, 9, 12, .58), rgba(8, 9, 12, .82));
+  backdrop-filter: blur(2px);
+  touch-action: none;
+}
+.game-readiness-layer[data-phase="countdown"] { background: rgba(8, 9, 12, .72); }
+.game-readiness-layer[data-phase="loading"] { cursor: progress; }
+.game-readiness-status {
+  margin: 0;
+  min-height: 1.6rem;
+  color: #f7f8fb;
+  font-weight: 850;
+  text-align: center;
+  text-wrap: balance;
+}
+.game-readiness-host { display: block; width: min(94vw, 35rem); height: min(42dvh, 18.75rem); max-height: 19rem; }
 
 .honours-summary { margin-top: 1rem; }
 .honours-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
@@ -40,12 +99,23 @@
 .ranking-tabs button[aria-selected="true"] { background: #f4c95d; color: #11141b; }
 .honours-ranking[hidden] { display: none; }
 
+@keyframes human-check-spin { to { rotate: 1turn; } }
+
 @media (max-width: 620px) {
   .share-destinations, .honours-counts { grid-template-columns: 1fr; }
-  .human-check-panel { min-height: calc(100dvh - 1rem); grid-template-rows: auto 1.5rem minmax(14rem, 1fr) minmax(5.5rem, auto) auto; }
-  .human-check-action-stage { min-height: 5.5rem; }
+  .human-check-panel { min-height: calc(100dvh - 1rem); grid-template-rows: auto 1.5rem minmax(14rem, 1fr) minmax(3.5rem, auto) auto; }
+  .game-readiness-layer { position: fixed; inset: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); border-radius: 0; }
+  .game-readiness-host { width: min(96vw, 35rem); height: min(38dvh, 17rem); }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .human-check-panel { min-height: calc(100dvh - .5rem); grid-template-rows: auto 1.25rem minmax(10rem, 1fr) 2.5rem auto; }
+  .human-check-heading p:last-child { display: none; }
+  .game-readiness-layer { grid-template-columns: minmax(12rem, 1fr); gap: .35rem; }
+  .game-readiness-host { height: min(58dvh, 13rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .human-check-canvas { transition: none; }
+  .human-check-loading span { animation-duration: 1.5s; }
 }

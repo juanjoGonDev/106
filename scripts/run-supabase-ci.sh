@@ -32,8 +32,8 @@ supabase start \
   -x studio,imgproxy,mailpit,realtime,storage-api,postgres-meta,logflare,vector,supavisor
 echo '::endgroup::'
 
-echo '::group::Serve game-api in the local Edge Runtime'
-supabase functions serve game-api \
+echo '::group::Serve all Edge Functions in the local runtime'
+supabase functions serve \
   --env-file supabase/functions/.env \
   > supabase-functions.log 2>&1 &
 FUNCTION_PID=$!
@@ -60,4 +60,4 @@ echo '::group::Re-run API smoke checks after database rebuild'
 SUPABASE_SMOKE_ONLY=true pnpm test:supabase
 echo '::endgroup::'
 
-echo 'Local Supabase stack, Edge Function, migrations and integration journey passed.'
+echo 'Local Supabase stack, Edge Functions, migrations and integration journey passed.'

@@ -2,3 +2,6 @@ project_id = "minuto-106"
 
 [functions.game-api]
 verify_jwt = false
+
+[functions.game-ready-api]
+verify_jwt = false
