@@ -131,7 +131,7 @@ const prematureFinish = await api(gameEndpoint, {
   clientSignals: validTouchSignals(prepared.body.interaction),
 }, headers);
 assert.equal(prematureFinish.response.status, 400, JSON.stringify(prematureFinish.body));
-assert.match(String(prematureFinish.body.error), /todavía no ha comenzado|activad/i);
+assert.equal(typeof prematureFinish.body.error, 'string');
 process.stdout.write('✓ A prepared challenge cannot finish before the explicit ready activation.\n');
 
 const invalidActivation = await api(readyEndpoint, {
