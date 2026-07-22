@@ -72,12 +72,15 @@ describe('dynamic player social card', () => {
     expect(template).toContain('M940 178 1060 265 1014 405 866 405 820 265Z');
   });
 
-  it('emits player-specific Open Graph and Twitter metadata', () => {
+  it('emits exact player-specific Open Graph and Twitter image paths', () => {
     const edge = read('supabase/functions/player-share/index.ts');
+    expect(edge).toContain('function playerImageUrl');
+    expect(edge).toContain('`${imageName}.png`');
     expect(edge).toContain('property="og:image"');
     expect(edge).toContain('name="twitter:card"');
     expect(edge).toContain('image/png');
     expect(edge).toContain('get_game_public_profile');
+    expect(edge).not.toContain('imageUrl.pathname.replace(/\\/?$/');
   });
 
   it('adds deterministic team data to awards and honours rankings', () => {
