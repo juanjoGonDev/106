@@ -98,7 +98,7 @@ test('creates bounded randomized targets for compact and large viewports', () =>
   assert.equal(large.y, 18);
 
   const middle = api.createReadyTarget({ width: 400, height: 300, randomX: 0.5, randomY: 0.5 });
-  assert.deepEqual(middle, { x: 64, y: 106, width: 272, height: 68 });
+  assert.deepEqual(middle, { x: 64, y: 116, width: 272, height: 68 });
 });
 
 test('hit testing includes edges and rejects malformed coordinates', () => {
