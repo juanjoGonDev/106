@@ -1,27 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Minuto 106: España contra Argentina</title>
+  <desc id="desc">Rivalidad futbolística entre España y Argentina con el objetivo de detener el reloj en 10.600 segundos.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
-      <stop stop-color="#7b001f"/>
-      <stop offset=".46" stop-color="#160914"/>
-      <stop offset=".54" stop-color="#081325"/>
-      <stop offset="1" stop-color="#15437d"/>
-    </linearGradient>
-    <radialGradient id="gold"><stop stop-color="#f4c95d" stop-opacity=".42"/><stop offset="1" stop-color="#f4c95d" stop-opacity="0"/></radialGradient>
-    <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="20" flood-opacity=".55"/></filter>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05070d"/><stop offset=".48" stop-color="#0b101a"/><stop offset="1" stop-color="#05070d"/></linearGradient>
+    <linearGradient id="leftEnergy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e00935"/><stop offset=".58" stop-color="#8b001e"/><stop offset="1" stop-color="#27000b"/></linearGradient>
+    <linearGradient id="rightEnergy" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#5ec4f4"/><stop offset=".58" stop-color="#17639d"/><stop offset="1" stop-color="#071c35"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#ffe080"/><stop offset=".48" stop-color="#f4c95d"/><stop offset="1" stop-color="#d99a22"/></linearGradient>
+    <radialGradient id="centreGlow"><stop stop-color="#f4c95d" stop-opacity=".28"/><stop offset=".58" stop-color="#f4c95d" stop-opacity=".08"/><stop offset="1" stop-color="#f4c95d" stop-opacity="0"/></radialGradient>
+    <radialGradient id="lightGlow"><stop stop-color="#fff" stop-opacity=".9"/><stop offset=".2" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="crowd" width="24" height="18" patternUnits="userSpaceOnUse"><circle cx="4" cy="5" r="1.5" fill="#fff" opacity=".28"/><circle cx="16" cy="12" r="1.2" fill="#f4c95d" opacity=".22"/><circle cx="23" cy="3" r="1" fill="#fff" opacity=".16"/></pattern>
+    <clipPath id="leftClip"><path d="M0 0H548L442 630H0Z"/></clipPath>
+    <clipPath id="rightClip"><path d="M1200 0H652l106 630h442Z"/></clipPath>
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
-  <path d="M0 0h470L305 630H0Z" fill="#a9002f" opacity=".75"/>
-  <path d="M1200 0H730l165 630h305Z" fill="#65baf0" opacity=".72"/>
-  <path d="M0 132h410v78H0Z" fill="#ffd447" opacity=".94"/>
-  <path d="M790 112h410v56H790Zm0 98h410v56H790Z" fill="#f7f8fb" opacity=".95"/>
-  <circle cx="600" cy="316" r="285" fill="url(#gold)"/>
-  <text x="600" y="78" text-anchor="middle" fill="#f4c95d" font-family="Arial,sans-serif" font-size="27" font-weight="900" letter-spacing="8">ESPAÑA VS ARGENTINA</text>
-  <text x="600" y="262" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="168" font-weight="900" filter="url(#shadow)">10.600</text>
-  <circle cx="600" cy="365" r="62" fill="#f7f8fb" stroke="#11151d" stroke-width="8" filter="url(#shadow)"/>
-  <path d="m600 330 23 17-9 28h-28l-9-28Z" fill="#11151d"/>
-  <path d="m577 347-31-5m77 5 31-5m-68 33-22 25m50-25 22 25" stroke="#11151d" stroke-width="8" stroke-linecap="round"/>
-  <text x="600" y="493" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="45" font-weight="900">¿QUIÉN CLAVA EL MINUTO 106?</text>
-  <rect x="330" y="530" width="540" height="58" rx="29" fill="#08090c" stroke="#f4c95d" stroke-width="2"/>
-  <text x="600" y="568" text-anchor="middle" fill="#f4c95d" font-family="Arial,sans-serif" font-size="25" font-weight="800">5 INTENTOS · RANKING GLOBAL · MINILIGAS</text>
-  <text x="82" y="590" fill="#fff" font-family="Arial,sans-serif" font-size="24" font-weight="900">MINUTO 106</text>
+  <path d="M0 0H548L442 630H0Z" fill="url(#leftEnergy)"/>
+  <path d="M1200 0H652l106 630h442Z" fill="url(#rightEnergy)"/>
+  <ellipse cx="600" cy="270" rx="370" ry="300" fill="url(#centreGlow)"/>
+  <g clip-path="url(#leftClip)" opacity=".88"><path d="M-60 94C120 28 270 58 510 168L480 236C245 134 90 108-70 175Z" fill="#d70b35"/><path d="M-66 174C115 110 271 141 480 236L451 296C238 210 85 188-72 251Z" fill="#ffd247"/><path d="M-72 251C86 191 240 213 451 296L424 355C225 279 69 266-78 330Z" fill="#d70b35"/></g>
+  <g clip-path="url(#rightClip)" opacity=".9"><path d="M1260 88C1087 25 931 58 690 164L720 227C951 130 1117 105 1268 168Z" fill="#60c2f0"/><path d="M1268 168C1110 105 947 131 720 227L747 291C958 207 1119 185 1274 249Z" fill="#f4f7fb"/><path d="M1274 249C1120 189 966 212 747 291L775 354C976 278 1132 263 1280 327Z" fill="#60c2f0"/></g>
+  <path d="M-30 530Q600 315 1230 530V630H-30Z" fill="#03050a" opacity=".96"/>
+  <path d="M-30 526Q600 326 1230 526" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="3"/>
+  <path d="M0 482Q600 292 1200 482V561Q600 385 0 561Z" fill="url(#crowd)" opacity=".75"/>
+  <path d="M155 630L460 446H740L1045 630Z" fill="#0a241c"/>
+  <path d="M600 448V630M458 506H742M355 570H845" stroke="#d8f3e7" stroke-opacity=".22" stroke-width="2"/>
+  <g opacity=".85"><g transform="translate(132 239)"><ellipse rx="108" ry="108" fill="url(#lightGlow)"/><rect x="-67" y="-7" width="134" height="14" rx="7" fill="#fff" opacity=".72"/></g><g transform="translate(1068 239)"><ellipse rx="108" ry="108" fill="url(#lightGlow)"/><rect x="-67" y="-7" width="134" height="14" rx="7" fill="#fff" opacity=".72"/></g></g>
+  <g opacity=".78" filter="url(#softGlow)"><g transform="translate(235 286)"><circle cx="0" cy="-91" r="52" fill="#11040a"/><path d="M-105 122C-96 27-61-30-3-38 58-29 93 31 105 122Z" fill="#26000b" stroke="#ef3155" stroke-width="5"/><path d="M-92 16L-160 84M84 17L154 79" stroke="#26000b" stroke-width="38" stroke-linecap="round"/><path d="M-92 16L-160 84M84 17L154 79" stroke="#ef3155" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"/></g><g transform="translate(965 286)"><circle cx="0" cy="-91" r="52" fill="#06121e"/><path d="M-105 122C-96 27-61-30-3-38 58-29 93 31 105 122Z" fill="#071d33" stroke="#63c8f5" stroke-width="5"/><path d="M-92 17L-157 79M85 16L160 82" stroke="#071d33" stroke-width="38" stroke-linecap="round"/><path d="M-92 17L-157 79M85 16L160 82" stroke="#63c8f5" stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/></g></g>
+  <rect x="37" y="29" width="190" height="48" rx="24" fill="#05070d" fill-opacity=".9" stroke="url(#gold)" stroke-width="2"/>
+  <text x="132" y="61" text-anchor="middle" fill="#f4c95d" font-family="Inter,Arial,sans-serif" font-size="21" font-weight="900" letter-spacing="1.6">MINUTO 106</text>
+  <text x="298" y="112" text-anchor="middle" fill="#ffd246" font-family="Inter,Arial,sans-serif" font-size="62" font-weight="950" letter-spacing="2">ESPAÑA</text>
+  <text x="902" y="112" text-anchor="middle" fill="#77d0fa" font-family="Inter,Arial,sans-serif" font-size="62" font-weight="950" letter-spacing="2">ARGENTINA</text>
+  <text x="600" y="103" text-anchor="middle" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="900">VS</text>
+  <g transform="translate(600 288)"><circle r="174" fill="#05070d" fill-opacity=".82" stroke="#fff" stroke-opacity=".16" stroke-width="3"/><circle r="157" fill="none" stroke="#f4c95d" stroke-opacity=".5" stroke-width="3" stroke-dasharray="4 14"/><path d="M-28-177h56v-21h-56zM-16-211h32" stroke="#f4c95d" stroke-width="11" stroke-linecap="round"/><path d="M-158-72l-23-14M158-72l23-14" stroke="#f4c95d" stroke-width="8" stroke-linecap="round"/><text y="-69" text-anchor="middle" fill="#d7dbe3" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="800" letter-spacing="7">OBJETIVO</text><text y="38" text-anchor="middle" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="113" font-weight="950" letter-spacing="-5">10.600</text><text y="91" text-anchor="middle" fill="#f4c95d" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="900" letter-spacing="2.5">SEGUNDOS EXACTOS</text></g>
+  <rect x="92" y="435" width="1016" height="150" rx="30" fill="#05070d" fill-opacity=".93" stroke="#fff" stroke-opacity=".12"/>
+  <text x="600" y="486" text-anchor="middle" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="39" font-weight="950">¿PUEDES CLAVAR EL 10.600?</text>
+  <g font-family="Inter,Arial,sans-serif" font-size="20" font-weight="800" fill="#e8ebf2"><text x="302" y="532" text-anchor="middle">5 INTENTOS</text><circle cx="422" cy="525" r="4" fill="#f4c95d"/><text x="600" y="532" text-anchor="middle">RANKING GLOBAL</text><circle cx="778" cy="525" r="4" fill="#f4c95d"/><text x="899" y="532" text-anchor="middle">MINILIGAS</text></g>
+  <rect x="365" y="552" width="470" height="57" rx="28.5" fill="url(#gold)" filter="url(#softGlow)"/>
+  <text x="600" y="589" text-anchor="middle" fill="#07080b" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="950">JUEGA Y DEFIENDE TU SELECCIÓN</text>
+  <text x="1160" y="608" text-anchor="end" fill="#d8dce5" font-family="Inter,Arial,sans-serif" font-size="15" font-weight="600">juanjogondev.github.io/106</text>
 </svg>
