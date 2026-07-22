@@ -17,6 +17,10 @@ const pointerMigration = readFileSync(
   'supabase/migrations/20260721240000_pointer_only_human_checks.sql',
   'utf8',
 );
+const mobileTouchMigration = readFileSync(
+  'supabase/migrations/20260722090000_mobile_touch_finish_compat.sql',
+  'utf8',
+);
 
 describe('automation-resistant game interactions', () => {
   it('does not expose a static stop button or selector contract', () => {
@@ -74,6 +78,16 @@ describe('automation-resistant game interactions', () => {
     expect(pointerMigration).toContain("pointerType', '') not in ('mouse', 'touch', 'pen')");
     expect(migrationSource).toContain('interaction_challenge_mismatch');
     expect(migrationSource).toContain('repeated_interaction_fingerprint');
+  });
+
+  it('accepts trusted mobile touch without weakening mouse or automation checks', () => {
+    expect(mobileTouchMigration).toContain("v_pointer_type = 'mouse'");
+    expect(mobileTouchMigration).toContain("v_pointer_type in ('touch', 'pen')");
+    expect(mobileTouchMigration).toContain("automationDetected', 'false') = 'true'");
+    expect(mobileTouchMigration).toContain("'{userActivationObserved}'");
+    expect(mobileTouchMigration).toContain("'{userActivation}'");
+    expect(mobileTouchMigration).toContain("'true'::jsonb");
+    expect(mobileTouchMigration).not.toContain("finishEvent', '') = 'keydown'");
   });
 
   it('normalizes proof and pointer signals before PostgreSQL RPCs', () => {
