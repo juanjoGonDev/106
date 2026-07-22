@@ -4,20 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <title>Minuto 106 — España vs. Argentina</title>
-  <meta name="description" content="España contra Argentina. Detén el tiempo exactamente en 10,600 segundos y defiende tu puesto en el ranking.">
+  <meta name="description" content="España contra Argentina. Detén el tiempo exactamente en 10,600 segundos, supera el reto visual y defiende tu puesto en el ranking global.">
+  <link rel="canonical" href="https://juanjogondev.github.io/106/">
+  <link rel="preconnect" href="https://imtitjwgiemlaabpioed.supabase.co" crossorigin>
+  <meta property="og:locale" content="es_ES">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Minuto 106">
   <meta property="og:url" content="https://juanjogondev.github.io/106/">
   <meta property="og:title" content="España vs. Argentina — ¿quién clava el Minuto 106?">
-  <meta property="og:description" content="Solo tienes 5 intentos para detener el reloj en 10,600 segundos. Entra, elige selección y compite.">
-  <meta property="og:image" content="https://juanjogondev.github.io/106/assets/social-preview.svg">
-  <meta property="og:image:type" content="image/svg+xml">
+  <meta property="og:description" content="Solo tienes 5 intentos para detener el reloj en 10,600 segundos. Elige selección y entra en la clasificación.">
+  <meta property="og:image" content="https://juanjogondev.github.io/106/public/assets/social-preview.png">
+  <meta property="og:image:secure_url" content="https://juanjogondev.github.io/106/public/assets/social-preview.png">
+  <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="España contra Argentina, objetivo 10.600 y desafío Minuto 106">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="España vs. Argentina — Minuto 106">
   <meta name="twitter:description" content="¿Puedes detener el reloj exactamente en 10,600 segundos?">
-  <meta name="twitter:image" content="https://juanjogondev.github.io/106/assets/social-preview.svg">
+  <meta name="twitter:image" content="https://juanjogondev.github.io/106/public/assets/social-preview.png">
+  <meta name="twitter:image:alt" content="España contra Argentina, objetivo 10.600 y desafío Minuto 106">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./site.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -27,6 +36,20 @@
   <link rel="stylesheet" href="./site.css">
   <link rel="stylesheet" href="./v7.css">
   <link rel="stylesheet" href="./v8.css">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "Minuto 106",
+      "url": "https://juanjogondev.github.io/106/",
+      "image": "https://juanjogondev.github.io/106/public/assets/social-preview.png",
+      "description": "Juego web de precisión: detén el reloj exactamente en 10,600 segundos y compite por España o Argentina.",
+      "applicationCategory": "Game",
+      "operatingSystem": "Web",
+      "inLanguage": "es",
+      "isAccessibleForFree": true
+    }
+  </script>
 </head>
 <body>
   <header class="site-header"></header>
@@ -42,11 +65,11 @@
       <div class="steps-grid">
         <article><strong>1</strong><span>Elige España o Argentina y escribe tu nick.</span></article>
         <article><strong>2</strong><span>Supera la verificación visual pulsando los balones en orden.</span></article>
-        <article><strong>3</strong><span>Cuando el reloj desaparezca, pulsa el control dibujado en pantalla para detenerlo en 10,600.</span></article>
+        <article><strong>3</strong><span>Cuando el reloj desaparezca, pulsa el control fijo en pantalla para detenerlo en 10,600.</span></article>
       </div>
     </section>
 
-    <div id="configWarning" class="config-warning" hidden>Falta configurar la URL pública de la Edge Function de Supabase.</div>
+    <div id="configWarning" class="config-warning" hidden>No se ha podido preparar la conexión con el servidor de juego.</div>
     <section id="competitionContext" class="competition-context" hidden><div><strong data-competition-title>Miniliga</strong><p data-competition-copy></p></div><a class="secondary compact" href="./ligas.html">Gestionar miniliga</a></section>
     <section class="battle-card" aria-label="Marcador global verificado"><div class="team-score team-score--spain"><div class="team-identity"><span class="flag flag--spain" aria-hidden="true"></span><span>España</span></div><strong id="spainScore">0</strong></div><div class="battle-center"><div id="battleTrack" class="battle-track" role="meter" aria-label="Porcentaje de puntos de España" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><div id="battleFill" class="battle-fill"></div><span id="battlePercent">50% · 50%</span></div><small>puntos globales verificados</small><p class="global-score-note">Las marcas de miniligas no modifican este marcador.</p></div><div class="team-score team-score--argentina"><div class="team-identity"><span>Argentina</span><span class="flag flag--argentina" aria-hidden="true"></span></div><strong id="argentinaScore">0</strong></div></section>
     <section class="stats-strip" aria-label="Estadísticas globales"><div><strong id="globalPlayers">0</strong><span>jugadores globales</span></div><div><strong id="verifiedAttempts">0</strong><span>intentos globales validados</span></div><div><strong id="perfectAttempts">0</strong><span>tiempos globales perfectos</span></div></section>
@@ -63,16 +86,16 @@
         <p class="label">Elige tu selección</p>
         <div class="team-picker"><button class="team-button" type="button" data-team="spain"><span class="flag flag--spain flag--large" aria-hidden="true"></span><span>España</span></button><button class="team-button" type="button" data-team="argentina"><span class="flag flag--argentina flag--large" aria-hidden="true"></span><span>Argentina</span></button></div>
         <div id="turnstileContainer" class="turnstile-container" hidden><div id="turnstileWidget"></div><p class="hint">Comprobación externa anti-bots.</p></div>
-        <p class="hint human-check-hint">Al comenzar tendrás que pulsar cuatro balones en orden. La posición cambia en cada intento.</p>
+        <p class="hint human-check-hint">Al comenzar tendrás que pulsar cuatro balones en orden. Si fallas, la secuencia vuelve al balón 1.</p>
         <button id="startButton" class="primary" type="button" disabled>Verificar y comenzar</button>
       </div>
-      <div id="playing" class="panel"><p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p><div id="playInstruction" class="play-instruction"><strong>Tu objetivo:</strong> pulsa el control visual cuando creas que llegas a <b>10.600</b>.</div><div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div><p class="hint timer-hint">El número desaparece a los 2 segundos. El control final cambia de posición y aspecto en cada intento.</p><p id="gameError" class="game-error" hidden></p></div>
+      <div id="playing" class="panel"><p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p><div id="playInstruction" class="play-instruction"><strong>Tu objetivo:</strong> pulsa el control PARAR cuando creas que llegas a <b>10.600</b>.</div><div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div><p class="hint timer-hint">El número desaparece a los 2 segundos. El control final permanece fijo y centrado en todos los intentos.</p><p id="gameError" class="game-error" hidden></p></div>
       <div id="result" class="panel"><p class="result-label">Tu tiempo</p><div id="resultTime" class="result-time">10.600</div><p id="resultMessage" class="result-message"></p><div id="achievementBanner" class="achievement-banner" hidden></div><p id="verificationStatus" class="verification-status"></p><p id="attemptsLeft" class="attempts-left"></p><div class="actions"><button id="retryButton" class="primary" type="button">Otro intento</button><button id="shareButton" class="secondary" type="button">Compartir resultado</button><button id="downloadCardButton" class="secondary" type="button">Descargar tarjeta</button><button id="createDuelButton" class="secondary" type="button">Retar a alguien</button><button id="changeNickButton" class="ghost" type="button">Cambiar nick</button></div></div>
     </section>
 
     <section id="competitiveHub" class="competitive-hub"><div class="section-heading"><div><p class="eyebrow">COMPITE CON LOS TUYOS</p><h2>Retos y miniligas</h2></div></div><div class="competitive-grid competitive-grid--compact"><article class="feature-card"><img src="./assets/football.svg" alt=""><div><h3>Reto directo</h3><p>Comparte tu marca global. Si te superan, el rival gana 3 intentos. Si resistes, tú ganas 1.</p><button id="quickDuelButton" class="secondary compact" type="button">Crear reto</button></div></article><article class="feature-card"><img src="./assets/trophy.svg" alt=""><div><h3>Miniligas independientes</h3><p>Crea, únete y consulta todas tus ligas desde una vista dedicada. Cada liga concede 5 intentos propios que no cuentan para el global.</p><a class="secondary compact" href="./ligas.html">Ir a Miniligas</a></div></article></div></section>
     <section id="profileCard" class="profile-card" hidden><div class="section-heading"><div><p class="eyebrow">TU HISTÓRICO GLOBAL</p><h2 id="profileTitle">Resumen</h2></div><span id="profileAttempts">0 / 5</span></div><div class="profile-grid"><div><span>Media</span><strong id="profileAverage">—</strong></div><div><span>Mejor</span><strong id="profileBest">—</strong></div><div><span>Puesto por media</span><strong id="profileAverageRank">—</strong></div><div><span>Puesto por mejor marca</span><strong id="profileBestRank">—</strong></div></div><div id="profileSummary" class="profile-summary"></div><div class="referral-box"><div><strong>Ganad un intento global extra</strong><p>Comparte tu enlace. Cuando la otra persona complete 5 intentos globales válidos, ambos recibiréis 1 intento adicional.</p></div><button id="copyReferralButton" class="secondary compact" type="button">Copiar invitación</button></div><ol id="attemptHistory" class="attempt-history"></ol></section>
-    <section class="leaderboard-card"><div class="section-heading"><div><p class="eyebrow">TOP 10 GLOBAL VERIFICADO</p><h2>Los más precisos</h2></div><span id="totalAttempts">Cargando…</span></div><p class="leaderboard-help">Pulsa sobre un jugador para consultar su histórico global y estadísticas.</p><ol id="leaderboard" class="leaderboard clickable-leaderboard"><li class="empty">Cargando clasificación…</li></ol><a class="ranking-more" href="./ranking.html">Ver clasificación completa</a></section>
+    <section class="leaderboard-card"><div class="section-heading"><div><p class="eyebrow">TOP 10 GLOBAL VERIFICADO</p><h2>Los más precisos</h2></div><span id="totalAttempts">Cargando…</span></div><p class="leaderboard-help">Pulsa sobre un jugador para consultar su histórico global y estadísticas.</p><ol id="leaderboard" class="leaderboard clickable-leaderboard"><li class="empty">Cargando clasificación…</li></ol><a class="ranking-more" href="./ranking.html">Ver clasificación</a></section>
   </main>
 
   <footer class="site-footer"></footer>
@@ -84,7 +107,7 @@
   <dialog id="cookieDialog" class="cookie-dialog"><h2>Privacidad y almacenamiento</h2><label id="analyticsConsentRow"><input id="analyticsConsent" type="checkbox"> Analítica</label><label id="adsConsentRow"><input id="adsConsent" type="checkbox"> Publicidad y medición publicitaria</label><p id="optionalConsentCopy">El almacenamiento técnico necesario permanece activo.</p><div class="cookie-actions"><button id="saveCookieSettings" class="primary" type="button">Guardar preferencias</button><button id="closeCookieDialog" class="ghost" type="button">Cancelar</button></div></dialog>
 
   <script src="./layout.js"></script>
-  <script src="./config.js"></script>
+  <script src="./config.js?v=20260722"></script>
   <script src="./access.js"></script>
   <script src="./human-check.js"></script>
   <script src="./compliance.js"></script>

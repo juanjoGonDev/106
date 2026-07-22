@@ -24,11 +24,17 @@ describe('automation-resistant game interactions', () => {
     expect(indexHtml).not.toMatch(/<button[^>]*>\s*PARAR\s*<\/button>/i);
     expect(appSource).not.toContain('#stopButton');
     expect(controlSource).not.toContain("createElement('button')");
+    expect(controlSource).not.toContain("setAttribute('role'");
+    expect(controlSource).not.toContain("setAttribute('aria-label'");
+    expect(controlSource).not.toContain("setAttribute('title'");
+    expect(controlSource).not.toContain('tabIndex');
+    expect(controlSource).not.toContain('tabindex');
   });
 
   it('renders the finish control inside a closed shadow root and canvas', () => {
     expect(controlSource).toContain("attachShadow({ mode: 'closed' })");
     expect(controlSource).toContain("createElement('canvas')");
+    expect(controlSource).toContain('hostTag = `m106-${interaction.nonce');
     expect(controlSource).toContain('controlNonce');
     expect(controlSource).toContain('pointerMoveCount');
     expect(controlSource).toContain('automationDetected');
@@ -41,7 +47,6 @@ describe('automation-resistant game interactions', () => {
     expect(controlSource).not.toContain("addEventListener('keydown'");
     expect(controlSource).not.toContain('keyboardKey');
     expect(controlSource).not.toContain('RELEASE_LABELS');
-    expect(controlSource).not.toContain("setAttribute('role', 'button')");
   });
 
   it('uses a server-issued numbered-ball check drawn on one canvas', () => {

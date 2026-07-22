@@ -1,4 +1,5 @@
-const PLACEHOLDER_API_URL = 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/game-api';
+const DEFAULT_SUPABASE_PROJECT_ID = 'imtitjwgiemlaabpioed';
+const DEFAULT_API_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/game-api`;
 
 function normalizedUrl(value) {
   return String(value ?? '').trim().replace(/\/$/, '');
@@ -33,15 +34,17 @@ function validHttpsUrl(value, expectedPath = null) {
 
 export function buildRuntimeConfig(environment = process.env) {
   const explicitApiUrl = normalizedUrl(environment.SUPABASE_FUNCTIONS_URL);
-  const projectRef = normalizedProjectRef(
+  const configuredProjectRef = normalizedProjectRef(
     environment.SUPABASE_PROJECT_ID || environment.PROJECT_ID,
   );
+  const projectRef = configuredProjectRef || DEFAULT_SUPABASE_PROJECT_ID;
   const apiBaseUrl = explicitApiUrl
-    || (projectRef ? `https://${projectRef}.supabase.co/functions/v1/game-api` : PLACEHOLDER_API_URL);
+    || `https://${projectRef}.supabase.co/functions/v1/game-api`;
 
   const publicSiteUrl = normalizedUrl(environment.PUBLIC_SITE_URL)
     || normalizedUrl(environment.GITHUB_PAGES_URL)
-    || repositoryPagesUrl(environment.GITHUB_REPOSITORY, environment.GITHUB_REPOSITORY_OWNER);
+    || repositoryPagesUrl(environment.GITHUB_REPOSITORY, environment.GITHUB_REPOSITORY_OWNER)
+    || 'https://juanjogondev.github.io/106';
 
   return {
     apiBaseUrl,
@@ -54,9 +57,6 @@ export function buildRuntimeConfig(environment = process.env) {
 
 export function validateRuntimeConfig(config) {
   const errors = [];
-  if (!config.apiBaseUrl || config.apiBaseUrl.includes('YOUR_PROJECT_REF')) {
-    errors.push('Set SUPABASE_FUNCTIONS_URL or SUPABASE_PROJECT_ID.');
-  }
   if (!validHttpsUrl(config.apiBaseUrl, '/functions/v1/game-api')) {
     errors.push('The generated Supabase Edge Function URL is invalid.');
   }
@@ -66,4 +66,4 @@ export function validateRuntimeConfig(config) {
   return errors;
 }
 
-export { PLACEHOLDER_API_URL };
+export { DEFAULT_API_URL, DEFAULT_SUPABASE_PROJECT_ID };

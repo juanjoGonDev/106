@@ -3,7 +3,10 @@
   const START_ACTION = 'start';
   const CHECK_ACTION = 'human-check';
   const COMPLETE_ACTION = 'complete-human-check';
+  const MAX_SERVER_ATTEMPTS = 2;
   let activeVerification = null;
+
+  class HumanCheckCancelledError extends Error {}
 
   function readBody(init) {
     if (typeof init?.body !== 'string') return null;
@@ -124,6 +127,24 @@
     return Math.hypot(point.x - Number(ball.x), point.y - Number(ball.y)) <= Number(ball.radius);
   }
 
+  function lockViewport() {
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const currentPadding = Number.parseFloat(getComputedStyle(body).paddingRight) || 0;
+
+    body.classList.add('human-check-open');
+    body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) body.style.paddingRight = `${currentPadding + scrollbarWidth}px`;
+
+    return () => {
+      body.classList.remove('human-check-open');
+      body.style.overflow = previousOverflow;
+      body.style.paddingRight = previousPaddingRight;
+    };
+  }
+
   function createOverlay(balls, expiresAt) {
     const overlay = document.createElement('div');
     overlay.className = 'human-check-overlay';
@@ -135,17 +156,15 @@
     panel.className = 'human-check-panel';
     const heading = document.createElement('div');
     heading.className = 'human-check-heading';
-    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Usa ratón, lápiz o pantalla táctil. La posición cambia en cada intento.</p>';
+    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Usa ratón, lápiz o pantalla táctil. Si fallas, la secuencia vuelve al balón 1.</p>';
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
-    progress.textContent = `0 / ${balls.length}`;
     const canvas = document.createElement('canvas');
     canvas.className = 'human-check-canvas';
     canvas.setAttribute('aria-label', 'Zona visual de verificación. Pulsa los balones numerados en orden.');
     const status = document.createElement('p');
     status.className = 'human-check-status';
     status.setAttribute('aria-live', 'polite');
-    status.textContent = 'Empieza por el balón 1.';
     const cancel = document.createElement('button');
     cancel.className = 'ghost human-check-cancel';
     cancel.type = 'button';
@@ -153,50 +172,78 @@
     panel.append(heading, progress, canvas, status, cancel);
     overlay.append(panel);
     document.body.append(overlay);
-    document.body.classList.add('human-check-open');
+    const unlockViewport = lockViewport();
 
     let completedCount = 0;
-    const startedAt = performance.now();
+    let sequenceStartedAt = performance.now();
     let wrongUntil = 0;
     let resizeFrame = 0;
-    drawScene(canvas, balls, completedCount);
+    const clicks = [];
 
     const redraw = () => drawScene(
       canvas,
       balls,
       completedCount,
-      performance.now() < wrongUntil ? 'Sigue el orden indicado' : '',
+      performance.now() < wrongUntil ? 'Secuencia reiniciada · vuelve al balón 1' : '',
     );
+    const updateProgress = () => {
+      progress.textContent = `${completedCount} / ${balls.length}`;
+      status.textContent = completedCount === 0
+        ? 'Empieza por el balón 1.'
+        : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
+    };
+    const resetSequence = () => {
+      completedCount = 0;
+      clicks.length = 0;
+      sequenceStartedAt = performance.now();
+      wrongUntil = performance.now() + 1_000;
+      updateProgress();
+      status.textContent = 'Orden incorrecto. La secuencia vuelve al balón 1.';
+      redraw();
+      window.setTimeout(redraw, 1_050);
+    };
     const onResize = () => {
       cancelAnimationFrame(resizeFrame);
       resizeFrame = requestAnimationFrame(redraw);
     };
+
+    updateProgress();
+    redraw();
     window.addEventListener('resize', onResize);
 
     return new Promise((resolve, reject) => {
       let timer = 0;
-      const clicks = [];
+      let settled = false;
       const onKeyDown = (event) => {
-        if (event.key === 'Escape') fail(new Error('Verificación visual cancelada.'));
+        if (event.key === 'Escape') fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
       };
       const cleanup = () => {
         window.clearTimeout(timer);
         window.removeEventListener('resize', onResize);
         document.removeEventListener('keydown', onKeyDown);
         overlay.remove();
-        document.body.classList.remove('human-check-open');
+        unlockViewport();
       };
       const fail = (error) => {
+        if (settled) return;
+        settled = true;
         cleanup();
         reject(error);
       };
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        const completedClicks = [...clicks];
+        cleanup();
+        resolve(completedClicks);
+      };
 
       timer = window.setTimeout(
-        () => fail(new Error('La verificación visual ha caducado.')),
+        () => fail(new Error('La verificación visual ha caducado. Se generará una nueva.')),
         Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
       );
       document.addEventListener('keydown', onKeyDown);
-      cancel.addEventListener('click', () => fail(new Error('Verificación visual cancelada.')));
+      cancel.addEventListener('click', () => fail(new HumanCheckCancelledError('Verificación visual cancelada.')));
 
       canvas.addEventListener('pointerdown', (event) => {
         event.preventDefault();
@@ -204,17 +251,14 @@
         const point = canvasPoint(canvas, event);
         const expected = balls[completedCount];
         if (!expected || !hitBall(point, expected)) {
-          wrongUntil = performance.now() + 850;
-          status.textContent = `Pulsa ahora el balón ${expected?.order ?? 1}.`;
-          redraw();
-          window.setTimeout(redraw, 900);
+          resetSequence();
           return;
         }
 
         clicks.push({
           x: Number(point.x.toFixed(2)),
           y: Number(point.y.toFixed(2)),
-          atMs: Math.max(1, Math.round(performance.now() - startedAt)),
+          atMs: Math.max(1, Math.round(performance.now() - sequenceStartedAt)),
           pointerType: event.pointerType,
           trusted: true,
         });
@@ -225,21 +269,12 @@
           : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
         redraw();
 
-        if (completedCount === balls.length) {
-          window.setTimeout(() => {
-            cleanup();
-            resolve(clicks);
-          }, 180);
-        }
+        if (completedCount === balls.length) window.setTimeout(succeed, 180);
       }, { passive: false });
     });
   }
 
-  async function obtainProof(input, init) {
-    const headers = new Headers(init.headers || {});
-    headers.set('content-type', 'application/json');
-    const common = { ...init, method: 'POST', headers };
-
+  async function createServerCheck(input, common) {
     const createdResponse = await previousFetch(input, {
       ...common,
       body: JSON.stringify({ action: CHECK_ACTION }),
@@ -248,8 +283,10 @@
     if (!Array.isArray(created.balls) || created.balls.length !== 4) {
       throw new Error('El servidor no devolvió una verificación visual válida.');
     }
+    return created;
+  }
 
-    const clicks = await createOverlay(created.balls, created.expiresAt);
+  async function completeServerCheck(input, common, created, clicks) {
     const completedResponse = await previousFetch(input, {
       ...common,
       body: JSON.stringify({
@@ -263,6 +300,26 @@
       humanCheckId: completed.checkId,
       humanProofToken: completed.proofToken,
     };
+  }
+
+  async function obtainProof(input, init) {
+    const headers = new Headers(init.headers || {});
+    headers.set('content-type', 'application/json');
+    const common = { ...init, method: 'POST', headers };
+    let lastError = new Error('No se pudo completar la verificación visual.');
+
+    for (let attempt = 0; attempt < MAX_SERVER_ATTEMPTS; attempt += 1) {
+      try {
+        const created = await createServerCheck(input, common);
+        const clicks = await createOverlay(created.balls, created.expiresAt);
+        return await completeServerCheck(input, common, created, clicks);
+      } catch (error) {
+        if (error instanceof HumanCheckCancelledError) throw error;
+        lastError = error instanceof Error ? error : lastError;
+      }
+    }
+
+    throw lastError;
   }
 
   window.fetch = async (input, init = {}) => {

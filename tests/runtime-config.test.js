@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import {
-  PLACEHOLDER_API_URL,
+  DEFAULT_API_URL,
+  DEFAULT_SUPABASE_PROJECT_ID,
   buildRuntimeConfig,
   validateRuntimeConfig,
 } from '../scripts/runtime-config.mjs';
@@ -46,16 +47,26 @@ describe('runtime configuration', () => {
     expect(config.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
   });
 
-  it('rejects a missing or malformed project reference', () => {
-    const config = buildRuntimeConfig({
+  it('uses the public production project when CI variables are missing or malformed', () => {
+    const missing = buildRuntimeConfig({});
+    const malformed = buildRuntimeConfig({
       SUPABASE_PROJECT_ID: 'not valid!',
       GITHUB_PAGES_URL: 'https://juanjogondev.github.io/106',
     });
 
-    expect(config.apiBaseUrl).toBe(PLACEHOLDER_API_URL);
-    expect(validateRuntimeConfig(config)).toContain(
-      'Set SUPABASE_FUNCTIONS_URL or SUPABASE_PROJECT_ID.',
-    );
+    expect(DEFAULT_SUPABASE_PROJECT_ID).toBe('imtitjwgiemlaabpioed');
+    expect(missing.apiBaseUrl).toBe(DEFAULT_API_URL);
+    expect(malformed.apiBaseUrl).toBe(DEFAULT_API_URL);
+    expect(missing.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
+    expect(validateRuntimeConfig(missing)).toEqual([]);
+    expect(validateRuntimeConfig(malformed)).toEqual([]);
+  });
+
+  it('keeps a usable committed public configuration for branch-based Pages', async () => {
+    const source = await readRepositoryFile('public/config.js');
+
+    expect(source).toContain(DEFAULT_API_URL);
+    expect(source).not.toContain('YOUR_PROJECT_REF');
   });
 });
 

@@ -1,1 +1,161 @@
-body.human-check-open{overflow:hidden}.human-check-overlay{position:fixed;inset:0;z-index:1500;display:grid;place-items:center;padding:18px;background:#02040aeb;backdrop-filter:blur(10px)}.human-check-panel{width:min(650px,100%);padding:24px;border:1px solid #f4c95d55;border-radius:24px;background:#111319;color:#fff;box-shadow:0 28px 100px #000d}.human-check-heading{display:grid;gap:7px}.human-check-heading .eyebrow{margin:0;color:var(--gold)}.human-check-heading h2{margin:0;font-size:clamp(1.45rem,4vw,2rem)}.human-check-heading p:last-child{margin:0;color:#aab0bc;line-height:1.5}.human-check-progress{display:block;margin:16px 0 10px;color:#f4c95d;text-align:right;font-size:.86rem;letter-spacing:.12em}.human-check-canvas{display:block;width:100%;height:min(48vh,380px);min-height:280px;border:1px solid #ffffff22;border-radius:18px;background:#0b0d13;box-shadow:inset 0 0 38px #0007;touch-action:none;user-select:none;-webkit-user-select:none}.human-check-status{min-height:1.5em;margin:12px 0 0;color:#d9dce4;text-align:center;font-weight:700}.human-check-cancel{display:block;margin:14px auto 0}.human-check-hint{margin:12px 0}.cookie-dialog label[hidden]{display:none}.cookie-dialog input:disabled{opacity:.55}@media(max-width:520px){.human-check-overlay{padding:8px}.human-check-panel{padding:18px 14px;border-radius:18px}.human-check-canvas{height:54vh;min-height:300px}.human-check-cancel{width:100%}}
+body.human-check-open {
+  overflow: hidden;
+}
+
+.game-card {
+  display: grid;
+  grid-template-areas: 'game-panel';
+  align-items: stretch;
+  place-items: stretch;
+}
+
+.game-card > .panel {
+  display: block;
+  grid-area: game-panel;
+  align-self: start;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.game-card > .panel.active {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+:is(a[href], button:not(:disabled), [role='button']:not([aria-disabled='true']), summary, input[type='checkbox'], input[type='radio'], .clickable-leaderboard li, .leaderboard li[data-nick]) {
+  cursor: pointer;
+}
+
+:is(button:disabled, [aria-disabled='true']) {
+  cursor: not-allowed;
+}
+
+:is(a[href], button, [role='button'], input, textarea, select, summary):focus-visible {
+  outline: 3px solid #f4c95d;
+  outline-offset: 3px;
+}
+
+button,
+a,
+[role='button'] {
+  -webkit-tap-highlight-color: #f4c95d33;
+}
+
+.human-check-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: #02040aeb;
+  backdrop-filter: blur(10px);
+}
+
+.human-check-panel {
+  width: min(650px, 100%);
+  padding: 24px;
+  border: 1px solid #f4c95d55;
+  border-radius: 24px;
+  background: #111319;
+  color: #fff;
+  box-shadow: 0 28px 100px #000d;
+}
+
+.human-check-heading {
+  display: grid;
+  gap: 7px;
+}
+
+.human-check-heading .eyebrow {
+  margin: 0;
+  color: var(--gold);
+}
+
+.human-check-heading h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 4vw, 2rem);
+}
+
+.human-check-heading p:last-child {
+  margin: 0;
+  color: #aab0bc;
+  line-height: 1.5;
+}
+
+.human-check-progress {
+  display: block;
+  margin: 16px 0 10px;
+  color: #f4c95d;
+  text-align: right;
+  font-size: .86rem;
+  letter-spacing: .12em;
+}
+
+.human-check-canvas {
+  display: block;
+  width: 100%;
+  height: min(48vh, 380px);
+  min-height: 280px;
+  border: 1px solid #ffffff22;
+  border-radius: 18px;
+  background: #0b0d13;
+  box-shadow: inset 0 0 38px #0007;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.human-check-status {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: #d9dce4;
+  text-align: center;
+  font-weight: 700;
+}
+
+.human-check-cancel {
+  display: block;
+  margin: 14px auto 0;
+}
+
+.human-check-hint {
+  margin: 12px 0;
+}
+
+.cookie-dialog label[hidden] {
+  display: none;
+}
+
+.cookie-dialog input:disabled {
+  opacity: .55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .game-card > .panel {
+    transition: opacity .14s ease;
+  }
+}
+
+@media (max-width: 520px) {
+  .human-check-overlay {
+    padding: 8px;
+  }
+
+  .human-check-panel {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .human-check-canvas {
+    height: 54vh;
+    min-height: 300px;
+  }
+
+  .human-check-cancel {
+    width: 100%;
+  }
+}
