@@ -29,48 +29,26 @@
 }
 
 .player-access-link {
-  margin: 1rem 0 0;
+  margin: .75rem 0 0;
   text-align: left;
 }
 
 .player-access-link a {
-  display: flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: .85rem;
-  padding: .8rem 1rem;
-  border: 1px solid rgba(90, 180, 239, .35);
-  border-radius: .9rem;
-  background: rgba(90, 180, 239, .07);
-  color: #f7f8fb;
-  text-decoration: none;
-}
-
-.player-access-link a::after {
-  content: '›';
-  flex: 0 0 auto;
   color: var(--gold);
-  font-size: 1.5rem;
-  line-height: 1;
+  font-weight: 850;
+  text-underline-offset: .2em;
 }
 
-.player-access-link strong,
-.player-access-link span {
-  display: block;
-}
-
-.player-access-link span {
-  margin-top: .2rem;
-  color: #aeb5c2;
-  font-size: .78rem;
-  line-height: 1.35;
-}
-
-.player-access-link a:hover,
-.player-access-link a:focus-visible {
-  border-color: var(--gold);
-  background: rgba(244, 201, 93, .08);
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 .human-check-overlay {
@@ -135,10 +113,6 @@
 @media (max-width: 620px) {
   .game-card {
     padding: 1.25rem 1rem;
-  }
-
-  .player-access-link a {
-    align-items: flex-start;
   }
 
   .human-check-panel {

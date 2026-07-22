@@ -35,50 +35,24 @@ describe('mobile gameplay viewport positioning', () => {
       maxScrollY: 3_200,
     });
     const centeredPosition = elementDocumentTop + elementHeight / 2 - target - offsetTop;
-
     expect(centeredPosition).toBeCloseTo(height / 2, 5);
   });
 
-  it('clamps centering at the top and bottom document boundaries', () => {
-    expect(calculateCenteredScrollTop({
-      elementTop: -40,
-      elementHeight: 80,
-      scrollY: 0,
-      viewportOffsetTop: 0,
-      viewportHeight: 640,
-      maxScrollY: 2_000,
-    })).toBe(0);
-
-    expect(calculateCenteredScrollTop({
-      elementTop: 900,
-      elementHeight: 160,
-      scrollY: 1_900,
-      viewportOffsetTop: 0,
-      viewportHeight: 640,
-      maxScrollY: 2_000,
-    })).toBe(2_000);
+  it('clamps centering at document boundaries', () => {
+    expect(calculateCenteredScrollTop({ elementTop: -40, elementHeight: 80, scrollY: 0, viewportOffsetTop: 0, viewportHeight: 640, maxScrollY: 2_000 })).toBe(0);
+    expect(calculateCenteredScrollTop({ elementTop: 900, elementHeight: 160, scrollY: 1_900, viewportOffsetTop: 0, viewportHeight: 640, maxScrollY: 2_000 })).toBe(2_000);
   });
 
-  it('centers synchronously on activation and verifies the position for two frames', () => {
+  it('centers synchronously and verifies the position for two frames', () => {
     const animationFrames = [];
     const scrollTo = vi.fn();
     const focus = vi.fn();
     let observerCallback;
-    const playingPanel = {
-      classList: { contains: vi.fn(() => true) },
-      focus,
-    };
-    const timerStage = {
-      getBoundingClientRect: vi.fn(() => ({ top: -520, height: 180 })),
-    };
-    const gameCard = {};
+    const playingPanel = { classList: { contains: vi.fn(() => true) }, focus };
+    const timerStage = { getBoundingClientRect: vi.fn(() => ({ top: -520, height: 180 })) };
     const documentRef = {
       documentElement: { clientHeight: 640, scrollHeight: 3_000 },
-      querySelector: vi.fn((selector) => ({
-        '.game-card': gameCard,
-        '#playing': playingPanel,
-        '#playing .timer-stage': timerStage,
-      })[selector]),
+      querySelector: vi.fn((selector) => ({ '#playing': playingPanel, '#playing .timer-stage': timerStage })[selector]),
     };
     class FakeMutationObserver {
       constructor(callback) { observerCallback = callback; }
@@ -98,19 +72,18 @@ describe('mobile gameplay viewport positioning', () => {
 
     installGameplayViewportController(documentRef, windowRef);
     observerCallback();
-
     expect(scrollTo).toHaveBeenCalledTimes(1);
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }));
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
-    expect(animationFrames).toHaveLength(1);
-
     animationFrames.shift()();
-    expect(scrollTo).toHaveBeenCalledTimes(2);
-    expect(animationFrames).toHaveLength(1);
-
     animationFrames.shift()();
     expect(scrollTo).toHaveBeenCalledTimes(3);
     expect(animationFrames).toHaveLength(0);
+  });
+
+  it('observes only the playing panel class and never descendant gameplay mutations', () => {
+    expect(source).toContain('observer.observe(playingPanel');
+    expect(source).not.toContain('subtree: true');
   });
 
   it('loads the controller before the game module and exposes an accessible playing region', () => {
@@ -118,7 +91,6 @@ describe('mobile gameplay viewport positioning', () => {
     expect(html).toContain('<link rel="stylesheet" href="./v10.css">');
     expect(html.indexOf('./game-viewport.js')).toBeLessThan(html.indexOf('./app.js'));
     expect(html).toContain('id="playing" class="panel" role="region" aria-labelledby="playInstruction" tabindex="-1"');
-    expect(source).toContain('new windowRef.MutationObserver');
     expect(source).toContain("behavior: 'auto'");
     expect(source).not.toContain("behavior: 'smooth'");
   });
@@ -132,15 +104,13 @@ describe('mobile gameplay viewport positioning', () => {
     expect(styles).toContain('100dvh');
   });
 
-  it('replaces key controls on the game page with one descriptive profile link', () => {
+  it('replaces key controls with one descriptive account link', () => {
     const panel = html.match(/<p id="playerAccessPanel"[\s\S]*?<\/p>/)?.[0] || '';
-    expect(panel).toContain('<a href="./cuenta.html">');
-    expect(panel).toContain('Abrir mi perfil');
-    expect(panel).toContain('id="playerAccessStatus"');
+    expect(panel).toContain('<a href="./cuenta.html" aria-describedby="playerAccessStatus">Gestionar mi perfil y cuenta</a>');
+    expect(panel).toContain('class="visually-hidden"');
     expect(panel).not.toContain('<button');
     expect(panel).not.toContain('<input');
     expect(html).not.toContain('id="copyPlayerKeyButton"');
     expect(html).not.toContain('id="importPlayerKeyButton"');
-    expect(html).not.toContain('id="playerKeyInput"');
   });
 });

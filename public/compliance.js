@@ -1,9 +1,9 @@
 const CONSENT_KEY = 'minuto106:consent-v1';
+const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
 const consentConfig = window.__MINUTO106_CONFIG__ ?? {};
-const analyticsId = String(consentConfig.googleAnalyticsId || '').trim();
 const adsClient = String(consentConfig.adSenseClient || '').trim();
 const optionalServices = {
-  analytics: Boolean(analyticsId),
+  analytics: true,
   ads: Boolean(adsClient),
 };
 const hasOptionalServices = optionalServices.analytics || optionalServices.ads;
@@ -12,6 +12,9 @@ function readConsent() {
   try {
     const stored = JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null');
     if (!stored) return null;
+    const updatedAt = Date.parse(String(stored.updatedAt || ''));
+    const age = Date.now() - updatedAt;
+    if (!Number.isFinite(updatedAt) || age < 0 || age > CONSENT_MAX_AGE_MS) return null;
     return {
       analytics: optionalServices.analytics && stored.analytics === true,
       ads: optionalServices.ads && stored.ads === true,
@@ -20,6 +23,66 @@ function readConsent() {
   } catch {
     return null;
   }
+}
+
+function ensureGoogleConsentApi() {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function gtag() { window.dataLayer.push(arguments); };
+  return window.gtag;
+}
+
+function clearAnalyticsCookies() {
+  const names = document.cookie
+    .split(';')
+    .map((entry) => entry.split('=')[0].trim())
+    .filter((name) => /^_ga(?:_|$)/.test(name) || name === '_gid' || name === '_gat');
+
+  for (const name of names) {
+    document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+    document.cookie = `${name}=; Max-Age=0; path=/; domain=${location.hostname}; SameSite=Lax`;
+  }
+}
+
+function updateGoogleConsent(consent) {
+  const analyticsGranted = Boolean(consent?.analytics);
+  const adsGranted = Boolean(consent?.ads);
+  const gtag = ensureGoogleConsentApi();
+  gtag('consent', 'update', {
+    analytics_storage: analyticsGranted ? 'granted' : 'denied',
+    ad_storage: adsGranted ? 'granted' : 'denied',
+    ad_user_data: adsGranted ? 'granted' : 'denied',
+    ad_personalization: adsGranted ? 'granted' : 'denied',
+  });
+  window.dataLayer.push({
+    event: 'minuto106_consent_update',
+    analytics_consent: analyticsGranted ? 'granted' : 'denied',
+    ads_consent: adsGranted ? 'granted' : 'denied',
+  });
+  if (!analyticsGranted) clearAnalyticsCookies();
+}
+
+function ensureConsentUi() {
+  let banner = document.querySelector('#cookieBanner');
+  if (!banner) {
+    banner = document.createElement('section');
+    banner.id = 'cookieBanner';
+    banner.className = 'cookie-banner';
+    banner.hidden = true;
+    banner.setAttribute('aria-label', 'Preferencias de privacidad');
+    banner.innerHTML = '<div><strong>Analítica opcional</strong><p>Google Tag Manager está instalado con el almacenamiento denegado por defecto. Google Analytics solo se activa si lo aceptas.</p><a href="./cookies.html">Más información</a></div><div class="cookie-actions"><button id="rejectCookies" class="secondary" type="button">Rechazar</button><button id="configureCookies" class="ghost" type="button">Configurar</button><button id="acceptCookies" class="secondary" type="button">Aceptar</button></div>';
+    document.body.append(banner);
+  }
+
+  let dialog = document.querySelector('#cookieDialog');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'cookieDialog';
+    dialog.className = 'cookie-dialog';
+    dialog.innerHTML = '<h2>Privacidad y almacenamiento</h2><label id="analyticsConsentRow"><input id="analyticsConsent" type="checkbox"> Analítica con Google Analytics</label><label id="adsConsentRow"><input id="adsConsent" type="checkbox"> Publicidad y medición publicitaria</label><p id="optionalConsentCopy">El almacenamiento técnico necesario permanece activo.</p><div class="cookie-actions"><button id="saveCookieSettings" class="secondary" type="button">Guardar preferencias</button><button id="closeCookieDialog" class="ghost" type="button">Cancelar</button></div>';
+    document.body.append(dialog);
+  }
+
+  return { banner, dialog };
 }
 
 function ensurePrivacyChip() {
@@ -36,44 +99,11 @@ function ensurePrivacyChip() {
 }
 
 function closeConsentUi() {
-  const banner = document.querySelector('#cookieBanner');
-  if (banner) {
-    banner.hidden = true;
-    banner.setAttribute('aria-hidden', 'true');
-  }
-  document.querySelector('#cookieDialog')?.close();
+  const { banner, dialog } = ensureConsentUi();
+  banner.hidden = true;
+  banner.setAttribute('aria-hidden', 'true');
+  if (dialog.open) dialog.close();
   ensurePrivacyChip().hidden = false;
-}
-
-function writeConsent(value) {
-  const consent = {
-    analytics: optionalServices.analytics && Boolean(value.analytics),
-    ads: optionalServices.ads && Boolean(value.ads),
-    updatedAt: new Date().toISOString(),
-  };
-  localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
-  applyConsent(consent);
-  closeConsentUi();
-  return consent;
-}
-
-function loadAnalytics() {
-  if (!optionalServices.analytics || document.querySelector('[data-minuto106-ga]')) return;
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(analyticsId)}`;
-  script.dataset.minuto106Ga = 'true';
-  document.head.append(script);
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag() { window.dataLayer.push(arguments); };
-  window.gtag('js', new Date());
-  window.gtag('consent', 'default', {
-    analytics_storage: 'granted',
-    ad_storage: 'denied',
-    ad_user_data: 'denied',
-    ad_personalization: 'denied',
-  });
-  window.gtag('config', analyticsId, { anonymize_ip: true });
 }
 
 function loadAds() {
@@ -87,8 +117,21 @@ function loadAds() {
 }
 
 function applyConsent(consent) {
-  if (consent?.analytics) loadAnalytics();
+  updateGoogleConsent(consent);
   if (consent?.ads) loadAds();
+}
+
+function writeConsent(value) {
+  const consent = {
+    analytics: optionalServices.analytics && Boolean(value.analytics),
+    ads: optionalServices.ads && Boolean(value.ads),
+    policyVersion: 2,
+    updatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
+  applyConsent(consent);
+  closeConsentUi();
+  return consent;
 }
 
 function updateSettingsAvailability() {
@@ -103,44 +146,24 @@ function updateSettingsAvailability() {
 
   const copy = document.querySelector('#optionalConsentCopy');
   if (copy) {
-    copy.textContent = hasOptionalServices
-      ? 'El almacenamiento técnico permanece activo. Elige las categorías opcionales configuradas en este sitio.'
-      : 'La configuración publicada solo utiliza almacenamiento técnico necesario. No se cargan servicios de analítica ni publicidad.';
+    copy.textContent = optionalServices.ads
+      ? 'El almacenamiento técnico permanece activo. Elige por separado analítica y publicidad.'
+      : 'El almacenamiento técnico permanece activo. Google Analytics es opcional y no se habilita sin tu consentimiento.';
   }
-
-  const save = document.querySelector('#saveCookieSettings');
-  if (save) save.textContent = hasOptionalServices ? 'Guardar preferencias' : 'Entendido';
 }
 
 function openSettings() {
-  const dialog = document.querySelector('#cookieDialog');
+  const { dialog } = ensureConsentUi();
   const consent = readConsent() || { analytics: false, ads: false };
   const analytics = document.querySelector('#analyticsConsent');
   const ads = document.querySelector('#adsConsent');
   updateSettingsAvailability();
   if (analytics) analytics.checked = Boolean(consent.analytics);
   if (ads) ads.checked = Boolean(consent.ads);
-  dialog?.showModal();
+  dialog.showModal();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const existing = readConsent();
-  const banner = document.querySelector('#cookieBanner');
-  const chip = ensurePrivacyChip();
-  updateSettingsAvailability();
-
-  if (!hasOptionalServices) {
-    if (banner) banner.hidden = true;
-    chip.hidden = false;
-  } else if (existing) {
-    applyConsent(existing);
-    if (banner) banner.hidden = true;
-    chip.hidden = false;
-  } else {
-    if (banner) banner.hidden = false;
-    chip.hidden = true;
-  }
-
+function bindConsentUi() {
   document.querySelector('#acceptCookies')?.addEventListener('click', () => writeConsent({
     analytics: optionalServices.analytics,
     ads: optionalServices.ads,
@@ -155,4 +178,26 @@ document.addEventListener('DOMContentLoaded', () => {
       ads: document.querySelector('#adsConsent')?.checked,
     });
   });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const existing = readConsent();
+  const { banner } = ensureConsentUi();
+  const chip = ensurePrivacyChip();
+  updateSettingsAvailability();
+  bindConsentUi();
+
+  if (existing) {
+    applyConsent(existing);
+    banner.hidden = true;
+    chip.hidden = false;
+  } else if (hasOptionalServices) {
+    applyConsent({ analytics: false, ads: false });
+    banner.hidden = false;
+    banner.removeAttribute('aria-hidden');
+    chip.hidden = true;
+  } else {
+    banner.hidden = true;
+    chip.hidden = false;
+  }
 });

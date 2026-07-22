@@ -66,10 +66,9 @@ export function installGameplayViewportController(
 ) {
   if (!documentRef || !windowRef) return () => {};
 
-  const gameCard = documentRef.querySelector('.game-card');
   const playingPanel = documentRef.querySelector('#playing');
   const timerStage = documentRef.querySelector('#playing .timer-stage');
-  if (!gameCard || !playingPanel || !timerStage || !windowRef.MutationObserver) return () => {};
+  if (!playingPanel || !timerStage || !windowRef.MutationObserver) return () => {};
 
   let centeringSequence = 0;
 
@@ -98,10 +97,9 @@ export function installGameplayViewportController(
     if (playingPanel.classList.contains('active')) stabilizeGameplay();
     else centeringSequence += 1;
   });
-  observer.observe(gameCard, {
+  observer.observe(playingPanel, {
     attributes: true,
     attributeFilter: ['class'],
-    subtree: true,
   });
 
   const onOrientationChange = () => {
