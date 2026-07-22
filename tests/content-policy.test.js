@@ -52,16 +52,19 @@ describe('public product language', () => {
     const previewVector = readFileSync('public/assets/social-preview.svg', 'utf8');
     const preview = readFileSync('public/assets/social-preview.png');
     const rootPreview = readFileSync('assets/social-preview.png');
+    const artifactPreview = readFileSync('public/public/assets/social-preview.png');
     const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'));
+    const publicPreviewUrl = 'https://juanjogondev.github.io/106/public/assets/social-preview.png';
 
     expect(index).toContain('rel="icon" href="./assets/favicon.svg"');
     expect(index).toContain('rel="manifest" href="./site.webmanifest"');
-    expect(index).toContain('https://juanjogondev.github.io/106/assets/social-preview.png');
-    expect(rootIndex).toContain('https://juanjogondev.github.io/106/public/assets/social-preview.png');
+    expect(index).toContain(publicPreviewUrl);
+    expect(rootIndex).toContain(publicPreviewUrl);
     expect(favicon).toContain('106');
     expect(previewVector).toContain('ESPAÑA VS ARGENTINA');
     expect(preview.subarray(0, PNG_SIGNATURE.length)).toEqual(PNG_SIGNATURE);
     expect(rootPreview).toEqual(preview);
+    expect(artifactPreview).toEqual(preview);
     expect(preview.readUInt32BE(16)).toBe(1200);
     expect(preview.readUInt32BE(20)).toBe(630);
     expect(manifest.icons[0].src).toBe('./assets/favicon.svg');
