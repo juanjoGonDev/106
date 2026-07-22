@@ -5,7 +5,6 @@
   const route = ui?.parsePlayerLocation(location) ?? { nick: '', section: 'overview' };
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
-  let profile = null;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -124,7 +123,6 @@
   }
 
   function render(player) {
-    profile = player;
     setMetadata(player);
     $('#playerNick').textContent = player.nick;
     $('#playerTeam').innerHTML = ui.teamHtml(player.team, player, 'player-team--hero');
