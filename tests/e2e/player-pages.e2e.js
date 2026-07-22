@@ -175,15 +175,21 @@ test('dedicated precision, trophy and achievement rankings always show flags and
   await expectNoHorizontalOverflow(page);
 });
 
-test('finishing an attempt refreshes sidebar ranking and daily awards without a reload', async ({ page }) => {
+test('finishing an attempt refreshes sidebar ranking and daily awards without a reload', async ({ page, isMobile }) => {
   const currentAward = { value: 'Antes' };
   await installMocks(page, currentAward);
   await page.goto('/');
 
+  const rankingFlag = page.locator('#leaderboard .flag--spain').first();
+  const awardFlag = page.locator('#goldenBoot .flag--spain');
   await expect(page.locator('#leaderboard .leaderboard-row-link').first()).toHaveAttribute('href', /\/player\/Vieucirst$/);
-  await expect(page.locator('#leaderboard .flag--spain').first()).toBeVisible();
+  await expect(rankingFlag).toHaveCount(1);
   await expect(page.locator('#goldenBoot .award-player-link')).toContainText('Antes');
-  await expect(page.locator('#goldenBoot .flag--spain')).toBeVisible();
+  await expect(awardFlag).toHaveCount(1);
+  if (!isMobile) {
+    await expect(rankingFlag).toBeVisible();
+    await expect(awardFlag).toBeVisible();
+  }
 
   currentAward.value = 'Después';
   await page.evaluate(async (url) => {
