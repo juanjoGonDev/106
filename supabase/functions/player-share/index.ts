@@ -49,12 +49,13 @@ function parseRoute(request: Request) {
   const parts = url.pathname.split('/').filter(Boolean);
   const functionIndex = parts.lastIndexOf('player-share');
   const route = functionIndex >= 0 ? parts.slice(functionIndex + 1) : [];
-  let nick = '';
-  try {
-    nick = decodeURIComponent(route[0] ?? '');
-  } catch {
-    nick = route[0] ?? '';
-  }
+  const nick = (() => {
+    try {
+      return decodeURIComponent(route[0] ?? '');
+    } catch {
+      return route[0] ?? '';
+    }
+  })();
   const tail = route[1] ?? '';
   return {
     nick: normalizeNick(nick || url.searchParams.get('nick')),
@@ -62,6 +63,13 @@ function parseRoute(request: Request) {
     image: tail.endsWith('.png') || url.searchParams.get('format') === 'png',
     url,
   };
+}
+
+function encodeSvgDataUri(svg: string) {
+  const bytes = new TextEncoder().encode(svg);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
 }
 
 async function loadTemplate() {
@@ -73,9 +81,9 @@ async function loadTemplate() {
       if (!response.ok) throw new Error('Template unavailable');
       const svg = await response.text();
       if (!svg.includes('<svg')) throw new Error('Invalid template');
-      return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+      return encodeSvgDataUri(svg);
     } catch {
-      return `data:image/svg+xml;base64,${btoa(TEMPLATE_FALLBACK)}`;
+      return encodeSvgDataUri(TEMPLATE_FALLBACK);
     }
   })();
   return templatePromise;
@@ -215,15 +223,24 @@ async function cardResponse(profile: Record<string, unknown>, section: string) {
   });
 }
 
+function playerImageUrl(requestUrl: URL, nick: string, section: string) {
+  const imageName = section === 'overview' ? 'card' : section;
+  const parts = requestUrl.pathname.split('/').filter(Boolean);
+  const functionIndex = parts.lastIndexOf('player-share');
+  const functionPath = functionIndex >= 0 ? parts.slice(0, functionIndex + 1) : ['functions', 'v1', 'player-share'];
+  const imageUrl = new URL(requestUrl);
+  imageUrl.pathname = `/${functionPath.join('/')}/${encodeURIComponent(nick)}/${imageName}.png`;
+  imageUrl.search = '';
+  imageUrl.hash = '';
+  return imageUrl;
+}
+
 function htmlResponse(requestUrl: URL, profile: Record<string, unknown>, section: string) {
   const siteUrl = String(Deno.env.get('PUBLIC_SITE_URL') || DEFAULT_SITE_URL).replace(/\/$/, '');
   const nick = String(profile.nick || 'Jugador');
   const suffix = section === 'overview' ? '' : `/${section}`;
   const canonical = `${siteUrl}/player/${encodeURIComponent(nick)}${suffix}`;
-  const imageName = section === 'overview' ? 'card' : section;
-  const imageUrl = new URL(requestUrl);
-  imageUrl.pathname = imageUrl.pathname.replace(/\/?$/, `/${imageName}.png`);
-  imageUrl.search = '';
+  const imageUrl = playerImageUrl(requestUrl, nick, section);
   const trophies = Number((profile.trophies as Record<string, unknown> | undefined)?.total || 0);
   const achievements = Number((profile.achievements as Record<string, unknown> | undefined)?.total || 0);
   const title = `${nick} · Minuto 106`;
