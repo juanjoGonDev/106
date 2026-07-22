@@ -75,7 +75,7 @@ describe('dynamic player social card', () => {
   it('emits exact player-specific Open Graph and Twitter image paths', () => {
     const edge = read('supabase/functions/player-share/index.ts');
     expect(edge).toContain('function playerImageUrl');
-    expect(edge).toContain('`${imageName}.png`');
+    expect(edge).toContain('/${imageName}.png`');
     expect(edge).toContain('property="og:image"');
     expect(edge).toContain('name="twitter:card"');
     expect(edge).toContain('image/png');
