@@ -1,4 +1,9 @@
-import { defineConfig, devices } from '@playwright/test';
+import { createRequire } from 'node:module';
+
+const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
+if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
+const require = createRequire(import.meta.url);
+const { defineConfig, devices } = require(runtimePath);
 
 export default defineConfig({
   testDir: './tests/e2e',
