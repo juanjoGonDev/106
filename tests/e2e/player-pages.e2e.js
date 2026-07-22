@@ -1,4 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { createRequire } from 'node:module';
+
+const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
+if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
+const require = createRequire(import.meta.url);
+const { expect, test } = require(runtimePath);
 
 const apiUrl = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/game-api';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2rWQAAAAASUVORK5CYII=', 'base64');
