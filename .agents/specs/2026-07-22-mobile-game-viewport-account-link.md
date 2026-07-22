@@ -56,7 +56,8 @@ Replace the large account-protection form on the game screen with one accessible
 - Static contracts cover panel flow, source order, focus without scroll, no smooth scrolling, captcha short-height layout and accessible account markup.
 - Layout contracts cover shared bootstrap use, absence of duplicated privacy markup, centralized compliance loading and stylesheet deduplication.
 - GTM contracts cover placement, container ID, Consent Mode v2 defaults/updates, no duplicate GA loader, equal accept/reject prominence and legal disclosures.
-- CI must run syntax, Vitest, ESLint, Knip, security and Supabase integration.
+- Pull Request Quality Pipeline run `29923541429` passed package policy, frozen install, generated configuration, syntax, Vitest, ESLint, Knip, dependency/security checks, the full local Supabase/Edge Function/API journey and the final Quality Gate.
+- No browser screenshot was produced in this environment; the reported mobile screenshot is the reproduction evidence and viewport behavior is covered by the automated matrix.
 
 ## Rollback
 
@@ -71,4 +72,4 @@ Revert the pull request. No database or API changes are involved. Remote GTM pub
 
 ## Status
 
-Reusable-layout refactor prepared; validation pending.
+Ready for review. Acceptance criteria are implemented and Pull Request Quality Pipeline run `29923541429` is green. The pull request remains unmerged and production is unchanged.
