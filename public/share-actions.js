@@ -1,6 +1,4 @@
 (() => {
-  const config = window.__MINUTO106_CONFIG__ ?? {};
-  const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const activeLeagueCode = String(new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
@@ -13,6 +11,8 @@
   }
 
   async function request(action, payload = {}) {
+    const config = window.__MINUTO106_CONFIG__ ?? {};
+    const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
     if (!apiUrl || apiUrl.includes('YOUR_PROJECT_REF')) throw new Error('Supabase aún no está configurado.');
     const response = await fetch(apiUrl, {
       method: 'POST',

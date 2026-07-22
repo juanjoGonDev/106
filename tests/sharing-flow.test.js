@@ -5,8 +5,9 @@ const layout = readFileSync('public/layout.js', 'utf8');
 const actions = readFileSync('public/share-actions.js', 'utf8');
 const ranking = readFileSync('public/ranking.js', 'utf8');
 const honours = readFileSync('public/honours.js', 'utf8');
+const overlay = readFileSync('public/profile-overlay.js', 'utf8');
 
-const visibleShareFlows = [layout, actions, ranking, honours];
+const visibleShareFlows = [layout, actions, ranking, honours, overlay];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -43,6 +44,7 @@ describe('share-first social actions', () => {
   it('shares public profiles through stable nickname URLs', () => {
     expect(ranking).toContain("url.searchParams.set('nick', profile.nick)");
     expect(honours).toContain("url.searchParams.set('nick', profile.nick)");
+    expect(overlay).toContain("url.searchParams.set('nick', profile.nick)");
   });
 
   it('does not intercept private-key clipboard controls', () => {

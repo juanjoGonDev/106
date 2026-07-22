@@ -48,6 +48,9 @@ create index if not exists game_player_achievements_player_date_idx
   on public.game_player_achievements(nick_key, achieved_on desc, points desc);
 create index if not exists game_player_achievements_ranking_idx
   on public.game_player_achievements(points desc, nick_key);
+create index if not exists game_attempts_daily_trophy_idx
+  on public.game_attempts (((created_at at time zone 'Europe/Madrid')::date), nick_key, difference_ms, created_at)
+  where verified = true and league_id is null;
 
 alter table public.game_trophy_award_runs enable row level security;
 alter table public.game_daily_trophies enable row level security;
@@ -67,3 +70,5 @@ language sql immutable security definer set search_path = public, pg_temp as $$
     else 'Trofeo'
   end;
 $$;
+revoke all on function public.game_trophy_label(text) from public, anon, authenticated;
+grant execute on function public.game_trophy_label(text) to service_role;
