@@ -41,6 +41,7 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('data-player-section="overview"');
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
+    expect(html).toContain('width="1200" height="630"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
     expect(script).toContain('history.replaceState');
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
@@ -68,25 +69,44 @@ describe('player pages and ranking links', () => {
 });
 
 describe('dynamic player social card', () => {
-  it('uses the committed template and pinned edge renderer to return PNG', () => {
+  it('uses bundled templates and pinned edge renderer to return PNG', () => {
     const edge = read('supabase/functions/player-share/index.ts');
-    const template = read('public/assets/player-card-template.svg');
+    const playerTemplate = read('supabase/functions/player-share/player-card-template.svg');
+    const siteTemplate = read('supabase/functions/player-share/site-card-template.svg');
     expect(edge).toContain("npm:@vercel/og@0.11.1");
     expect(edge).toContain("npm:react@19.2.7");
     expect(edge).toContain('new ImageResponse');
-    expect(edge).toContain('/assets/player-card-template.svg');
+    expect(edge).toContain('Deno.readTextFile(new URL(`./${fileName}`, import.meta.url))');
+    expect(edge).toContain("loadTemplate('player-card-template.svg'");
+    expect(edge).toContain("loadTemplate('site-card-template.svg'");
     expect(edge).toContain("'Cache-Control': 'public, max-age=300");
-    expect(edge).toContain('route.image ? await cardResponse');
-    expect(template).toContain('width="1200" height="630"');
-    expect(template).toContain('M940 178 1060 265 1014 405 866 405 820 265Z');
+    expect(edge).toContain('route.image ? await playerCardResponse');
+    expect(playerTemplate).toContain('width="1200" height="630"');
+    expect(siteTemplate).toContain('width="1200" height="630"');
   });
 
-  it('emits exact player-specific Open Graph and Twitter image paths', () => {
+  it('keeps all critical card content inside explicit safe areas', () => {
+    const edge = read('supabase/functions/player-share/index.ts');
+    const playerTemplate = read('supabase/functions/player-share/player-card-template.svg');
+    const siteTemplate = read('supabase/functions/player-share/site-card-template.svg');
+    expect(edge).toContain("boxSizing: 'border-box'");
+    expect(edge).toContain('left: 82, top: 80');
+    expect(edge).toContain('left: 807, top: 112');
+    expect(edge).toContain('width: 190, height: 78');
+    expect(edge).toContain("textOverflow: 'ellipsis'");
+    expect(playerTemplate).toContain('x="32" y="32" width="1136" height="566"');
+    expect(siteTemplate).toContain('x="32" y="32" width="1136" height="566"');
+  });
+
+  it('emits exact player-specific Open Graph, Twitter and site image paths', () => {
     const edge = read('supabase/functions/player-share/index.ts');
     expect(edge).toContain('function playerImageUrl');
+    expect(edge).toContain('function siteImageUrl');
+    expect(edge).toContain("const SITE_ROUTE = '_site'");
     expect(edge).toContain('/${imageName}.png`');
     expect(edge).toContain('property="og:image"');
-    expect(edge).toContain('name="twitter:card"');
+    expect(edge).toContain('property="og:image:secure_url"');
+    expect(edge).toContain('name="twitter:image:src"');
     expect(edge).toContain('image/png');
     expect(edge).toContain('get_game_public_profile');
     expect(edge).not.toContain('imageUrl.pathname.replace(/\\/?$/');
