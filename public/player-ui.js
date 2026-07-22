@@ -66,12 +66,13 @@
 
     const match = url.pathname.match(/\/player\/([^/]+)(?:\/(achievements|trophies))?\/?$/i);
     if (!match) return Object.freeze({ nick: '', section: 'overview' });
-    let decodedNick = '';
-    try {
-      decodedNick = decodeURIComponent(match[1]);
-    } catch {
-      decodedNick = match[1];
-    }
+    const decodedNick = (() => {
+      try {
+        return decodeURIComponent(match[1]);
+      } catch {
+        return match[1];
+      }
+    })();
     return Object.freeze({ nick: normalizeNick(decodedNick), section: normalizeSection(match[2]) });
   }
 
