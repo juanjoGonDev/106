@@ -6,6 +6,7 @@ const indexHtml = readFileSync('public/index.html', 'utf8');
 const appSource = readFileSync('public/app.js', 'utf8');
 const controlSource = readFileSync('public/stop-control.js', 'utf8');
 const humanCheckSource = readFileSync('public/human-check.js', 'utf8');
+const readyFlowSource = readFileSync('public/human-check-ready-flow.js', 'utf8');
 const apiSource = readFileSync('supabase/functions/game-api/index.ts', 'utf8');
 const migrationSource = readdirSync('supabase/migrations')
   .filter((file) => file.endsWith('.sql'))
@@ -55,11 +56,12 @@ describe('automation-resistant game interactions', () => {
 
   it('uses a server-issued numbered-ball check drawn on one canvas', () => {
     expect(indexHtml).toContain('human-check.js');
-    expect(humanCheckSource).toContain("action: CHECK_ACTION");
-    expect(humanCheckSource).toContain("action: COMPLETE_ACTION");
+    expect(humanCheckSource).toContain('action: CHECK_ACTION');
+    expect(humanCheckSource).toContain('action: COMPLETE_ACTION');
     expect(humanCheckSource).toContain("createElement('canvas')");
     expect(humanCheckSource).toContain("addEventListener('pointerdown'");
-    expect(humanCheckSource).toContain("['mouse', 'touch', 'pen'].includes(event.pointerType)");
+    expect(humanCheckSource).toContain('readyFlowApi.isTrustedReadyPointer(event)');
+    expect(readyFlowSource).toContain("Object.freeze(['mouse', 'touch', 'pen'])");
     expect(humanCheckSource).not.toContain("createElement('button');\n      ball");
   });
 
