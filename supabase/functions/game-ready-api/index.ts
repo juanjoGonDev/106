@@ -27,6 +27,7 @@ if (!supabaseUrl || !serviceKey || !hashPepper) throw new Error('Missing require
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+const READINESS_CONTRACT = 'prepared-countdown-v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const HUMAN_BALL_COUNT = 4;
@@ -249,6 +250,10 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json();
     const action = String(body.action ?? '');
+    if (action === 'health') {
+      return jsonResponse(origin, { ok: true, contract: READINESS_CONTRACT });
+    }
+
     const deviceId = request.headers.get('x-device-id') ?? '';
     if (!/^[a-zA-Z0-9._:-]{16,80}$/.test(deviceId)) {
       return jsonResponse(origin, { error: 'Identificador de dispositivo inválido.' }, 400);
