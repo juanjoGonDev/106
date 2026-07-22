@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.game-ready-api]
 verify_jwt = false
+
+[functions.player-share]
+verify_jwt = false
