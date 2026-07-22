@@ -19,6 +19,7 @@ Fix the deployed game after PR #12 so a browser without saved site data can prep
 - Introduce a revision-aware frame renderer in the covered readiness module.
 - Invalidate pending captcha redraws whenever a challenge settles or reloads, and schedule resize rendering through the revision-aware renderer so callbacks captured for an old challenge cannot repaint it.
 - Render every accepted replacement immediately and once on the next animation frame to cover Chrome layout/paint stabilization without closing the modal.
+- Version the access and captcha scripts in the game HTML so Chrome cannot retain a previous implementation during the static-host cache window.
 - Add a browser-wrapper test that executes `access.js` and verifies `prepare-start` receives a generated `x-account-token`.
 - Keep the server requirement for account authorization; the defect is missing client bootstrap, not an authorization rule to remove.
 
@@ -29,9 +30,20 @@ Fix the deployed game after PR #12 so a browser without saved site data can prep
 - An incorrect captcha press requests a new check ID and materially different coordinates.
 - A queued resize callback for the old captcha cannot repaint after the replacement challenge becomes current.
 - The replacement is painted immediately and on the next animation frame while the same modal remains mounted.
+- Access, readiness and interceptor assets use a new cache version and preserve execution order.
 - Chrome mobile, Brave mobile, desktop mouse and touch contracts remain supported.
 - The readiness/frame module remains at 100% lines, functions and branches.
 - Vitest, ESLint, Knip, security and local Supabase integration pass.
+
+## Validation
+
+- Pull Request Quality Pipeline run `29950974283` passed build and syntax validation.
+- Vitest passed, including browser-like execution of the access fetch wrapper for empty and existing account storage.
+- Node 22 native V8 coverage passed at 100% lines, 100% functions and 100% branches for the readiness/frame controller.
+- The stale-frame test forces a cancelled callback to execute after a replacement and verifies that only the current captcha renderer runs.
+- ESLint, Knip and dependency/security policy checks passed.
+- Local Supabase rebuild, Edge Functions and the complete API journey passed.
+- Final Quality Gate passed.
 
 ## Risks
 
@@ -46,8 +58,9 @@ Revert the pull request. No database migration, data mutation or Edge Function c
 
 - Branch: `agent/fix-chrome-captcha-account-bootstrap`
 - Base: deployed `main` containing PR #12.
+- Pull request: `#13`.
 - Normal pull request to `main`; no merge or deployment without explicit approval.
 
 ## Status
 
-Implementation in progress.
+Implementation complete and CI green. Awaiting explicit merge authorization.
