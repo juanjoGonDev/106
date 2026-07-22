@@ -1,0 +1,184 @@
+/* Mobile gameplay viewport, compact account entry point, and stable human-check layout. */
+.game-card {
+  min-height: 0;
+}
+
+.game-card > .panel {
+  grid-area: auto;
+}
+
+.game-card > .panel:not(.active) {
+  display: none !important;
+}
+
+.game-card > .panel.active {
+  display: block;
+  align-self: stretch;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#playing:focus:not(:focus-visible) {
+  outline: none;
+}
+
+#playing:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 6px;
+}
+
+.player-access-link {
+  margin: 1rem 0 0;
+  text-align: left;
+}
+
+.player-access-link a {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: .85rem;
+  padding: .8rem 1rem;
+  border: 1px solid rgba(90, 180, 239, .35);
+  border-radius: .9rem;
+  background: rgba(90, 180, 239, .07);
+  color: #f7f8fb;
+  text-decoration: none;
+}
+
+.player-access-link a::after {
+  content: '›';
+  flex: 0 0 auto;
+  color: var(--gold);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.player-access-link strong,
+.player-access-link span {
+  display: block;
+}
+
+.player-access-link span {
+  margin-top: .2rem;
+  color: #aeb5c2;
+  font-size: .78rem;
+  line-height: 1.35;
+}
+
+.player-access-link a:hover,
+.player-access-link a:focus-visible {
+  border-color: var(--gold);
+  background: rgba(244, 201, 93, .08);
+}
+
+.human-check-overlay {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding:
+    max(.5rem, env(safe-area-inset-top))
+    max(.5rem, env(safe-area-inset-right))
+    max(.5rem, env(safe-area-inset-bottom))
+    max(.5rem, env(safe-area-inset-left));
+}
+
+.human-check-panel {
+  width: min(40rem, 100%);
+  min-height: min(38rem, calc(100dvh - 1rem));
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  display: grid;
+  grid-template-rows: auto 1.5rem minmax(12rem, 1fr) minmax(3.5rem, auto) auto;
+  align-content: stretch;
+}
+
+.human-check-progress {
+  grid-row: 2;
+  align-self: center;
+  margin: 0;
+}
+
+.human-check-canvas {
+  grid-row: 3;
+  width: 100%;
+  height: 100%;
+  min-height: 12rem;
+  max-height: none;
+}
+
+.human-check-status,
+.human-check-continue {
+  grid-column: 1;
+  grid-row: 4;
+  align-self: center;
+}
+
+.human-check-status {
+  min-height: 0;
+  margin: .5rem 0;
+}
+
+.human-check-continue {
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+}
+
+.human-check-cancel {
+  grid-row: 5;
+  margin: .5rem auto 0;
+}
+
+@media (max-width: 620px) {
+  .game-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .player-access-link a {
+    align-items: flex-start;
+  }
+
+  .human-check-panel {
+    min-height: min(36rem, calc(100dvh - 1rem));
+    padding: 1rem .85rem;
+    border-radius: 1rem;
+    grid-template-rows: auto 1.5rem minmax(11rem, 1fr) minmax(3.5rem, auto) auto;
+  }
+}
+
+@media (max-height: 540px) {
+  .human-check-overlay {
+    place-items: start center;
+  }
+
+  .human-check-panel {
+    min-height: calc(100dvh - 1rem);
+    padding: .75rem;
+    grid-template-rows: auto 1.25rem minmax(8.5rem, 1fr) 3rem auto;
+  }
+
+  .human-check-heading {
+    gap: .25rem;
+  }
+
+  .human-check-heading h2 {
+    font-size: 1.15rem;
+  }
+
+  .human-check-heading p:last-child {
+    display: none;
+  }
+
+  .human-check-canvas {
+    min-height: 8.5rem;
+  }
+
+  .human-check-cancel {
+    min-height: 2.5rem;
+    margin-top: .25rem;
+    padding-block: .55rem;
+  }
+}

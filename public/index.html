@@ -36,6 +36,8 @@
   <link rel="stylesheet" href="./site.css">
   <link rel="stylesheet" href="./v7.css">
   <link rel="stylesheet" href="./v8.css">
+  <link rel="stylesheet" href="./v9.css">
+  <link rel="stylesheet" href="./v10.css">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -80,7 +82,7 @@
         <label for="nick">Tu nick</label>
         <input id="nick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96">
         <p id="nickStatus" class="hint">Cada nick dispone de 5 intentos globales.</p>
-        <section id="playerAccessPanel" class="player-access" hidden><div><strong>Protege tu nick</strong><p id="playerAccessStatus">La clave privada permite usar el mismo nick en otro dispositivo.</p></div><button id="copyPlayerKeyButton" class="secondary compact" type="button">Copiar clave</button><div class="access-import"><input id="playerKeyInput" maxlength="64" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="Pega aquí tu clave privada"><button id="importPlayerKeyButton" class="ghost compact" type="button">Importar</button></div><small>Guárdala en un gestor de contraseñas. El servidor solo almacena un hash y no puede recuperarla.</small></section>
+        <p id="playerAccessPanel" class="player-access-link" hidden><a href="./cuenta.html"><span><strong>Abrir mi perfil</strong><span id="playerAccessStatus">Gestiona tu clave de cuenta y los nicks vinculados.</span></span></a></p>
         <p id="referralNotice" class="referral-notice" hidden>Has entrado desde una invitación. Completa 5 intentos globales válidos: tú y quien te invitó ganaréis 1 intento extra.</p>
         <p id="duelNotice" class="duel-notice" hidden></p><p id="leagueNotice" class="league-notice" hidden></p><input id="leagueCode" type="hidden">
         <p class="label">Elige tu selección</p>
@@ -89,7 +91,7 @@
         <p class="hint human-check-hint">Al comenzar tendrás que pulsar cuatro balones en orden. Si fallas, la secuencia vuelve al balón 1.</p>
         <button id="startButton" class="primary" type="button" disabled>Verificar y comenzar</button>
       </div>
-      <div id="playing" class="panel"><p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p><div id="playInstruction" class="play-instruction"><strong>Tu objetivo:</strong> pulsa el control PARAR cuando creas que llegas a <b>10.600</b>.</div><div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div><p class="hint timer-hint">El número desaparece a los 2 segundos. El control final permanece fijo y centrado en todos los intentos.</p><p id="gameError" class="game-error" hidden></p></div>
+      <div id="playing" class="panel" role="region" aria-labelledby="playInstruction" tabindex="-1"><p class="playing-for">Jugando por <strong id="playingTeam" class="playing-team"></strong></p><div id="playInstruction" class="play-instruction"><strong>Tu objetivo:</strong> pulsa el control PARAR cuando creas que llegas a <b>10.600</b>.</div><div class="timer-stage"><div id="timer" class="timer" aria-label="Cronómetro visible">0.000</div></div><p class="hint timer-hint">El número desaparece a los 2 segundos. El control final permanece fijo y centrado en todos los intentos.</p><p id="gameError" class="game-error" hidden></p></div>
       <div id="result" class="panel"><p class="result-label">Tu tiempo</p><div id="resultTime" class="result-time">10.600</div><p id="resultMessage" class="result-message"></p><div id="achievementBanner" class="achievement-banner" hidden></div><p id="verificationStatus" class="verification-status"></p><p id="attemptsLeft" class="attempts-left"></p><div class="actions"><button id="retryButton" class="primary" type="button">Otro intento</button><button id="shareButton" class="secondary" type="button">Compartir resultado</button><button id="downloadCardButton" class="secondary" type="button">Descargar tarjeta</button><button id="createDuelButton" class="secondary" type="button">Retar a alguien</button><button id="changeNickButton" class="ghost" type="button">Cambiar nick</button></div></div>
     </section>
 
@@ -115,6 +117,7 @@
   <script src="./stop-control.js"></script>
   <script src="./format.js"></script>
   <script src="./profile-enhancements.js"></script>
+  <script type="module" src="./game-viewport.js"></script>
   <script type="module" src="./app.js"></script>
   <script type="module" src="./v3.js"></script>
   <script type="module" src="./v4.js"></script>
