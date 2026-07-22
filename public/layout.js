@@ -10,6 +10,24 @@
   const messageQueue = [];
   let activeMessage = null;
 
+  function ensureSharedStylesheet() {
+    if (document.querySelector('link[data-minuto106-shared]')) return;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = './v9.css';
+    stylesheet.dataset.minuto106Shared = 'true';
+    document.head.append(stylesheet);
+  }
+
+  function ensureHonoursEnhancement() {
+    if (document.querySelector('script[data-minuto106-honours]')) return;
+    const script = document.createElement('script');
+    script.src = './honours.js';
+    script.async = false;
+    script.dataset.minuto106Honours = 'true';
+    document.head.append(script);
+  }
+
   function setNavigationOpen(header, button, open) {
     header.dataset.menuOpen = String(open);
     button.setAttribute('aria-expanded', String(open));
@@ -218,6 +236,73 @@
     });
   }
 
+  function normalizedShare(input) {
+    const options = input && typeof input === 'object' ? input : {};
+    const url = String(options.url || location.href);
+    return {
+      title: String(options.title || 'Minuto 106'),
+      text: String(options.text || '¿Me superas en Minuto 106?'),
+      url,
+      combined: `${String(options.text || '¿Me superas en Minuto 106?')} ${url}`.trim(),
+    };
+  }
+
+  function createShareDialog() {
+    const existing = document.querySelector('#appShareDialog');
+    if (existing) return existing;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'appShareDialog';
+    dialog.className = 'app-message-dialog app-share-dialog';
+    dialog.innerHTML = `
+      <div class="app-message-icon" aria-hidden="true">↗</div>
+      <div class="app-message-copy">
+        <p class="eyebrow">COMPARTE EL RETO</p>
+        <h2>Elige dónde compartir</h2>
+        <p class="app-message-text"></p>
+      </div>
+      <div class="share-destinations" aria-label="Opciones para compartir">
+        <a data-share-destination="whatsapp" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        <a data-share-destination="x" target="_blank" rel="noopener noreferrer">X</a>
+        <a data-share-destination="telegram" target="_blank" rel="noopener noreferrer">Telegram</a>
+        <a data-share-destination="email">Correo</a>
+      </div>`;
+    document.body.append(dialog);
+    document.dispatchEvent(new CustomEvent('minuto106:dialog-created'));
+    return dialog;
+  }
+
+  function openShareDialog(input) {
+    const options = normalizedShare(input);
+    const dialog = createShareDialog();
+    dialog.querySelector('h2').textContent = options.title;
+    dialog.querySelector('.app-message-text').textContent = options.text;
+    const encodedText = encodeURIComponent(options.combined);
+    const encodedUrl = encodeURIComponent(options.url);
+    const encodedTitle = encodeURIComponent(options.title);
+    dialog.querySelector('[data-share-destination="whatsapp"]').href = `https://wa.me/?text=${encodedText}`;
+    dialog.querySelector('[data-share-destination="x"]').href = `https://twitter.com/intent/tweet?text=${encodedText}`;
+    dialog.querySelector('[data-share-destination="telegram"]').href = `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(options.text)}`;
+    dialog.querySelector('[data-share-destination="email"]').href = `mailto:?subject=${encodedTitle}&body=${encodedText}`;
+    dialog.showModal();
+    dialog.querySelector('a')?.focus();
+    return new Promise((resolve) => {
+      dialog.addEventListener('close', () => resolve(false), { once: true });
+    });
+  }
+
+  async function share(input) {
+    const options = normalizedShare(input);
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: options.title, text: options.text, url: options.url });
+        return true;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return false;
+      }
+    }
+    return openShareDialog(options);
+  }
+
   window.Minuto106UI = {
     notify(input) {
       return enqueueMessage(normalizeMessage(input, {
@@ -255,6 +340,7 @@
         cancelLabel: 'Cancelar',
       }));
     },
+    share,
   };
 
   function buildGameColumns() {
@@ -293,6 +379,8 @@
     shell.append(layout);
   }
 
+  ensureSharedStylesheet();
+  ensureHonoursEnhancement();
   renderSiteChrome();
   enhanceDialogs();
   buildGameColumns();

@@ -54,10 +54,10 @@
     context.beginPath();
     for (let index = 0; index < 5; index += 1) {
       const angle = -Math.PI / 2 + index * Math.PI * 2 / 5;
-      const px = Math.cos(angle) * radius * 0.34;
-      const py = Math.sin(angle) * radius * 0.34;
-      if (index === 0) context.moveTo(px, py);
-      else context.lineTo(px, py);
+      const pointX = Math.cos(angle) * radius * 0.34;
+      const pointY = Math.sin(angle) * radius * 0.34;
+      if (index === 0) context.moveTo(pointX, pointY);
+      else context.lineTo(pointX, pointY);
     }
     context.closePath();
     context.fill();
@@ -159,17 +159,23 @@
     heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Usa ratón, lápiz o pantalla táctil. Si fallas, la secuencia vuelve al balón 1.</p>';
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
+    progress.setAttribute('aria-live', 'polite');
     const canvas = document.createElement('canvas');
     canvas.className = 'human-check-canvas';
     canvas.setAttribute('aria-label', 'Zona visual de verificación. Pulsa los balones numerados en orden.');
     const status = document.createElement('p');
     status.className = 'human-check-status';
     status.setAttribute('aria-live', 'polite');
+    const continueButton = document.createElement('button');
+    continueButton.className = 'primary human-check-continue';
+    continueButton.type = 'button';
+    continueButton.textContent = 'Empezar intento';
+    continueButton.hidden = true;
     const cancel = document.createElement('button');
     cancel.className = 'ghost human-check-cancel';
     cancel.type = 'button';
     cancel.textContent = 'Cancelar';
-    panel.append(heading, progress, canvas, status, cancel);
+    panel.append(heading, progress, canvas, status, continueButton, cancel);
     overlay.append(panel);
     document.body.append(overlay);
     const unlockViewport = lockViewport();
@@ -187,6 +193,9 @@
       performance.now() < wrongUntil ? 'Secuencia reiniciada · vuelve al balón 1' : '',
     );
     const updateProgress = () => {
+      progress.hidden = false;
+      status.hidden = false;
+      continueButton.hidden = true;
       progress.textContent = `${completedCount} / ${balls.length}`;
       status.textContent = completedCount === 0
         ? 'Empieza por el balón 1.'
@@ -201,6 +210,12 @@
       status.textContent = 'Orden incorrecto. La secuencia vuelve al balón 1.';
       redraw();
       window.setTimeout(redraw, 1_050);
+    };
+    const showExplicitStart = () => {
+      progress.hidden = true;
+      status.hidden = true;
+      continueButton.hidden = false;
+      continueButton.focus();
     };
     const onResize = () => {
       cancelAnimationFrame(resizeFrame);
@@ -230,8 +245,8 @@
         cleanup();
         reject(error);
       };
-      const succeed = () => {
-        if (settled) return;
+      const succeed = (event) => {
+        if (settled || event?.isTrusted !== true || completedCount !== balls.length) return;
         settled = true;
         const completedClicks = [...clicks];
         cleanup();
@@ -244,10 +259,12 @@
       );
       document.addEventListener('keydown', onKeyDown);
       cancel.addEventListener('click', () => fail(new HumanCheckCancelledError('Verificación visual cancelada.')));
+      continueButton.addEventListener('click', succeed);
 
       canvas.addEventListener('pointerdown', (event) => {
         event.preventDefault();
         if (event.isTrusted !== true || !['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
+        if (completedCount === balls.length) return;
         const point = canvasPoint(canvas, event);
         const expected = balls[completedCount];
         if (!expected || !hitBall(point, expected)) {
@@ -265,11 +282,11 @@
         completedCount += 1;
         progress.textContent = `${completedCount} / ${balls.length}`;
         status.textContent = completedCount === balls.length
-          ? 'Orden correcto. Preparando el intento…'
+          ? 'Orden correcto. Pulsa “Empezar intento” cuando estés preparado.'
           : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
         redraw();
 
-        if (completedCount === balls.length) window.setTimeout(succeed, 180);
+        if (completedCount === balls.length) showExplicitStart();
       }, { passive: false });
     });
   }
