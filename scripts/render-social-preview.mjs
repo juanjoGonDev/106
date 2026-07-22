@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import process from 'node:process';
 
 const ROOT = process.cwd();
@@ -9,6 +10,9 @@ const OUTPUTS = [
   resolve(ROOT, 'public/assets/social-preview-v2.png'),
   resolve(ROOT, 'assets/social-preview-v2.png'),
   resolve(ROOT, 'public/public/assets/social-preview-v2.png'),
+  resolve(ROOT, 'public/assets/social-preview.png'),
+  resolve(ROOT, 'assets/social-preview.png'),
+  resolve(ROOT, 'public/public/assets/social-preview.png'),
 ];
 const PRIMARY_OUTPUT = OUTPUTS[0];
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -47,7 +51,7 @@ function rendererArguments(executable) {
       '--force-device-scale-factor=1',
       '--window-size=1200,630',
       `--screenshot=${PRIMARY_OUTPUT}`,
-      new URL(`file://${SOURCE}`).href,
+      pathToFileURL(SOURCE).href,
     ];
   }
   if (name.endsWith('magick') || name.endsWith('magick.exe')) {
