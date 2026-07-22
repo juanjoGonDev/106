@@ -51,6 +51,42 @@ jobs:
           echo "site_url=$site_url" >> "$GITHUB_OUTPUT"
           echo "Detected Pages mode: $build_type ($site_url)"
 
+      - name: Wait for compatible readiness backend
+        shell: bash
+        env:
+          SUPABASE_FUNCTIONS_URL: ${{ vars.SUPABASE_FUNCTIONS_URL }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          functions_url="${SUPABASE_FUNCTIONS_URL%/}"
+          test -n "$functions_url" || (echo 'Missing SUPABASE_FUNCTIONS_URL variable' && exit 1)
+
+          if [[ "$functions_url" == */functions/v1 ]]; then
+            readiness_url="$functions_url/game-ready-api"
+          else
+            readiness_url="${functions_url%/*}/game-ready-api"
+          fi
+          origin="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"
+
+          for attempt in $(seq 1 90); do
+            response="$(curl --silent --show-error --connect-timeout 5 --max-time 10 \
+              --header 'content-type: application/json' \
+              --header "origin: $origin" \
+              --data '{"action":"health"}' \
+              "$readiness_url" || true)"
+
+            if jq -e '.ok == true and .contract == "prepared-countdown-v1"' <<<"$response" >/dev/null 2>&1; then
+              echo "Compatible readiness backend is available at attempt $attempt."
+              exit 0
+            fi
+
+            echo "Waiting for compatible readiness backend ($attempt/90)…"
+            sleep 5
+          done
+
+          echo 'The compatible Supabase readiness backend was not available before the Pages deployment deadline.'
+          exit 1
+
       - name: Generate public runtime config
         run: node scripts/generate-config.mjs
         env:
