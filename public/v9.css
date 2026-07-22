@@ -1,4 +1,4 @@
-/* Trophy history, explicit visual-check continuation, and share destinations. */
+/* Trophy history, explicit visual-check readiness, countdown, and share destinations. */
 .app-share-dialog {
   width: min(94vw, 34rem);
   border: 1px solid rgba(244, 201, 93, .35);
@@ -16,10 +16,15 @@
 .share-destinations a { display: flex; align-items: center; justify-content: center; min-height: 3rem; border-radius: .8rem; text-decoration: none; font-weight: 800; background: #f4c95d; color: #11141b; }
 .share-destinations a:hover, .share-destinations a:focus-visible { transform: translateY(-1px); filter: brightness(1.06); }
 
-.human-check-panel { min-height: min(38rem, calc(100dvh - 2rem)); display: grid; grid-template-rows: auto 1.5rem minmax(16rem, 1fr) 3rem auto; align-content: stretch; }
-.human-check-progress[hidden], .human-check-status[hidden] { visibility: hidden; display: block !important; }
-.human-check-continue { align-self: center; width: 100%; min-height: 3rem; }
-.human-check-canvas { min-height: 16rem; }
+.human-check-panel { min-height: min(38rem, calc(100dvh - 2rem)); display: grid; grid-template-rows: auto 1.5rem minmax(16rem, 1fr) minmax(5.25rem, auto) auto; align-content: stretch; }
+.human-check-progress[hidden] { visibility: hidden; display: block !important; }
+.human-check-action-stage { min-height: 5.25rem; display: grid; place-items: center; text-align: center; }
+.human-check-action-stage > * { grid-area: 1 / 1; }
+.human-check-status { margin: 0; align-self: center; }
+.human-check-continue { align-self: center; width: min(100%, 28rem); min-height: 3.5rem; }
+.human-check-countdown { color: #f4c95d; font-size: clamp(4rem, 16vw, 7rem); font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 0 2rem rgba(244, 201, 93, .38); }
+.human-check-canvas { min-height: 16rem; transition: opacity 160ms ease; }
+.human-check-overlay[data-phase="countdown"] .human-check-canvas { opacity: .62; }
 
 .honours-summary { margin-top: 1rem; }
 .honours-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
@@ -37,5 +42,10 @@
 
 @media (max-width: 620px) {
   .share-destinations, .honours-counts { grid-template-columns: 1fr; }
-  .human-check-panel { min-height: calc(100dvh - 1rem); grid-template-rows: auto 1.5rem minmax(15rem, 1fr) 3.5rem auto; }
+  .human-check-panel { min-height: calc(100dvh - 1rem); grid-template-rows: auto 1.5rem minmax(14rem, 1fr) minmax(5.5rem, auto) auto; }
+  .human-check-action-stage { min-height: 5.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .human-check-canvas { transition: none; }
 }

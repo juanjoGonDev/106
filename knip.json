@@ -8,6 +8,7 @@
     "public/compliance.js",
     "public/competition.js",
     "public/format.js",
+    "public/human-check-ready-flow.js",
     "public/human-check.js",
     "public/honours.js",
     "public/share-actions.js",
@@ -21,7 +22,8 @@
     "public/v3.js",
     "public/v4.js",
     "scripts/*.mjs",
-    "tests/**/*.test.js"
+    "tests/**/*.test.js",
+    "tests/**/*.node-test.js"
   ],
   "project": [
     "public/**/*.js",

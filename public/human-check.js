@@ -1,12 +1,16 @@
 (() => {
   const previousFetch = window.fetch.bind(window);
+  const readyFlowApi = window.Minuto106HumanCheckReadyFlow;
   const START_ACTION = 'start';
   const CHECK_ACTION = 'human-check';
   const COMPLETE_ACTION = 'complete-human-check';
   const MAX_SERVER_ATTEMPTS = 2;
   let activeVerification = null;
 
+  if (!readyFlowApi) throw new Error('No se pudo preparar el flujo de verificación del juego.');
+
   class HumanCheckCancelledError extends Error {}
+  class HumanCheckRefreshError extends Error {}
 
   function readBody(init) {
     if (typeof init?.body !== 'string') return null;
@@ -148,6 +152,7 @@
   function createOverlay(balls, expiresAt) {
     const overlay = document.createElement('div');
     overlay.className = 'human-check-overlay';
+    overlay.dataset.phase = readyFlowApi.PHASES.SOLVING;
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'humanCheckTitle');
@@ -157,25 +162,35 @@
     const heading = document.createElement('div');
     heading.className = 'human-check-heading';
     heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Usa ratón, lápiz o pantalla táctil. Si fallas, la secuencia vuelve al balón 1.</p>';
+    const title = heading.querySelector('h2');
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
     progress.setAttribute('aria-live', 'polite');
     const canvas = document.createElement('canvas');
     canvas.className = 'human-check-canvas';
     canvas.setAttribute('aria-label', 'Zona visual de verificación. Pulsa los balones numerados en orden.');
+    const actionStage = document.createElement('div');
+    actionStage.className = 'human-check-action-stage';
     const status = document.createElement('p');
     status.className = 'human-check-status';
     status.setAttribute('aria-live', 'polite');
-    const continueButton = document.createElement('button');
-    continueButton.className = 'primary human-check-continue';
-    continueButton.type = 'button';
-    continueButton.textContent = 'Empezar intento';
-    continueButton.hidden = true;
+    const countdown = document.createElement('strong');
+    countdown.className = 'human-check-countdown';
+    countdown.hidden = true;
+    countdown.setAttribute('role', 'timer');
+    countdown.setAttribute('aria-live', 'assertive');
+    countdown.setAttribute('aria-atomic', 'true');
+    const readyButton = document.createElement('button');
+    readyButton.className = 'primary human-check-continue';
+    readyButton.type = 'button';
+    readyButton.textContent = 'Estoy preparado';
+    readyButton.hidden = true;
     const cancel = document.createElement('button');
     cancel.className = 'ghost human-check-cancel';
     cancel.type = 'button';
     cancel.textContent = 'Cancelar';
-    panel.append(heading, progress, canvas, status, continueButton, cancel);
+    actionStage.append(status, countdown, readyButton);
+    panel.append(heading, progress, canvas, actionStage, cancel);
     overlay.append(panel);
     document.body.append(overlay);
     const unlockViewport = lockViewport();
@@ -195,7 +210,8 @@
     const updateProgress = () => {
       progress.hidden = false;
       status.hidden = false;
-      continueButton.hidden = true;
+      countdown.hidden = true;
+      readyButton.hidden = true;
       progress.textContent = `${completedCount} / ${balls.length}`;
       status.textContent = completedCount === 0
         ? 'Empieza por el balón 1.'
@@ -211,12 +227,6 @@
       redraw();
       window.setTimeout(redraw, 1_050);
     };
-    const showExplicitStart = () => {
-      progress.hidden = true;
-      status.hidden = true;
-      continueButton.hidden = false;
-      continueButton.focus();
-    };
     const onResize = () => {
       cancelAnimationFrame(resizeFrame);
       resizeFrame = requestAnimationFrame(redraw);
@@ -227,13 +237,14 @@
     window.addEventListener('resize', onResize);
 
     return new Promise((resolve, reject) => {
-      let timer = 0;
+      let serverExpiryTimer = 0;
       let settled = false;
-      const onKeyDown = (event) => {
-        if (event.key === 'Escape') fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
-      };
+      let readyFlow = null;
+
       const cleanup = () => {
-        window.clearTimeout(timer);
+        window.clearTimeout(serverExpiryTimer);
+        readyFlow?.dispose();
+        cancelAnimationFrame(resizeFrame);
         window.removeEventListener('resize', onResize);
         document.removeEventListener('keydown', onKeyDown);
         overlay.remove();
@@ -245,26 +256,65 @@
         cleanup();
         reject(error);
       };
-      const succeed = (event) => {
-        if (settled || event?.isTrusted !== true || completedCount !== balls.length) return;
+      const complete = () => {
+        if (settled || completedCount !== balls.length) return;
         settled = true;
         const completedClicks = [...clicks];
         cleanup();
         resolve(completedClicks);
       };
+      const onKeyDown = (event) => {
+        if (event.key !== 'Escape') return;
+        readyFlow?.cancel();
+        fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
+      };
+      const showReadyAction = () => {
+        if (!readyFlow.markSolved()) return;
+        title.textContent = 'Verificación completada';
+        progress.hidden = true;
+        status.hidden = true;
+        countdown.hidden = true;
+        readyButton.disabled = false;
+        readyButton.hidden = false;
+        readyButton.focus();
+      };
+      const beginCountdown = (event) => {
+        if (settled || event?.isTrusted !== true || completedCount !== balls.length) return;
+        readyButton.disabled = true;
+        readyFlow.startCountdown();
+      };
 
-      timer = window.setTimeout(
-        () => fail(new Error('La verificación visual ha caducado. Se generará una nueva.')),
+      readyFlow = readyFlowApi.createReadyCountdownFlow({
+        schedule: window.setTimeout.bind(window),
+        cancelScheduled: window.clearTimeout.bind(window),
+        onPhase: (phase) => { overlay.dataset.phase = phase; },
+        onCountdown: (value) => {
+          title.textContent = 'El intento empieza en';
+          progress.hidden = true;
+          status.hidden = true;
+          readyButton.hidden = true;
+          countdown.hidden = false;
+          countdown.textContent = String(value);
+        },
+        onExpired: () => fail(new HumanCheckRefreshError('Han pasado dos minutos. Resuelve una nueva verificación para jugar.')),
+        onComplete: complete,
+      });
+
+      serverExpiryTimer = window.setTimeout(
+        () => fail(new HumanCheckRefreshError('La verificación visual ha caducado. Se generará una nueva.')),
         Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
       );
       document.addEventListener('keydown', onKeyDown);
-      cancel.addEventListener('click', () => fail(new HumanCheckCancelledError('Verificación visual cancelada.')));
-      continueButton.addEventListener('click', succeed);
+      cancel.addEventListener('click', () => {
+        readyFlow.cancel();
+        fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
+      });
+      readyButton.addEventListener('click', beginCountdown);
 
       canvas.addEventListener('pointerdown', (event) => {
         event.preventDefault();
         if (event.isTrusted !== true || !['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
-        if (completedCount === balls.length) return;
+        if (readyFlow.getPhase() !== readyFlowApi.PHASES.SOLVING) return;
         const point = canvasPoint(canvas, event);
         const expected = balls[completedCount];
         if (!expected || !hitBall(point, expected)) {
@@ -282,11 +332,11 @@
         completedCount += 1;
         progress.textContent = `${completedCount} / ${balls.length}`;
         status.textContent = completedCount === balls.length
-          ? 'Orden correcto. Pulsa “Empezar intento” cuando estés preparado.'
+          ? 'Orden correcto. Pulsa “Estoy preparado” para iniciar la cuenta atrás.'
           : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
         redraw();
 
-        if (completedCount === balls.length) showExplicitStart();
+        if (completedCount === balls.length) showReadyAction();
       }, { passive: false });
     });
   }
@@ -319,23 +369,30 @@
     };
   }
 
+  function isRefreshError(error) {
+    if (error instanceof HumanCheckRefreshError) return true;
+    return /caduc|expir/i.test(String(error instanceof Error ? error.message : error || ''));
+  }
+
   async function obtainProof(input, init) {
     const headers = new Headers(init.headers || {});
     headers.set('content-type', 'application/json');
     const common = { ...init, method: 'POST', headers };
     let lastError = new Error('No se pudo completar la verificación visual.');
+    let serverFailures = 0;
 
-    for (let attempt = 0; attempt < MAX_SERVER_ATTEMPTS; attempt += 1) {
+    while (serverFailures < MAX_SERVER_ATTEMPTS) {
       try {
         const created = await createServerCheck(input, common);
         const clicks = await createOverlay(created.balls, created.expiresAt);
         return await completeServerCheck(input, common, created, clicks);
       } catch (error) {
         if (error instanceof HumanCheckCancelledError) throw error;
+        if (isRefreshError(error)) continue;
+        serverFailures += 1;
         lastError = error instanceof Error ? error : lastError;
       }
     }
-
     throw lastError;
   }
 
