@@ -28,10 +28,11 @@
     return TEAMS[historyTeam] ?? null;
   }
 
-  function teamHtml(value, profile = null) {
+  function teamHtml(value, profile = null, modifier = '') {
     const team = resolveTeam(value, profile);
-    if (!team) return '<span class="player-team player-team--unknown">Selección no disponible</span>';
-    return `<span class="player-team"><span class="flag ${team.flagClass}" aria-hidden="true"></span><span>${team.name}</span></span>`;
+    const className = ['player-team', modifier].filter(Boolean).join(' ');
+    if (!team) return `<span class="${escapeHtml(`${className} player-team--unknown`)}">Selección no disponible</span>`;
+    return `<span class="${escapeHtml(className)}"><span class="flag ${team.flagClass}" aria-hidden="true"></span><span>${team.name}</span></span>`;
   }
 
   function appBaseUrl(baseHref = globalThis.document?.baseURI ?? globalThis.location?.href ?? 'http://localhost/') {
@@ -73,17 +74,31 @@
     return Object.freeze({ nick: normalizeNick(decodedNick), section: normalizeSection(match[2]) });
   }
 
-  function shareUrl(apiBaseUrl, nick, section = 'overview') {
+  function edgeFunctionBaseUrl(apiBaseUrl, functionName) {
     const raw = String(apiBaseUrl ?? '').trim();
-    if (!raw) return playerUrl(nick, section);
+    if (!raw) return null;
     const url = new URL(raw);
-    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/player-share');
-    const normalizedSection = normalizeSection(section);
-    url.pathname += `/${encodeURIComponent(normalizeNick(nick))}`;
-    if (normalizedSection !== 'overview') url.pathname += `/${normalizedSection}`;
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, `/${functionName}`);
     url.search = '';
     url.hash = '';
-    return url.toString();
+    return url;
+  }
+
+  function shareUrl(apiBaseUrl, nick, section = 'overview') {
+    const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
+    if (!edgeUrl) return playerUrl(nick, section);
+    const normalizedSection = normalizeSection(section);
+    edgeUrl.pathname += `/${encodeURIComponent(normalizeNick(nick))}`;
+    if (normalizedSection !== 'overview') edgeUrl.pathname += `/${normalizedSection}`;
+    return edgeUrl.toString();
+  }
+
+  function cardUrl(apiBaseUrl, nick, section = 'overview') {
+    const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
+    if (!edgeUrl) return '';
+    const normalizedSection = normalizeSection(section);
+    edgeUrl.pathname += `/${encodeURIComponent(normalizeNick(nick))}/${normalizedSection === 'overview' ? 'card' : normalizedSection}.png`;
+    return edgeUrl.toString();
   }
 
   function playerLinkHtml({ nick, team, profile, section = 'overview', className = 'player-link', content = null, baseHref }) {
@@ -104,6 +119,8 @@
     SECTIONS,
     TEAMS,
     appBaseUrl,
+    cardUrl,
+    edgeFunctionBaseUrl,
     escapeHtml,
     formatDate,
     normalizeNick,
