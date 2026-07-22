@@ -48,7 +48,7 @@
         }
         const small = player.querySelector('small');
         if (small && team) {
-          const country = small.textContent.split('·')[0]?.trim();
+          const country = small.textContent.split('·')[0]?.trim() || '';
           small.innerHTML = `${ui.teamHtml(team)}<span>${ui.escapeHtml(small.textContent.replace(country, '').replace(/^\s*·\s*/, ''))}</span>`;
         }
       }
@@ -92,13 +92,12 @@
   async function renderAwards(stats) {
     const requestId = ++awardsRequest;
     const awards = stats?.awards || {};
-    const values = await Promise.all([
+    await Promise.all([
       renderAward('#goldenBoot', awards.goldenBoot, ' ms'),
       renderAward('#goldenGlove', awards.goldenGlove, ' ms'),
       renderAward('#goldenBall', awards.goldenBall, ' intentos'),
     ]);
-    if (requestId !== awardsRequest) return null;
-    return values;
+    return requestId === awardsRequest;
   }
 
   async function refreshAwards(preloadedStats = null) {
@@ -107,10 +106,17 @@
     if (stats?.awards) await renderAwards(stats);
   }
 
+  function stopLegacyProfileHandler(event) {
+    if (event.target.closest('.leaderboard-row-link')) event.stopImmediatePropagation();
+  }
+
   function initialize() {
     enhanceLeaderboard();
     const leaderboard = document.querySelector('#leaderboard');
-    if (leaderboard) new MutationObserver(enhanceLeaderboard).observe(leaderboard, { childList: true });
+    if (leaderboard) {
+      new MutationObserver(enhanceLeaderboard).observe(leaderboard, { childList: true });
+      leaderboard.addEventListener('click', stopLegacyProfileHandler, true);
+    }
     refreshAwards();
     document.addEventListener('minuto106:attempt-finished', (event) => refreshAwards(event.detail?.stats));
   }
