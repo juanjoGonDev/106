@@ -54,6 +54,9 @@ leagues="$(count_table game_leagues)"
 league_members="$(count_table game_league_members)"
 accounts="$(count_table game_accounts)"
 account_players="$(count_table game_account_players)"
+trophy_runs="$(count_table game_trophy_award_runs)"
+trophies="$(count_table game_daily_trophies)"
+achievements="$(count_table game_player_achievements)"
 
 mkdir -p "$(dirname "$output_path")"
 jq -n \
@@ -70,7 +73,10 @@ jq -n \
   --argjson leagueMembers "$league_members" \
   --argjson accounts "$accounts" \
   --argjson accountPlayers "$account_players" \
-  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts, duels: $duels, completedDuels: $completedDuels, leagues: $leagues, leagueMembers: $leagueMembers, accounts: $accounts, accountPlayers: $accountPlayers}' \
+  --argjson trophyRuns "$trophy_runs" \
+  --argjson trophies "$trophies" \
+  --argjson achievements "$achievements" \
+  '{capturedAt: $capturedAt, attempts: $attempts, verifiedAttempts: $verifiedAttempts, players: $players, referrals: $referrals, completedReferrals: $completedReferrals, bonusAttempts: $bonusAttempts, duels: $duels, completedDuels: $completedDuels, leagues: $leagues, leagueMembers: $leagueMembers, accounts: $accounts, accountPlayers: $accountPlayers, trophyRuns: $trophyRuns, trophies: $trophies, achievements: $achievements}' \
   > "$output_path"
 
 cat "$output_path"

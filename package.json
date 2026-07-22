@@ -1,6 +1,6 @@
 {
   "name": "minuto-106",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.15.1",
@@ -27,8 +27,8 @@
     "knip": "knip",
     "test": "vitest run",
     "test:security": "vitest run tests/security",
-    "test:supabase": "node scripts/test-supabase-local.mjs && node scripts/test-mobile-touch-local.mjs",
-    "check:syntax": "node --check public/layout.js && node --check public/app.js && node --check public/stop-control.js && node --check public/human-check.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/account.js && node --check public/compliance.js && node --check public/format.js && node --check public/competition.js && node --check public/profile-overlay.js && node --check public/player-stats.js && node --check public/profile-enhancements.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/runtime-config.mjs && node --check scripts/validate-runtime-config.mjs && node --check scripts/build-allowed-origins.mjs && node --check scripts/check-snapshot-db.mjs && node --check scripts/render-social-preview.mjs && node --check scripts/serve.mjs && node --check scripts/supabase-local.mjs && node --check scripts/check-package-policy.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs && node --check scripts/test-supabase-local.mjs && node --check scripts/test-mobile-touch-local.mjs",
+    "test:supabase": "node scripts/test-supabase-local.mjs && node scripts/test-mobile-touch-local.mjs && node scripts/test-trophies-local.mjs",
+    "check:syntax": "node --check public/layout.js && node --check public/app.js && node --check public/stop-control.js && node --check public/human-check.js && node --check public/honours.js && node --check public/share-actions.js && node --check public/v3.js && node --check public/v4.js && node --check public/access.js && node --check public/account.js && node --check public/compliance.js && node --check public/format.js && node --check public/competition.js && node --check public/profile-overlay.js && node --check public/player-stats.js && node --check public/profile-enhancements.js && node --check public/ranking.js && node --check public/ligas.js && node --check scripts/generate-config.mjs && node --check scripts/runtime-config.mjs && node --check scripts/validate-runtime-config.mjs && node --check scripts/build-allowed-origins.mjs && node --check scripts/check-snapshot-db.mjs && node --check scripts/render-social-preview.mjs && node --check scripts/serve.mjs && node --check scripts/supabase-local.mjs && node --check scripts/check-package-policy.mjs && node --check scripts/check-production-migrations.mjs && node --check scripts/compare-production-snapshots.mjs && node --check scripts/test-supabase-local.mjs && node --check scripts/test-mobile-touch-local.mjs && node --check scripts/test-trophies-local.mjs",
     "check": "pnpm check:package-policy && pnpm check:syntax && pnpm lint && pnpm knip && pnpm test"
   },
   "devDependencies": {

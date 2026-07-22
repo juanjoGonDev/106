@@ -22,6 +22,9 @@ const monotonicMetrics = [
   'leagueMembers',
   'accounts',
   'accountPlayers',
+  'trophyRuns',
+  'trophies',
+  'achievements',
 ];
 
 const regressions = [];
