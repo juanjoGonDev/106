@@ -4,6 +4,7 @@
     spain: Object.freeze({ key: 'spain', name: 'España', flagClass: 'flag--spain' }),
     argentina: Object.freeze({ key: 'argentina', name: 'Argentina', flagClass: 'flag--argentina' }),
   });
+  const hasTeam = (value) => Object.hasOwn(TEAMS, String(value ?? ''));
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
@@ -21,11 +22,11 @@
 
   function resolveTeam(value, profile = null) {
     const direct = String(value ?? '');
-    if (TEAMS[direct]) return TEAMS[direct];
+    if (hasTeam(direct)) return TEAMS[direct];
     const profileTeam = String(profile?.team ?? '');
-    if (TEAMS[profileTeam]) return TEAMS[profileTeam];
-    const historyTeam = String(profile?.history?.find((attempt) => TEAMS[attempt?.team])?.team ?? '');
-    return TEAMS[historyTeam] ?? null;
+    if (hasTeam(profileTeam)) return TEAMS[profileTeam];
+    const historyTeam = String(profile?.history?.find((attempt) => hasTeam(attempt?.team))?.team ?? '');
+    return hasTeam(historyTeam) ? TEAMS[historyTeam] : null;
   }
 
   function teamHtml(value, profile = null, modifier = '') {
