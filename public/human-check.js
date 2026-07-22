@@ -230,7 +230,7 @@
       hideLoading();
       overlay.dataset.phase = 'solving';
       let completedCount = 0;
-      let sequenceStartedAt = performance.now();
+      const sequenceStartedAt = performance.now();
       const clicks = [];
 
       const redraw = () => drawCaptchaScene(canvas, balls, completedCount);
