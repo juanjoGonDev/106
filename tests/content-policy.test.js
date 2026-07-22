@@ -1,14 +1,13 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import process from 'node:process';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();
 const INCLUDED_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.sql', '.svg', '.ts', '.yaml', '.yml']);
-const IGNORED_DIRECTORIES = new Set(['.git', 'node_modules']);
+const IGNORED_DIRECTORIES = new Set(['.git', '.tmp', 'node_modules']);
 const IGNORED_FILES = new Set(['pnpm-lock.yaml', 'tests/content-policy.test.js']);
-const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const SITE_CARD_URL = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
 
 function extension(path) {
   const index = path.lastIndexOf('.');
@@ -48,36 +47,41 @@ describe('public product language', () => {
     expect(legalPages).toContain('Última actualización: 22 de julio de 2026');
   });
 
-  it('publishes a favicon, manifest and a rendered rivalry social image', () => {
-    execFileSync(process.execPath, ['scripts/render-social-preview.mjs'], { cwd: ROOT, stdio: 'pipe' });
-
+  it('publishes crawler-first metadata backed by a live 1200x630 PNG endpoint', () => {
     const index = readFileSync('public/index.html', 'utf8');
     const rootIndex = readFileSync('index.html', 'utf8');
     const favicon = readFileSync('public/assets/favicon.svg', 'utf8');
-    const previewVector = readFileSync('public/assets/social-preview.svg', 'utf8');
-    const preview = readFileSync('public/assets/social-preview-v2.png');
-    const rootPreview = readFileSync('assets/social-preview-v2.png');
-    const artifactPreview = readFileSync('public/public/assets/social-preview-v2.png');
-    const compatibilityPreview = readFileSync('public/assets/social-preview.png');
+    const playerTemplate = readFileSync('supabase/functions/player-share/player-card-template.svg', 'utf8');
+    const siteTemplate = readFileSync('supabase/functions/player-share/site-card-template.svg', 'utf8');
+    const edge = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
     const manifest = JSON.parse(readFileSync('public/site.webmanifest', 'utf8'));
-    const v2PreviewUrl = 'https://juanjogondev.github.io/106/public/assets/social-preview-v2.png';
-    const compatibilityUrl = 'https://juanjogondev.github.io/106/public/assets/social-preview.png';
 
     expect(index).toContain('rel="icon" href="./assets/favicon.svg"');
     expect(index).toContain('rel="manifest" href="./site.webmanifest"');
-    expect(index).toContain(compatibilityUrl);
-    expect(rootIndex).toContain(v2PreviewUrl);
+    expect(index).toContain(SITE_CARD_URL);
+    expect(rootIndex).toContain(SITE_CARD_URL);
+    expect(index).toContain('name="twitter:card" content="summary_large_image"');
+    expect(rootIndex).toContain('name="twitter:image:src"');
+    expect(index).not.toContain('/public/assets/social-preview');
+    expect(rootIndex).not.toContain('/public/assets/social-preview');
     expect(favicon).toContain('106');
-    expect(previewVector).toContain('ESPAÑA');
-    expect(previewVector).toContain('ARGENTINA');
-    expect(previewVector).toContain('¿PUEDES CLAVAR EL 10.600?');
-    expect(preview.subarray(0, PNG_SIGNATURE.length)).toEqual(PNG_SIGNATURE);
-    expect(rootPreview).toEqual(preview);
-    expect(artifactPreview).toEqual(preview);
-    expect(compatibilityPreview).toEqual(preview);
-    expect(preview.readUInt32BE(16)).toBe(1200);
-    expect(preview.readUInt32BE(20)).toBe(630);
+    expect(playerTemplate).toContain('width="1200" height="630"');
+    expect(siteTemplate).toContain('width="1200" height="630"');
+    expect(playerTemplate).toContain('x="32" y="32" width="1136" height="566"');
+    expect(siteTemplate).toContain('x="32" y="32" width="1136" height="566"');
+    expect(edge).toContain("const SITE_ROUTE = '_site'");
+    expect(edge).toContain('async function siteCardResponse');
+    expect(edge).toContain("loadTemplate('site-card-template.svg'");
     expect(manifest.icons[0].src).toBe('./assets/favicon.svg');
+
+    for (const obsolete of [
+      'assets/social-preview.png',
+      'public/assets/social-preview.png',
+      'public/assets/social-preview.svg',
+      'public/assets/player-card-template.svg',
+      'public/public/assets/social-preview.png',
+      'scripts/render-social-preview.mjs',
+    ]) expect(existsSync(obsolete), obsolete).toBe(false);
   });
 
   it('runs the production backend workflow only for backend-affecting paths', () => {
