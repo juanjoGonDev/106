@@ -10,22 +10,68 @@
   const messageQueue = [];
   let activeMessage = null;
 
-  function ensureSharedStylesheet() {
-    if (document.querySelector('link[data-minuto106-shared]')) return;
+  function ensureStylesheet(href, marker) {
+    const existing = document.querySelector(`link[rel="stylesheet"][href="${href}"]`);
+    if (existing) {
+      existing.setAttribute(marker, 'true');
+      return existing;
+    }
     const stylesheet = document.createElement('link');
     stylesheet.rel = 'stylesheet';
-    stylesheet.href = './v9.css';
-    stylesheet.dataset.minuto106Shared = 'true';
+    stylesheet.href = href;
+    stylesheet.setAttribute(marker, 'true');
     document.head.append(stylesheet);
+    return stylesheet;
+  }
+
+  function ensureClassicScript(src, marker, target = document.head) {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.setAttribute(marker, 'true');
+      return existing;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.setAttribute(marker, 'true');
+    target.append(script);
+    return script;
+  }
+
+  function ensureSharedStylesheet() {
+    ensureStylesheet('./v9.css', 'data-minuto106-shared');
   }
 
   function ensureHonoursEnhancement() {
-    if (document.querySelector('script[data-minuto106-honours]')) return;
-    const script = document.createElement('script');
-    script.src = './honours.js';
-    script.async = false;
-    script.dataset.minuto106Honours = 'true';
-    document.head.append(script);
+    ensureClassicScript('./honours.js', 'data-minuto106-honours');
+  }
+
+  function ensureComplianceEnhancement() {
+    ensureClassicScript('./compliance.js', 'data-minuto106-compliance', document.body);
+  }
+
+  function createPrivacyBanner() {
+    const banner = document.createElement('section');
+    banner.id = 'cookieBanner';
+    banner.className = 'cookie-banner';
+    banner.hidden = true;
+    banner.setAttribute('aria-label', 'Preferencias de privacidad');
+    banner.innerHTML = '<div><strong>Analítica opcional</strong><p>Google Tag Manager está instalado con el almacenamiento denegado por defecto. Google Analytics solo se activa si lo aceptas.</p><a href="./cookies.html">Más información</a></div><div class="cookie-actions"><button id="rejectCookies" class="secondary" type="button">Rechazar</button><button id="configureCookies" class="ghost" type="button">Configurar</button><button id="acceptCookies" class="secondary" type="button">Aceptar</button></div>';
+    return banner;
+  }
+
+  function createPrivacyDialog() {
+    const dialog = document.createElement('dialog');
+    dialog.id = 'cookieDialog';
+    dialog.className = 'cookie-dialog';
+    dialog.setAttribute('aria-labelledby', 'cookieDialogTitle');
+    dialog.innerHTML = '<h2 id="cookieDialogTitle">Privacidad y almacenamiento</h2><label id="analyticsConsentRow"><input id="analyticsConsent" type="checkbox"> Analítica con Google Analytics</label><label id="adsConsentRow"><input id="adsConsent" type="checkbox"> Publicidad y medición publicitaria</label><p id="optionalConsentCopy">El almacenamiento técnico necesario permanece activo.</p><div class="cookie-actions"><button id="saveCookieSettings" class="secondary" type="button">Guardar preferencias</button><button id="closeCookieDialog" class="ghost" type="button">Cancelar</button></div>';
+    return dialog;
+  }
+
+  function renderPrivacyComponents() {
+    if (!document.querySelector('#cookieBanner')) document.body.append(createPrivacyBanner());
+    if (!document.querySelector('#cookieDialog')) document.body.append(createPrivacyDialog());
   }
 
   function setNavigationOpen(header, button, open) {
@@ -118,18 +164,11 @@
       anchor.textContent = label;
       footerNavigation.append(anchor);
     }
-    if (document.querySelector('#cookieDialog')) {
-      const privacyButton = document.createElement('button');
-      privacyButton.id = 'openCookieSettings';
-      privacyButton.type = 'button';
-      privacyButton.textContent = 'Gestionar cookies';
-      footerNavigation.append(privacyButton);
-    } else {
-      const privacyLink = document.createElement('a');
-      privacyLink.href = './cookies.html';
-      privacyLink.textContent = 'Gestionar cookies';
-      footerNavigation.append(privacyLink);
-    }
+    const privacyButton = document.createElement('button');
+    privacyButton.id = 'openCookieSettings';
+    privacyButton.type = 'button';
+    privacyButton.textContent = 'Gestionar cookies';
+    footerNavigation.append(privacyButton);
     footer.append(copyright, footerNavigation);
     if (!footer.isConnected) document.body.append(footer);
   }
@@ -381,8 +420,10 @@
 
   ensureSharedStylesheet();
   ensureHonoursEnhancement();
+  renderPrivacyComponents();
   renderSiteChrome();
   enhanceDialogs();
   buildGameColumns();
+  ensureComplianceEnhancement();
   document.addEventListener('minuto106:dialog-created', enhanceDialogs);
 })();

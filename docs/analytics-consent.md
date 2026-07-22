@@ -1,10 +1,12 @@
 # Analytics and consent operations
 
-## Installed container
+## Shared implementation
 
-The public pages load Google Tag Manager container `GTM-NKZK4DC5` near the start of `<head>` and include the standard no-script fallback immediately after `<body>`.
+Every content page loads `privacy-bootstrap.js` as the first script in `<head>`. That single module initializes Consent Mode v2, restores a non-expired first-party choice, and loads Google Tag Manager container `GTM-NKZK4DC5`. The full inline bootstrap is not duplicated across pages.
 
-Consent Mode v2 is initialized before the container. `analytics_storage`, `ad_storage`, `ad_user_data`, and `ad_personalization` default to `denied` unless a non-expired saved choice grants the corresponding category. The site updates those values when a visitor accepts, rejects, changes, or withdraws consent.
+`layout.js` owns the shared privacy banner, preference dialog, footer entry point, privacy chip integration, shared stylesheet detection, and loading of `compliance.js`. Content pages contain no duplicated consent UI. The standard GTM `<noscript>` iframe remains in each HTML document because it must work when JavaScript—and therefore the client-side layout—is unavailable. Introducing a build-time template engine solely to remove that mandatory fallback would add more architecture than it removes.
+
+Consent defaults are set before GTM. `analytics_storage`, `ad_storage`, `ad_user_data`, and `ad_personalization` are denied unless a saved choice made within the previous 24 months grants the category. The site updates those values when a visitor accepts, rejects, changes, or withdraws consent.
 
 ## Required GTM configuration
 
@@ -28,6 +30,5 @@ Repository code cannot inspect or publish the remote GTM workspace. Before treat
 ## Primary references reviewed on 2026-07-22
 
 - Google Tag Manager web-container installation documentation.
-- Google Consent Mode v2 website implementation documentation.
-- Google Analytics 4 cookie and data-collection documentation.
-- Spanish Data Protection Agency guidance requiring informed prior consent and equal prominence for accepting and rejecting optional cookies.
+- Google Consent Mode v2 website implementation and Tag Assistant debugging documentation.
+- Spanish Data Protection Agency cookie guidance requiring informed prior consent and equal prominence for accepting and rejecting optional cookies.

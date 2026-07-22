@@ -10,53 +10,73 @@ const pages = [
   'public/privacidad.html',
   'public/legal.html',
 ];
+const bootstrap = readFileSync('public/privacy-bootstrap.js', 'utf8');
 const compliance = readFileSync('public/compliance.js', 'utf8');
+const layout = readFileSync('public/layout.js', 'utf8');
 
 function read(path) {
   return readFileSync(path, 'utf8');
 }
 
-describe('Google Tag Manager and consent', () => {
-  it.each(pages)('installs GTM at the top and noscript immediately after body in %s', (path) => {
+describe('Google Tag Manager and consent components', () => {
+  it.each(pages)('uses the shared head bootstrap and immediate noscript fallback in %s', (path) => {
     const html = read(path);
     const head = html.indexOf('<head>');
-    const consentDefault = html.search(/gtag\('consent',\s*'default'/);
-    const container = html.indexOf('GTM-NKZK4DC5');
+    const bootstrapScript = html.indexOf('<script src="./privacy-bootstrap.js"></script>');
     const meta = html.indexOf('<meta charset');
     const body = html.indexOf('<body>');
     const noscript = html.indexOf('googletagmanager.com/ns.html?id=GTM-NKZK4DC5');
     const header = html.indexOf('<header');
 
-    expect(consentDefault).toBeGreaterThan(head);
-    expect(consentDefault).toBeLessThan(container);
-    expect(container).toBeLessThan(meta);
+    expect(bootstrapScript).toBeGreaterThan(head);
+    expect(bootstrapScript).toBeLessThan(meta);
+    expect((html.match(/privacy-bootstrap\.js/g) || [])).toHaveLength(1);
+    expect(html).not.toContain('(function(w,d,s,l,i)');
+    expect(html).not.toContain("gtag('consent', 'default'");
     expect(noscript).toBeGreaterThan(body);
     expect(noscript).toBeLessThan(header);
-    expect(html).toContain('./compliance.js');
   });
 
-  it('defaults Consent Mode v2 to denied and updates all Google consent types', () => {
-    const index = read('public/index.html');
-    expect(index).toContain('analytics_storage: granted(consent.analytics)');
-    expect(index).toContain('ad_user_data: granted(consent.ads)');
-    expect(index).toContain('ad_personalization: granted(consent.ads)');
-    expect(index).toContain("window.gtag('set', 'ads_data_redaction', true)");
+  it('sets Consent Mode v2 before loading the shared GTM container', () => {
+    const defaultConsent = bootstrap.indexOf("gtag('consent', 'default'");
+    const loadContainer = bootstrap.lastIndexOf('loadTagManager();');
+    expect(defaultConsent).toBeGreaterThan(-1);
+    expect(defaultConsent).toBeLessThan(loadContainer);
+    expect(bootstrap).toContain("const TAG_MANAGER_ID = 'GTM-NKZK4DC5'");
+    expect(bootstrap).toContain('analytics_storage:');
+    expect(bootstrap).toContain('ad_user_data:');
+    expect(bootstrap).toContain('ad_personalization:');
+    expect(bootstrap).toContain("gtag('set', 'ads_data_redaction', true)");
+  });
+
+  it('renders privacy UI and compliance behavior once through the shared layout', () => {
+    for (const path of pages) {
+      const html = read(path);
+      expect(html).not.toContain('id="cookieBanner"');
+      expect(html).not.toContain('id="cookieDialog"');
+      expect(html).not.toContain('<script src="./compliance.js"></script>');
+      expect(html.indexOf('./config.js')).toBeLessThan(html.indexOf('./layout.js'));
+    }
+    expect(layout).toContain('function createPrivacyBanner()');
+    expect(layout).toContain('function createPrivacyDialog()');
+    expect(layout).toContain('renderPrivacyComponents();');
+    expect(layout).toContain("ensureClassicScript('./compliance.js'");
+    expect(layout).toContain("ensureStylesheet('./v9.css'");
+  });
+
+  it('updates consent, supports withdrawal, and does not load a second direct Analytics tag', () => {
     expect(compliance).toContain("gtag('consent', 'update'");
     expect(compliance).toContain("event: 'minuto106_consent_update'");
-  });
-
-  it('does not load a second direct Google Analytics tag', () => {
+    expect(compliance).toContain("chip.addEventListener('click', openSettings)");
+    expect(compliance).toContain('clearAnalyticsCookies');
     expect(compliance).not.toContain('googletagmanager.com/gtag/js');
     expect(compliance).not.toContain("gtag('config'");
   });
 
-  it('gives accept and reject equal visual weight and supports later withdrawal', () => {
-    const index = read('public/index.html');
-    expect(index).toContain('id="rejectCookies" class="secondary"');
-    expect(index).toContain('id="acceptCookies" class="secondary"');
-    expect(compliance).toContain("chip.addEventListener('click', openSettings)");
-    expect(compliance).toContain('clearAnalyticsCookies');
-    expect(compliance).toContain('CONSENT_MAX_AGE_MS = 730');
+  it('keeps accept and reject at equal visual prominence in the reusable component', () => {
+    expect(layout).toContain('id="rejectCookies" class="secondary"');
+    expect(layout).toContain('id="acceptCookies" class="secondary"');
+    expect(bootstrap).toContain('CONSENT_MAX_AGE_MS = 730');
   });
 
   it('documents analytics, cookies, consent withdrawal and international transfers', () => {

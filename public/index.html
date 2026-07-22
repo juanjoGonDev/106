@@ -1,26 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = window.gtag || function gtag() { window.dataLayer.push(arguments); };
-    (() => {
-      let consent = {};
-      try { consent = JSON.parse(localStorage.getItem('minuto106:consent-v1') || '{}') || {}; } catch { consent = {}; }
-      const updatedAt = Date.parse(String(consent.updatedAt || ''));
-      const valid = Number.isFinite(updatedAt) && Date.now() - updatedAt >= 0 && Date.now() - updatedAt <= 730 * 24 * 60 * 60 * 1_000;
-      const granted = (value) => valid && value === true ? 'granted' : 'denied';
-      window.gtag('consent', 'default', { analytics_storage: granted(consent.analytics), ad_storage: granted(consent.ads), ad_user_data: granted(consent.ads), ad_personalization: granted(consent.ads), wait_for_update: 500 });
-      window.gtag('set', 'ads_data_redaction', true);
-    })();
-  </script>
-  <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','GTM-NKZK4DC5');</script>
-  <!-- End Google Tag Manager -->
+  <script src="./privacy-bootstrap.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
@@ -86,8 +67,6 @@
   <div id="profileDialog" class="profile-dialog profile-overlay" role="dialog" aria-modal="true" aria-labelledby="publicProfileTitle" hidden><div class="profile-dialog-panel"><button id="closeProfileDialog" class="dialog-close" type="button" aria-label="Cerrar perfil">×</button><div id="publicProfileContent"></div></div></div>
   <canvas id="shareCanvas" width="1200" height="630" hidden></canvas>
   <div id="celebration" class="celebration" hidden aria-live="polite"><div id="confettiLayer" class="confetti-layer"></div><img id="celebrationBall" class="celebration-ball" src="./assets/football.svg" alt=""><div class="celebration-glow"></div><div class="celebration-content"><img class="celebration-trophy" src="./assets/trophy.svg" alt=""><span id="celebrationIcon">★</span><strong id="celebrationTitle"></strong><p id="celebrationText"></p></div></div>
-  <section id="cookieBanner" class="cookie-banner" hidden aria-label="Preferencias de privacidad"><div><strong>Analítica opcional</strong><p>Google Tag Manager está instalado con el almacenamiento denegado por defecto. Google Analytics solo se activa si lo aceptas.</p><a href="./cookies.html">Más información</a></div><div class="cookie-actions"><button id="rejectCookies" class="secondary" type="button">Rechazar</button><button id="configureCookies" class="ghost" type="button">Configurar</button><button id="acceptCookies" class="secondary" type="button">Aceptar</button></div></section>
-  <dialog id="cookieDialog" class="cookie-dialog"><h2>Privacidad y almacenamiento</h2><label id="analyticsConsentRow"><input id="analyticsConsent" type="checkbox"> Analítica con Google Analytics</label><label id="adsConsentRow"><input id="adsConsent" type="checkbox"> Publicidad y medición publicitaria</label><p id="optionalConsentCopy">El almacenamiento técnico necesario permanece activo.</p><div class="cookie-actions"><button id="saveCookieSettings" class="secondary" type="button">Guardar preferencias</button><button id="closeCookieDialog" class="ghost" type="button">Cancelar</button></div></dialog>
-  <script src="./layout.js"></script><script src="./config.js?v=20260722"></script><script src="./access.js"></script><script src="./human-check.js"></script><script src="./compliance.js"></script><script src="./player-stats.js"></script><script src="./stop-control.js"></script><script src="./format.js"></script><script src="./profile-enhancements.js"></script><script type="module" src="./game-viewport.js"></script><script type="module" src="./app.js"></script><script type="module" src="./v3.js"></script><script type="module" src="./v4.js"></script><script type="module" src="./competition.js"></script><script type="module" src="./profile-overlay.js"></script>
+  <script src="./config.js?v=20260722"></script><script src="./layout.js"></script><script src="./access.js"></script><script src="./human-check.js"></script><script src="./player-stats.js"></script><script src="./stop-control.js"></script><script src="./format.js"></script><script src="./profile-enhancements.js"></script><script type="module" src="./game-viewport.js"></script><script type="module" src="./app.js"></script><script type="module" src="./v3.js"></script><script type="module" src="./v4.js"></script><script type="module" src="./competition.js"></script><script type="module" src="./profile-overlay.js"></script>
 </body>
 </html>
