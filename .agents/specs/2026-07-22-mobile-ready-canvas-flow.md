@@ -45,10 +45,16 @@ A solved verification may wait at most two minutes for the ready action. Expiry 
 
 ## Validation
 
-- Node 22 native V8 coverage at 100% lines/functions/branches for the pure readiness and geometry controller.
-- Vitest integration contracts for modal separation, no HTML ready button, persistent regeneration, delayed loading, prepare/activate ordering, stop gating, and responsive layout.
-- Local Supabase journey for prepare, two-minute ready expiry, activation scheduling, one-time activation, mobile touch finish, and replacement captcha geometry.
-- Existing syntax, ESLint, Knip, security, migration lint/rebuild, and production-snapshot checks.
+- Node 22 native V8 coverage: 100% lines, 100% functions, and 100% branches for readiness state, pointer validation, target geometry, and replacement-layout validation.
+- Vitest integration contracts pass for modal separation, no HTML ready button, persistent regeneration, delayed loading, prepare/activate ordering, stop gating, and responsive portrait/landscape layout.
+- Local Supabase journey passes for replacement check IDs and geometry, two-minute proof and preparation lifetimes, pre-activation rejection, exact three-second scheduling, one-time activation, and trusted mobile touch completion.
+- Build configuration and JavaScript syntax pass.
+- ESLint passes with zero warnings.
+- Knip passes with no unused entrypoints or dependencies.
+- Dependency audit and security policy checks pass.
+- Migration application, database lint, full migration rebuild, Edge Function journeys, and post-rebuild smoke checks pass.
+- GitHub Actions run `29944954677` completed with every required job and the quality gate successful.
+- No real-device browser session or screenshot was available in the execution environment; production mobile verification remains a post-deployment check rather than a claimed automated result.
 
 ## Risks
 
@@ -64,8 +70,9 @@ Revert the pull request. The migration is additive; prepared challenge columns a
 
 - Branch: `agent/fix-mobile-ready-canvas-flow`
 - Base: deployed `main` containing PR #11.
+- Pull request: #12.
 - Normal pull request to `main`; no merge or deployment without explicit approval.
 
 ## Status
 
-Implementation in progress.
+Implemented and validated. Ready for review and controlled merge.
