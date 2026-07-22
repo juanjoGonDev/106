@@ -33,7 +33,7 @@ function findPackageJson(root) {
   const pending = [root];
   while (pending.length) {
     const directory = pending.pop();
-    let entries = [];
+    let entries;
     try {
       entries = readdirSync(directory, { withFileTypes: true });
     } catch {
