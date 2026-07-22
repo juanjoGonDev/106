@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Plantilla social de Minuto 106</title>
+  <desc id="desc">Fondo de alto contraste con panel de identidad y pentágono de estadísticas.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#68001b"/>
+      <stop offset="0.48" stop-color="#08090e"/>
+      <stop offset="1" stop-color="#122b5c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="48%" r="54%">
+      <stop offset="0" stop-color="#f4c95d" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#f4c95d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#171a23" stop-opacity=".98"/>
+      <stop offset="1" stop-color="#0c0e14" stop-opacity=".98"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="24" stdDeviation="30" flood-color="#000" flood-opacity=".48"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="28" y="28" width="1144" height="574" rx="36" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <rect x="60" y="70" width="655" height="490" rx="30" fill="url(#panel)" stroke="#f4c95d" stroke-opacity=".24" stroke-width="2"/>
+    <rect x="740" y="70" width="400" height="490" rx="30" fill="#0c0f17" fill-opacity=".96" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
+  </g>
+  <rect x="85" y="92" width="210" height="6" rx="3" fill="#f4c95d"/>
+  <rect x="85" y="532" width="345" height="6" rx="3" fill="#f4c95d" fill-opacity=".48"/>
+  <g fill="none" stroke="#fff" stroke-opacity=".11" stroke-width="2">
+    <path d="M940 178 1060 265 1014 405 866 405 820 265Z" stroke="#f4c95d" stroke-opacity=".35"/>
+    <path d="M940 209 1030 275 996 380 884 380 850 275Z"/>
+    <path d="M940 241 1000 284 977 354 903 354 880 284Z"/>
+    <path d="M940 272 970 294 959 329 921 329 910 294Z"/>
+    <path d="M940 304 940 178M940 304 1060 265M940 304 1014 405M940 304 866 405M940 304 820 265"/>
+  </g>
+  <circle cx="1060" cy="116" r="34" fill="none" stroke="#5ab4ef" stroke-opacity=".32" stroke-width="3"/>
+  <circle cx="1060" cy="116" r="18" fill="none" stroke="#5ab4ef" stroke-opacity=".38" stroke-width="3"/>
+  <g fill="#fff" fill-opacity=".05" stroke="#fff" stroke-opacity=".1">
+    <rect x="85" y="455" width="160" height="55" rx="14"/>
+    <rect x="285" y="455" width="160" height="55" rx="14"/>
+    <rect x="485" y="455" width="160" height="55" rx="14"/>
+  </g>
+</svg>
