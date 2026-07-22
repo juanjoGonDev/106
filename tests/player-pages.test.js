@@ -35,7 +35,7 @@ describe('player pages and ranking links', () => {
     expect(script).toContain('ui.playerUrl(player.nick, section)');
     expect(script).toContain('history.replaceState');
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
-    expect(fallback).toMatch(/player\/\(\[\^\/\]\+\)/);
+    expect(fallback).toContain('(?:player)\\/([^/]+)');
     expect(fallback).toContain('player.html');
   });
 
@@ -67,9 +67,9 @@ describe('dynamic player social card', () => {
     expect(edge).toContain('new ImageResponse');
     expect(edge).toContain('/assets/player-card-template.svg');
     expect(edge).toContain("'Cache-Control': 'public, max-age=300");
-    expect(edge).toContain("route.image ? await cardResponse");
+    expect(edge).toContain('route.image ? await cardResponse');
     expect(template).toContain('width="1200" height="630"');
-    expect(template).toContain('PENTÁGONO');
+    expect(template).toContain('M940 178 1060 265 1014 405 866 405 820 265Z');
   });
 
   it('emits player-specific Open Graph and Twitter metadata', () => {
@@ -93,7 +93,7 @@ describe('dynamic player social card', () => {
     const ranking = read('public/ranking-enhancements.js');
     const honours = read('public/honours.js');
     expect(observer).toContain("action !== 'finish'");
-    expect(observer).toContain("minuto106:attempt-finished");
+    expect(observer).toContain('minuto106:attempt-finished');
     expect(ranking).toContain("document.addEventListener('minuto106:attempt-finished'");
     expect(ranking).toContain("request('stats')");
     expect(honours).toContain("document.addEventListener('minuto106:attempt-finished'");
