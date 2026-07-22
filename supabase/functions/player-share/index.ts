@@ -61,8 +61,55 @@ function parseRoute(request: Request) {
     nick: normalizeNick(nick || url.searchParams.get('nick')),
     section: normalizeSection(tail || url.searchParams.get('section')),
     image: tail.endsWith('.png') || url.searchParams.get('format') === 'png',
-    url,
   };
+}
+
+function firstHeaderValue(request: Request, name: string) {
+  return request.headers.get(name)?.split(',')[0]?.trim() ?? '';
+}
+
+function forwardedParameter(request: Request, name: string) {
+  const forwarded = request.headers.get('forwarded') ?? '';
+  const match = forwarded.match(new RegExp(`(?:^|[;,]\\s*)${name}=(?:"([^"]+)"|([^;,]+))`, 'i'));
+  return (match?.[1] ?? match?.[2] ?? '').trim();
+}
+
+function publicShareBaseUrl(request: Request) {
+  const configured = String(Deno.env.get('PUBLIC_SHARE_BASE_URL') ?? '').trim();
+  if (configured) return new URL(`${configured.replace(/\/$/, '')}/`);
+
+  const host = firstHeaderValue(request, 'x-forwarded-host')
+    || forwardedParameter(request, 'host')
+    || firstHeaderValue(request, 'host');
+  const protocol = firstHeaderValue(request, 'x-forwarded-proto')
+    || forwardedParameter(request, 'proto')
+    || new URL(request.url).protocol.replace(':', '')
+    || 'https';
+  if (host && !host.startsWith('supabase_edge_runtime_')) {
+    return new URL(`${protocol}://${host}/functions/v1/player-share/`);
+  }
+
+  const configuredSupabaseUrl = new URL(supabaseUrl);
+  if (configuredSupabaseUrl.hostname.endsWith('.supabase.co')) {
+    return new URL(`${configuredSupabaseUrl.origin}/functions/v1/player-share/`);
+  }
+
+  const internalUrl = new URL(request.url);
+  return new URL(`${internalUrl.origin}/player-share/`);
+}
+
+function playerShareUrl(request: Request, nick: string, section: string) {
+  const url = publicShareBaseUrl(request);
+  const suffix = section === 'overview' ? '' : `/${section}`;
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/${encodeURIComponent(nick)}${suffix}`;
+  return url;
+}
+
+function playerImageUrl(request: Request, nick: string, section: string) {
+  const url = publicShareBaseUrl(request);
+  const imageName = section === 'overview' ? 'card' : section;
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/${encodeURIComponent(nick)}/${imageName}.png`;
+  return url;
 }
 
 function encodeSvgDataUri(svg: string) {
@@ -223,29 +270,18 @@ async function cardResponse(profile: Record<string, unknown>, section: string) {
   });
 }
 
-function playerImageUrl(requestUrl: URL, nick: string, section: string) {
-  const imageName = section === 'overview' ? 'card' : section;
-  const parts = requestUrl.pathname.split('/').filter(Boolean);
-  const functionIndex = parts.lastIndexOf('player-share');
-  const functionPath = functionIndex >= 0 ? parts.slice(0, functionIndex + 1) : ['functions', 'v1', 'player-share'];
-  const imageUrl = new URL(requestUrl);
-  imageUrl.pathname = `/${functionPath.join('/')}/${encodeURIComponent(nick)}/${imageName}.png`;
-  imageUrl.search = '';
-  imageUrl.hash = '';
-  return imageUrl;
-}
-
-function htmlResponse(requestUrl: URL, profile: Record<string, unknown>, section: string) {
+function htmlResponse(request: Request, profile: Record<string, unknown>, section: string) {
   const siteUrl = String(Deno.env.get('PUBLIC_SITE_URL') || DEFAULT_SITE_URL).replace(/\/$/, '');
   const nick = String(profile.nick || 'Jugador');
   const suffix = section === 'overview' ? '' : `/${section}`;
   const canonical = `${siteUrl}/player/${encodeURIComponent(nick)}${suffix}`;
-  const imageUrl = playerImageUrl(requestUrl, nick, section);
+  const shareUrl = playerShareUrl(request, nick, section);
+  const imageUrl = playerImageUrl(request, nick, section);
   const trophies = Number((profile.trophies as Record<string, unknown> | undefined)?.total || 0);
   const achievements = Number((profile.achievements as Record<string, unknown> | undefined)?.total || 0);
   const title = `${nick} · Minuto 106`;
   const description = `${nick}: ${difference(profile.bestDifferenceMs)}, ${trophies} trofeos, ${achievements} logros y ${Number((profile.achievements as Record<string, unknown> | undefined)?.points || 0)} puntos.`;
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:locale" content="es_ES"><meta property="og:type" content="profile"><meta property="og:site_name" content="Minuto 106"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(requestUrl.toString())}"><meta property="og:image" content="${escapeHtml(imageUrl.toString())}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(imageUrl.toString())}"><meta http-equiv="refresh" content="0;url=${escapeHtml(canonical)}"><script>location.replace(${JSON.stringify(canonical)})</script></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><p><a href="${escapeHtml(canonical)}">Abrir perfil</a></p></main></body></html>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:locale" content="es_ES"><meta property="og:type" content="profile"><meta property="og:site_name" content="Minuto 106"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(shareUrl.toString())}"><meta property="og:image" content="${escapeHtml(imageUrl.toString())}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><meta name="twitter:image" content="${escapeHtml(imageUrl.toString())}"><meta http-equiv="refresh" content="0;url=${escapeHtml(canonical)}"><script>location.replace(${JSON.stringify(canonical)})</script></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><p><a href="${escapeHtml(canonical)}">Abrir perfil</a></p></main></body></html>`;
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
@@ -266,7 +302,7 @@ Deno.serve(async (request) => {
     const profile = await getProfile(route.nick);
     if (!profile?.nick) return new Response('Jugador no encontrado', { status: 404 });
     if (request.method === 'HEAD') return new Response(null, { status: 200, headers: { 'Content-Type': route.image ? 'image/png' : 'text/html; charset=utf-8' } });
-    return route.image ? await cardResponse(profile, route.section) : htmlResponse(route.url, profile, route.section);
+    return route.image ? await cardResponse(profile, route.section) : htmlResponse(request, profile, route.section);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     return new Response('No se pudo generar el perfil compartido.', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
