@@ -26,13 +26,14 @@
     "public/v4.js",
     "scripts/*.mjs",
     "tests/**/*.test.js",
-    "tests/**/*.node-test.js"
+    "tests/**/*.node-test.js",
+    "tests/e2e/**/*.e2e.js",
+    "playwright.config.js"
   ],
   "project": [
     "public/**/*.js",
     "scripts/**/*.mjs",
     "tests/**/*.js",
-    "eslint.config.js",
     "playwright.config.js"
   ],
   "ignore": [
@@ -42,5 +43,7 @@
   "ignoreBinaries": [
     "supabase"
   ],
-  "ignoreDependencies": []
+  "ignoreDependencies": [
+    "@playwright/test"
+  ]
 }
