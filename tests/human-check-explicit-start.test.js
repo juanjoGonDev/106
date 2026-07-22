@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync('public/human-check.js', 'utf8');
 const flow = readFileSync('public/human-check-ready-flow.js', 'utf8');
+const access = readFileSync('public/access.js', 'utf8');
 const index = readFileSync('public/index.html', 'utf8');
 const styles = readFileSync('public/v9.css', 'utf8');
 const readyApi = readFileSync('supabase/functions/game-ready-api/index.ts', 'utf8');
@@ -62,6 +63,21 @@ describe('captcha, ready canvas, and countdown separation', () => {
     expect(source.match(/createHumanCheckDialog\(\)/g)).toHaveLength(2);
     expect(readyApi).toContain('HUMAN_BALL_REPLACEMENT_DISTANCE = 12');
     expect(readyApi).toContain('createBallLayout(previousBalls)');
+  });
+
+  it('invalidates stale Chrome resize frames before painting a replacement captcha', () => {
+    expect(flow).toContain('function createLatestFrameRenderer');
+    expect(source).toContain('readyFlowApi.createLatestFrameRenderer');
+    expect(source).toContain('frameRenderer.invalidate()');
+    expect(source).toContain('frameRenderer.replace(redraw)');
+    expect(source).toContain('frameRenderer.renderNow();\n      frameRenderer.request();');
+    expect(source).toContain('function onResize() {\n      frameRenderer.request();\n    }');
+    expect(source).not.toContain('requestAnimationFrame(activeRedraw)');
+  });
+
+  it('bootstraps the private account key for the new prepare-start action', () => {
+    expect(access).toMatch(/const protectedActions = new Set\(\[[\s\S]*'prepare-start'/);
+    expect(source).toContain('action: PREPARE_ACTION');
   });
 
   it('expires readiness after two minutes and restarts the full captcha flow', () => {
