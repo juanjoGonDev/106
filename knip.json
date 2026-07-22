@@ -32,5 +32,8 @@
     "public/config.js",
     "supabase/functions/**/*.ts"
   ],
+  "ignoreBinaries": [
+    "supabase"
+  ],
   "ignoreDependencies": []
 }
