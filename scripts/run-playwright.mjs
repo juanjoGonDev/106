@@ -61,6 +61,7 @@ runPnpm(['dlx', PLAYWRIGHT_PACKAGE, '--version']);
 const packageJsonPath = cacheRoots().map(findPackageJson).find(Boolean);
 if (!packageJsonPath) throw new Error(`Unable to locate ${PLAYWRIGHT_PACKAGE} in the pnpm dlx cache.`);
 
+runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'install', 'ffmpeg']);
 runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test'], {
   env: {
     ...process.env,
