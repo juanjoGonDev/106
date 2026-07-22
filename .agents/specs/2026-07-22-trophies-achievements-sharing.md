@@ -56,18 +56,19 @@ Add persistent daily Golden Boot, Golden Glove and Golden Ball awards; public da
 
 ## Validation
 
-- JavaScript syntax checks for every changed JS/MJS file.
-- Static Vitest contracts for trophy SQL, sharing and explicit post-check start.
-- Supabase integration fixtures for deterministic awards, exclusions, idempotency, dated history, thresholds, category achievements, streaks, monthly firsts, complete set, daily hat trick, rankings and provisional current day.
-- PostgreSQL lint, migration history and full database rebuild in the existing Supabase CI job.
-- Production snapshot comparison extended with award runs, trophies and achievements.
+- Local JavaScript/MJS syntax, shell syntax, JSON parsing and SQL safety checks passed.
+- Vitest contracts cover trophy SQL, sharing and explicit post-check start.
+- Supabase integration fixtures cover deterministic awards, exclusions, ties, idempotency, audit runs, dated history, thresholds, category achievements, seven-day streaks, monthly firsts, complete set, daily hat trick, rankings and provisional current day.
+- GitHub Actions run `29916662647` passed build, package policy, syntax, Vitest, ESLint, Knip, dependency/security policy, PostgreSQL lint, migration history, full database rebuild, Edge Function and API integration, and the final quality gate.
+- Production snapshot comparison now guards award runs, trophies and achievements as monotonic data.
 
 ## Delivery
 
 - Branch: `agent/feat-trophies-achievements-sharing`
+- Pull request: `#9`
 - Migrations: `20260722160000` through `20260722160300`
 - Deployment remains automatic only after merge to `main`; this task does not merge or deploy.
 
 ## Status
 
-Implementation prepared; local syntax validation complete. Full pnpm/Supabase execution requires CI because this environment has no package registry, Supabase CLI, PostgreSQL or Docker access.
+Ready for review. Acceptance criteria are implemented and the complete pull-request quality pipeline is green. Production remains unchanged until the pull request is merged and the deployment workflow applies the additive migrations.
