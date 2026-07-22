@@ -77,4 +77,26 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run responsive browser journeys
-        run: pnpm test:e2e
+        id: playwright
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test:e2e 2>&1 | tee playwright-output.txt
+
+      - name: Upload failed browser diagnostics
+        if: steps.playwright.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: player-browser-${{ github.run_id }}
+          path: |
+            playwright-output.txt
+            playwright-results.json
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Enforce browser result
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
