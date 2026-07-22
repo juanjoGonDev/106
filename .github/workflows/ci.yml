@@ -166,7 +166,23 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Detect unused files and dependencies
-        run: pnpm knip
+        id: knip-check
+        continue-on-error: true
+        run: pnpm knip > knip-results.txt 2>&1
+
+      - name: Upload failed Knip report
+        if: steps.knip-check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: knip-results-${{ github.run_id }}
+          path: knip-results.txt
+          retention-days: 7
+
+      - name: Enforce Knip result
+        if: steps.knip-check.outcome == 'failure'
+        run: |
+          cat knip-results.txt
+          exit 1
 
   security:
     name: 🛡️ Security · Dependency & policy checks

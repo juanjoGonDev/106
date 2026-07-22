@@ -8,6 +8,8 @@
     "public/competition.js",
     "public/format.js",
     "public/human-check.js",
+    "public/honours.js",
+    "public/share-actions.js",
     "public/layout.js",
     "public/player-stats.js",
     "public/profile-enhancements.js",
@@ -29,6 +31,9 @@
   "ignore": [
     "public/config.js",
     "supabase/functions/**/*.ts"
+  ],
+  "ignoreBinaries": [
+    "supabase"
   ],
   "ignoreDependencies": []
 }

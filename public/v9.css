@@ -1,0 +1,41 @@
+/* Trophy history, explicit visual-check continuation, and share destinations. */
+.app-share-dialog {
+  width: min(94vw, 34rem);
+  border: 1px solid rgba(244, 201, 93, .35);
+  border-radius: 1.25rem;
+  background: #10131b;
+  color: #f7f8fb;
+  padding: 1.4rem;
+  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, .55);
+}
+
+.app-share-dialog::backdrop { background: rgba(3, 5, 9, .78); }
+.app-share-dialog h2 { margin: .2rem 0 .4rem; }
+.app-share-dialog .app-message-text { color: #cfd3dc; }
+.share-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: 1.2rem; }
+.share-destinations a { display: flex; align-items: center; justify-content: center; min-height: 3rem; border-radius: .8rem; text-decoration: none; font-weight: 800; background: #f4c95d; color: #11141b; }
+.share-destinations a:hover, .share-destinations a:focus-visible { transform: translateY(-1px); filter: brightness(1.06); }
+
+.human-check-panel { min-height: min(38rem, calc(100dvh - 2rem)); display: grid; grid-template-rows: auto 1.5rem minmax(16rem, 1fr) 3rem auto; align-content: stretch; }
+.human-check-progress[hidden], .human-check-status[hidden] { visibility: hidden; display: block !important; }
+.human-check-continue { align-self: center; width: 100%; min-height: 3rem; }
+.human-check-canvas { min-height: 16rem; }
+
+.honours-summary { margin-top: 1rem; }
+.honours-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
+.honours-counts > div { border: 1px solid rgba(255,255,255,.1); border-radius: .8rem; padding: .75rem; background: rgba(255,255,255,.035); }
+.honours-counts span { display: block; color: #aeb4c0; font-size: .8rem; }
+.honours-counts strong { display: block; margin-top: .2rem; font-size: 1.15rem; }
+.honours-list { display: grid; gap: .55rem; margin: .75rem 0 0; padding: 0; list-style: none; }
+.honours-list li { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: center; padding: .7rem .8rem; border: 1px solid rgba(255,255,255,.09); border-radius: .75rem; background: rgba(255,255,255,.03); }
+.honours-list time, .honours-list small { color: #aeb4c0; }
+.honours-badge { font-size: 1.35rem; }
+.honours-share { margin-top: 1rem; }
+.ranking-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.ranking-tabs button[aria-selected="true"] { background: #f4c95d; color: #11141b; }
+.honours-ranking[hidden] { display: none; }
+
+@media (max-width: 620px) {
+  .share-destinations, .honours-counts { grid-template-columns: 1fr; }
+  .human-check-panel { min-height: calc(100dvh - 1rem); grid-template-rows: auto 1.5rem minmax(15rem, 1fr) 3.5rem auto; }
+}
