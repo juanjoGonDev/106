@@ -4,8 +4,14 @@
   const START_ACTION = 'start';
   const CHECK_ACTION = 'human-check';
   const COMPLETE_ACTION = 'complete-human-check';
-  const MAX_SERVER_ATTEMPTS = 2;
+  const PREPARE_ACTION = 'prepare-start';
+  const ACTIVATE_ACTION = 'activate-start';
+  const COUNTDOWN_MS = 3_000;
+  const MAX_SERVER_FAILURES = 2;
+  const LOADING_DELAY_MS = 180;
   let activeVerification = null;
+  let stopControlPatched = false;
+  let gateNextStopControl = false;
 
   if (!readyFlowApi) throw new Error('No se pudo preparar el flujo de verificación del juego.');
 
@@ -24,8 +30,15 @@
 
   async function readJson(response) {
     const payload = await response.clone().json().catch(() => ({}));
-    if (!response.ok) throw new Error(String(payload?.error || 'No se pudo completar la verificación visual.'));
+    if (!response.ok) throw new Error(String(payload?.error || 'No se pudo completar la preparación del intento.'));
     return payload;
+  }
+
+  function readyApiUrl(input) {
+    const raw = typeof input === 'string' ? input : String(input?.url || input || '');
+    const url = new URL(raw, location.href);
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/game-ready-api');
+    return url.toString();
   }
 
   function normalizeCanvas(canvas) {
@@ -74,7 +87,7 @@
     context.restore();
   }
 
-  function drawScene(canvas, balls, completedCount, message = '') {
+  function drawCaptchaScene(canvas, balls, completedCount) {
     const { context, width, height } = normalizeCanvas(canvas);
     const gradient = context.createLinearGradient(0, 0, width, height);
     gradient.addColorStop(0, '#620019');
@@ -106,16 +119,6 @@
         index < completedCount,
         index === completedCount,
       );
-    }
-
-    if (message) {
-      context.fillStyle = '#0a0c12dd';
-      context.fillRect(0, height - 42, width, 42);
-      context.fillStyle = '#f4c95d';
-      context.font = '800 14px system-ui, sans-serif';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(message, width / 2, height - 21);
     }
   }
 
@@ -149,10 +152,10 @@
     };
   }
 
-  function createOverlay(balls, expiresAt) {
+  function createHumanCheckDialog() {
     const overlay = document.createElement('div');
     overlay.className = 'human-check-overlay';
-    overlay.dataset.phase = readyFlowApi.PHASES.SOLVING;
+    overlay.dataset.phase = 'loading';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'humanCheckTitle');
@@ -161,239 +164,512 @@
     panel.className = 'human-check-panel';
     const heading = document.createElement('div');
     heading.className = 'human-check-heading';
-    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Usa ratón, lápiz o pantalla táctil. Si fallas, la secuencia vuelve al balón 1.</p>';
-    const title = heading.querySelector('h2');
+    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Si fallas, se generará una verificación completamente nueva.</p>';
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
     progress.setAttribute('aria-live', 'polite');
     const canvas = document.createElement('canvas');
     canvas.className = 'human-check-canvas';
     canvas.setAttribute('aria-label', 'Zona visual de verificación. Pulsa los balones numerados en orden.');
-    const actionStage = document.createElement('div');
-    actionStage.className = 'human-check-action-stage';
     const status = document.createElement('p');
     status.className = 'human-check-status';
     status.setAttribute('aria-live', 'polite');
-    const countdown = document.createElement('strong');
-    countdown.className = 'human-check-countdown';
-    countdown.hidden = true;
-    countdown.setAttribute('role', 'timer');
-    countdown.setAttribute('aria-live', 'assertive');
-    countdown.setAttribute('aria-atomic', 'true');
-    const readyButton = document.createElement('button');
-    readyButton.className = 'primary human-check-continue';
-    readyButton.type = 'button';
-    readyButton.textContent = 'Estoy preparado';
-    readyButton.hidden = true;
+    const loading = document.createElement('div');
+    loading.className = 'human-check-loading';
+    loading.hidden = true;
+    loading.innerHTML = '<span aria-hidden="true"></span><strong>Generando una verificación nueva…</strong>';
     const cancel = document.createElement('button');
     cancel.className = 'ghost human-check-cancel';
     cancel.type = 'button';
     cancel.textContent = 'Cancelar';
-    actionStage.append(status, countdown, readyButton);
-    panel.append(heading, progress, canvas, actionStage, cancel);
+    panel.append(heading, progress, canvas, status, loading, cancel);
     overlay.append(panel);
     document.body.append(overlay);
     const unlockViewport = lockViewport();
 
-    let completedCount = 0;
-    let sequenceStartedAt = performance.now();
-    let wrongUntil = 0;
+    let cancelled = false;
+    let settledChallenge = null;
+    let loadingTimer = 0;
+    let expiryTimer = 0;
     let resizeFrame = 0;
-    const clicks = [];
+    let activeRedraw = () => {};
 
-    const redraw = () => drawScene(
-      canvas,
-      balls,
-      completedCount,
-      performance.now() < wrongUntil ? 'Secuencia reiniciada · vuelve al balón 1' : '',
-    );
-    const updateProgress = () => {
-      progress.hidden = false;
-      status.hidden = false;
-      countdown.hidden = true;
-      readyButton.hidden = true;
-      progress.textContent = `${completedCount} / ${balls.length}`;
-      status.textContent = completedCount === 0
-        ? 'Empieza por el balón 1.'
-        : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
-    };
-    const resetSequence = () => {
-      completedCount = 0;
-      clicks.length = 0;
-      sequenceStartedAt = performance.now();
-      wrongUntil = performance.now() + 1_000;
-      updateProgress();
-      status.textContent = 'Orden incorrecto. La secuencia vuelve al balón 1.';
+    function clearChallenge() {
+      window.clearTimeout(expiryTimer);
+      expiryTimer = 0;
+      settledChallenge = null;
+      canvas.onpointerdown = null;
+    }
+
+    function showLoading(message = 'Generando una verificación nueva…') {
+      clearChallenge();
+      window.clearTimeout(loadingTimer);
+      overlay.dataset.phase = 'loading';
+      status.textContent = message;
+      loading.querySelector('strong').textContent = message;
+      loadingTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        loading.hidden = false;
+        canvas.classList.add('is-loading');
+      }, LOADING_DELAY_MS);
+    }
+
+    function hideLoading() {
+      window.clearTimeout(loadingTimer);
+      loading.hidden = true;
+      canvas.classList.remove('is-loading');
+    }
+
+    function assertActive() {
+      if (cancelled) throw new HumanCheckCancelledError('Verificación visual cancelada.');
+    }
+
+    function solve({ balls, expiresAt }) {
+      assertActive();
+      clearChallenge();
+      hideLoading();
+      overlay.dataset.phase = 'solving';
+      let completedCount = 0;
+      let sequenceStartedAt = performance.now();
+      const clicks = [];
+
+      const redraw = () => drawCaptchaScene(canvas, balls, completedCount);
+      activeRedraw = redraw;
+      progress.textContent = `0 / ${balls.length}`;
+      status.textContent = 'Empieza por el balón 1.';
       redraw();
-      window.setTimeout(redraw, 1_050);
-    };
-    const onResize = () => {
+
+      return new Promise((resolve, reject) => {
+        settledChallenge = { reject };
+        const settle = (value) => {
+          if (!settledChallenge) return;
+          clearChallenge();
+          resolve(value);
+        };
+        expiryTimer = window.setTimeout(
+          () => settle({ kind: 'refresh', previousBalls: balls }),
+          Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
+        );
+
+        canvas.onpointerdown = (event) => {
+          event.preventDefault();
+          if (!readyFlowApi.isTrustedReadyPointer(event)) return;
+          const point = canvasPoint(canvas, event);
+          const expected = balls[completedCount];
+          if (!expected || !hitBall(point, expected)) {
+            status.textContent = 'Orden incorrecto. Generando posiciones nuevas…';
+            settle({ kind: 'refresh', previousBalls: balls });
+            return;
+          }
+
+          clicks.push({
+            x: Number(point.x.toFixed(2)),
+            y: Number(point.y.toFixed(2)),
+            atMs: Math.max(1, Math.round(performance.now() - sequenceStartedAt)),
+            pointerType: event.pointerType,
+            trusted: true,
+          });
+          completedCount += 1;
+          progress.textContent = `${completedCount} / ${balls.length}`;
+          status.textContent = completedCount === balls.length
+            ? 'Verificación completada.'
+            : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
+          redraw();
+
+          if (completedCount === balls.length) settle({ kind: 'solved', clicks, previousBalls: balls });
+        };
+      });
+    }
+
+    function cancelDialog() {
+      if (cancelled) return;
+      cancelled = true;
+      const error = new HumanCheckCancelledError('Verificación visual cancelada.');
+      settledChallenge?.reject(error);
+      clearChallenge();
+      destroy();
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') cancelDialog();
+    }
+
+    function onResize() {
       cancelAnimationFrame(resizeFrame);
-      resizeFrame = requestAnimationFrame(redraw);
-    };
+      resizeFrame = requestAnimationFrame(activeRedraw);
+    }
 
-    updateProgress();
-    redraw();
+    function destroy() {
+      window.clearTimeout(loadingTimer);
+      window.clearTimeout(expiryTimer);
+      cancelAnimationFrame(resizeFrame);
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('keydown', onKeyDown);
+      overlay.remove();
+      unlockViewport();
+    }
+
+    cancel.addEventListener('click', cancelDialog);
+    document.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', onResize);
+    showLoading('Generando verificación…');
 
-    return new Promise((resolve, reject) => {
-      let serverExpiryTimer = 0;
-      let settled = false;
-      let readyFlow = null;
+    return Object.freeze({ showLoading, solve, assertActive, destroy });
+  }
 
-      const cleanup = () => {
-        window.clearTimeout(serverExpiryTimer);
-        readyFlow?.dispose();
-        cancelAnimationFrame(resizeFrame);
-        window.removeEventListener('resize', onResize);
-        document.removeEventListener('keydown', onKeyDown);
-        overlay.remove();
-        unlockViewport();
-      };
-      const fail = (error) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        reject(error);
-      };
-      const complete = () => {
-        if (settled || completedCount !== balls.length) return;
-        settled = true;
-        const completedClicks = [...clicks];
-        cleanup();
-        resolve(completedClicks);
-      };
-      const onKeyDown = (event) => {
-        if (event.key !== 'Escape') return;
-        readyFlow?.cancel();
-        fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
-      };
-      const showReadyAction = () => {
-        if (!readyFlow.markSolved()) return;
-        title.textContent = 'Verificación completada';
-        progress.hidden = true;
-        status.hidden = true;
-        countdown.hidden = true;
-        readyButton.disabled = false;
-        readyButton.hidden = false;
-        readyButton.focus();
-      };
-      const beginCountdown = (event) => {
-        if (settled || event?.isTrusted !== true || completedCount !== balls.length) return;
-        readyButton.disabled = true;
-        readyFlow.startCountdown();
-      };
-
-      readyFlow = readyFlowApi.createReadyCountdownFlow({
-        schedule: window.setTimeout.bind(window),
-        cancelScheduled: window.clearTimeout.bind(window),
-        onPhase: (phase) => { overlay.dataset.phase = phase; },
-        onCountdown: (value) => {
-          title.textContent = 'El intento empieza en';
-          progress.hidden = true;
-          status.hidden = true;
-          readyButton.hidden = true;
-          countdown.hidden = false;
-          countdown.textContent = String(value);
-        },
-        onExpired: () => fail(new HumanCheckRefreshError('Han pasado dos minutos. Resuelve una nueva verificación para jugar.')),
-        onComplete: complete,
-      });
-
-      serverExpiryTimer = window.setTimeout(
-        () => fail(new HumanCheckRefreshError('La verificación visual ha caducado. Se generará una nueva.')),
-        Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
-      );
-      document.addEventListener('keydown', onKeyDown);
-      cancel.addEventListener('click', () => {
-        readyFlow.cancel();
-        fail(new HumanCheckCancelledError('Verificación visual cancelada.'));
-      });
-      readyButton.addEventListener('click', beginCountdown);
-
-      canvas.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        if (event.isTrusted !== true || !['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
-        if (readyFlow.getPhase() !== readyFlowApi.PHASES.SOLVING) return;
-        const point = canvasPoint(canvas, event);
-        const expected = balls[completedCount];
-        if (!expected || !hitBall(point, expected)) {
-          resetSequence();
-          return;
-        }
-
-        clicks.push({
-          x: Number(point.x.toFixed(2)),
-          y: Number(point.y.toFixed(2)),
-          atMs: Math.max(1, Math.round(performance.now() - sequenceStartedAt)),
-          pointerType: event.pointerType,
-          trusted: true,
-        });
-        completedCount += 1;
-        progress.textContent = `${completedCount} / ${balls.length}`;
-        status.textContent = completedCount === balls.length
-          ? 'Orden correcto. Pulsa “Estoy preparado” para iniciar la cuenta atrás.'
-          : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
-        redraw();
-
-        if (completedCount === balls.length) showReadyAction();
-      }, { passive: false });
+  async function readyRequest(url, common, body) {
+    return previousFetch(url, {
+      ...common,
+      body: JSON.stringify(body),
     });
   }
 
-  async function createServerCheck(input, common) {
-    const createdResponse = await previousFetch(input, {
-      ...common,
-      body: JSON.stringify({ action: CHECK_ACTION }),
+  async function createServerCheck(url, common, previousBalls) {
+    const response = await readyRequest(url, common, {
+      action: CHECK_ACTION,
+      previousBalls: previousBalls.length ? previousBalls : undefined,
     });
-    const created = await readJson(createdResponse);
+    const created = await readJson(response);
     if (!Array.isArray(created.balls) || created.balls.length !== 4) {
       throw new Error('El servidor no devolvió una verificación visual válida.');
     }
     return created;
   }
 
-  async function completeServerCheck(input, common, created, clicks) {
-    const completedResponse = await previousFetch(input, {
-      ...common,
-      body: JSON.stringify({
-        action: COMPLETE_ACTION,
-        checkId: created.checkId,
-        clicks,
-      }),
+  async function completeServerCheck(url, common, created, clicks) {
+    const response = await readyRequest(url, common, {
+      action: COMPLETE_ACTION,
+      checkId: created.checkId,
+      clicks,
     });
-    const completed = await readJson(completedResponse);
+    const completed = await readJson(response);
     return {
       humanCheckId: completed.checkId,
       humanProofToken: completed.proofToken,
+      proofExpiresAt: completed.expiresAt,
     };
   }
 
   function isRefreshError(error) {
     if (error instanceof HumanCheckRefreshError) return true;
-    return /caduc|expir/i.test(String(error instanceof Error ? error.message : error || ''));
+    return /caduc|expir|orden|pulsaciones/i.test(String(error instanceof Error ? error.message : error || ''));
   }
 
-  async function obtainProof(input, init) {
+  async function obtainProof(url, common) {
+    const dialog = createHumanCheckDialog();
+    let previousBalls = [];
+    let serverFailures = 0;
+
+    try {
+      while (serverFailures < MAX_SERVER_FAILURES) {
+        try {
+          dialog.showLoading(previousBalls.length ? 'Generando posiciones nuevas…' : 'Generando verificación…');
+          const created = await createServerCheck(url, common, previousBalls);
+          dialog.assertActive();
+          if (previousBalls.length && !readyFlowApi.layoutsDiffer(previousBalls, created.balls)) {
+            previousBalls = created.balls;
+            continue;
+          }
+          const result = await dialog.solve(created);
+          if (result.kind === 'refresh') {
+            previousBalls = result.previousBalls;
+            continue;
+          }
+          const proof = await completeServerCheck(url, common, created, result.clicks);
+          dialog.destroy();
+          return proof;
+        } catch (error) {
+          if (error instanceof HumanCheckCancelledError) throw error;
+          if (isRefreshError(error)) continue;
+          serverFailures += 1;
+          if (serverFailures >= MAX_SERVER_FAILURES) throw error;
+        }
+      }
+      throw new Error('No se pudo completar la verificación visual.');
+    } catch (error) {
+      dialog.destroy();
+      throw error;
+    }
+  }
+
+  function showPlayingSurface(team) {
+    for (const id of ['setup', 'playing', 'result']) {
+      document.querySelector(`#${id}`)?.classList.toggle('active', id === 'playing');
+    }
+    const teamElement = document.querySelector('#playingTeam');
+    if (teamElement) {
+      const country = team === 'spain' ? 'España' : 'Argentina';
+      const flagClass = team === 'spain' ? 'flag--spain' : 'flag--argentina';
+      teamElement.innerHTML = `<span class="flag ${flagClass}" aria-hidden="true"></span><span>${country}</span>`;
+    }
+    const timer = document.querySelector('#timer');
+    if (timer) {
+      timer.textContent = '0.000';
+      timer.classList.remove('concealed');
+      timer.setAttribute('aria-label', 'Cronómetro preparado');
+    }
+  }
+
+  function patchStopControlGate() {
+    if (stopControlPatched) return;
+    const api = window.Minuto106StopControl;
+    if (!api?.create) throw new Error('No se pudo preparar el control final.');
+    const originalCreate = api.create.bind(api);
+    api.create = (options) => {
+      const control = originalCreate(options);
+      if (!gateNextStopControl) return control;
+      gateNextStopControl = false;
+      control.setDisabled(true);
+      const timer = document.querySelector('#timer');
+      const unlock = () => {
+        if (!timer?.classList.contains('concealed')) return;
+        observer.disconnect();
+        control.setDisabled(false);
+      };
+      const observer = new MutationObserver(unlock);
+      if (timer) observer.observe(timer, { attributes: true, attributeFilter: ['class'] });
+      unlock();
+      return control;
+    };
+    stopControlPatched = true;
+  }
+
+  function randomUnit() {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    return values[0] / 0x1_0000_0000;
+  }
+
+  function createReadinessStage(prepared, activation) {
+    const playing = document.querySelector('#playing');
+    if (!playing) throw new Error('No se encontró la superficie de juego.');
+    patchStopControlGate();
+
+    const layer = document.createElement('div');
+    layer.className = 'game-readiness-layer';
+    layer.dataset.phase = 'ready';
+    const status = document.createElement('p');
+    status.className = 'game-readiness-status';
+    status.setAttribute('aria-live', 'assertive');
+    status.textContent = 'Pulsa el control visual cuando estés preparado.';
+    const host = document.createElement(`m106-ready-${crypto.randomUUID().slice(0, 12)}`);
+    host.className = 'game-readiness-host';
+    const shadow = host.attachShadow({ mode: 'closed' });
+    const shadowStyle = document.createElement('style');
+    shadowStyle.textContent = ':host{display:block;width:min(94vw,560px);height:min(42vh,300px);touch-action:none;user-select:none}canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none}';
+    const canvas = document.createElement('canvas');
+    shadow.append(shadowStyle, canvas);
+    layer.append(status, host);
+
+    const preview = document.createElement('div');
+    preview.className = 'game-stop-preview';
+    playing.append(preview, layer);
+
+    const stopApi = window.Minuto106StopControl;
+    const previewControl = stopApi.create({
+      container: preview,
+      interaction: prepared.interaction ?? {},
+      getElapsedMs: () => 0,
+      onFinish: () => {},
+      onInvalid: () => {},
+    });
+    previewControl.setDisabled(true);
+
+    let target = null;
+    let flow = null;
+    let activationPayload = null;
+    let activationError = null;
+    let countdownComplete = false;
+    let settled = false;
+    let resizeFrame = 0;
+
+    function drawReady() {
+      const bounds = canvas.getBoundingClientRect();
+      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const width = Math.max(240, Math.round(bounds.width || 520));
+      const height = Math.max(180, Math.round(bounds.height || 260));
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      const context = canvas.getContext('2d');
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = 'rgba(8, 9, 12, .72)';
+      context.fillRect(0, 0, width, height);
+
+      if (!target) target = readyFlowApi.createReadyTarget({ width, height, randomX: randomUnit(), randomY: randomUnit() });
+      const gradient = context.createLinearGradient(target.x, target.y, target.x + target.width, target.y + target.height);
+      gradient.addColorStop(0, '#f4c95d');
+      gradient.addColorStop(1, '#d89b22');
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.roundRect(target.x, target.y, target.width, target.height, 22);
+      context.fill();
+      context.strokeStyle = '#ffffffaa';
+      context.lineWidth = 3;
+      context.stroke();
+      context.fillStyle = '#08090c';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.font = `950 ${Math.max(17, Math.min(24, target.height * 0.3))}px system-ui, sans-serif`;
+      context.fillText('ESTOY PREPARADO', target.x + target.width / 2, target.y + target.height / 2);
+    }
+
+    function drawCountdown(value) {
+      const bounds = canvas.getBoundingClientRect();
+      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const width = Math.max(240, Math.round(bounds.width || 520));
+      const height = Math.max(180, Math.round(bounds.height || 260));
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      const context = canvas.getContext('2d');
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.fillStyle = 'rgba(8, 9, 12, .82)';
+      context.fillRect(0, 0, width, height);
+      context.fillStyle = '#f4c95d';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.font = `950 ${Math.min(150, height * 0.58)}px system-ui, sans-serif`;
+      context.fillText(String(value), width / 2, height / 2);
+    }
+
+    function canvasLocalPoint(event) {
+      const bounds = canvas.getBoundingClientRect();
+      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    }
+
+    function cleanup() {
+      cancelAnimationFrame(resizeFrame);
+      window.removeEventListener('resize', onResize);
+      flow?.dispose();
+    }
+
+    function destroy() {
+      cleanup();
+      previewControl.destroy();
+      preview.remove();
+      layer.remove();
+    }
+
+    function revealWhenMounted() {
+      gateNextStopControl = true;
+      const observer = new MutationObserver((records) => {
+        const mounted = records.some((record) => [...record.addedNodes].some(
+          (node) => node instanceof Element && node.parentElement === playing && node.tagName.startsWith('M106-'),
+        ));
+        if (!mounted) return;
+        observer.disconnect();
+        requestAnimationFrame(destroy);
+      });
+      observer.observe(playing, { childList: true });
+      window.setTimeout(() => {
+        if (!layer.isConnected) return;
+        status.textContent = 'Cargando intento…';
+      }, 400);
+    }
+
+    function tryComplete(resolve, reject) {
+      if (!countdownComplete || (!activationPayload && !activationError) || settled) return;
+      settled = true;
+      if (activationError) {
+        cleanup();
+        reject(activationError);
+        return;
+      }
+      revealWhenMounted();
+      cleanup();
+      resolve(activationPayload);
+    }
+
+    function onResize() {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        target = null;
+        if (flow?.getPhase() === readyFlowApi.PHASES.READY) drawReady();
+      });
+    }
+
+    window.addEventListener('resize', onResize);
+    drawReady();
+
+    return new Promise((resolve, reject) => {
+      flow = readyFlowApi.createReadyCountdownFlow({
+        schedule: window.setTimeout.bind(window),
+        cancelScheduled: window.clearTimeout.bind(window),
+        onPhase: (phase) => { layer.dataset.phase = phase; },
+        onCountdown: (value) => {
+          status.textContent = `El intento empieza en ${value}`;
+          drawCountdown(value);
+        },
+        onExpired: () => {
+          settled = true;
+          destroy();
+          resolve({ expired: true });
+        },
+        onComplete: () => {
+          countdownComplete = true;
+          if (!activationPayload && !activationError) {
+            layer.dataset.phase = 'loading';
+            status.textContent = 'Cargando intento…';
+          }
+          tryComplete(resolve, reject);
+        },
+      });
+      flow.markSolved();
+
+      canvas.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        if (!readyFlowApi.isTrustedReadyPointer(event)) return;
+        if (flow.getPhase() !== readyFlowApi.PHASES.READY) return;
+        if (!readyFlowApi.isPointInsideTarget(canvasLocalPoint(event), target)) return;
+        if (!flow.startCountdown()) return;
+        Promise.resolve(activation()).then((payload) => {
+          activationPayload = payload;
+          tryComplete(resolve, reject);
+        }).catch((error) => {
+          activationError = error instanceof Error ? error : new Error('No se pudo activar el intento.');
+          tryComplete(resolve, reject);
+        });
+      }, { passive: false });
+    });
+  }
+
+  function restoreSetupSurface() {
+    for (const id of ['setup', 'playing', 'result']) {
+      document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
+    }
+  }
+
+  async function prepareVerifiedStart(input, init, body) {
     const headers = new Headers(init.headers || {});
     headers.set('content-type', 'application/json');
     const common = { ...init, method: 'POST', headers };
-    let lastError = new Error('No se pudo completar la verificación visual.');
-    let serverFailures = 0;
+    const url = readyApiUrl(input);
 
-    while (serverFailures < MAX_SERVER_ATTEMPTS) {
-      try {
-        const created = await createServerCheck(input, common);
-        const clicks = await createOverlay(created.balls, created.expiresAt);
-        return await completeServerCheck(input, common, created, clicks);
-      } catch (error) {
-        if (error instanceof HumanCheckCancelledError) throw error;
-        if (isRefreshError(error)) continue;
-        serverFailures += 1;
-        lastError = error instanceof Error ? error : lastError;
-      }
+    while (true) {
+      const proof = await obtainProof(url, common);
+      showPlayingSurface(body.team);
+
+      const preparedResponse = await readyRequest(url, common, {
+        ...body,
+        action: PREPARE_ACTION,
+        humanCheckId: proof.humanCheckId,
+        humanProofToken: proof.humanProofToken,
+      });
+      const prepared = await readJson(preparedResponse);
+
+      const stageResult = await createReadinessStage(prepared, async () => {
+        const activationResponse = await readyRequest(url, common, {
+          action: ACTIVATE_ACTION,
+          challengeId: prepared.challengeId,
+          countdownMs: COUNTDOWN_MS,
+        });
+        const activation = await readJson(activationResponse);
+        return { preparedResponse, activation };
+      });
+
+      if (stageResult.expired) continue;
+      return stageResult.preparedResponse;
     }
-    throw lastError;
   }
 
   window.fetch = async (input, init = {}) => {
@@ -403,13 +679,12 @@
     }
 
     if (activeVerification) throw new Error('Ya hay una verificación visual en curso.');
-    activeVerification = obtainProof(input, init);
+    activeVerification = prepareVerifiedStart(input, init, body);
     try {
-      const proof = await activeVerification;
-      return previousFetch(input, {
-        ...init,
-        body: JSON.stringify({ ...body, ...proof }),
-      });
+      return await activeVerification;
+    } catch (error) {
+      restoreSetupSurface();
+      throw error;
     } finally {
       activeVerification = null;
     }
