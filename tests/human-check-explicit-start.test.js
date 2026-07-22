@@ -87,10 +87,12 @@ describe('captcha, ready canvas, and countdown separation', () => {
     expect(migration).toContain("v_ready_expires_at timestamptz := clock_timestamp() + interval '2 minutes'");
   });
 
-  it('loads the covered controller before the interceptor and keeps responsive layouts', () => {
-    const flowIndex = index.indexOf('src="./human-check-ready-flow.js"');
-    const interceptorIndex = index.indexOf('src="./human-check.js"');
-    expect(flowIndex).toBeGreaterThan(-1);
+  it('loads fresh covered assets in wrapper order and keeps responsive layouts', () => {
+    const accessIndex = index.indexOf('src="./access.js?v=20260722-3"');
+    const flowIndex = index.indexOf('src="./human-check-ready-flow.js?v=20260722-3"');
+    const interceptorIndex = index.indexOf('src="./human-check.js?v=20260722-3"');
+    expect(accessIndex).toBeGreaterThan(-1);
+    expect(flowIndex).toBeGreaterThan(accessIndex);
     expect(interceptorIndex).toBeGreaterThan(flowIndex);
     expect(styles).toContain('@media (max-width: 620px)');
     expect(styles).toContain('@media (max-height: 520px) and (orientation: landscape)');
