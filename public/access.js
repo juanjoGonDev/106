@@ -3,6 +3,7 @@ const ACCOUNT_STORAGE_KEY = 'minuto106:account-access-v1';
 const ACCOUNT_NICKS_STORAGE_KEY = 'minuto106:account-nicks-v1';
 const protectedActions = new Set([
   'start',
+  'prepare-start',
   'create-duel',
   'resolve-duel',
   'create-league',
