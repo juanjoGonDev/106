@@ -7,7 +7,11 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   workers: 2,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
+  reporter: [
+    ['list'],
+    ['json', { outputFile: 'playwright-results.json' }],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+  ],
   use: {
     baseURL: 'http://127.0.0.1:3000',
     channel: 'chrome',
