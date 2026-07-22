@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync('public/human-check.js', 'utf8');
 const flow = readFileSync('public/human-check-ready-flow.js', 'utf8');
+const access = readFileSync('public/access.js', 'utf8');
 const index = readFileSync('public/index.html', 'utf8');
 const styles = readFileSync('public/v9.css', 'utf8');
 const readyApi = readFileSync('supabase/functions/game-ready-api/index.ts', 'utf8');
@@ -64,6 +65,21 @@ describe('captcha, ready canvas, and countdown separation', () => {
     expect(readyApi).toContain('createBallLayout(previousBalls)');
   });
 
+  it('invalidates stale Chrome resize frames before painting a replacement captcha', () => {
+    expect(flow).toContain('function createLatestFrameRenderer');
+    expect(source).toContain('readyFlowApi.createLatestFrameRenderer');
+    expect(source).toContain('frameRenderer.invalidate()');
+    expect(source).toContain('frameRenderer.replace(redraw)');
+    expect(source).toContain('frameRenderer.renderNow();\n      frameRenderer.request();');
+    expect(source).toContain('function onResize() {\n      frameRenderer.request();\n    }');
+    expect(source).not.toContain('requestAnimationFrame(activeRedraw)');
+  });
+
+  it('bootstraps the private account key for the new prepare-start action', () => {
+    expect(access).toMatch(/const protectedActions = new Set\(\[[\s\S]*'prepare-start'/);
+    expect(source).toContain('action: PREPARE_ACTION');
+  });
+
   it('expires readiness after two minutes and restarts the full captcha flow', () => {
     expect(flow).toContain('READY_WINDOW_MS = 120_000');
     expect(source).toContain('if (stageResult.expired) continue;');
@@ -71,10 +87,12 @@ describe('captcha, ready canvas, and countdown separation', () => {
     expect(migration).toContain("v_ready_expires_at timestamptz := clock_timestamp() + interval '2 minutes'");
   });
 
-  it('loads the covered controller before the interceptor and keeps responsive layouts', () => {
-    const flowIndex = index.indexOf('src="./human-check-ready-flow.js"');
-    const interceptorIndex = index.indexOf('src="./human-check.js"');
-    expect(flowIndex).toBeGreaterThan(-1);
+  it('loads fresh covered assets in wrapper order and keeps responsive layouts', () => {
+    const accessIndex = index.indexOf('src="./access.js?v=20260722-3"');
+    const flowIndex = index.indexOf('src="./human-check-ready-flow.js?v=20260722-3"');
+    const interceptorIndex = index.indexOf('src="./human-check.js?v=20260722-3"');
+    expect(accessIndex).toBeGreaterThan(-1);
+    expect(flowIndex).toBeGreaterThan(accessIndex);
     expect(interceptorIndex).toBeGreaterThan(flowIndex);
     expect(styles).toContain('@media (max-width: 620px)');
     expect(styles).toContain('@media (max-height: 520px) and (orientation: landscape)');

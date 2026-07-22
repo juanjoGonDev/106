@@ -12,6 +12,7 @@
     CANCELLED: 'cancelled',
   });
   const TERMINAL_PHASES = new Set([PHASES.COMPLETE, PHASES.EXPIRED, PHASES.CANCELLED]);
+  const NOOP = () => {};
 
   function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
@@ -66,6 +67,60 @@
       const nextY = Number(nextBall.y);
       if (![priorX, priorY, nextX, nextY].every(Number.isFinite)) return false;
       return Math.hypot(nextX - priorX, nextY - priorY) >= minimumDistance;
+    });
+  }
+
+  function createLatestFrameRenderer(options) {
+    const scheduleFrame = options.scheduleFrame;
+    const cancelFrame = options.cancelFrame;
+    let render = NOOP;
+    let frameId = null;
+    let revision = 0;
+
+    function clearFrame() {
+      if (frameId === null) return;
+      cancelFrame(frameId);
+      frameId = null;
+    }
+
+    function invalidate() {
+      revision += 1;
+      clearFrame();
+    }
+
+    function replace(nextRender) {
+      invalidate();
+      render = nextRender;
+    }
+
+    function request() {
+      clearFrame();
+      const requestedRevision = revision;
+      let scheduledId = null;
+      scheduledId = scheduleFrame(() => {
+        if (frameId === scheduledId) frameId = null;
+        if (requestedRevision !== revision) return;
+        render();
+      });
+      frameId = scheduledId;
+    }
+
+    function renderNow() {
+      clearFrame();
+      render();
+    }
+
+    function dispose() {
+      invalidate();
+      render = NOOP;
+    }
+
+    return Object.freeze({
+      dispose,
+      invalidate,
+      renderNow,
+      replace,
+      request,
     });
   }
 
@@ -155,6 +210,7 @@
     COUNTDOWN_VALUES,
     READY_POINTER_TYPES,
     PHASES,
+    createLatestFrameRenderer,
     createReadyTarget,
     isPointInsideTarget,
     isTrustedReadyPointer,

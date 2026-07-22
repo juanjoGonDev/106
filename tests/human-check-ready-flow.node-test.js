@@ -141,6 +141,44 @@ test('requires every ordered ball to move materially', () => {
   assert.equal(api.layoutsDiffer([], []), false);
 });
 
+test('keeps only the latest captcha redraw when Chrome delivers stale resize frames', () => {
+  const scheduler = createScheduler();
+  const rendered = [];
+  const renderer = api.createLatestFrameRenderer({
+    scheduleFrame: (callback) => scheduler.schedule(callback, 0),
+    cancelFrame: scheduler.cancelScheduled,
+  });
+
+  renderer.renderNow();
+  renderer.replace(() => rendered.push('old'));
+  renderer.request();
+  const staleFrame = scheduler.latestId();
+
+  renderer.replace(() => rendered.push('new'));
+  renderer.request();
+  const currentFrame = scheduler.latestId();
+  scheduler.invoke(staleFrame);
+  scheduler.invoke(currentFrame);
+  assert.deepEqual(rendered, ['new']);
+
+  renderer.request();
+  renderer.renderNow();
+  assert.deepEqual(rendered, ['new', 'new']);
+
+  renderer.request();
+  const invalidatedFrame = scheduler.latestId();
+  renderer.invalidate();
+  scheduler.invoke(invalidatedFrame);
+  assert.deepEqual(rendered, ['new', 'new']);
+
+  renderer.request();
+  const disposedFrame = scheduler.latestId();
+  renderer.dispose();
+  scheduler.invoke(disposedFrame);
+  renderer.renderNow();
+  assert.deepEqual(rendered, ['new', 'new']);
+});
+
 test('requires one explicit ready action before countdown completion', () => {
   const { flow, scheduler, phases, countdown, getCompleted } = createHarness();
   assert.equal(flow.getPhase(), api.PHASES.SOLVING);

@@ -186,19 +186,22 @@
     overlay.append(panel);
     document.body.append(overlay);
     const unlockViewport = lockViewport();
+    const frameRenderer = readyFlowApi.createLatestFrameRenderer({
+      scheduleFrame: window.requestAnimationFrame.bind(window),
+      cancelFrame: window.cancelAnimationFrame.bind(window),
+    });
 
     let cancelled = false;
     let settledChallenge = null;
     let loadingTimer = 0;
     let expiryTimer = 0;
-    let resizeFrame = 0;
-    let activeRedraw = () => {};
 
     function clearChallenge() {
       window.clearTimeout(expiryTimer);
       expiryTimer = 0;
       settledChallenge = null;
       canvas.onpointerdown = null;
+      frameRenderer.invalidate();
     }
 
     function showLoading(message = 'Generando una verificación nueva…') {
@@ -234,10 +237,11 @@
       const clicks = [];
 
       const redraw = () => drawCaptchaScene(canvas, balls, completedCount);
-      activeRedraw = redraw;
+      frameRenderer.replace(redraw);
       progress.textContent = `0 / ${balls.length}`;
       status.textContent = 'Empieza por el balón 1.';
-      redraw();
+      frameRenderer.renderNow();
+      frameRenderer.request();
 
       return new Promise((resolve, reject) => {
         settledChallenge = { reject };
@@ -274,7 +278,7 @@
           status.textContent = completedCount === balls.length
             ? 'Verificación completada.'
             : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
-          redraw();
+          frameRenderer.renderNow();
 
           if (completedCount === balls.length) settle({ kind: 'solved', clicks, previousBalls: balls });
         };
@@ -295,14 +299,13 @@
     }
 
     function onResize() {
-      cancelAnimationFrame(resizeFrame);
-      resizeFrame = requestAnimationFrame(activeRedraw);
+      frameRenderer.request();
     }
 
     function destroy() {
       window.clearTimeout(loadingTimer);
       window.clearTimeout(expiryTimer);
-      cancelAnimationFrame(resizeFrame);
+      frameRenderer.dispose();
       window.removeEventListener('resize', onResize);
       document.removeEventListener('keydown', onKeyDown);
       overlay.remove();
