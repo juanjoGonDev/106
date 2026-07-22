@@ -77,15 +77,15 @@
     strong.textContent = 'Acción de este intento: ';
     instruction.append(
       strong,
-      document.createTextNode('pulsa una vez el control PARAR, siempre situado en el centro, cuando creas que llegas a 10.600.'),
+      document.createTextNode('pulsa una vez el control visual situado en el centro cuando creas que llegas a 10.600.'),
     );
   }
 
   function create({ container, interaction: rawInteraction, getElapsedMs, onFinish, onInvalid }) {
     if (!(container instanceof Element)) throw new Error('El contenedor del control final no existe.');
     const interaction = normalizeInteraction(rawInteraction);
-    const host = document.createElement('div');
-    host.setAttribute(`data-${interaction.nonce.slice(0, 8).replace(/[^a-z0-9]/gi, 'x').toLowerCase()}`, '');
+    const hostTag = `m106-${interaction.nonce.slice(0, 12).replace(/[^a-z0-9]/gi, 'x').toLowerCase() || 'control'}`;
+    const host = document.createElement(hostTag);
     Object.assign(host.style, {
       display: 'grid',
       placeItems: 'center',
@@ -105,7 +105,6 @@
     pad.className = 'pad';
     pad.dataset.disabled = 'false';
     const canvas = document.createElement('canvas');
-    canvas.setAttribute('aria-label', 'Control visual para parar el cronómetro');
     pad.append(canvas);
     shadow.append(style, pad);
     drawControl(canvas, interaction);
