@@ -14,7 +14,7 @@ concurrency:
 env:
   NODE_VERSION: 22.13.0
   PNPM_VERSION: 11.15.1
-  PLAYWRIGHT_VERSION: 1.61.0
+  PLAYWRIGHT_VERSION: 1.60.0
 
 jobs:
   coverage:
