@@ -80,6 +80,14 @@ assert.match(html, new RegExp(`/functions/v1/player-share/${nick}/achievements\\
 assert.doesNotMatch(html, /achievements\/achievements\.png/);
 assert.match(html, new RegExp(player.nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
+const overviewResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/card.png`, {
+  headers: functionHeaders,
+  signal: AbortSignal.timeout(60_000),
+});
+const overviewPng = new Uint8Array(await overviewResponse.arrayBuffer());
+assertPng(overviewResponse, overviewPng, 'Player overview', 300);
+persistPreview('player-overview.png', overviewPng);
+
 const playerResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements.png`, {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
