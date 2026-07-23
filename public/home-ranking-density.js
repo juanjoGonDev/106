@@ -22,12 +22,29 @@
       ?.textContent?.trim() ?? '';
   }
 
+  function removeWhitespace(value) {
+    return Array.from(String(value)).filter((character) => ![' ', '\n', '\r', '\t'].includes(character)).join('');
+  }
+
   function extractTime(player) {
     const explicit = player.querySelector('.ranking-time')?.textContent?.trim();
-    if (explicit) return explicit.replace(/\s+/g, '');
-    const source = player.querySelector('small')?.textContent ?? player.textContent ?? '';
-    const match = source.match(/\d+(?:[.,]\d+)?\s*s/i);
-    return match ? match[0].replace(/\s+/g, '') : '—';
+    if (explicit) return removeWhitespace(explicit);
+    const source = String(player.querySelector('small')?.textContent ?? player.textContent ?? '')
+      .replaceAll('·', ' ')
+      .replaceAll('\n', ' ')
+      .replaceAll('\r', ' ')
+      .replaceAll('\t', ' ');
+    const tokens = source.split(' ').map((token) => token.trim()).filter(Boolean);
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      const next = tokens[index + 1]?.toLocaleLowerCase('es');
+      if (next === 's' && Number.isFinite(Number(token.replace(',', '.')))) return `${token}s`;
+      if (token.toLocaleLowerCase('es').endsWith('s')) {
+        const numeric = token.slice(0, -1).replace(',', '.');
+        if (Number.isFinite(Number(numeric))) return removeWhitespace(token);
+      }
+    }
+    return '—';
   }
 
   function createFlag(teamKey) {
