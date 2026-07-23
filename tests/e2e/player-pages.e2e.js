@@ -27,7 +27,7 @@ async function capture(page, testInfo, name, locator = null) {
   const device = projectDevice(testInfo);
   const path = resolve(previewRoot, `${name}-${device}.png`);
   mkdirSync(previewRoot, { recursive: true });
-  if (locator) {
+  if (locator && await locator.isVisible()) {
     await locator.screenshot({ path, animations: 'disabled' });
     return;
   }
