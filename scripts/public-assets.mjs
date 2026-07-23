@@ -55,20 +55,25 @@ function extractCssUrlReferences(content) {
   return references;
 }
 
-export function extractAssetReferences(content) {
-  const references = new Set(extractCssUrlReferences(content));
-  const expressions = [
-    /(?:src|href|content)\s*=\s*["']([^"']+)["']/gi,
-    /"src"\s*:\s*"([^"]+)"/gi,
-    /["']((?:\.{0,2}\/|\/)[^"'`]+?\.(?:avif|gif|ico|jpe?g|otf|png|svg|ttf|webp|woff2?)(?:[?#][^"'`]*)?)["']/gi,
-  ];
-  for (const expression of expressions) {
-    for (const match of content.matchAll(expression)) {
-      const value = String(match[1]).trim();
-      if (hasMediaExtension(value)) references.add(value);
-    }
+function extractQuotedMediaReferences(content) {
+  const references = [];
+  for (let index = 0; index < content.length; index += 1) {
+    const quote = content[index];
+    if (quote !== '"' && quote !== "'") continue;
+    const end = content.indexOf(quote, index + 1);
+    if (end < 0) return references;
+    const value = content.slice(index + 1, end).trim();
+    if (hasMediaExtension(value)) references.push(value);
+    index = end;
   }
-  return [...references].filter(hasMediaExtension);
+  return references;
+}
+
+export function extractAssetReferences(content) {
+  return [...new Set([
+    ...extractCssUrlReferences(content),
+    ...extractQuotedMediaReferences(content),
+  ])].filter(hasMediaExtension);
 }
 
 function stripQueryAndHash(value) {
