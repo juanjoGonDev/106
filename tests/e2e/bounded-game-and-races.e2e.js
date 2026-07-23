@@ -130,7 +130,7 @@ async function clickDynamicControl(page, withinReadiness) {
 async function prepareAttempt(page) {
   await page.goto('/');
   await page.locator('#nick').fill('E2EPlayer');
-  await page.locator('[data-team="spain"]').click();
+  await page.getByRole('button', { name: 'España', exact: true }).click();
   await expect(page.locator('#startButton')).toBeEnabled();
   await page.locator('#startButton').click();
   await clickCaptcha(page);
