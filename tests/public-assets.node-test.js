@@ -83,15 +83,16 @@ test('walks repository files while skipping generated and dependency directories
   }
 });
 
-test('passes a clean public asset graph with references from different source types', () => {
+test('passes a clean deployable asset graph across root, public and edge sources', () => {
   const fixture = workspace();
   try {
     fixture.file('public/assets/a.svg', '<svg></svg>');
     fixture.file('public/assets/b.png', 'png-b');
     fixture.file('public/assets/c.webp', 'webp-c');
-    fixture.file('public/index.html', '<img src="./assets/a.svg"><meta content="/assets/b.png">');
-    fixture.file('public/styles.css', '.hero{background:url("./assets/c.webp")}');
-    fixture.file('scripts/source.mjs', "const icon = '/public/assets/a.svg';");
+    fixture.file('index.html', '<meta content="/public/assets/a.svg">');
+    fixture.file('public/index.html', '<meta content="/assets/b.png">');
+    fixture.file('supabase/functions/card/index.ts', "const card = '../../../public/assets/c.webp';");
+    fixture.file('scripts/ignored-fixture.mjs', "const missing = '/public/assets/not-production.png';");
     const report = auditPublicAssets(fixture.root);
     assert.deepEqual(report.invalidRoots, []);
     assert.deepEqual(report.missing, []);
@@ -104,27 +105,42 @@ test('passes a clean public asset graph with references from different source ty
   }
 });
 
-test('reports invalid roots, missing references, orphans and duplicate media', () => {
+test('reports and sorts invalid roots, missing references, orphans and duplicate groups', () => {
   const fixture = workspace();
   try {
     fixture.file('assets/root.svg', '<svg></svg>');
     fixture.file('public/public/assets/nested.svg', '<svg></svg>');
-    fixture.file('public/assets/a.svg', '<svg id="same"></svg>');
-    fixture.file('public/assets/b.svg', '<svg id="same"></svg>');
-    fixture.file('public/assets/orphan.png', 'orphan');
-    fixture.file('public/index.html', '<img src="./assets/a.svg"><img src="./assets/missing.png">');
+    fixture.file('public/assets/a.svg', '<svg id="same-a"></svg>');
+    fixture.file('public/assets/b.svg', '<svg id="same-a"></svg>');
+    fixture.file('public/assets/c.png', 'same-c');
+    fixture.file('public/assets/d.png', 'same-c');
+    fixture.file('public/assets/orphan.webp', 'orphan');
+    fixture.file('public/index.html', '<img src="./assets/a.svg"><img src="./assets/z-missing.png"><img src="./assets/a-missing.png">');
     const report = auditPublicAssets(fixture.root);
     assert.deepEqual(report.invalidRoots, ['assets/root.svg', 'public/public/assets/nested.svg']);
-    assert.deepEqual(report.missing, [{ source: 'public/index.html', reference: './assets/missing.png' }]);
-    assert.deepEqual(report.orphaned, ['public/assets/b.svg', 'public/assets/orphan.png', 'public/public/assets/nested.svg']);
-    assert.deepEqual(report.duplicates, [['public/assets/a.svg', 'public/assets/b.svg']]);
+    assert.deepEqual(report.missing, [
+      { source: 'public/index.html', reference: './assets/a-missing.png' },
+      { source: 'public/index.html', reference: './assets/z-missing.png' },
+    ]);
+    assert.deepEqual(report.orphaned, [
+      'public/assets/b.svg',
+      'public/assets/c.png',
+      'public/assets/d.png',
+      'public/assets/orphan.webp',
+      'public/public/assets/nested.svg',
+    ]);
+    assert.deepEqual(report.duplicates, [
+      ['public/assets/a.svg', 'public/assets/b.svg'],
+      ['public/assets/c.png', 'public/assets/d.png'],
+    ]);
     const output = formatAssetAudit(report);
     assert.match(output, /Media must not be tracked outside/);
     assert.match(output, /Referenced media files are missing/);
     assert.match(output, /Public media files are not referenced/);
     assert.match(output, /Duplicate public media content was found/);
     assert.match(output, /public\/assets\/a\.svg, public\/assets\/b\.svg/);
-    assert.equal(readFileSync(join(fixture.root, 'public/assets/orphan.png'), 'utf8'), 'orphan');
+    assert.match(output, /public\/assets\/c\.png, public\/assets\/d\.png/);
+    assert.equal(readFileSync(join(fixture.root, 'public/assets/orphan.webp'), 'utf8'), 'orphan');
   } finally {
     fixture.cleanup();
   }
