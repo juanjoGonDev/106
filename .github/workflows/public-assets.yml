@@ -27,4 +27,21 @@ jobs:
           node-version: 22.13.0
 
       - name: Audit public media without installing dependencies
-        run: node scripts/check-public-assets.mjs
+        id: assets
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/check-public-assets.mjs 2>&1 | tee public-assets-results.txt
+
+      - name: Upload failed asset report
+        if: steps.assets.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-assets-${{ github.run_id }}
+          path: public-assets-results.txt
+          retention-days: 7
+
+      - name: Enforce asset audit result
+        if: steps.assets.outcome == 'failure'
+        run: exit 1
