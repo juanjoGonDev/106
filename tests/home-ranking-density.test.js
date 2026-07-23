@@ -47,6 +47,12 @@ describe('home score and ranking density', () => {
     expect(styles).toContain('text-overflow: ellipsis;');
   });
 
+  it('matches the daily-awards spacing without inherited list-item padding', () => {
+    const styles = read('public/v12.css');
+    expect(styles).toMatch(/\.layout-rail \.leaderboard \{\s+gap: 8px;/);
+    expect(styles).toMatch(/\.layout-rail \.leaderboard \.leaderboard-row \{[\s\S]*?margin: 0 !important;[\s\S]*?padding: 0 !important;/);
+  });
+
   it('moves the existing awards card below the score on mobile and restores the desktop rail', () => {
     const script = read('public/home-ranking-density.js');
     const styles = read('public/v12.css');
