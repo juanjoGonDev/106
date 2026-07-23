@@ -7,6 +7,13 @@ const HEIGHT = 630;
 const SECTIONS = new Set(['overview', 'achievements', 'trophies']);
 const DEFAULT_SITE_URL = 'https://juanjogondev.github.io/106';
 const SITE_ROUTE = '_site';
+const RADAR_LABELS = Object.freeze([
+  Object.freeze({ label: 'PRECISIÓN', x: 170, y: 18, textAnchor: 'middle' }),
+  Object.freeze({ label: 'REGULARIDAD', x: 266, y: 119, textAnchor: 'start' }),
+  Object.freeze({ label: 'EXPERIENCIA', x: 258, y: 286, textAnchor: 'start' }),
+  Object.freeze({ label: 'FIABILIDAD', x: 82, y: 286, textAnchor: 'end' }),
+  Object.freeze({ label: 'IMPACTO', x: 74, y: 119, textAnchor: 'end' }),
+]);
 const PLAYER_TEMPLATE_FALLBACK = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><defs><linearGradient id="g"><stop stop-color="#650018"/><stop offset=".48" stop-color="#080a10"/><stop offset="1" stop-color="#10264f"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><rect x="52" y="52" width="690" height="526" rx="30" fill="#11151e"/><rect x="766" y="52" width="382" height="526" rx="30" fill="#0a0f18"/></svg>`;
 const SITE_TEMPLATE_FALLBACK = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><defs><linearGradient id="g"><stop stop-color="#72001c"/><stop offset=".5" stop-color="#080a10"/><stop offset="1" stop-color="#176397"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><circle cx="600" cy="292" r="178" fill="#06080e"/><path d="M66 468Q600 330 1134 468V574H66Z" fill="#080b11"/></svg>`;
 
@@ -185,23 +192,91 @@ function teamIdentity(profile: Record<string, unknown>) {
 function radarStats(profile: Record<string, unknown>) {
   const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
   const inverse = (value: unknown, maximum: number) => hasNumber(value) ? clamp(100 - Number(value) / maximum * 100) : 0;
-  const attempts = Math.max(0, Number(profile.attemptsUsed) || 0);
-  const verified = Math.max(0, Number(profile.verifiedAttempts) || 0);
+  const attemptsUsed = Math.max(0, Number(profile.attemptsUsed) || 0);
+  const verifiedAttempts = Math.max(0, Number(profile.verifiedAttempts) || 0);
+  const completedReferrals = Math.max(0, Number(profile.completedReferrals) || 0);
+  const bonusAttempts = Math.max(0, Number(profile.bonusAttempts) || 0);
   return [
     inverse(profile.bestDifferenceMs, 1000),
     inverse(profile.averageDifferenceMs, 1500),
-    clamp(verified / 20 * 100),
-    attempts ? clamp(verified / attempts * 100) : 0,
-    clamp((Number(profile.achievements && (profile.achievements as Record<string, unknown>).points) || 0) / 2),
+    clamp(verifiedAttempts / 20 * 100),
+    attemptsUsed ? clamp(verifiedAttempts / attemptsUsed * 100) : 0,
+    clamp(completedReferrals * 20 + bonusAttempts * 8),
   ];
 }
 
-function polygonPoints(values: number[], radius = 108, center = 150) {
+function radarPoint(index: number, radius: number, center = 170) {
+  const angle = -Math.PI / 2 + Math.PI * 2 * index / RADAR_LABELS.length;
+  return {
+    x: center + Math.cos(angle) * radius,
+    y: center + Math.sin(angle) * radius,
+  };
+}
+
+function polygonPoints(values: number[], radius = 112, center = 170) {
   return values.map((value, index) => {
-    const angle = -Math.PI / 2 + Math.PI * 2 * index / values.length;
-    const distance = radius * value / 100;
-    return `${(center + Math.cos(angle) * distance).toFixed(2)},${(center + Math.sin(angle) * distance).toFixed(2)}`;
+    const point = radarPoint(index, radius * value / 100, center);
+    return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
   }).join(' ');
+}
+
+function radarElement(stats: number[], nick: string) {
+  const grid = [];
+  for (const level of [20, 40, 60, 80, 100]) {
+    grid.push(h('polygon', {
+      key: `grid-${level}`,
+      points: polygonPoints(RADAR_LABELS.map(() => level)),
+      fill: 'none',
+      stroke: level === 100 ? 'rgba(255,255,255,.20)' : 'rgba(255,255,255,.12)',
+      strokeWidth: 2,
+    }));
+  }
+  const axes = RADAR_LABELS.map((axis, index) => {
+    const end = radarPoint(index, 112);
+    return h('line', {
+      key: `axis-${axis.label}`,
+      x1: 170,
+      y1: 170,
+      x2: end.x,
+      y2: end.y,
+      stroke: 'rgba(255,255,255,.10)',
+      strokeWidth: 1,
+    });
+  });
+  const labels = RADAR_LABELS.map((axis) => h('text', {
+    key: axis.label,
+    x: axis.x,
+    y: axis.y,
+    fill: '#d4d7df',
+    fontSize: 11,
+    fontWeight: 700,
+    textAnchor: axis.textAnchor,
+  }, axis.label));
+  const points = stats.map((value, index) => {
+    const point = radarPoint(index, 112 * value / 100);
+    return h('circle', {
+      key: `point-${index}`,
+      cx: point.x,
+      cy: point.y,
+      r: 4,
+      fill: '#f4c95d',
+      stroke: '#090d15',
+      strokeWidth: 2,
+    });
+  });
+  return h('svg', {
+    width: 340,
+    height: 360,
+    viewBox: '0 0 340 360',
+    style: { position: 'absolute', left: 787, top: 108 },
+  },
+  ...grid,
+  ...axes,
+  h('polygon', { points: polygonPoints(stats), fill: 'rgba(244,201,93,.28)', stroke: '#f4c95d', strokeWidth: 4, strokeLinejoin: 'round' }),
+  ...points,
+  ...labels,
+  h('circle', { cx: 140, cy: 340, r: 4, fill: '#f4c95d' }),
+  h('text', { x: 151, y: 344, fill: '#d4d7df', fontSize: 12 }, truncate(nick, 18)));
 }
 
 function flagElement(team: ReturnType<typeof teamIdentity>, width = 46, height = 30) {
@@ -242,7 +317,6 @@ async function playerCardResponse(profile: Record<string, unknown>, section: str
   const trophies = (profile.trophies || {}) as Record<string, unknown>;
   const achievements = (profile.achievements || {}) as Record<string, unknown>;
   const stats = radarStats(profile);
-  const labels = ['PRECISIÓN', 'REGULARIDAD', 'EXPERIENCIA', 'FIABILIDAD', 'IMPACTO'];
   const sectionLabel = section === 'achievements' ? 'LOGROS' : section === 'trophies' ? 'TROFEOS' : 'PERFIL GLOBAL';
   const rows = sectionRows(profile, section);
   const nick = truncate(profile.nick || 'Jugador', 24);
@@ -266,15 +340,7 @@ async function playerCardResponse(profile: Record<string, unknown>, section: str
     ),
     h('div', { style: { position: 'absolute', left: 82, top: 520, display: 'flex', color: '#f4c95d', fontSize: 18, fontWeight: 800, lineHeight: 1, letterSpacing: 2 } }, '¿PUEDES SUPERARME?'),
     h('div', { style: { position: 'absolute', left: 800, top: 82, display: 'flex', width: 314, justifyContent: 'center', color: '#f4c95d', fontSize: 17, fontWeight: 800, lineHeight: 1, letterSpacing: 3 } }, 'PENTÁGONO'),
-    h('svg', { width: 300, height: 300, viewBox: '0 0 300 300', style: { position: 'absolute', left: 807, top: 112 } },
-      h('polygon', { points: polygonPoints([100, 100, 100, 100, 100]), fill: 'none', stroke: 'rgba(255,255,255,.18)', strokeWidth: 2 }),
-      h('polygon', { points: polygonPoints([75, 75, 75, 75, 75]), fill: 'none', stroke: 'rgba(255,255,255,.12)', strokeWidth: 2 }),
-      h('polygon', { points: polygonPoints([50, 50, 50, 50, 50]), fill: 'none', stroke: 'rgba(255,255,255,.12)', strokeWidth: 2 }),
-      h('polygon', { points: polygonPoints(stats), fill: 'rgba(244,201,93,.28)', stroke: '#f4c95d', strokeWidth: 4 }),
-    ),
-    h('div', { style: { position: 'absolute', left: 792, top: 410, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '7px 12px', width: 330, height: 58, overflow: 'hidden', color: '#c8cdd6', fontSize: 12, lineHeight: 1.2 } },
-      ...labels.map((label, index) => h('span', { key: label, style: { display: 'flex' } }, `${label} ${stats[index]}`)),
-    ),
+    radarElement(stats, nick),
     h('div', { style: { position: 'absolute', left: 798, top: 514, display: 'flex', justifyContent: 'space-between', width: 318, color: '#fff', fontSize: 17, fontWeight: 800, lineHeight: 1 } },
       h('span', { style: { display: 'flex' } }, `TROFEOS ${Number(trophies.total || 0)}`),
       h('span', { style: { display: 'flex' } }, `LOGROS ${Number(achievements.total || 0)}`),
