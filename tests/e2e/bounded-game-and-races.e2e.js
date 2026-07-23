@@ -1,9 +1,12 @@
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
 const { expect, test } = require(runtimePath);
+const previewDirectory = '.tmp/pr-previews';
+mkdirSync(previewDirectory, { recursive: true });
 
 const interaction = {
   mode: 'press',
@@ -127,7 +130,15 @@ async function clickDynamicControl(page, withinReadiness) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
-async function prepareAttempt(page) {
+async function capturePlayingPanel(page, name, isMobile) {
+  if (process.env.PR_VISUAL_CAPTURE !== '1') return;
+  await page.locator('#playing').screenshot({
+    path: `${previewDirectory}/${name}-${isMobile ? 'mobile' : 'desktop'}.png`,
+    animations: 'disabled',
+  });
+}
+
+async function prepareAttempt(page, { capture = false, isMobile = false } = {}) {
   await page.goto('/');
   await page.locator('#nick').fill('E2EPlayer');
   await page.getByRole('button', { name: 'España', exact: true }).click();
@@ -137,15 +148,17 @@ async function prepareAttempt(page) {
   await expect(page.locator('.game-readiness-control')).toBeVisible();
   await expect(page.locator('#playInstruction')).toBeVisible();
   await expect(page.locator('.timer-hint')).toBeVisible();
+  if (capture) await capturePlayingPanel(page, 'game-readiness', isMobile);
   await clickDynamicControl(page, true);
   await expect(page.locator('.game-readiness-control')).toHaveAttribute('data-phase', 'countdown');
+  if (capture) await capturePlayingPanel(page, 'game-countdown', isMobile);
   await expect(page.locator('.game-readiness-control')).toHaveCount(0, { timeout: 6_000 });
 }
 
-test('the final control cannot finish before concealment and works after two seconds', async ({ page }) => {
+test('the final control cannot finish before concealment and works after two seconds', async ({ page, isMobile }) => {
   const finishes = [];
   await installGameMocks(page, finishes);
-  await prepareAttempt(page);
+  await prepareAttempt(page, { capture: true, isMobile });
 
   await clickDynamicControl(page, false);
   await page.waitForTimeout(250);
