@@ -7,7 +7,7 @@ const ROOT = process.cwd();
 const INCLUDED_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.sql', '.svg', '.ts', '.yaml', '.yml']);
 const IGNORED_DIRECTORIES = new Set(['.git', '.tmp', 'node_modules']);
 const IGNORED_FILES = new Set(['pnpm-lock.yaml', 'tests/content-policy.test.js']);
-const SITE_CARD_URL = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+const SITE_CARD_URL = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-2';
 
 function extension(path) {
   const index = path.lastIndexOf('.');
