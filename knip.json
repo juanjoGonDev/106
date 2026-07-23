@@ -11,6 +11,7 @@
     "public/format.js",
     "public/human-check-ready-flow.js",
     "public/human-check.js",
+    "public/home-ranking-density.js",
     "public/honours.js",
     "public/share-actions.js",
     "public/layout.js",

@@ -5,6 +5,7 @@
   const route = ui?.parsePlayerLocation(location) ?? { nick: '', section: 'overview' };
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
+  const absoluteSchemePattern = /^[a-z][a-z0-9+.-]*:/i;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -17,6 +18,16 @@
 
   function escape(value) {
     return ui.escapeHtml(value);
+  }
+
+  function normalizeSiteChromeLinks() {
+    const appBaseUrl = ui.appBaseUrl();
+    const links = document.querySelectorAll('.site-header a[href], .site-footer a[href], #cookieBanner a[href]');
+    for (const anchor of links) {
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('//') || absoluteSchemePattern.test(href)) continue;
+      anchor.href = new URL(href, appBaseUrl).toString();
+    }
   }
 
   async function requestProfile(nick) {
@@ -45,6 +56,7 @@
     }
     canonical.href = ui.playerUrl(player.nick, route.section);
     history.replaceState(null, '', canonical.href);
+    normalizeSiteChromeLinks();
   }
 
   function renderTabs(player) {

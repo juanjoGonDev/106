@@ -91,7 +91,7 @@ describe('dynamic player social card', () => {
     const siteTemplate = read('supabase/functions/player-share/site-card-template.svg');
     expect(edge).toContain("boxSizing: 'border-box'");
     expect(edge).toContain('left: 82, top: 80');
-    expect(edge).toContain('left: 807, top: 112');
+    expect(edge).toContain('left: 787, top: 108');
     expect(edge).toContain('width: 190, height: 78');
     expect(edge).toContain("textOverflow: 'ellipsis'");
     expect(playerTemplate).toContain('x="32" y="32" width="1136" height="566"');
