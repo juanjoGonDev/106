@@ -1,5 +1,6 @@
 const v4Config = window.__MINUTO106_CONFIG__ ?? {};
 const v4ApiUrl = String(v4Config.apiBaseUrl ?? '').replace(/\/$/, '');
+const v4PlayerUi = window.Minuto106PlayerUI;
 const v4$ = (selector) => document.querySelector(selector);
 
 async function v4Request(action, payload = {}) {
@@ -24,8 +25,6 @@ function escapeV4(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 }
 
-function teamLabel(team) { return team === 'spain' ? 'España' : 'Argentina'; }
-
 function renderFallbackRanking(stats) {
   const list = v4$('#leaderboard');
   if (!list) return;
@@ -34,7 +33,12 @@ function renderFallbackRanking(stats) {
     list.innerHTML = '<li class="empty">Aún no hay marcas verificadas. Sé el primero.</li>';
     return;
   }
-  list.innerHTML = entries.map((entry, index) => `<li class="${index === 0 ? 'leader' : ''}" tabindex="0"><span class="rank">#${index + 1}</span><span class="player">${escapeV4(entry.nick)}<small>${teamLabel(entry.team)} · ${(Number(entry.elapsedMs) / 1000).toFixed(3)} s</small></span><span class="difference">±${Number(entry.differenceMs).toLocaleString('es-ES')} ms</span></li>`).join('');
+  list.innerHTML = entries.map((entry, index) => {
+    const nick = String(entry.nick || '');
+    const href = v4PlayerUi?.playerUrl(nick) || `./ranking.html?nick=${encodeURIComponent(nick)}`;
+    const team = v4PlayerUi?.teamHtml(entry.team) || `<span>${entry.team === 'spain' ? 'España' : 'Argentina'}</span>`;
+    return `<li class="leaderboard-row${index === 0 ? ' leader' : ''}" data-team="${escapeV4(entry.team)}"><a class="leaderboard-row-link" href="${escapeV4(href)}" data-player-nick="${escapeV4(nick)}" aria-label="Ver perfil de ${escapeV4(nick)}"><span class="rank">#${index + 1}</span><span class="ranking-player"><span class="player-link__nick">${escapeV4(nick)}</span>${team}<small>${(Number(entry.elapsedMs) / 1000).toFixed(3)} s</small></span><span class="difference">±${Number(entry.differenceMs).toLocaleString('es-ES')} ms</span></a></li>`;
+  }).join('');
   const total = v4$('#totalAttempts');
   if (total) total.textContent = `${Number(stats.totalAttempts || 0).toLocaleString('es-ES')} intentos`;
 }

@@ -4,3 +4,7 @@ node_modules/
 !.env.example
 .DS_Store
 supabase/.temp/
+.tmp/
+playwright-report/
+test-results/
+playwright-results.json

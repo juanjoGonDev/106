@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Minuto 106: España contra Argentina</title>
+  <desc id="desc">Plantilla social con una zona segura amplia para la rivalidad y el objetivo de 10.600 segundos.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070910"/>
+      <stop offset=".5" stop-color="#0b101a"/>
+      <stop offset="1" stop-color="#05070c"/>
+    </linearGradient>
+    <linearGradient id="spain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d80a35"/>
+      <stop offset=".62" stop-color="#750019"/>
+      <stop offset="1" stop-color="#210008"/>
+    </linearGradient>
+    <linearGradient id="argentina" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#62c6f4"/>
+      <stop offset=".62" stop-color="#176397"/>
+      <stop offset="1" stop-color="#07192e"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe28d"/>
+      <stop offset=".5" stop-color="#f4c95d"/>
+      <stop offset="1" stop-color="#d89b25"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="44%" r="52%">
+      <stop offset="0" stop-color="#f4c95d" stop-opacity=".27"/>
+      <stop offset="1" stop-color="#f4c95d" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="20" stdDeviation="26" flood-color="#000" flood-opacity=".48"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <path d="M0 0h470L350 630H0Z" fill="url(#spain)"/>
+  <path d="M1200 0H730l120 630h350Z" fill="url(#argentina)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="32" y="32" width="1136" height="566" rx="34" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
+  <g opacity=".82">
+    <path d="M0 96c130-48 270-40 430 34l-24 62C252 126 125 117 0 162Z" fill="#e20b3a"/>
+    <path d="M0 162c132-45 260-35 406 30l-23 58C240 193 118 187 0 228Z" fill="#ffd54c"/>
+    <path d="M1200 96c-130-48-270-40-430 34l24 62c154-66 281-75 406-30Z" fill="#69cdf8"/>
+    <path d="M1200 162c-132-45-260-35-406 30l23 58c143-57 265-63 383-22Z" fill="#f5f8fc"/>
+  </g>
+  <g filter="url(#shadow)">
+    <circle cx="600" cy="292" r="178" fill="#06080e" fill-opacity=".96" stroke="#fff" stroke-opacity=".16" stroke-width="3"/>
+    <circle cx="600" cy="292" r="157" fill="none" stroke="#f4c95d" stroke-opacity=".42" stroke-width="3" stroke-dasharray="5 15"/>
+  </g>
+  <path d="M66 468Q600 330 1134 468V574H66Z" fill="#080b11" fill-opacity=".96" stroke="#fff" stroke-opacity=".12" stroke-width="2"/>
+  <rect x="390" y="548" width="420" height="52" rx="26" fill="url(#gold)"/>
+</svg>

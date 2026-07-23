@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <title>Perfil de jugador — Minuto 106</title>
+  <meta name="description" content="Perfil público, estadísticas, trofeos y logros de un jugador de Minuto 106.">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./site.css">
+  <link rel="stylesheet" href="./v7.css">
+  <link rel="stylesheet" href="./v9.css">
+  <link rel="stylesheet" href="./v11.css">
+</head>
+<body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <header class="site-header"></header>
+  <main id="playerPage" class="player-page">
+    <section id="playerLoading" class="player-panel player-loading" aria-live="polite">Cargando perfil público…</section>
+    <section id="playerError" class="player-error" hidden><h1>No se pudo cargar el jugador</h1><p id="playerErrorMessage"></p><a class="secondary" href="./ranking.html">Volver al ranking</a></section>
+    <div id="playerContent" hidden>
+      <section class="player-hero">
+        <div class="player-identity">
+          <div><p class="eyebrow">PERFIL PÚBLICO GLOBAL</p><h1 id="playerNick"></h1><div id="playerTeam"></div></div>
+          <div class="player-actions"><button id="sharePlayer" class="primary" type="button">Compartir perfil</button><a id="downloadPlayerCard" class="secondary" download>Descargar PNG</a></div>
+        </div>
+        <nav id="playerTabs" class="player-tabs" aria-label="Secciones del jugador"></nav>
+        <p class="player-social-note">La vista compartida utiliza una imagen PNG dinámica con el palmarés y las estadísticas actuales.</p>
+      </section>
+      <div class="player-content-grid">
+        <div>
+          <section id="overviewSection" class="player-panel player-section" data-player-section="overview"><div class="player-section-heading"><div><p class="eyebrow">RESUMEN</p><h2>Rendimiento global</h2></div></div><div id="playerStats" class="player-stat-grid"></div><h3>Últimos intentos</h3><ol id="playerHistory" class="player-list"></ol></section>
+          <section id="achievementsSection" class="player-panel player-section" data-player-section="achievements" hidden><div class="player-section-heading"><div><p class="eyebrow">LOGROS</p><h2>Logros desbloqueados</h2></div><p id="achievementTotal"></p></div><ol id="playerAchievements" class="player-list"></ol></section>
+          <section id="trophiesSection" class="player-panel player-section" data-player-section="trophies" hidden><div class="player-section-heading"><div><p class="eyebrow">TROFEOS</p><h2>Trofeos conseguidos</h2></div><p id="trophyTotal"></p></div><ol id="playerTrophies" class="player-list"></ol></section>
+        </div>
+        <aside class="player-panel"><p class="eyebrow">PENTÁGONO DE ESTADÍSTICAS</p><h2>Perfil de juego</h2><div id="playerRadar"></div><img id="playerCardPreview" class="player-card-preview" width="1200" height="630" decoding="async" alt="Vista previa completa de la tarjeta social dinámica"></aside>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./player-ui.js"></script>
+  <script src="./player-stats.js"></script>
+  <script src="./player.js"></script>
+</body>
+</html>

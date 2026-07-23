@@ -1,0 +1,128 @@
+name: Pull Request Visual Evidence
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-visual-evidence-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  evidence:
+    name: 🖼️ Frontend · Desktop and mobile evidence
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - name: Validate pull request body without executing pull request code
+        shell: python
+        run: |
+          import json
+          import os
+          import re
+          import sys
+          import urllib.request
+
+          frontend_extensions = {'.css', '.gif', '.html', '.jpeg', '.jpg', '.png', '.svg', '.webp'}
+          frontend_prefixes = ('public/', 'supabase/functions/player-share/')
+          start_marker = '<!-- visual-evidence:start -->'
+          end_marker = '<!-- visual-evidence:end -->'
+          placeholder = re.compile(r'(paste|pega|replace|placeholder|todo|example\.com|github\.com/OWNER)', re.I)
+
+          def is_frontend(path):
+              normalized = path.replace('\\', '/')
+              if normalized in {'index.html', 'playwright.config.js'}:
+                  return True
+              if normalized.startswith(frontend_prefixes):
+                  return True
+              return any(normalized.lower().endswith(extension) for extension in frontend_extensions)
+
+          repository = os.environ['REPOSITORY']
+          number = os.environ['PR_NUMBER']
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f"Bearer {os.environ['GITHUB_TOKEN']}",
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+          changed = []
+          page = 1
+          while True:
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repository}/pulls/{number}/files?per_page=100&page={page}',
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  batch = json.load(response)
+              changed.extend(item['filename'] for item in batch)
+              if len(batch) < 100:
+                  break
+              page += 1
+
+          frontend = sorted({path for path in changed if is_frontend(path)})
+          if not frontend:
+              print('No frontend changes detected; visual evidence is not required.')
+              sys.exit(0)
+
+          body = os.environ.get('PR_BODY', '')
+          start = body.find(start_marker)
+          end = body.find(end_marker)
+          errors = []
+          if start < 0 or end < 0 or end <= start:
+              errors.append('Missing visual evidence marker block. Use .github/pull_request_template.md.')
+          else:
+              region = body[start + len(start_marker):end]
+              details = re.findall(r'<details(?:\s[^>]*)?>\s*<summary>([\s\S]*?)</summary>([\s\S]*?)</details>', region, re.I)
+              areas = {}
+              for raw_summary, content in details:
+                  summary = re.sub(r'<[^>]+>', ' ', raw_summary)
+                  summary = re.sub(r'\s+', ' ', summary).strip()
+                  match = re.match(r'^(.*?)\s*(?:·|—|-)\s*(desktop|mobile|escritorio|m[oó]vil)$', summary, re.I)
+                  if not match:
+                      continue
+                  area = match.group(1).strip()
+                  if not area:
+                      continue
+                  device = 'desktop' if re.match(r'^(desktop|escritorio)$', match.group(2), re.I) else 'mobile'
+                  key = area.casefold()
+                  state = areas.setdefault(key, {'label': area, 'desktop': [], 'mobile': []})
+                  image = re.search(r'!\[[^\]]*\]\(([^)\s]+)(?:\s+["\'][^"\']*["\'])?\)', content)
+                  url = image.group(1).strip() if image else ''
+                  state[device].append((summary, url))
+                  if not url:
+                      errors.append(f'{summary}: missing Markdown image.')
+                  elif placeholder.search(url):
+                      errors.append(f'{summary}: replace the placeholder image URL.')
+
+              if not areas:
+                  errors.append('Add at least one paired Desktop/Mobile visual evidence area.')
+              for state in areas.values():
+                  if not state['desktop']:
+                      errors.append(f"{state['label']}: missing Desktop evidence.")
+                  if not state['mobile']:
+                      errors.append(f"{state['label']}: missing Mobile evidence.")
+                  if len(state['desktop']) > 1:
+                      errors.append(f"{state['label']}: duplicate Desktop evidence.")
+                  if len(state['mobile']) > 1:
+                      errors.append(f"{state['label']}: duplicate Mobile evidence.")
+
+          if errors:
+              print('Frontend files requiring visual evidence:')
+              for path in frontend:
+                  print(f'  - {path}')
+              print('\nVisual evidence errors:')
+              for error in dict.fromkeys(errors):
+                  print(f'  - {error}')
+              sys.exit(1)
+
+          print(f'Validated paired visual evidence for {len(frontend)} frontend file(s).')

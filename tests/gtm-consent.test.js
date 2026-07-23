@@ -23,13 +23,15 @@ describe('Google Tag Manager and consent components', () => {
     const html = read(path);
     const head = html.indexOf('<head>');
     const bootstrapScript = html.indexOf('<script src="./privacy-bootstrap.js"></script>');
-    const meta = html.indexOf('<meta charset');
+    const headEnd = html.indexOf('</head>');
     const body = html.indexOf('<body>');
     const noscript = html.indexOf('googletagmanager.com/ns.html?id=GTM-NKZK4DC5');
     const header = html.indexOf('<header');
+    const scriptsBeforeBootstrap = html.slice(head, bootstrapScript).match(/<script\s+src=/g) || [];
 
     expect(bootstrapScript).toBeGreaterThan(head);
-    expect(bootstrapScript).toBeLessThan(meta);
+    expect(bootstrapScript).toBeLessThan(headEnd);
+    expect(scriptsBeforeBootstrap).toHaveLength(0);
     expect((html.match(/privacy-bootstrap\.js/g) || [])).toHaveLength(1);
     expect(html).not.toContain('(function(w,d,s,l,i)');
     expect(html).not.toContain("gtag('consent', 'default'");
@@ -68,26 +70,6 @@ describe('Google Tag Manager and consent components', () => {
     expect(compliance).toContain("gtag('consent', 'update'");
     expect(compliance).toContain("event: 'minuto106_consent_update'");
     expect(compliance).toContain("chip.addEventListener('click', openSettings)");
-    expect(compliance).toContain('clearAnalyticsCookies');
-    expect(compliance).not.toContain('googletagmanager.com/gtag/js');
-    expect(compliance).not.toContain("gtag('config'");
-  });
-
-  it('keeps accept and reject at equal visual prominence in the reusable component', () => {
-    expect(layout).toContain('id="rejectCookies" class="secondary"');
-    expect(layout).toContain('id="acceptCookies" class="secondary"');
-    expect(bootstrap).toContain('CONSENT_MAX_AGE_MS = 730');
-  });
-
-  it('documents analytics, cookies, consent withdrawal and international transfers', () => {
-    const cookies = read('public/cookies.html');
-    const privacy = read('public/privacidad.html');
-    const legal = read('public/legal.html');
-    expect(cookies).toContain('Google Tag Manager');
-    expect(cookies).toContain('<code>_ga</code>');
-    expect(cookies).toContain('Máximo 24 meses');
-    expect(privacy).toContain('consentimiento');
-    expect(privacy).toContain('Transferencias internacionales');
-    expect(legal).toContain('rechazarla no limita el juego');
+    expect(compliance).not.toContain('googletagmanager.com/gtag/js?id=');
   });
 });

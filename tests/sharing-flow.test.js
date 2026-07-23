@@ -5,9 +5,13 @@ const layout = readFileSync('public/layout.js', 'utf8');
 const actions = readFileSync('public/share-actions.js', 'utf8');
 const ranking = readFileSync('public/ranking.js', 'utf8');
 const honours = readFileSync('public/honours.js', 'utf8');
-const overlay = readFileSync('public/profile-overlay.js', 'utf8');
+const player = readFileSync('public/player.js', 'utf8');
+const playerUi = readFileSync('public/player-ui.js', 'utf8');
+const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
+const rootIndex = readFileSync('index.html', 'utf8');
+const publicIndex = readFileSync('public/index.html', 'utf8');
 
-const visibleShareFlows = [layout, actions, ranking, honours, overlay];
+const visibleShareFlows = [layout, actions, ranking, honours, player, playerUi, edgeShare];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -32,7 +36,7 @@ describe('share-first social actions', () => {
       '#shareLeagueButton',
       '[data-share-league]',
     ]) expect(actions).toContain(selector);
-    expect(actions).toContain("event.stopImmediatePropagation()");
+    expect(actions).toContain('event.stopImmediatePropagation()');
   });
 
   it('creates direct challenges before opening the share surface', () => {
@@ -41,10 +45,30 @@ describe('share-first social actions', () => {
     expect(actions).toContain("url.searchParams.set('duel', duel.code)");
   });
 
-  it('shares public profiles through stable nickname URLs', () => {
-    expect(ranking).toContain("url.searchParams.set('nick', profile.nick)");
-    expect(honours).toContain("url.searchParams.set('nick', profile.nick)");
-    expect(overlay).toContain("url.searchParams.set('nick', profile.nick)");
+  it('shares public profiles through clean pages and dynamic metadata endpoints', () => {
+    expect(ranking).toContain('playerUi.playerUrl(nick, section)');
+    expect(honours).toContain('Minuto106PlayerUI?.shareUrl');
+    expect(player).toContain('ui.shareUrl(apiUrl, player.nick, route.section)');
+    expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
+    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
+    expect(edgeShare).toContain('property="og:image"');
+    expect(edgeShare).toContain('property="og:image:secure_url"');
+    expect(edgeShare).toContain('name="twitter:image:src"');
+    expect(edgeShare).toContain('new ImageResponse');
+  });
+
+  it('publishes the root X card through the live site PNG endpoint', () => {
+    const siteCard = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+    for (const html of [rootIndex, publicIndex]) {
+      expect(html).toContain('name="twitter:card" content="summary_large_image"');
+      expect(html).toContain('name="twitter:image"');
+      expect(html).toContain('name="twitter:image:src"');
+      expect(html).toContain('property="og:image:secure_url"');
+      expect(html).toContain(siteCard);
+      expect(html).not.toContain('/public/assets/social-preview');
+    }
+    expect(edgeShare).toContain("const SITE_ROUTE = '_site'");
+    expect(edgeShare).toContain('async function siteCardResponse');
   });
 
   it('does not intercept private-key clipboard controls', () => {

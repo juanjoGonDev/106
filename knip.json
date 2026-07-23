@@ -5,6 +5,7 @@
     "public/app.js",
     "public/access.js",
     "public/account.js",
+    "public/attempt-refresh.js",
     "public/compliance.js",
     "public/competition.js",
     "public/format.js",
@@ -14,8 +15,10 @@
     "public/share-actions.js",
     "public/layout.js",
     "public/player-stats.js",
+    "public/player-ui.js",
+    "public/player.js",
     "public/profile-enhancements.js",
-    "public/profile-overlay.js",
+    "public/ranking-enhancements.js",
     "public/ranking.js",
     "public/ligas.js",
     "public/stop-control.js",
@@ -23,13 +26,15 @@
     "public/v4.js",
     "scripts/*.mjs",
     "tests/**/*.test.js",
-    "tests/**/*.node-test.js"
+    "tests/**/*.node-test.js",
+    "tests/e2e/**/*.e2e.js",
+    "playwright.config.js"
   ],
   "project": [
     "public/**/*.js",
     "scripts/**/*.mjs",
     "tests/**/*.js",
-    "eslint.config.js"
+    "playwright.config.js"
   ],
   "ignore": [
     "public/config.js",
@@ -38,5 +43,7 @@
   "ignoreBinaries": [
     "supabase"
   ],
-  "ignoreDependencies": []
+  "ignoreDependencies": [
+    "@playwright/test"
+  ]
 }

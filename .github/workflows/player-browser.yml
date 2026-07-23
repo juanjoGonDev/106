@@ -1,0 +1,123 @@
+name: Player Pages and Social Cards
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: read-all
+
+concurrency:
+  group: player-pages-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22.13.0
+  PNPM_VERSION: 11.15.1
+  PLAYWRIGHT_VERSION: 1.60.0
+
+jobs:
+  coverage:
+    name: 🧮 Frontend modules · 100% coverage
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm cache
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Enforce player route and flag coverage
+        run: pnpm test:player-ui:coverage
+
+      - name: Enforce completed-attempt refresh coverage
+        run: pnpm test:attempt-refresh:coverage
+
+      - name: Enforce public asset audit coverage
+        run: pnpm test:public-assets:coverage
+
+      - name: Enforce PR visual evidence coverage
+        run: pnpm test:pr-visual-evidence:coverage
+
+      - name: Audit public assets
+        run: pnpm check:public-assets
+
+  browser:
+    name: 🌐 Player pages · Desktop and mobile
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm cache
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Validate package policy before installation
+        run: node scripts/check-package-policy.mjs
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run responsive browser journeys and capture PR evidence
+        id: playwright
+        continue-on-error: true
+        shell: bash
+        env:
+          PR_VISUAL_CAPTURE: '1'
+          PR_VISUAL_GIF: '0'
+        run: |
+          set -o pipefail
+          pnpm test:e2e 2>&1 | tee playwright-output.txt
+
+      - name: Upload desktop and mobile PR previews
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: frontend-previews-${{ github.run_id }}
+          path: .tmp/pr-previews
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload failed browser diagnostics
+        if: steps.playwright.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: player-browser-${{ github.run_id }}
+          path: |
+            playwright-output.txt
+            playwright-results.json
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Enforce browser result
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1

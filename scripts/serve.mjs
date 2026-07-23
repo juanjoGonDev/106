@@ -19,20 +19,24 @@ const mime = {
   '.woff2': 'font/woff2',
 };
 
+async function sendFile(response, path, status = 200) {
+  const content = await readFile(path);
+  response.writeHead(status, { 'content-type': mime[extname(path).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' });
+  response.end(content);
+}
+
 createServer(async (request, response) => {
+  const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
   try {
-    const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
     const relative = normalize(pathname).replace(/^([/\\])+/, '');
     let file = join(root, relative || 'index.html');
     if (!file.startsWith(root)) throw new Error('Invalid path');
     if ((await stat(file)).isDirectory()) file = join(file, 'index.html');
-    const content = await readFile(file);
-    response.writeHead(200, { 'content-type': mime[extname(file).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' });
-    response.end(content);
+    await sendFile(response, file);
   } catch {
     try {
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      response.end(await readFile(join(root, 'index.html')));
+      const fallback = /^\/player\/[^/]+(?:\/(?:achievements|trophies))?\/?$/i.test(pathname) ? '404.html' : 'index.html';
+      await sendFile(response, join(root, fallback));
     } catch {
       response.writeHead(404).end('Not found');
     }
