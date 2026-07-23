@@ -27,25 +27,29 @@
     return Array.from(String(value)).filter((character) => ![' ', '\n', '\r', '\t'].includes(character)).join('');
   }
 
+  function normalizeTime(value) {
+    const compact = removeWhitespace(value).toLocaleLowerCase('es').replace(',', '.');
+    const match = compact.match(/^(\d+(?:\.\d+)?)s$/u);
+    if (!match) return '';
+    const seconds = Number(match[1]);
+    return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';
+  }
+
   function extractTime(player) {
-    const explicit = player.querySelector('.ranking-time')?.textContent?.trim();
-    if (explicit) return removeWhitespace(explicit);
+    const explicit = normalizeTime(player.querySelector('.ranking-time')?.textContent ?? '');
+    if (explicit) return explicit;
+
     const source = String(player.querySelector('small')?.textContent ?? player.textContent ?? '')
       .replaceAll('·', ' ')
       .replaceAll('\n', ' ')
       .replaceAll('\r', ' ')
       .replaceAll('\t', ' ');
-    const tokens = source.split(' ').map((token) => token.trim()).filter(Boolean);
-    for (let index = 0; index < tokens.length; index += 1) {
-      const token = tokens[index];
-      const next = tokens[index + 1]?.toLocaleLowerCase('es');
-      if (next === 's' && Number.isFinite(Number(token.replace(',', '.')))) return `${token}s`;
-      if (token.toLocaleLowerCase('es').endsWith('s')) {
-        const numeric = token.slice(0, -1).replace(',', '.');
-        if (Number.isFinite(Number(numeric))) return removeWhitespace(token);
-      }
-    }
-    return '—';
+    const match = source.match(/(\d+(?:[.,]\d+)?)\s*s(?:\b|$)/iu);
+    return normalizeTime(match ? `${match[1]}s` : '');
+  }
+
+  function hasNumericValue(value) {
+    return Array.from(String(value)).some((character) => character >= '0' && character <= '9');
   }
 
   function createFlag(teamKey) {
@@ -72,28 +76,59 @@
     return identity;
   }
 
-  function compactRow(row) {
+  function readRow(row) {
     const anchor = row.querySelector(':scope > .leaderboard-row-link');
-    if (!anchor) return;
+    if (!anchor) return null;
     const player = anchor.querySelector('.player, .ranking-player');
     const teamKey = resolveTeam(row);
-    if (!player || !teamKey) return;
+    if (!player || !teamKey) return null;
 
     const nick = extractNick(anchor, player);
-    if (!nick) return;
+    const time = extractTime(player);
+    const rank = anchor.querySelector('.rank')?.textContent?.trim() ?? '';
+    const difference = anchor.querySelector('.difference')?.textContent?.trim() ?? '';
+    if (!nick || !time || !hasNumericValue(rank) || !hasNumericValue(difference)) return null;
 
-    const identity = createIdentity(teamKey, nick);
+    return {
+      row,
+      player,
+      teamKey,
+      nick,
+      time,
+      ready: row.dataset.homeRankingReady === 'true',
+    };
+  }
+
+  function compactRow(rowData) {
+    if (rowData.ready) return;
+    const identity = createIdentity(rowData.teamKey, rowData.nick);
     const timeElement = document.createElement('small');
     timeElement.className = 'ranking-time';
-    timeElement.textContent = extractTime(player);
+    timeElement.textContent = rowData.time;
 
-    player.className = 'player ranking-player ranking-player--home';
-    player.replaceChildren(identity, timeElement);
-    row.dataset.team = teamKey;
+    rowData.player.className = 'player ranking-player ranking-player--home';
+    rowData.player.replaceChildren(identity, timeElement);
+    rowData.row.dataset.team = rowData.teamKey;
+    rowData.row.dataset.homeRankingReady = 'true';
   }
 
   function compactLeaderboard(list) {
-    for (const row of list.querySelectorAll(':scope > li:not(.empty)')) compactRow(row);
+    const rows = Array.from(list.querySelectorAll(':scope > li:not(.empty)'));
+    if (!rows.length) {
+      list.removeAttribute('aria-busy');
+      list.dataset.renderState = 'empty';
+      return true;
+    }
+
+    list.setAttribute('aria-busy', 'true');
+    list.dataset.renderState = 'waiting';
+    const rowData = rows.map(readRow);
+    if (rowData.some((entry) => entry === null)) return false;
+
+    for (const entry of rowData) compactRow(entry);
+    list.removeAttribute('aria-busy');
+    list.dataset.renderState = 'ready';
+    return true;
   }
 
   function placeAwards(isMobile) {
@@ -114,8 +149,9 @@
   function initialize() {
     const list = document.querySelector('#leaderboard');
     if (list) {
+      const observer = new MutationObserver(() => compactLeaderboard(list));
+      observer.observe(list, { childList: true, subtree: true, characterData: true });
       compactLeaderboard(list);
-      new MutationObserver(() => compactLeaderboard(list)).observe(list, { childList: true });
     }
 
     const media = window.matchMedia(MOBILE_HOME_MEDIA);
