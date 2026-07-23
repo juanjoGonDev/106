@@ -56,6 +56,11 @@ test('extracts media references from HTML, CSS, JSON and source strings', () => 
   ]);
 });
 
+test('stops safely at an unterminated quoted asset path', () => {
+  const unterminated = `${String.fromCharCode(34)}../media/broken.png`;
+  assert.deepEqual(extractAssetReferences(unterminated), []);
+});
+
 test('resolves repository, public, app-root and relative asset paths safely', () => {
   const fixture = workspace();
   try {
