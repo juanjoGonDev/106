@@ -101,7 +101,7 @@ test('home places mobile awards below the score and keeps ranking rows on two st
   if (isMobile) {
     await expect(page.locator('.leaderboard-card')).toBeHidden();
     await expect(awards).toBeVisible();
-    const awardsFollowScore = await page.evaluate(() => document.querySelector('.battle-card')?.nextElementSibling?.id === 'awardsCard');
+    const awardsFollowScore = await page.evaluate(() => globalThis.document.querySelector('.battle-card')?.nextElementSibling?.id === 'awardsCard');
     expect(awardsFollowScore).toBe(true);
   } else {
     const awardsInDesktopRail = await awards.evaluate((card) => (
