@@ -5,15 +5,16 @@ const edgeCard = readFileSync('supabase/functions/player-share/index.ts', 'utf8'
 const browserRadar = readFileSync('public/player-stats.js', 'utf8');
 const playerPage = readFileSync('public/player.js', 'utf8');
 const shareIntegration = readFileSync('scripts/test-player-share-local.mjs', 'utf8');
+const edgeRadarStats = edgeCard.slice(edgeCard.indexOf('function radarStats'), edgeCard.indexOf('function radarPoint'));
 
 describe('player card radar parity', () => {
   it('uses the browser impact inputs instead of achievement points', () => {
-    for (const source of [browserRadar, edgeCard]) {
+    for (const source of [browserRadar, edgeRadarStats]) {
       expect(source).toContain('completedReferrals');
       expect(source).toContain('bonusAttempts');
       expect(source).toContain('completedReferrals * 20 + bonusAttempts * 8');
     }
-    expect(edgeCard).not.toContain('achievements as Record<string, unknown>).points');
+    expect(edgeRadarStats).not.toContain('achievements');
   });
 
   it('renders the same five-level labelled radar structure as the web profile', () => {
@@ -22,7 +23,7 @@ describe('player card radar parity', () => {
     expect(edgeCard).toContain("h('line'");
     expect(edgeCard).toContain("h('text'");
     expect(edgeCard).toContain("h('circle'");
-    expect(edgeCard).toContain('truncate(profile.nick || \'Jugador\', 18)');
+    expect(edgeCard).toContain('truncate(nick, 18)');
     expect(edgeCard).not.toContain('`${label} ${stats[index]}`');
   });
 
