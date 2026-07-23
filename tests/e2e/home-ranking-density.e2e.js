@@ -186,3 +186,36 @@ test('home places mobile awards below the score and keeps ranking rows on two st
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo);
 });
+
+test('home hides a partial time until the complete ranking row arrives', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'The home leaderboard is intentionally hidden on mobile.');
+  await installMocks(page);
+  await page.goto('/');
+  await expect(page.locator('#leaderboard .leaderboard-row-link')).toHaveCount(3);
+
+  await page.evaluate(() => {
+    globalThis.document.querySelector('#leaderboard').innerHTML = `
+      <li class="leaderboard-row leader" data-team="spain">
+        <a class="leaderboard-row-link" href="./player/Vieucirst" data-player-nick="Vieucirst" aria-label="Ver perfil de Vieucirst">
+          <span class="rank">#1</span>
+          <span class="ranking-player"><span class="player-link__nick">Vieucirst</span><span class="flag flag--spain"></span><small>s</small></span>
+          <span class="difference">±4 ms</span>
+        </a>
+      </li>`;
+  });
+
+  const list = page.locator('#leaderboard');
+  const partialRow = list.locator(':scope > li');
+  await expect(list).toHaveAttribute('aria-busy', 'true');
+  await expect(partialRow).toBeHidden();
+  await expect(list.locator('.ranking-time')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    globalThis.document.querySelector('#leaderboard .ranking-player small').textContent = '10.604 s';
+  });
+
+  await expect(list).not.toHaveAttribute('aria-busy', 'true');
+  await expect(partialRow).toBeVisible();
+  await expect(list.locator('.ranking-time')).toHaveText('10.604s');
+  await expect(list.locator('.ranking-time')).not.toHaveText('s');
+});
