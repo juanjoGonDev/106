@@ -23,6 +23,12 @@
     return '';
   }
 
+  function teamFlagHtml(team) {
+    if (!team) return '';
+    const label = `Bandera de ${team.name}`;
+    return `<span class="flag ${ui.escapeHtml(team.flagClass)}" role="img" aria-label="${ui.escapeHtml(label)}" title="${ui.escapeHtml(team.name)}"></span>`;
+  }
+
   function enhanceLeaderboard() {
     const list = document.querySelector('#leaderboard');
     if (!list) return;
@@ -37,8 +43,8 @@
       anchor.setAttribute('aria-label', `Ver perfil de ${nick}`);
       while (item.firstChild) anchor.append(item.firstChild);
       const player = anchor.querySelector('.player');
-      const team = extractTeam(anchor);
-      if (player && !player.querySelector('.player-team')) {
+      const team = ui.resolveTeam(extractTeam(anchor));
+      if (player) {
         const name = Array.from(player.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
         if (name) {
           const nickSpan = document.createElement('span');
@@ -47,9 +53,10 @@
           name.replaceWith(nickSpan);
         }
         const small = player.querySelector('small');
-        if (small && team) {
-          const country = small.textContent.split('·')[0]?.trim() || '';
-          small.innerHTML = `${ui.teamHtml(team)}<span>${ui.escapeHtml(small.textContent.replace(country, '').replace(/^\s*·\s*/, ''))}</span>`;
+        if (small) {
+          const metric = small.textContent.split('·').slice(1).join('·').trim() || small.textContent.trim();
+          small.className = 'leaderboard-meta';
+          small.innerHTML = `${teamFlagHtml(team)}<span class="leaderboard-time">${ui.escapeHtml(metric)}</span>`;
         }
       }
       item.classList.add('leaderboard-row');
