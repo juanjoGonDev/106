@@ -39,7 +39,7 @@ export function extractAssetReferences(content) {
   ];
   for (const expression of expressions) {
     for (const match of content.matchAll(expression)) {
-      const value = String(match[1] ?? '').trim();
+      const value = String(match[1]).trim();
       if (hasMediaExtension(value)) references.add(value);
     }
   }
