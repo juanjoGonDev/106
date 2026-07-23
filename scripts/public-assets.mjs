@@ -29,11 +29,36 @@ function hasMediaExtension(value) {
   return MEDIA_EXTENSIONS.has(extname(clean));
 }
 
+function unquoteCssUrl(value) {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const last = value.at(-1);
+  if (first === '"' && last === '"') return value.slice(1, -1).trim();
+  if (first === "'" && last === "'") return value.slice(1, -1).trim();
+  return value;
+}
+
+function extractCssUrlReferences(content) {
+  const references = [];
+  const lower = content.toLowerCase();
+  let cursor = 0;
+  while (cursor < content.length) {
+    const start = lower.indexOf('url(', cursor);
+    if (start < 0) break;
+    const valueStart = start + 4;
+    const end = content.indexOf(')', valueStart);
+    if (end < 0) break;
+    const value = unquoteCssUrl(content.slice(valueStart, end).trim());
+    if (value) references.push(value);
+    cursor = end + 1;
+  }
+  return references;
+}
+
 export function extractAssetReferences(content) {
-  const references = new Set();
+  const references = new Set(extractCssUrlReferences(content));
   const expressions = [
     /(?:src|href|content)\s*=\s*["']([^"']+)["']/gi,
-    /url\(\s*["']?([^"')]+)["']?\s*\)/gi,
     /"src"\s*:\s*"([^"]+)"/gi,
     /["']((?:\.{0,2}\/|\/)[^"'`]+?\.(?:avif|gif|ico|jpe?g|otf|png|svg|ttf|webp|woff2?)(?:[?#][^"'`]*)?)["']/gi,
   ];
@@ -43,7 +68,7 @@ export function extractAssetReferences(content) {
       if (hasMediaExtension(value)) references.add(value);
     }
   }
-  return [...references];
+  return [...references].filter(hasMediaExtension);
 }
 
 function stripQueryAndHash(value) {
