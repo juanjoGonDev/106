@@ -25,6 +25,13 @@ function escapeV4(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 }
 
+function v4TeamFlagHtml(value) {
+  const team = v4PlayerUi?.resolveTeam(value);
+  const name = team?.name || (value === 'spain' ? 'España' : 'Argentina');
+  const flagClass = team?.flagClass || (value === 'spain' ? 'flag--spain' : 'flag--argentina');
+  return `<span class="flag ${escapeV4(flagClass)}" role="img" aria-label="Bandera de ${escapeV4(name)}" title="${escapeV4(name)}"></span>`;
+}
+
 function renderFallbackRanking(stats) {
   const list = v4$('#leaderboard');
   if (!list) return;
@@ -36,8 +43,8 @@ function renderFallbackRanking(stats) {
   list.innerHTML = entries.map((entry, index) => {
     const nick = String(entry.nick || '');
     const href = v4PlayerUi?.playerUrl(nick) || `./ranking.html?nick=${encodeURIComponent(nick)}`;
-    const team = v4PlayerUi?.teamHtml(entry.team) || `<span>${entry.team === 'spain' ? 'España' : 'Argentina'}</span>`;
-    return `<li class="leaderboard-row${index === 0 ? ' leader' : ''}" data-team="${escapeV4(entry.team)}"><a class="leaderboard-row-link" href="${escapeV4(href)}" data-player-nick="${escapeV4(nick)}" aria-label="Ver perfil de ${escapeV4(nick)}"><span class="rank">#${index + 1}</span><span class="ranking-player"><span class="player-link__nick">${escapeV4(nick)}</span>${team}<small>${(Number(entry.elapsedMs) / 1000).toFixed(3)} s</small></span><span class="difference">±${Number(entry.differenceMs).toLocaleString('es-ES')} ms</span></a></li>`;
+    const elapsed = `${(Number(entry.elapsedMs) / 1000).toFixed(3)} s`;
+    return `<li class="leaderboard-row${index === 0 ? ' leader' : ''}" data-team="${escapeV4(entry.team)}"><a class="leaderboard-row-link" href="${escapeV4(href)}" data-player-nick="${escapeV4(nick)}" aria-label="Ver perfil de ${escapeV4(nick)}"><span class="rank">#${index + 1}</span><span class="ranking-player"><span class="player-link__nick">${escapeV4(nick)}</span><small class="leaderboard-meta">${v4TeamFlagHtml(entry.team)}<span class="leaderboard-time">${elapsed}</span></small></span><span class="difference">±${Number(entry.differenceMs).toLocaleString('es-ES')} ms</span></a></li>`;
   }).join('');
   const total = v4$('#totalAttempts');
   if (total) total.textContent = `${Number(stats.totalAttempts || 0).toLocaleString('es-ES')} intentos`;
