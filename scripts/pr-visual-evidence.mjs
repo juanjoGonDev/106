@@ -1,18 +1,23 @@
 const FRONTEND_EXTENSIONS = new Set(['.css', '.gif', '.html', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const FRONTEND_PREFIXES = ['public/', 'supabase/functions/player-share/'];
+const FRONTEND_ROOT_FILES = new Set(['index.html', 'playwright.config.js']);
 const START_MARKER = '<!-- visual-evidence:start -->';
 const END_MARKER = '<!-- visual-evidence:end -->';
 const PLACEHOLDER_PATTERN = /(?:paste|pega|replace|placeholder|todo|example\.com|github\.com\/OWNER)/i;
 
+function stringValue(value) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
 function extension(path) {
-  const match = String(path ?? '').toLowerCase().match(/\.[a-z0-9]+$/);
-  return match?.[0] ?? '';
+  const match = stringValue(path).toLowerCase().match(/\.[a-z0-9]+$/);
+  return match ? match[0] : '';
 }
 
 export function isFrontendPath(path) {
-  const normalized = String(path ?? '').replaceAll('\\', '/');
+  const normalized = stringValue(path).replaceAll('\\', '/');
   if (!normalized) return false;
-  if (normalized === 'index.html' || normalized === 'playwright.config.js') return true;
+  if (FRONTEND_ROOT_FILES.has(normalized)) return true;
   if (FRONTEND_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return true;
   return FRONTEND_EXTENSIONS.has(extension(normalized));
 }
@@ -37,10 +42,12 @@ function markdownImage(detailsBody) {
 }
 
 function evidenceRegion(body) {
-  const text = String(body ?? '');
+  const text = stringValue(body);
   const start = text.indexOf(START_MARKER);
+  if (start < 0) return null;
   const end = text.indexOf(END_MARKER);
-  if (start < 0 || end < 0 || end <= start) return null;
+  if (end < 0) return null;
+  if (end <= start) return null;
   return text.slice(start + START_MARKER.length, end);
 }
 
@@ -58,7 +65,8 @@ export function parseVisualEvidence(body) {
 }
 
 export function validateVisualEvidence(body, changedFiles) {
-  const frontendFiles = [...new Set((changedFiles ?? []).map(String).filter(isFrontendPath))].sort();
+  const files = changedFiles === null || changedFiles === undefined ? [] : changedFiles;
+  const frontendFiles = [...new Set(files.map(String).filter(isFrontendPath))].sort();
   if (!frontendFiles.length) return { required: false, frontendFiles, errors: [] };
 
   const parsed = parseVisualEvidence(body);
@@ -75,9 +83,12 @@ export function validateVisualEvidence(body, changedFiles) {
   const areas = new Map();
   for (const entry of parsed.entries) {
     const key = entry.area.toLocaleLowerCase('es');
-    const area = areas.get(key) ?? { label: entry.area, desktop: [], mobile: [] };
+    let area = areas.get(key);
+    if (!area) {
+      area = { label: entry.area, desktop: [], mobile: [] };
+      areas.set(key, area);
+    }
     area[entry.device].push(entry);
-    areas.set(key, area);
     if (!entry.image) errors.push(`${entry.summary}: missing Markdown image.`);
     else if (PLACEHOLDER_PATTERN.test(entry.image)) errors.push(`${entry.summary}: replace the placeholder image URL.`);
   }
