@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1"><stop stop-color="#620018"/><stop offset="0.52" stop-color="#090a0f"/><stop offset="1" stop-color="#142f69"/></linearGradient>
+    <linearGradient id="track" x1="0" x2="1"><stop stop-color="#ef1742" offset="0.74"/><stop stop-color="#58afe8" offset="0.74"/></linearGradient>
+    <style>
+      text{font-family:Inter,Arial,sans-serif;fill:#fff}.eyebrow{fill:#f4c95d;font-size:12px;font-weight:900;letter-spacing:2px}.muted{fill:#9da1ac;font-size:12px}.title{font-size:22px;font-weight:900}.nick{font-size:14px;font-weight:850}.meta{fill:#b3b7c1;font-size:12px}.rank{fill:#f4c95d;font-size:14px;font-weight:900}.diff{font-size:12px;font-weight:900}.card{fill:#111319;stroke:#ffffff24;stroke-width:1}.row{fill:#ffffff09}.leader{fill:#f4c95d0d;stroke:#f4c95d55}.flag-es{fill:#aa151b}.flag-es2{fill:#f1bf00}.flag-ar{fill:#75aadb}.flag-ar2{fill:#fff}
+    </style>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <rect width="1440" height="72" fill="#08090cf4"/>
+  <text x="92" y="44" class="eyebrow">MINUTO 106</text>
+  <text x="1110" y="44" class="muted">Jugar    Ranking    Miniligas    Mi cuenta</text>
+
+  <rect x="68" y="110" width="300" height="700" rx="24" class="card"/>
+  <text x="92" y="145" class="eyebrow">TOP 10 GLOBAL VERIFICADO</text>
+  <text x="92" y="177" class="title">Los más precisos</text>
+  <text x="92" y="203" class="muted">30 intentos</text>
+  <text x="92" y="230" class="muted">Cada fila conserva perfil, marca y diferencia.</text>
+
+  <g transform="translate(88 250)">
+    <rect width="260" height="58" rx="12" class="leader"/>
+    <text x="14" y="35" class="rank">#1</text><text x="48" y="34" class="nick">Yisucirst</text>
+    <rect x="121" y="21" width="20" height="14" rx="2" class="flag-es"/><rect x="121" y="25" width="20" height="6" class="flag-es2"/>
+    <text x="149" y="34" class="meta">10.604 s</text><text x="218" y="34" class="diff">±4 ms</text>
+  </g>
+  <g transform="translate(88 316)">
+    <rect width="260" height="52" rx="12" class="row"/>
+    <text x="14" y="32" class="rank">#2</text><text x="48" y="31" class="nick">Snogak</text>
+    <rect x="111" y="18" width="20" height="14" rx="2" class="flag-ar"/><rect x="111" y="22" width="20" height="6" class="flag-ar2"/>
+    <text x="139" y="31" class="meta">10.614 s</text><text x="211" y="31" class="diff">±14 ms</text>
+  </g>
+  <g transform="translate(88 376)">
+    <rect width="260" height="52" rx="12" class="row"/>
+    <text x="14" y="32" class="rank">#3</text><text x="48" y="31" class="nick">Chamuca</text>
+    <rect x="118" y="18" width="20" height="14" rx="2" class="flag-es"/><rect x="118" y="22" width="20" height="6" class="flag-es2"/>
+    <text x="146" y="31" class="meta">10.709 s</text><text x="210" y="31" class="diff">±109 ms</text>
+  </g>
+  <g transform="translate(88 436)">
+    <rect width="260" height="52" rx="12" class="row"/>
+    <text x="14" y="32" class="rank">#4</text><text x="48" y="31" class="nick">Ap</text>
+    <rect x="72" y="18" width="20" height="14" rx="2" class="flag-es"/><rect x="72" y="22" width="20" height="6" class="flag-es2"/>
+    <text x="100" y="31" class="meta">10.048 s</text><text x="207" y="31" class="diff">±552 ms</text>
+  </g>
+  <g transform="translate(88 496)">
+    <rect width="260" height="52" rx="12" class="row"/>
+    <text x="14" y="32" class="rank">#5</text><text x="48" y="31" class="nick">NombreMuyLargo…</text>
+    <rect x="153" y="18" width="20" height="14" rx="2" class="flag-es"/><rect x="153" y="22" width="20" height="6" class="flag-es2"/>
+    <text x="181" y="31" class="meta">11.287 s</text><text x="225" y="31" class="diff">±687</text>
+  </g>
+  <text x="92" y="585" class="muted">La bandera incluye nombre accesible; el país no se repite.</text>
+
+  <text x="634" y="155" class="eyebrow">EL MINUTO 106 SIGUE EN JUEGO</text>
+  <text x="590" y="245" style="font-size:84px;font-weight:950;letter-spacing:-5px">10.600</text>
+  <rect x="430" y="300" width="650" height="128" rx="22" class="card"/>
+  <text x="458" y="340" class="nick">🇪🇸 España</text><text x="1018" y="340" class="nick">Argentina 🇦🇷</text>
+  <rect x="555" y="352" width="400" height="32" rx="16" fill="url(#track)"/>
+  <text x="720" y="374" class="nick">75% · 25%</text>
+  <text x="625" y="407" class="muted">PUNTOS GLOBALES VERIFICADOS</text>
+  <text x="462" y="458" class="eyebrow">LA FRANJA DE TRES ESTADÍSTICAS YA NO APARECE</text>
+  <rect x="430" y="490" width="650" height="230" rx="22" class="card"/>
+  <text x="460" y="530" class="eyebrow">CÓMO SE JUEGA</text>
+  <text x="460" y="565" class="title">Tres pasos. Una sola misión.</text>
+  <rect x="460" y="595" width="180" height="92" rx="14" class="row"/><rect x="665" y="595" width="180" height="92" rx="14" class="row"/><rect x="870" y="595" width="180" height="92" rx="14" class="row"/>
+  <text x="490" y="630" class="rank">1</text><text x="695" y="630" class="rank">2</text><text x="900" y="630" class="rank">3</text>
+  <text x="490" y="655" class="muted">Elige equipo</text><text x="695" y="655" class="muted">Verifícate</text><text x="900" y="655" class="muted">Clava 10.600</text>
+
+  <rect x="1130" y="110" width="242" height="400" rx="24" class="card"/>
+  <text x="1154" y="145" class="eyebrow">PREMIOS GLOBALES</text>
+  <text x="1154" y="177" class="title">Los dueños del día</text>
+  <rect x="1152" y="205" width="198" height="78" rx="14" class="row"/><rect x="1152" y="295" width="198" height="78" rx="14" class="row"/><rect x="1152" y="385" width="198" height="78" rx="14" class="row"/>
+  <text x="1170" y="237" class="nick">Bota de Oro</text><text x="1170" y="327" class="nick">Guante de Oro</text><text x="1170" y="417" class="nick">Balón de Oro</text>
+</svg>
