@@ -30,7 +30,22 @@ describe('home score and ranking density', () => {
     expect(script).toContain('image.height = 14');
     expect(script).toContain("timeElement.className = 'ranking-time'");
     expect(script).toContain('identity.append(createFlag(teamKey), nickElement)');
-    expect(script).toContain('player.replaceChildren(identity, timeElement)');
+    expect(script).toContain('rowData.player.replaceChildren(identity, timeElement)');
+  });
+
+  it('waits for every row field before exposing the ranking', () => {
+    const script = read('public/home-ranking-density.js');
+    const styles = read('public/v12.css');
+
+    expect(script).toContain('function normalizeTime(value)');
+    expect(script).toContain("return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';");
+    expect(script).toContain("if (!nick || !time || !hasNumericValue(rank) || !hasNumericValue(difference)) return null;");
+    expect(script).toContain("list.setAttribute('aria-busy', 'true')");
+    expect(script).toContain('if (rowData.some((entry) => entry === null)) return false;');
+    expect(script).toContain("observer.observe(list, { childList: true, subtree: true, characterData: true })");
+    expect(script).toContain("list.removeAttribute('aria-busy')");
+    expect(styles).toContain('#leaderboard[aria-busy="true"] > li:not(.empty)');
+    expect(styles).toContain('visibility: hidden;');
   });
 
   it('renders one stable two-row surface in the desktop rail', () => {
