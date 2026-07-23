@@ -1,50 +1,146 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">Minuto 106: España contra Argentina</title>
-  <desc id="desc">Plantilla social con una zona segura amplia para la rivalidad y el objetivo de 10.600 segundos.</desc>
+  <desc id="desc">Estadio nocturno con España y Argentina enfrentadas, dos futbolistas y una copa dorada para el reto de precisión de 10.600 segundos.</desc>
   <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#070910"/>
-      <stop offset=".5" stop-color="#0b101a"/>
-      <stop offset="1" stop-color="#05070c"/>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset=".55" stop-color="#070a10"/>
+      <stop offset="1" stop-color="#020305"/>
     </linearGradient>
     <linearGradient id="spain" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#d80a35"/>
-      <stop offset=".62" stop-color="#750019"/>
-      <stop offset="1" stop-color="#210008"/>
+      <stop offset="0" stop-color="#e20a37"/>
+      <stop offset=".56" stop-color="#850018"/>
+      <stop offset="1" stop-color="#260007"/>
     </linearGradient>
     <linearGradient id="argentina" x1="1" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#62c6f4"/>
-      <stop offset=".62" stop-color="#176397"/>
-      <stop offset="1" stop-color="#07192e"/>
+      <stop offset="0" stop-color="#79d6f8"/>
+      <stop offset=".58" stop-color="#1d75aa"/>
+      <stop offset="1" stop-color="#071b31"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffe28d"/>
-      <stop offset=".5" stop-color="#f4c95d"/>
-      <stop offset="1" stop-color="#d89b25"/>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4b4"/>
+      <stop offset=".25" stop-color="#ffd86b"/>
+      <stop offset=".58" stop-color="#c88716"/>
+      <stop offset=".8" stop-color="#ffe58b"/>
+      <stop offset="1" stop-color="#9b5e08"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="44%" r="52%">
-      <stop offset="0" stop-color="#f4c95d" stop-opacity=".27"/>
-      <stop offset="1" stop-color="#f4c95d" stop-opacity="0"/>
+    <radialGradient id="glow" cx="50%" cy="42%" r="52%">
+      <stop offset="0" stop-color="#ffd96b" stop-opacity=".42"/>
+      <stop offset=".5" stop-color="#c9932d" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
     </radialGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
-      <feDropShadow dx="0" dy="20" stdDeviation="26" flood-color="#000" flood-opacity=".48"/>
+    <radialGradient id="stadiumGlow" cx="50%" cy="0%" r="100%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".18"/>
+      <stop offset=".72" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".7"/>
     </filter>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <pattern id="particles" width="84" height="84" patternUnits="userSpaceOnUse">
+      <circle cx="8" cy="15" r="1" fill="#fff" opacity=".08"/>
+      <circle cx="38" cy="9" r=".8" fill="#fff" opacity=".06"/>
+      <circle cx="63" cy="28" r="1.2" fill="#fff" opacity=".05"/>
+      <circle cx="20" cy="56" r=".9" fill="#fff" opacity=".06"/>
+      <circle cx="75" cy="66" r="1" fill="#fff" opacity=".05"/>
+    </pattern>
+    <clipPath id="left"><path d="M0 0H570L474 630H0Z"/></clipPath>
+    <clipPath id="right"><path d="M1200 0H630L726 630H1200Z"/></clipPath>
   </defs>
+
   <rect width="1200" height="630" fill="url(#background)"/>
-  <path d="M0 0h470L350 630H0Z" fill="url(#spain)"/>
-  <path d="M1200 0H730l120 630h350Z" fill="url(#argentina)"/>
+  <path d="M0 0H570L474 630H0Z" fill="url(#spain)"/>
+  <path d="M1200 0H630L726 630H1200Z" fill="url(#argentina)"/>
+  <rect width="1200" height="630" fill="url(#particles)"/>
+  <rect width="1200" height="345" fill="url(#stadiumGlow)"/>
+  <rect x="52" y="102" width="390" height="82" rx="22" fill="#260007" fill-opacity=".34"/>
+  <rect x="758" y="102" width="390" height="82" rx="22" fill="#04111e" fill-opacity=".46"/>
+
+  <g clip-path="url(#left)" opacity=".5">
+    <path d="M-70 70C130 8 304 37 525 132L495 221C286 132 110 110-70 164Z" fill="#d80a35"/>
+    <path d="M-70 164C112 110 284 132 495 221L467 308C268 222 97 202-70 255Z" fill="#ffd34d"/>
+    <path d="M-70 255C96 204 263 224 467 308L440 395C249 314 86 296-70 345Z" fill="#d80a35"/>
+  </g>
+  <g clip-path="url(#right)" opacity=".52">
+    <path d="M1270 66C1070 8 896 40 675 132L705 221C914 132 1090 110 1270 164Z" fill="#72cef3"/>
+    <path d="M1270 164C1088 110 916 132 705 221L733 308C932 222 1103 202 1270 255Z" fill="#f7fbff"/>
+    <path d="M1270 255C1104 204 937 224 733 308L760 395C951 314 1114 296 1270 345Z" fill="#72cef3"/>
+  </g>
+
+  <g opacity=".86">
+    <g transform="translate(98 42)">
+      <rect width="132" height="18" rx="5" fill="#e6efff"/>
+      <g fill="#fff"><circle cx="14" cy="9" r="4"/><circle cx="35" cy="9" r="4"/><circle cx="56" cy="9" r="4"/><circle cx="77" cy="9" r="4"/><circle cx="98" cy="9" r="4"/><circle cx="119" cy="9" r="4"/></g>
+      <path d="M12 18L-16 282M120 18l28 264" stroke="#dfe7f4" stroke-opacity=".35" stroke-width="3"/>
+    </g>
+    <g transform="translate(970 42)">
+      <rect width="132" height="18" rx="5" fill="#e6efff"/>
+      <g fill="#fff"><circle cx="14" cy="9" r="4"/><circle cx="35" cy="9" r="4"/><circle cx="56" cy="9" r="4"/><circle cx="77" cy="9" r="4"/><circle cx="98" cy="9" r="4"/><circle cx="119" cy="9" r="4"/></g>
+      <path d="M12 18L-16 282M120 18l28 264" stroke="#dfe7f4" stroke-opacity=".35" stroke-width="3"/>
+    </g>
+  </g>
+
+  <path d="M0 395C176 320 364 292 600 296C836 292 1024 320 1200 395V630H0Z" fill="#05070b" fill-opacity=".96"/>
+  <path d="M0 428C205 360 405 338 600 340C795 338 995 360 1200 428" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="3"/>
+  <path d="M0 472C222 414 420 398 600 400C780 398 978 414 1200 472" fill="none" stroke="#fff" stroke-opacity=".09" stroke-width="2"/>
+  <g opacity=".3">
+    <circle cx="90" cy="401" r="2" fill="#fff"/><circle cx="130" cy="389" r="2" fill="#ffd54c"/><circle cx="176" cy="376" r="2" fill="#fff"/>
+    <circle cx="225" cy="363" r="2" fill="#fff"/><circle cx="278" cy="351" r="2" fill="#ffd54c"/><circle cx="331" cy="343" r="2" fill="#fff"/>
+    <circle cx="869" cy="343" r="2" fill="#fff"/><circle cx="922" cy="351" r="2" fill="#fff"/><circle cx="975" cy="363" r="2" fill="#ffd54c"/>
+    <circle cx="1024" cy="376" r="2" fill="#fff"/><circle cx="1070" cy="389" r="2" fill="#fff"/><circle cx="1110" cy="401" r="2" fill="#ffd54c"/>
+  </g>
+
+  <path d="M600 0L574 104L618 146L584 225L622 270L592 348L618 408L590 630" fill="none" stroke="#f7c75a" stroke-opacity=".58" stroke-width="16" filter="url(#softGlow)"/>
+  <path d="M600 0L574 104L618 146L584 225L622 270L592 348L618 408L590 630" fill="none" stroke="#fff" stroke-opacity=".78" stroke-width="3"/>
   <rect width="1200" height="630" fill="url(#glow)"/>
-  <rect x="32" y="32" width="1136" height="566" rx="34" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
-  <g opacity=".82">
-    <path d="M0 96c130-48 270-40 430 34l-24 62C252 126 125 117 0 162Z" fill="#e20b3a"/>
-    <path d="M0 162c132-45 260-35 406 30l-23 58C240 193 118 187 0 228Z" fill="#ffd54c"/>
-    <path d="M1200 96c-130-48-270-40-430 34l24 62c154-66 281-75 406-30Z" fill="#69cdf8"/>
-    <path d="M1200 162c-132-45-260-35-406 30l23 58c143-57 265-63 383-22Z" fill="#f5f8fc"/>
+
+  <g filter="url(#shadow)" opacity=".96">
+    <g transform="translate(118 193)">
+      <circle cx="118" cy="52" r="43" fill="#12151b"/>
+      <path d="M70 118C82 92 99 81 118 80C139 81 158 94 170 122L192 238L168 324H63L42 240Z" fill="#14171d"/>
+      <path d="M59 131L118 99L177 132L164 249H70Z" fill="#a80824"/>
+      <path d="M59 131L118 99L177 132L171 175H65Z" fill="#ffd34d"/>
+      <path d="M73 175H164L156 243H80Z" fill="#a80824"/>
+      <path d="M44 141L11 272L43 282L79 160Z" fill="#171a20"/>
+      <path d="M177 141L223 264L192 278L155 160Z" fill="#171a20"/>
+      <text x="118" y="225" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="62" fill="#ffd34d">10</text>
+    </g>
+    <g transform="translate(858 193)">
+      <circle cx="118" cy="52" r="43" fill="#12151b"/>
+      <path d="M70 118C82 92 99 81 118 80C139 81 158 94 170 122L192 238L168 324H63L42 240Z" fill="#14171d"/>
+      <path d="M59 131L118 99L177 132L164 249H70Z" fill="#f7fbff"/>
+      <path d="M59 131H177L171 170H65Z" fill="#75c9ef"/>
+      <path d="M68 170H168L164 209H72Z" fill="#f7fbff"/>
+      <path d="M75 209H157L154 243H81Z" fill="#75c9ef"/>
+      <path d="M44 141L11 272L43 282L79 160Z" fill="#171a20"/>
+      <path d="M177 141L223 264L192 278L155 160Z" fill="#171a20"/>
+      <text x="118" y="225" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="62" fill="#123e63">10</text>
+    </g>
   </g>
+
+  <g transform="translate(512 112)" filter="url(#shadow)" opacity=".82">
+    <ellipse cx="88" cy="295" rx="97" ry="20" fill="#000" opacity=".45"/>
+    <path d="M49 61C12 55-6 70-4 102C-1 143 29 165 61 171L66 147C44 141 26 128 22 103C20 91 27 84 45 86Z" fill="url(#gold)"/>
+    <path d="M127 61C164 55 182 70 180 102C177 143 147 165 115 171L110 147C132 141 150 128 154 103C156 91 149 84 131 86Z" fill="url(#gold)"/>
+    <path d="M40 35H136L127 119C123 164 108 191 88 201C68 191 53 164 49 119Z" fill="url(#gold)"/>
+    <ellipse cx="88" cy="37" rx="48" ry="17" fill="#ffe98d"/>
+    <ellipse cx="88" cy="37" rx="36" ry="10" fill="#9a6210"/>
+    <path d="M77 193H99L105 240H71Z" fill="url(#gold)"/>
+    <rect x="50" y="234" width="76" height="22" rx="7" fill="url(#gold)"/>
+    <path d="M34 255H142L158 286H18Z" fill="url(#gold)"/>
+    <path d="M40 35C50 10 70 0 88 0C106 0 126 10 136 35" fill="none" stroke="#ffe698" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
   <g filter="url(#shadow)">
-    <circle cx="600" cy="292" r="178" fill="#06080e" fill-opacity=".96" stroke="#fff" stroke-opacity=".16" stroke-width="3"/>
-    <circle cx="600" cy="292" r="157" fill="none" stroke="#f4c95d" stroke-opacity=".42" stroke-width="3" stroke-dasharray="5 15"/>
+    <rect x="426" y="48" width="348" height="40" rx="20" fill="#07090f" fill-opacity=".9" stroke="#f4c95d" stroke-opacity=".7" stroke-width="1.5"/>
+    <text x="600" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" letter-spacing="2.6" fill="#f4c95d">POR LA COPA DEL MUNDO</text>
+    <circle cx="600" cy="292" r="180" fill="#05070d" fill-opacity=".9" stroke="#fff" stroke-opacity=".18" stroke-width="3"/>
+    <circle cx="600" cy="292" r="158" fill="none" stroke="#f4c95d" stroke-opacity=".44" stroke-width="3" stroke-dasharray="5 15"/>
   </g>
-  <path d="M66 468Q600 330 1134 468V574H66Z" fill="#080b11" fill-opacity=".96" stroke="#fff" stroke-opacity=".12" stroke-width="2"/>
+
+  <path d="M66 456Q600 342 1134 456V582H66Z" fill="#070a10" fill-opacity=".96" stroke="#fff" stroke-opacity=".13" stroke-width="2"/>
   <rect x="390" y="548" width="420" height="52" rx="26" fill="url(#gold)"/>
+  <rect x="32" y="32" width="1136" height="566" rx="34" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="2"/>
 </svg>
