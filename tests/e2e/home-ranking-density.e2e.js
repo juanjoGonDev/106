@@ -17,7 +17,12 @@ async function capture(page, testInfo) {
   if (!visualCapture) return;
   const path = resolve(previewRoot, `home-ranking-${projectDevice(testInfo)}.png`);
   mkdirSync(previewRoot, { recursive: true });
-  await page.locator('.leaderboard-card').screenshot({ path, animations: 'disabled' });
+  const leaderboard = page.locator('.leaderboard-card');
+  if (await leaderboard.isVisible()) {
+    await leaderboard.screenshot({ path, animations: 'disabled' });
+    return;
+  }
+  await page.screenshot({ path, animations: 'disabled', fullPage: true });
 }
 
 function requestBody(request) {
@@ -70,7 +75,7 @@ async function expectNoHorizontalOverflow(page) {
   expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
-test('home removes redundant metrics and keeps precision rows on one accessible line', async ({ page }, testInfo) => {
+test('home removes redundant metrics and keeps precision rows on one accessible line', async ({ page, isMobile }, testInfo) => {
   await installMocks(page);
   await page.goto('/');
 
@@ -92,26 +97,33 @@ test('home removes redundant metrics and keeps precision rows on one accessible 
   await expect(second.locator('img.ranking-flag')).toHaveAttribute('alt', 'Argentina');
   await expect(second).not.toContainText('Argentina');
 
-  for (const row of await rows.all()) {
-    const geometry = await row.evaluate((anchor) => {
-      const selectors = ['.rank', '.player-link__nick', '.ranking-flag', '.ranking-time', '.difference'];
-      const boxes = selectors.map((selector) => anchor.querySelector(selector)?.getBoundingClientRect()).filter(Boolean);
-      const centers = boxes.map((box) => box.top + (box.height / 2));
-      const time = anchor.querySelector('.ranking-time');
-      const nick = anchor.querySelector('.player-link__nick');
-      return {
-        height: anchor.getBoundingClientRect().height,
-        centerDelta: Math.max(...centers) - Math.min(...centers),
-        timeWhiteSpace: globalThis.getComputedStyle(time).whiteSpace,
-        nickWhiteSpace: globalThis.getComputedStyle(nick).whiteSpace,
-        nickOverflow: globalThis.getComputedStyle(nick).overflow,
-      };
-    });
-    expect(geometry.height).toBeLessThanOrEqual(46);
-    expect(geometry.centerDelta).toBeLessThanOrEqual(3);
-    expect(geometry.timeWhiteSpace).toBe('nowrap');
-    expect(geometry.nickWhiteSpace).toBe('nowrap');
-    expect(geometry.nickOverflow).toBe('hidden');
+  if (isMobile) {
+    await expect(page.locator('.leaderboard-card')).toBeHidden();
+  } else {
+    for (const row of await rows.all()) {
+      const geometry = await row.evaluate((anchor) => {
+        const selectors = ['.rank', '.player-link__nick', '.ranking-flag', '.ranking-time', '.difference'];
+        const boxes = selectors.map((selector) => anchor.querySelector(selector)?.getBoundingClientRect()).filter(Boolean);
+        const centers = boxes.map((box) => box.top + (box.height / 2));
+        const time = anchor.querySelector('.ranking-time');
+        const nick = anchor.querySelector('.player-link__nick');
+        const difference = anchor.querySelector('.difference');
+        return {
+          height: anchor.getBoundingClientRect().height,
+          centerDelta: Math.max(...centers) - Math.min(...centers),
+          timeWhiteSpace: globalThis.getComputedStyle(time).whiteSpace,
+          nickWhiteSpace: globalThis.getComputedStyle(nick).whiteSpace,
+          nickOverflow: globalThis.getComputedStyle(nick).overflow,
+          differenceRow: globalThis.getComputedStyle(difference).gridRowStart,
+        };
+      });
+      expect(geometry.height).toBeLessThanOrEqual(40);
+      expect(geometry.centerDelta).toBeLessThanOrEqual(3);
+      expect(geometry.timeWhiteSpace).toBe('nowrap');
+      expect(geometry.nickWhiteSpace).toBe('nowrap');
+      expect(geometry.nickOverflow).toBe('hidden');
+      expect(geometry.differenceRow).toBe('1');
+    }
   }
 
   await expectNoHorizontalOverflow(page);
