@@ -39,7 +39,7 @@ test('extracts media references from HTML, CSS, JSON and source strings', () => 
       .plain{background:url(../media/plain.png)}
       .short{background:url(x)}
       .empty{background:url()}
-      .broken{background:url('../media/broken.png'
+      .broken{background:url(../media/broken.png
     </style>
     {"src":"./assets/icon.png"}
     const card = '/public/assets/card.jpg';
