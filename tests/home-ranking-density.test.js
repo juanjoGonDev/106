@@ -22,7 +22,7 @@ describe('home score and ranking density', () => {
 
   it('normalizes primary and delayed fallback rows to nickname, accessible flag and inline time', () => {
     const script = read('public/home-ranking-density.js');
-    expect(script).toContain("player.querySelector('.player, .ranking-player')");
+    expect(script).toContain("anchor.querySelector('.player, .ranking-player')");
     expect(script).toContain("image.className = `flag ranking-flag ${team.flagClass}`");
     expect(script).toContain('image.alt = team.name');
     expect(script).toContain('image.width = 20');
