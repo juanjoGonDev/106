@@ -38,7 +38,7 @@ jobs:
           frontend_prefixes = ('public/', 'supabase/functions/player-share/')
           start_marker = '<!-- visual-evidence:start -->'
           end_marker = '<!-- visual-evidence:end -->'
-          placeholder = re.compile(r'(paste|pega|attach|replace|placeholder|todo|example\.com|github\.com/OWNER)', re.I)
+          placeholder = re.compile(r'(paste|pega|replace|placeholder|todo|example\.com|github\.com/OWNER)', re.I)
 
           def is_frontend(path):
               normalized = path.replace('\\', '/')
