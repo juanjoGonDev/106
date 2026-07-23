@@ -26,7 +26,7 @@ test('detects frontend paths across canonical directories and media extensions',
     'docs/mockup.webp',
     'docs/flow.GIF',
   ]) assert.equal(isFrontendPath(path), true, path);
-  for (const path of ['', null, undefined, 'supabase/migrations/one.sql', 'scripts/server.mjs', 'README.md']) {
+  for (const path of ['', null, undefined, 'README', 'supabase/migrations/one.sql', 'scripts/server.mjs', 'README.md']) {
     assert.equal(isFrontendPath(path), false, String(path));
   }
 });
