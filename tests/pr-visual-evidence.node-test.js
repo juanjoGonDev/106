@@ -58,7 +58,7 @@ test('rejects missing, incomplete and reversed marker blocks', () => {
 });
 
 test('does not require evidence for backend-only or absent changed files', () => {
-  for (const changedFiles of [undefined, ['supabase/migrations/one.sql', 'README.md', 'README.md']]) {
+  for (const changedFiles of [null, undefined, ['supabase/migrations/one.sql', 'README.md', 'README.md']]) {
     assert.deepEqual(validateVisualEvidence('', changedFiles), {
       required: false,
       frontendFiles: [],
