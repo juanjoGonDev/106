@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
 function readLocalEnvironment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], { cwd: process.cwd(), encoding: 'utf8' });
@@ -14,6 +16,23 @@ function readLocalEnvironment() {
   const serviceRoleKey = values.SERVICE_ROLE_KEY;
   if (!apiUrl || !serviceRoleKey) throw new Error('Local Supabase environment is incomplete.');
   return { apiUrl: apiUrl.replace(/\/$/, ''), serviceRoleKey };
+}
+
+function assertPng(response, png, label, expectedMaxAge) {
+  assert.equal(response.status, 200, new TextDecoder().decode(png));
+  assert.match(response.headers.get('content-type') || '', /^image\/png/);
+  assert.deepEqual([...png.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.ok(png.length > 15_000, `${label} PNG is unexpectedly small: ${png.length} bytes.`);
+  const buffer = Buffer.from(png);
+  assert.equal(buffer.readUInt32BE(16), 1200, `${label} width`);
+  assert.equal(buffer.readUInt32BE(20), 630, `${label} height`);
+  assert.match(response.headers.get('cache-control') || '', new RegExp(`max-age=${expectedMaxAge}`));
+}
+
+function persistPreview(name, png) {
+  const path = resolve('.tmp/pr-previews/social', name);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, png);
 }
 
 const { apiUrl, serviceRoleKey } = readLocalEnvironment();
@@ -54,20 +73,37 @@ const html = await htmlResponse.text();
 assert.equal(htmlResponse.status, 200, html);
 assert.match(htmlResponse.headers.get('content-type') || '', /^text\/html/);
 assert.match(html, /property="og:image"/);
-assert.match(html, /twitter:card/);
+assert.match(html, /property="og:image:secure_url"/);
+assert.match(html, /name="twitter:card" content="summary_large_image"/);
+assert.match(html, /name="twitter:image:src"/);
 assert.match(html, new RegExp(`/functions/v1/player-share/${nick}/achievements\\.png`));
 assert.doesNotMatch(html, /achievements\/achievements\.png/);
 assert.match(html, new RegExp(player.nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
-const pngResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements.png`, {
+const playerResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements.png`, {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
 });
-const png = new Uint8Array(await pngResponse.arrayBuffer());
-assert.equal(pngResponse.status, 200, new TextDecoder().decode(png));
-assert.match(pngResponse.headers.get('content-type') || '', /^image\/png/);
-assert.deepEqual([...png.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-assert.ok(png.length > 15_000, `Generated PNG is unexpectedly small: ${png.length} bytes.`);
-assert.match(pngResponse.headers.get('cache-control') || '', /max-age=300/);
+const playerPng = new Uint8Array(await playerResponse.arrayBuffer());
+assertPng(playerResponse, playerPng, 'Player achievements', 300);
+persistPreview('player-achievements.png', playerPng);
 
-console.log('Player share HTML metadata, team payloads and dynamic PNG generation passed.');
+const siteHtmlResponse = await fetch(`${apiUrl}/functions/v1/player-share/_site`, {
+  headers: functionHeaders,
+  redirect: 'manual',
+  signal: AbortSignal.timeout(30_000),
+});
+const siteHtml = await siteHtmlResponse.text();
+assert.equal(siteHtmlResponse.status, 200, siteHtml);
+assert.match(siteHtml, /player-share\/_site\/card\.png/);
+assert.match(siteHtml, /twitter:card/);
+
+const siteResponse = await fetch(`${apiUrl}/functions/v1/player-share/_site/card.png`, {
+  headers: functionHeaders,
+  signal: AbortSignal.timeout(60_000),
+});
+const sitePng = new Uint8Array(await siteResponse.arrayBuffer());
+assertPng(siteResponse, sitePng, 'Site social card', 3600);
+persistPreview('site-card.png', sitePng);
+
+console.log('Player and site share metadata, team payloads and full 1200x630 PNG generation passed.');
