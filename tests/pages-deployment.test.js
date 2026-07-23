@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const workflow = readFileSync('.github/workflows/pages.yml', 'utf8');
 const rootHtml = readFileSync('index.html', 'utf8');
 const publicHtml = readFileSync('public/index.html', 'utf8');
-const dynamicSiteCardPath = '/functions/v1/player-share/_site/card.png';
+const siteCardUrl = 'https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3';
 
 describe('GitHub Pages deployment', () => {
   it('does not execute the removed build-time social preview renderer', () => {
@@ -29,10 +29,13 @@ describe('GitHub Pages deployment', () => {
     expect(workflow).toContain('public/config.js');
   });
 
-  it('uses the dynamic Edge Function card from both deployable HTML entrypoints', () => {
+  it('uses the repository-owned social preview from both deployable HTML entrypoints', () => {
     for (const html of [rootHtml, publicHtml]) {
-      expect(html).toContain(`og:image" content="https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
-      expect(html).toContain(`twitter:image" content="https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
+      expect(html).toContain(`og:image" content="${siteCardUrl}`);
+      expect(html).toContain(`twitter:image" content="${siteCardUrl}`);
+      expect(html).toContain('og:image:type" content="image/jpeg"');
+      expect(html).toContain('og:image:width" content="1200"');
+      expect(html).toContain('og:image:height" content="630"');
     }
   });
 });
