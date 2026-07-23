@@ -31,8 +31,8 @@ describe('GitHub Pages deployment', () => {
 
   it('uses the dynamic Edge Function card from both deployable HTML entrypoints', () => {
     for (const html of [rootHtml, publicHtml]) {
-      expect(html).toContain(`og:image\" content=\"https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
-      expect(html).toContain(`twitter:image\" content=\"https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
+      expect(html).toContain(`og:image" content="https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
+      expect(html).toContain(`twitter:image" content="https://imtitjwgiemlaabpioed.supabase.co${dynamicSiteCardPath}`);
     }
   });
 });
