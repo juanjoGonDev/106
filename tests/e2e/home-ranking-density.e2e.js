@@ -64,8 +64,8 @@ async function installMocks(page) {
 
 async function expectNoHorizontalOverflow(page) {
   const widths = await page.evaluate(() => ({
-    viewport: document.documentElement.clientWidth,
-    content: document.documentElement.scrollWidth,
+    viewport: globalThis.document.documentElement.clientWidth,
+    content: globalThis.document.documentElement.scrollWidth,
   }));
   expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1);
 }
@@ -102,9 +102,9 @@ test('home removes redundant metrics and keeps precision rows on one accessible 
       return {
         height: anchor.getBoundingClientRect().height,
         centerDelta: Math.max(...centers) - Math.min(...centers),
-        timeWhiteSpace: getComputedStyle(time).whiteSpace,
-        nickWhiteSpace: getComputedStyle(nick).whiteSpace,
-        nickOverflow: getComputedStyle(nick).overflow,
+        timeWhiteSpace: globalThis.getComputedStyle(time).whiteSpace,
+        nickWhiteSpace: globalThis.getComputedStyle(nick).whiteSpace,
+        nickOverflow: globalThis.getComputedStyle(nick).overflow,
       };
     });
     expect(geometry.height).toBeLessThanOrEqual(46);
