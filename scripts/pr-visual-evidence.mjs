@@ -2,7 +2,7 @@ const FRONTEND_EXTENSIONS = new Set(['.css', '.gif', '.html', '.jpeg', '.jpg', '
 const FRONTEND_PREFIXES = ['public/', 'supabase/functions/player-share/'];
 const START_MARKER = '<!-- visual-evidence:start -->';
 const END_MARKER = '<!-- visual-evidence:end -->';
-const PLACEHOLDER_PATTERN = /(?:paste|pega|attach|replace|placeholder|todo|example\.com|github\.com\/OWNER)/i;
+const PLACEHOLDER_PATTERN = /(?:paste|pega|replace|placeholder|todo|example\.com|github\.com\/OWNER)/i;
 
 function extension(path) {
   const match = String(path ?? '').toLowerCase().match(/\.[a-z0-9]+$/);
@@ -18,7 +18,7 @@ export function isFrontendPath(path) {
 }
 
 function normalizeSummary(value) {
-  return String(value ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function parseSummary(summary) {
@@ -32,8 +32,8 @@ function parseSummary(summary) {
 }
 
 function markdownImage(detailsBody) {
-  const match = String(detailsBody ?? '').match(/!\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/);
-  return match?.[1]?.trim() ?? '';
+  const match = String(detailsBody).match(/!\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/);
+  return match ? match[1].trim() : '';
 }
 
 function evidenceRegion(body) {
