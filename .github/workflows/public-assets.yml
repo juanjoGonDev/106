@@ -1,0 +1,30 @@
+name: Public Asset Audit
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: read-all
+
+concurrency:
+  group: public-assets-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: 🗂️ Assets · References and ownership
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.13.0
+
+      - name: Audit public media without installing dependencies
+        run: node scripts/check-public-assets.mjs
