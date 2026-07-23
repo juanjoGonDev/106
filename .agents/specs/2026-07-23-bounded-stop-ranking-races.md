@@ -60,8 +60,9 @@
 
 ## Validation
 
-- Quality pipeline run `30028799838` passed syntax, Vitest, security, ESLint, Knip, dependency policy, local Supabase rebuild/API journeys and its final quality gate.
-- Player/browser run `30028800227` passed desktop and mobile Playwright journeys and every 100% frontend-module coverage gate.
+- Quality pipeline run `30029736789` passed syntax, Vitest, security, ESLint, Knip, dependency policy, local Supabase rebuild/API journeys and its final quality gate.
+- Player/browser run `30029736993` passed desktop and mobile Playwright journeys and every 100% frontend-module coverage gate.
+- The browser job was rerun twice on the same final implementation tree (`89283492201` and `89283828131`); both reruns passed without retries or code changes.
 - The local Supabase journey validated a real manual finish at 2,200 ms and an exact automatic 30,000 ms completion through the Edge Function and PostgreSQL migration.
 - The browser race test performs eight consecutive legacy-ranking replacements in both viewport projects and verifies stale award lookups cannot overwrite the newest flags.
 - Passing browser evidence was captured in artifact `8572439645`, digest `sha256:df40438a3dbc86d68406c9ef97d8346cc98ccf6d4153ca7b5774aaf14221a243`.
@@ -76,9 +77,9 @@
 
 - Branch: `agent/fix-bounded-stop-ranking-races`
 - PR: `#23` — `fix(game): bound attempts and eliminate ranking races`
-- Final-head CI: pending after this documentation-only commit.
+- Implementation tree CI: green across quality, browser, visual-evidence and public-asset workflows.
 - Merge/deploy: not performed; explicit user approval is required.
 
 ## Status
 
-Implementation and functional validation complete. Final-head CI and repeated browser reruns remain before handoff.
+Complete and ready for review. This final commit changes documentation only; the implementation tree and validated runtime behavior are unchanged.
