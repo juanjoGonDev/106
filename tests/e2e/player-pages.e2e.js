@@ -18,7 +18,7 @@ function projectDevice(testInfo) {
 }
 
 async function settleLayout(page) {
-  await page.evaluate(() => new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))));
+  await page.evaluate(() => new Promise((resolveFrame) => globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(resolveFrame))));
 }
 
 async function capture(page, testInfo, name, locator = null) {
