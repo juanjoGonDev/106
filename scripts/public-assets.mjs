@@ -55,7 +55,11 @@ function extractCssUrlReferences(content) {
   return references;
 }
 
-function extractQuotedMediaReferences(content) {
+function isRepositorySourcePath(value) {
+  return value.startsWith('/') || value.startsWith('./') || value.startsWith('../');
+}
+
+function extractQuotedRepositoryPaths(content) {
   const references = [];
   for (let index = 0; index < content.length; index += 1) {
     const quote = content[index];
@@ -63,8 +67,23 @@ function extractQuotedMediaReferences(content) {
     const end = content.indexOf(quote, index + 1);
     if (end < 0) return references;
     const value = content.slice(index + 1, end).trim();
-    if (hasMediaExtension(value)) references.push(value);
+    if (isRepositorySourcePath(value) && hasMediaExtension(value)) references.push(value);
     index = end;
+  }
+  return references;
+}
+
+function extractStructuredMediaReferences(content) {
+  const references = [];
+  const expressions = [
+    /(?:src|href|content)\s*=\s*["']([^"']+)["']/gi,
+    /"src"\s*:\s*"([^"]+)"/gi,
+  ];
+  for (const expression of expressions) {
+    for (const match of content.matchAll(expression)) {
+      const value = String(match[1]).trim();
+      if (hasMediaExtension(value)) references.push(value);
+    }
   }
   return references;
 }
@@ -72,7 +91,8 @@ function extractQuotedMediaReferences(content) {
 export function extractAssetReferences(content) {
   return [...new Set([
     ...extractCssUrlReferences(content),
-    ...extractQuotedMediaReferences(content),
+    ...extractQuotedRepositoryPaths(content),
+    ...extractStructuredMediaReferences(content),
   ])].filter(hasMediaExtension);
 }
 
