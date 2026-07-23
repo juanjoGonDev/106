@@ -1,4 +1,5 @@
 (() => {
+  const MOBILE_HOME_MEDIA = '(max-width: 700px)';
   const TEAMS = Object.freeze({
     spain: Object.freeze({ name: 'España', asset: './assets/flag-spain.svg', flagClass: 'flag--spain' }),
     argentina: Object.freeze({ name: 'Argentina', asset: './assets/flag-argentina.svg', flagClass: 'flag--argentina' }),
@@ -59,6 +60,18 @@
     return image;
   }
 
+  function createIdentity(teamKey, nick) {
+    const identity = document.createElement('span');
+    identity.className = 'ranking-player__identity';
+
+    const nickElement = document.createElement('span');
+    nickElement.className = 'player-link__nick';
+    nickElement.textContent = nick;
+
+    identity.append(createFlag(teamKey), nickElement);
+    return identity;
+  }
+
   function compactRow(row) {
     const anchor = row.querySelector(':scope > .leaderboard-row-link');
     if (!anchor) return;
@@ -68,18 +81,14 @@
 
     const nick = extractNick(anchor, player);
     if (!nick) return;
-    const time = extractTime(player);
 
-    const nickElement = document.createElement('span');
-    nickElement.className = 'player-link__nick';
-    nickElement.textContent = nick;
-
+    const identity = createIdentity(teamKey, nick);
     const timeElement = document.createElement('small');
     timeElement.className = 'ranking-time';
-    timeElement.textContent = time;
+    timeElement.textContent = extractTime(player);
 
-    player.className = 'player ranking-player ranking-player--compact';
-    player.replaceChildren(nickElement, createFlag(teamKey), timeElement);
+    player.className = 'player ranking-player ranking-player--home';
+    player.replaceChildren(identity, timeElement);
     row.dataset.team = teamKey;
   }
 
@@ -87,11 +96,32 @@
     for (const row of list.querySelectorAll(':scope > li:not(.empty)')) compactRow(row);
   }
 
+  function placeAwards(isMobile) {
+    const awards = document.querySelector('#awardsCard');
+    const battle = document.querySelector('.battle-card');
+    if (!awards || !battle) return;
+
+    if (isMobile) {
+      if (battle.nextElementSibling !== awards) battle.after(awards);
+      return;
+    }
+
+    const rightRail = document.querySelector('.layout-rail--right');
+    if (!rightRail) return;
+    if (awards.parentElement !== rightRail || rightRail.firstElementChild !== awards) rightRail.prepend(awards);
+  }
+
   function initialize() {
     const list = document.querySelector('#leaderboard');
-    if (!list) return;
-    compactLeaderboard(list);
-    new MutationObserver(() => compactLeaderboard(list)).observe(list, { childList: true });
+    if (list) {
+      compactLeaderboard(list);
+      new MutationObserver(() => compactLeaderboard(list)).observe(list, { childList: true });
+    }
+
+    const media = window.matchMedia(MOBILE_HOME_MEDIA);
+    const updateAwardsPlacement = () => placeAwards(media.matches);
+    updateAwardsPlacement();
+    media.addEventListener('change', updateAwardsPlacement);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
