@@ -70,9 +70,9 @@ Revert the pull request. No migration or persistent data rollback is required.
 
 - Branch: `agent/fix-player-card-radar`
 - Base: `main`
-- Pull request: `#16`
-- Normal pull request; no merge or deployment without explicit authorization.
+- Initial pull request `#16` was closed unmerged because GitHub retained its head at the temporary evidence commit instead of advancing to the cleaned branch tip.
+- The active normal pull request is created from the final cleaned branch head; no merge or deployment without explicit authorization.
 
 ## Status
 
-Implementation, regression coverage, runtime PNG generation, browser validation, and immutable PR evidence are complete. Awaiting explicit merge authorization after the final branch-head checks.
+Implementation, regression coverage, runtime PNG generation, browser validation, and immutable PR evidence are complete. Awaiting explicit merge authorization after the active pull request checks.
