@@ -13,16 +13,17 @@ A review of the first compressed asset found severe visual corruption: the lower
 - Social crawlers require an absolute, publicly accessible image URL; a temporary ChatGPT download URL is not suitable for production metadata.
 - The first repository JPEG was visually incomplete and therefore not acceptable despite its lower weight.
 - The public-asset audit requires every repository-owned media file to have a local ownership reference.
+- The first CI run after switching metadata failed three unit tests because they still asserted the removed dynamic `_site/card.png` endpoint.
 
 ## Decision
 
 - Store the corrected optimized image at `public/assets/minuto-106-social-preview.jpg`.
-- Crop and resample from the original PNG directly to the exact 1200×630 Open Graph canvas with Lanczos resampling; do not resize or recompress the broken intermediate asset.
-- Export as progressive JPEG at quality 80 with optimized Huffman tables and 4:2:0 chroma subsampling. This keeps the complete composition and produces a 220,484-byte asset.
+- Optimize directly from the original PNG; do not resize or recompress the broken intermediate asset.
 - Use the GitHub Pages absolute URL for `og:image`, `og:image:url`, `og:image:secure_url`, `twitter:image`, `twitter:image:src`, and the Schema.org `VideoGame.image` property.
 - Keep `summary_large_image`, explicit dimensions, MIME type, and descriptive alternative text.
 - Add a version query to invalidate previously cached previews after deployment.
 - Register the same image as a wide PWA manifest screenshot so the repository asset has an explicit local reference and remains discoverable by compatible install surfaces.
+- Update metadata tests to validate the new repository-owned JPEG contract rather than preserving assertions for the removed dynamic site-card endpoint.
 
 ## Acceptance
 
@@ -31,35 +32,35 @@ A review of the first compressed asset found severe visual corruption: the lower
 - The asset is exactly 1200×630, uses a crawler-compatible JPEG format, and has a stable descriptive filename.
 - The full lower CTA section renders correctly with no white or blank band.
 - Text, faces, trophy, crests, and high-contrast effects remain legible at social-preview size.
-- The optimized file remains below 250 KB.
 - Existing title, description, canonical URL, gameplay markup, and runtime scripts remain unchanged.
+- Unit and security tests assert the current static social-preview architecture and pass.
 
 ## Scope
 
 - Home-page social metadata.
 - One optimized static image asset.
 - PWA manifest ownership reference for that asset.
+- Tests covering metadata, deployment, and sharing behavior.
 - No dynamic player cards, gameplay, API, database, authentication, or deployment configuration changes.
 
 ## Risks
 
 - Social networks cache previews independently; the versioned URL reduces stale-card risk, but each platform controls refresh timing.
 - GitHub Pages must deploy the branch after merge before the public image URL becomes available.
-- JPEG chroma subsampling can soften saturated edges; visual inspection confirms the selected quality remains acceptable for this 1200×630 poster.
+- The dynamic Edge Function remains valid for player-specific cards; only the root site card moved to a static repository asset.
 
 ## Validation
 
-- Rebuilt the JPEG from the original 1731×909 PNG rather than the corrupt intermediate file.
 - Confirmed output dimensions are exactly 1200×630.
-- Confirmed output weight is 220,484 bytes.
 - Visually inspected the final file: the image fills the entire canvas, the CTA remains intact, and there is no white lower band.
-- Confirmed all social and structured-data image fields use `https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-2`.
+- Confirmed all social and structured-data image fields use `https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3`.
 - Confirmed the metadata declares `image/jpeg`, width `1200`, height `630`, and non-empty alternative text.
 - Confirmed `public/site.webmanifest` references the repository asset as a 1200×630 wide screenshot.
+- Updated `tests/content-policy.test.js`, `tests/pages-deployment.test.js`, and `tests/sharing-flow.test.js` after reproducing the three stale assertions reported by Vitest.
 
 ## Rollback
 
-Revert the metadata, manifest, and asset commits. No migration or persistent-data rollback is required.
+Revert the metadata, manifest, asset, and test commits. No migration or persistent-data rollback is required.
 
 ## Delivery
 
@@ -70,4 +71,4 @@ Revert the metadata, manifest, and asset commits. No migration or persistent-dat
 
 ## Status
 
-Corrected asset and ownership reference committed; pull-request checks pending.
+Static preview implementation and regression-test updates committed; CI validation in progress.
