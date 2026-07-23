@@ -8,6 +8,8 @@ const honours = readFileSync('public/honours.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
+const rootIndex = readFileSync('index.html', 'utf8');
+const publicIndex = readFileSync('public/index.html', 'utf8');
 
 const visibleShareFlows = [layout, actions, ranking, honours, player, playerUi, edgeShare];
 
@@ -50,7 +52,23 @@ describe('share-first social actions', () => {
     expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
     expect(edgeShare).toContain('property="og:image"');
+    expect(edgeShare).toContain('property="og:image:secure_url"');
+    expect(edgeShare).toContain('name="twitter:image:src"');
     expect(edgeShare).toContain('new ImageResponse');
+  });
+
+  it('publishes the root X card through the live site PNG endpoint', () => {
+    const siteCard = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+    for (const html of [rootIndex, publicIndex]) {
+      expect(html).toContain('name="twitter:card" content="summary_large_image"');
+      expect(html).toContain('name="twitter:image"');
+      expect(html).toContain('name="twitter:image:src"');
+      expect(html).toContain('property="og:image:secure_url"');
+      expect(html).toContain(siteCard);
+      expect(html).not.toContain('/public/assets/social-preview');
+    }
+    expect(edgeShare).toContain("const SITE_ROUTE = '_site'");
+    expect(edgeShare).toContain('async function siteCardResponse');
   });
 
   it('does not intercept private-key clipboard controls', () => {
