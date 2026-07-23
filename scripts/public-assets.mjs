@@ -57,7 +57,7 @@ export function resolveAssetReference(root, sourcePath, reference) {
   try {
     path = decodeURIComponent(path);
   } catch {
-    // Keep the original path when malformed percent-encoding appears in a fixture.
+    // Keep malformed percent-encoding unchanged so the audit still reports it.
   }
   if (path.startsWith('/106/')) return resolve(root, path.slice('/106/'.length));
   if (path.startsWith('/public/')) return resolve(root, path.slice(1));
@@ -70,6 +70,13 @@ function digest(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
+function isDeployableText(repositoryPath, absolutePath) {
+  const deployable = repositoryPath === 'index.html'
+    || repositoryPath.startsWith('public/')
+    || repositoryPath.startsWith('supabase/functions/');
+  return deployable && TEXT_EXTENSIONS.has(extname(absolutePath).toLowerCase());
+}
+
 export function auditPublicAssets(root = process.cwd()) {
   const absoluteRoot = resolve(root);
   const files = walkRepository(absoluteRoot);
@@ -77,7 +84,7 @@ export function auditPublicAssets(root = process.cwd()) {
   const invalidRoots = [...repositoryPaths.values()]
     .filter((path) => path.startsWith('assets/') || path.startsWith('public/public/'))
     .sort();
-  const textFiles = files.filter((path) => TEXT_EXTENSIONS.has(extname(path).toLowerCase()));
+  const textFiles = files.filter((path) => isDeployableText(repositoryPaths.get(path), path));
   const publicMedia = files.filter((path) => {
     const repositoryPath = repositoryPaths.get(path);
     return repositoryPath.startsWith('public/') && MEDIA_EXTENSIONS.has(extname(path).toLowerCase());
@@ -135,7 +142,7 @@ export function formatAssetAudit(report) {
     lines.push(...report.missing.map(({ source, reference }) => `  - ${source}: ${reference}`));
   }
   if (report.orphaned.length) {
-    lines.push('Public media files are not referenced by repository text sources:');
+    lines.push('Public media files are not referenced by deployable sources:');
     lines.push(...report.orphaned.map((path) => `  - ${path}`));
   }
   if (report.duplicates.length) {
