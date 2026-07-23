@@ -28,10 +28,27 @@ describe('player pages and ranking links', () => {
   it('keeps flags and links when the delayed fallback ranking wins the request race', () => {
     const fallbackRanking = read('public/v4.js');
     expect(fallbackRanking).toContain('v4PlayerUi?.playerUrl(nick)');
-    expect(fallbackRanking).toContain('v4PlayerUi?.teamHtml(entry.team)');
+    expect(fallbackRanking).toContain('v4TeamFlagHtml(entry.team)');
     expect(fallbackRanking).toContain('class="leaderboard-row-link"');
     expect(fallbackRanking).toContain('data-player-nick=');
     expect(fallbackRanking).not.toContain('<small>${teamLabel(entry.team)}');
+  });
+
+  it('removes the visible global stats strip and keeps home ranking metadata compact', () => {
+    const index = read('public/index.html');
+    const fallbackRanking = read('public/v4.js');
+    const enhancements = read('public/ranking-enhancements.js');
+    const styles = read('public/v11.css');
+
+    expect(index).not.toContain('class="stats-strip"');
+    expect(index).toContain('<div hidden aria-hidden="true"><span id="globalPlayers">');
+    expect(enhancements).toContain('role="img"');
+    expect(enhancements).toContain('Bandera de ${team.name}');
+    expect(enhancements).not.toContain('ui.teamHtml(team)');
+    expect(fallbackRanking).toContain('role="img"');
+    expect(fallbackRanking).not.toContain('v4PlayerUi?.teamHtml(entry.team)');
+    expect(styles).toContain('.leaderboard-row-link .player');
+    expect(styles).toContain('white-space:nowrap');
   });
 
   it('provides clean overview, achievements and trophies player sections', () => {
