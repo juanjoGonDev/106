@@ -8,6 +8,16 @@
   transition: none !important;
 }
 
+.layout-rail .leaderboard {
+  gap: 8px;
+}
+
+.layout-rail .leaderboard .leaderboard-row {
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 .leaderboard-row:hover,
 .leaderboard-row:focus-within,
 .clickable-leaderboard .leaderboard-row:hover,
