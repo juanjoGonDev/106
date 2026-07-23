@@ -1,6 +1,14 @@
 const FRONTEND_EXTENSIONS = new Set(['.css', '.gif', '.html', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const FRONTEND_PREFIXES = ['public/', 'supabase/functions/player-share/'];
 const FRONTEND_ROOT_FILES = new Set(['index.html', 'playwright.config.js']);
+const DEVICE_SUFFIXES = Object.freeze([
+  { label: 'desktop', device: 'desktop' },
+  { label: 'escritorio', device: 'desktop' },
+  { label: 'mobile', device: 'mobile' },
+  { label: 'móvil', device: 'mobile' },
+  { label: 'movil', device: 'mobile' },
+]);
+const SUMMARY_SEPARATORS = new Set(['·', '—', '-']);
 const START_MARKER = '<!-- visual-evidence:start -->';
 const END_MARKER = '<!-- visual-evidence:end -->';
 const PLACEHOLDER_PATTERN = /(?:paste|pega|replace|placeholder|todo|example\.com|github\.com\/OWNER)/i;
@@ -28,12 +36,17 @@ function normalizeSummary(value) {
 
 function parseSummary(summary) {
   const normalized = normalizeSummary(summary);
-  const match = normalized.match(/^(.*?)\s*(?:·|—|-)\s*(desktop|mobile|escritorio|m[oó]vil)$/i);
-  if (!match) return null;
-  const area = match[1].trim();
-  if (!area) return null;
-  const device = /^(?:desktop|escritorio)$/i.test(match[2]) ? 'desktop' : 'mobile';
-  return { area, device };
+  const lower = normalized.toLocaleLowerCase('es');
+  for (const suffix of DEVICE_SUFFIXES) {
+    if (!lower.endsWith(suffix.label)) continue;
+    const prefix = normalized.slice(0, normalized.length - suffix.label.length).trimEnd();
+    const separator = prefix.at(-1);
+    if (!SUMMARY_SEPARATORS.has(separator)) continue;
+    const area = prefix.slice(0, -1).trim();
+    if (!area) return null;
+    return { area, device: suffix.device };
+  }
+  return null;
 }
 
 function markdownImage(detailsBody) {
@@ -51,15 +64,37 @@ function evidenceRegion(body) {
   return text.slice(start + START_MARKER.length, end);
 }
 
+function detailsBlocks(region) {
+  const blocks = [];
+  let cursor = 0;
+  while (cursor < region.length) {
+    const detailsStart = region.indexOf('<details', cursor);
+    if (detailsStart < 0) break;
+    const openingEnd = region.indexOf('>', detailsStart);
+    if (openingEnd < 0) break;
+    const summaryStart = region.indexOf('<summary>', openingEnd + 1);
+    if (summaryStart < 0) break;
+    const summaryEnd = region.indexOf('</summary>', summaryStart + 9);
+    if (summaryEnd < 0) break;
+    const detailsEnd = region.indexOf('</details>', summaryEnd + 10);
+    if (detailsEnd < 0) break;
+    blocks.push({
+      summary: region.slice(summaryStart + 9, summaryEnd),
+      body: region.slice(summaryEnd + 10, detailsEnd),
+    });
+    cursor = detailsEnd + 10;
+  }
+  return blocks;
+}
+
 export function parseVisualEvidence(body) {
   const region = evidenceRegion(body);
   if (region === null) return { hasMarkers: false, entries: [] };
   const entries = [];
-  const detailsPattern = /<details(?:\s[^>]*)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/gi;
-  for (const match of region.matchAll(detailsPattern)) {
-    const parsed = parseSummary(match[1]);
+  for (const block of detailsBlocks(region)) {
+    const parsed = parseSummary(block.summary);
     if (!parsed) continue;
-    entries.push({ ...parsed, image: markdownImage(match[2]), summary: normalizeSummary(match[1]) });
+    entries.push({ ...parsed, image: markdownImage(block.body), summary: normalizeSummary(block.summary) });
   }
   return { hasMarkers: true, entries };
 }
