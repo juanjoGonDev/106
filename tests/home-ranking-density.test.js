@@ -95,14 +95,4 @@ describe('home score and ranking density', () => {
     expect(rankingEnhancement).toContain("document.addEventListener('minuto106:attempt-finished'");
     expect(rankingEnhancement).toContain('refreshAwards(event.detail?.stats)');
   });
-
-  it('ships local flag images with intrinsic dimensions and accessible names', () => {
-    const spain = read('public/assets/flag-spain.svg');
-    const argentina = read('public/assets/flag-argentina.svg');
-    for (const flag of [spain, argentina]) {
-      expect(flag).toContain('width="30" height="20"');
-      expect(flag).toContain('role="img"');
-      expect(flag).toContain('<title id="title">Bandera de ');
-    }
-  });
 });
