@@ -26,7 +26,8 @@ Fix the missing X/Twitter card for the public site, regenerate social PNG output
 - Add a mandatory pull-request visual-evidence template and a read-only workflow that requires matched Desktop/Mobile `<details>` image pairs whenever frontend files change.
 - Extend Playwright journeys to write deterministic desktop/mobile screenshots when `PR_VISUAL_CAPTURE=1`; optional frame capture is assembled into a GIF by the local preview command.
 - Generated visual evidence lives under `.tmp/pr-previews`, is ignored by Git, and is uploaded only as CI artifacts or attached to the PR.
-- Parse visual-evidence paths and Markdown destinations with bounded linear string operations instead of regular expressions rejected by the security lint policy.
+- Parse visual-evidence, CSS URL, and quoted repository paths with bounded linear string operations instead of regular expressions rejected by the security lint policy.
+- Treat quoted download filenames as response metadata rather than repository asset references; source strings count only when they use explicit `/`, `./`, or `../` paths.
 - Pin PR evidence URLs to the temporary evidence commit, then remove the evidence wrappers from the final branch tree.
 
 ## Acceptance
@@ -56,19 +57,28 @@ Fix the missing X/Twitter card for the public site, regenerate social PNG output
 ## Tests
 
 - Static HTML contracts for exact Open Graph/Twitter image URLs and image dimensions.
-- Asset audit unit/integration coverage against missing, duplicated, and orphaned media.
+- Asset audit unit/integration coverage against missing, duplicated, orphaned media, response download filenames, malformed CSS URLs, and unterminated quoted paths.
 - Local Supabase requests for `_site/card.png` and player section cards, including PNG signature, 1200x630 IHDR dimensions, content type, and cache policy.
 - Playwright desktop and Pixel 5 journeys with deterministic screenshots for the home, ranking, and player surfaces.
 - PR-body validator unit tests for paired evidence, placeholders, non-frontend changes, malformed Markdown, and every linear-parser boundary.
 
 ## Validation
 
-- Public Asset Audit run `29970810656`: success.
-- Player Pages and Social Cards run `29970810649`: success, including desktop/mobile Playwright and 100% module coverage gates.
-- Pull Request Quality Pipeline run `29970810646`: Supabase integration, Vitest, Knip, build, syntax, and security succeeded; the unsafe-regex ESLint finding was subsequently removed in commits `e4f2a10` and `20749ed`.
-- PR #14 now contains paired Desktop/Mobile evidence pinned to commit `13d17446`.
+All required workflows completed successfully on code head `af6ee477`:
+
+- Public Asset Audit run `29984918825`: success.
+- Pull Request Visual Evidence run `29984918826`: success.
+- Player Pages and Social Cards run `29984918874`: success, including desktop/mobile Playwright and 100% module coverage gates.
+- Pull Request Quality Pipeline run `29984918821`: success.
+  - Build and syntax: success.
+  - Vitest: success.
+  - ESLint: success.
+  - Knip: success.
+  - Security and dependency policy: success.
+  - Supabase local API integration and generated PNG previews: success.
+  - Quality Gate: success.
+- PR #14 contains paired Desktop/Mobile evidence pinned to commit `13d17446`.
 - Temporary evidence files were removed from the branch tip in commits `aa78d5b` and `c30cbb9`.
-- Final CI validation is required on the latest specification commit before delivery is marked complete.
 
 ## Rollback
 
@@ -83,4 +93,4 @@ Revert the pull request changes. Restore the previous public template and PNG ge
 
 ## Status
 
-Implementation and PR evidence are complete. Final CI validation is in progress on the clean branch tip.
+Complete and validated. PR #14 is ready for review; it has not been merged or deployed.
