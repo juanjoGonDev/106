@@ -14,32 +14,51 @@ describe('home score and ranking density', () => {
     expect(html).toContain('class="stats-render-targets" hidden aria-hidden="true"');
   });
 
-  it('loads the compact layout after every legacy ranking renderer', () => {
+  it('loads the home presentation after every legacy ranking renderer', () => {
     const html = read('public/index.html');
     expect(html.indexOf('./v11.css')).toBeLessThan(html.indexOf('./v12.css'));
     expect(html.indexOf('./ranking-enhancements.js')).toBeLessThan(html.indexOf('./home-ranking-density.js'));
   });
 
-  it('normalizes primary and delayed fallback rows to nickname, accessible flag and inline time', () => {
+  it('normalizes rows to accessible identity and timing lines', () => {
     const script = read('public/home-ranking-density.js');
     expect(script).toContain("anchor.querySelector('.player, .ranking-player')");
+    expect(script).toContain("identity.className = 'ranking-player__identity'");
     expect(script).toContain("image.className = `flag ranking-flag ${team.flagClass}`");
     expect(script).toContain('image.alt = team.name');
     expect(script).toContain('image.width = 20');
     expect(script).toContain('image.height = 14');
     expect(script).toContain("timeElement.className = 'ranking-time'");
-    expect(script).toContain('player.replaceChildren(nickElement, createFlag(teamKey), timeElement)');
-    expect(script).not.toContain('aria-hidden');
+    expect(script).toContain('identity.append(createFlag(teamKey), nickElement)');
+    expect(script).toContain('player.replaceChildren(identity, timeElement)');
   });
 
-  it('keeps the entire sidebar row on one compact visual line', () => {
+  it('renders one stable two-row surface in the desktop rail', () => {
     const styles = read('public/v12.css');
-    expect(styles).toContain('grid-template-columns:24px minmax(0,1fr) auto');
-    expect(styles).toContain('.ranking-player--compact{display:flex!important');
-    expect(styles).toContain('align-items:center');
-    expect(styles).toContain('.ranking-time{display:inline!important');
-    expect(styles).toContain('white-space:nowrap');
-    expect(styles).toContain('text-overflow:ellipsis');
+    expect(styles).toContain('grid-template-columns: 24px minmax(0, 1fr) auto;');
+    expect(styles).toContain('grid-template-rows: auto auto;');
+    expect(styles).toContain('.ranking-player--home {');
+    expect(styles).toContain('grid-row: 1 / span 2;');
+    expect(styles).toContain('grid-row: 2;');
+    expect(styles).toContain('background: transparent !important;');
+    expect(styles).toContain('transform: none !important;');
+    expect(styles).not.toContain('translateX(');
+    expect(styles).toContain('white-space: nowrap;');
+    expect(styles).toContain('text-overflow: ellipsis;');
+  });
+
+  it('moves the existing awards card below the score on mobile and restores the desktop rail', () => {
+    const script = read('public/home-ranking-density.js');
+    const styles = read('public/v12.css');
+    const rankingEnhancement = read('public/ranking-enhancements.js');
+
+    expect(script).toContain("const MOBILE_HOME_MEDIA = '(max-width: 700px)'");
+    expect(script).toContain('battle.after(awards)');
+    expect(script).toContain('rightRail.prepend(awards)');
+    expect(script).toContain("media.addEventListener('change', updateAwardsPlacement)");
+    expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*#awardsCard \{[\s\S]*display: block;/);
+    expect(rankingEnhancement).toContain("document.addEventListener('minuto106:attempt-finished'");
+    expect(rankingEnhancement).toContain('refreshAwards(event.detail?.stats)');
   });
 
   it('ships local flag images with intrinsic dimensions and accessible names', () => {
