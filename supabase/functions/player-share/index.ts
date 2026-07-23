@@ -8,11 +8,11 @@ const SECTIONS = new Set(['overview', 'achievements', 'trophies']);
 const DEFAULT_SITE_URL = 'https://juanjogondev.github.io/106';
 const SITE_ROUTE = '_site';
 const RADAR_LABELS = Object.freeze([
-  Object.freeze({ label: 'PRECISIÓN', x: 170, y: 18, textAnchor: 'middle' }),
-  Object.freeze({ label: 'REGULARIDAD', x: 266, y: 119, textAnchor: 'start' }),
-  Object.freeze({ label: 'EXPERIENCIA', x: 258, y: 286, textAnchor: 'start' }),
-  Object.freeze({ label: 'FIABILIDAD', x: 82, y: 286, textAnchor: 'end' }),
-  Object.freeze({ label: 'IMPACTO', x: 74, y: 119, textAnchor: 'end' }),
+  Object.freeze({ label: 'PRECISIÓN', left: 120, top: 0, width: 100, justifyContent: 'center' }),
+  Object.freeze({ label: 'REGULARIDAD', left: 258, top: 101, width: 82, justifyContent: 'flex-start' }),
+  Object.freeze({ label: 'EXPERIENCIA', left: 245, top: 286, width: 95, justifyContent: 'flex-start' }),
+  Object.freeze({ label: 'FIABILIDAD', left: 0, top: 286, width: 95, justifyContent: 'flex-end' }),
+  Object.freeze({ label: 'IMPACTO', left: 0, top: 101, width: 82, justifyContent: 'flex-end' }),
 ]);
 const PLAYER_TEMPLATE_FALLBACK = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><defs><linearGradient id="g"><stop stop-color="#650018"/><stop offset=".48" stop-color="#080a10"/><stop offset="1" stop-color="#10264f"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><rect x="52" y="52" width="690" height="526" rx="30" fill="#11151e"/><rect x="766" y="52" width="382" height="526" rx="30" fill="#0a0f18"/></svg>`;
 const SITE_TEMPLATE_FALLBACK = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><defs><linearGradient id="g"><stop stop-color="#72001c"/><stop offset=".5" stop-color="#080a10"/><stop offset="1" stop-color="#176397"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><circle cx="600" cy="292" r="178" fill="#06080e"/><path d="M66 468Q600 330 1134 468V574H66Z" fill="#080b11"/></svg>`;
@@ -243,15 +243,6 @@ function radarElement(stats: number[], nick: string) {
       strokeWidth: 1,
     });
   });
-  const labels = RADAR_LABELS.map((axis) => h('text', {
-    key: axis.label,
-    x: axis.x,
-    y: axis.y,
-    fill: '#d4d7df',
-    fontSize: 11,
-    fontWeight: 700,
-    textAnchor: axis.textAnchor,
-  }, axis.label));
   const points = stats.map((value, index) => {
     const point = radarPoint(index, 112 * value / 100);
     return h('circle', {
@@ -264,19 +255,40 @@ function radarElement(stats: number[], nick: string) {
       strokeWidth: 2,
     });
   });
-  return h('svg', {
+  const labels = RADAR_LABELS.map((axis) => h('div', {
+    key: axis.label,
+    style: {
+      position: 'absolute',
+      left: axis.left,
+      top: axis.top,
+      display: 'flex',
+      width: axis.width,
+      justifyContent: axis.justifyContent,
+      color: '#d4d7df',
+      fontSize: 11,
+      fontWeight: 700,
+      lineHeight: 1,
+      whiteSpace: 'nowrap',
+    },
+  }, axis.label));
+  return h('div', {
+    style: { position: 'absolute', left: 787, top: 108, display: 'flex', width: 340, height: 370 },
+  },
+  h('svg', {
     width: 340,
-    height: 360,
-    viewBox: '0 0 340 360',
-    style: { position: 'absolute', left: 787, top: 108 },
+    height: 315,
+    viewBox: '0 0 340 315',
+    style: { position: 'absolute', left: 0, top: 20 },
   },
   ...grid,
   ...axes,
   h('polygon', { points: polygonPoints(stats), fill: 'rgba(244,201,93,.28)', stroke: '#f4c95d', strokeWidth: 4, strokeLinejoin: 'round' }),
-  ...points,
+  ...points),
   ...labels,
-  h('circle', { cx: 140, cy: 340, r: 4, fill: '#f4c95d' }),
-  h('text', { x: 151, y: 344, fill: '#d4d7df', fontSize: 12 }, truncate(nick, 18)));
+  h('div', { style: { position: 'absolute', left: 80, top: 342, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: 180, color: '#d4d7df', fontSize: 12, lineHeight: 1 } },
+    h('span', { style: { display: 'flex', width: 8, height: 8, borderRadius: 999, background: '#f4c95d' } }),
+    h('span', { style: { display: 'flex', maxWidth: 156, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' } }, truncate(nick, 18)),
+  ));
 }
 
 function flagElement(team: ReturnType<typeof teamIdentity>, width = 46, height = 30) {
