@@ -75,6 +75,13 @@ async function expectNoHorizontalOverflow(page) {
   expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
+async function expectCssFlag(flag, accessibleName) {
+  await expect(flag).toHaveAttribute('role', 'img');
+  await expect(flag).toHaveAttribute('aria-label', accessibleName);
+  const backgroundImage = await flag.evaluate((element) => globalThis.getComputedStyle(element).backgroundImage);
+  expect(backgroundImage).toContain('linear-gradient');
+}
+
 test('home places mobile awards below the score and keeps ranking rows on two stable lines', async ({ page, isMobile }, testInfo) => {
   await installMocks(page);
   await page.goto('/');
@@ -88,14 +95,13 @@ test('home places mobile awards below the score and keeps ranking rows on two st
   await expect(page.getByText('tiempos globales perfectos', { exact: true })).toHaveCount(0);
 
   const first = rows.first();
-  const firstFlag = first.locator('img.ranking-flag');
-  await expect(firstFlag).toHaveAttribute('alt', 'España');
-  await expect(firstFlag).toHaveAttribute('src', /assets\/flag-spain\.svg$/);
+  const firstFlag = first.locator('.ranking-flag');
+  await expectCssFlag(firstFlag, 'España');
   await expect(first).not.toContainText('España');
   await expect(first.locator('.ranking-time')).toHaveText('10.604s');
 
   const second = rows.nth(1);
-  await expect(second.locator('img.ranking-flag')).toHaveAttribute('alt', 'Argentina');
+  await expectCssFlag(second.locator('.ranking-flag'), 'Argentina');
   await expect(second).not.toContainText('Argentina');
 
   if (isMobile) {
@@ -187,7 +193,7 @@ test('home places mobile awards below the score and keeps ranking rows on two st
   await capture(page, testInfo);
 });
 
-test('home hides a partial time until the complete ranking row arrives', async ({ page, isMobile }) => {
+test('home hides partial fields and repairs a missing ranking flag', async ({ page, isMobile }) => {
   test.skip(isMobile, 'The home leaderboard is intentionally hidden on mobile.');
   await installMocks(page);
   await page.goto('/');
@@ -198,7 +204,7 @@ test('home hides a partial time until the complete ranking row arrives', async (
       <li class="leaderboard-row leader" data-team="spain">
         <a class="leaderboard-row-link" href="./player/Vieucirst" data-player-nick="Vieucirst" aria-label="Ver perfil de Vieucirst">
           <span class="rank">#1</span>
-          <span class="ranking-player"><span class="player-link__nick">Vieucirst</span><span class="flag flag--spain"></span><small>s</small></span>
+          <span class="ranking-player"><span class="player-link__nick">Vieucirst</span><small>s</small></span>
           <span class="difference">±4 ms</span>
         </a>
       </li>`;
@@ -209,6 +215,7 @@ test('home hides a partial time until the complete ranking row arrives', async (
   await expect(list).toHaveAttribute('aria-busy', 'true');
   await expect(partialRow).toBeHidden();
   await expect(list.locator('.ranking-time')).toHaveCount(0);
+  await expect(list.locator('.ranking-flag')).toHaveCount(0);
 
   await page.evaluate(() => {
     globalThis.document.querySelector('#leaderboard .ranking-player small').textContent = '10.604 s';
@@ -218,4 +225,12 @@ test('home hides a partial time until the complete ranking row arrives', async (
   await expect(partialRow).toBeVisible();
   await expect(list.locator('.ranking-time')).toHaveText('10.604s');
   await expect(list.locator('.ranking-time')).not.toHaveText('s');
+  await expectCssFlag(list.locator('.ranking-flag'), 'España');
+
+  await page.evaluate(() => {
+    globalThis.document.querySelector('#leaderboard .ranking-flag').remove();
+  });
+
+  await expectCssFlag(list.locator('.ranking-flag'), 'España');
+  await expect(list).not.toHaveAttribute('aria-busy', 'true');
 });
