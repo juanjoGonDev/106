@@ -18,7 +18,7 @@ env:
 
 jobs:
   coverage:
-    name: 🧮 Player modules · 100% coverage
+    name: 🧮 Frontend modules · 100% coverage
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -48,11 +48,20 @@ jobs:
       - name: Enforce completed-attempt refresh coverage
         run: pnpm test:attempt-refresh:coverage
 
+      - name: Enforce public asset audit coverage
+        run: pnpm test:public-assets:coverage
+
+      - name: Enforce PR visual evidence coverage
+        run: pnpm test:pr-visual-evidence:coverage
+
+      - name: Audit public assets
+        run: pnpm check:public-assets
+
   browser:
     name: 🌐 Player pages · Desktop and mobile
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -76,13 +85,25 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Run responsive browser journeys
+      - name: Run responsive browser journeys and capture PR evidence
         id: playwright
         continue-on-error: true
         shell: bash
+        env:
+          PR_VISUAL_CAPTURE: '1'
+          PR_VISUAL_GIF: '0'
         run: |
           set -o pipefail
           pnpm test:e2e 2>&1 | tee playwright-output.txt
+
+      - name: Upload desktop and mobile PR previews
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: frontend-previews-${{ github.run_id }}
+          path: .tmp/pr-previews
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload failed browser diagnostics
         if: steps.playwright.outcome == 'failure'
