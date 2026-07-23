@@ -47,20 +47,25 @@ Keep the daily awards visible on phones directly below the Spain-versus-Argentin
 
 ## Validation
 
-- Added source-contract tests for mobile placement, desktop restoration, live attempt refresh, two-row ranking structure, accessible flags and stable hover behavior.
-- Full repository checks and browser evidence are pending CI and preview execution.
+- Updated the existing unit contract for the two-row ranking, responsive awards placement, accessible flags and retained attempt-finished refresh path.
+- Updated the Playwright journey to verify mobile DOM placement, desktop rail restoration, row geometry, a single transparent list-item wrapper, no horizontal hover movement and no page overflow.
+- Visually inspected generated desktop and mobile previews: the desktop rail uses one stable two-row surface and the mobile awards card immediately follows the global score.
+- Pull Request Quality Pipeline run `409` passed, including syntax, ESLint, Vitest, security policy, Knip and local Supabase integration.
+- Player Pages and Social Cards run `141` passed, including responsive browser journeys and frontend coverage checks.
+- Public Asset Audit run `82` passed.
+- Pull Request Visual Evidence remains blocked because the required generated PNG files must be uploaded as GitHub PR attachments; the available connector cannot upload local binary attachments and generated screenshots are intentionally not committed to Git.
 
 ## Rollback
 
-Revert the home enhancement, final stylesheet, regression test and this specification. No persistent data or migration rollback is required.
+Revert the home enhancement, final stylesheet, regression tests and this specification. No persistent data or migration rollback is required.
 
 ## Delivery
 
 - Branch: `agent/fix-mobile-awards-ranking`
 - Base: `main`
-- Pull request: pending
+- Pull request: `#21`
 - Normal pull request; no merge or deployment without explicit authorization.
 
 ## Status
 
-Implementation and regression tests committed; validation pending.
+Implementation and automated validation complete. Pull request open and blocked only by the required manual Desktop/Mobile screenshot attachments.
