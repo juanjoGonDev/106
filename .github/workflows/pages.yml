@@ -26,12 +26,12 @@ jobs:
       build_type: ${{ steps.pages-mode.outputs.build_type }}
     steps:
       - name: Checkout full history
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
       - name: Set up pinned Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -100,9 +100,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
 
-      - name: Render social preview PNG
-        run: node scripts/render-social-preview.mjs
-
       - name: Validate public runtime config
         run: node scripts/validate-runtime-config.mjs
         env:
@@ -116,29 +113,21 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
 
-      - name: Persist generated assets for branch publishing
+      - name: Persist generated runtime config for branch publishing
         if: steps.pages-mode.outputs.build_type == 'legacy'
         shell: bash
         run: |
           set -euo pipefail
-          generated=(
-            public/config.js
-            public/assets/social-preview.png
-            public/assets/social-preview-v2.png
-            assets/social-preview.png
-            assets/social-preview-v2.png
-            public/public/assets/social-preview.png
-            public/public/assets/social-preview-v2.png
-          )
+          generated=(public/config.js)
           if [ -z "$(git status --porcelain -- "${generated[@]}")" ]; then
-            echo 'The committed public runtime config and social previews are already current.'
+            echo 'The committed public runtime config is already current.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- "${generated[@]}"
           git diff --cached --check
-          git commit -m 'build(pages): refresh generated public assets [skip ci]'
+          git commit -m 'build(pages): refresh generated public config [skip ci]'
           git push origin HEAD:main
 
       - name: Request branch-based Pages build
@@ -150,11 +139,11 @@ jobs:
 
       - name: Configure workflow-based Pages
         if: steps.pages-mode.outputs.build_type == 'workflow'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Upload workflow-based static site
         if: steps.pages-mode.outputs.build_type == 'workflow'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: public
 
@@ -170,4 +159,4 @@ jobs:
     steps:
       - name: Deploy GitHub Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
