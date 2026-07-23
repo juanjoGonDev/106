@@ -110,6 +110,13 @@ test('home places mobile awards below the score and keeps ranking rows on two st
     ));
     expect(awardsInDesktopRail).toBe(true);
 
+    const railSpacing = await page.evaluate(() => ({
+      awards: globalThis.getComputedStyle(globalThis.document.querySelector('.layout-rail--right .awards-grid')).rowGap,
+      leaderboard: globalThis.getComputedStyle(globalThis.document.querySelector('.layout-rail--left .leaderboard')).rowGap,
+    }));
+    expect(railSpacing.awards).toBe('8px');
+    expect(railSpacing.leaderboard).toBe(railSpacing.awards);
+
     for (const row of await rows.all()) {
       const geometry = await row.evaluate((anchor) => {
         const center = (box) => box.top + (box.height / 2);
@@ -138,6 +145,10 @@ test('home places mobile awards below the score and keeps ranking rows on two st
           nickWhiteSpace: globalThis.getComputedStyle(nick).whiteSpace,
           nickOverflow: globalThis.getComputedStyle(nick).overflow,
           itemBackground: itemStyle.backgroundColor,
+          itemMarginBlockEnd: itemStyle.marginBlockEnd,
+          itemMarginBlockStart: itemStyle.marginBlockStart,
+          itemPaddingBlockEnd: itemStyle.paddingBlockEnd,
+          itemPaddingBlockStart: itemStyle.paddingBlockStart,
           itemTransform: itemStyle.transform,
         };
       });
@@ -154,8 +165,17 @@ test('home places mobile awards below the score and keeps ranking rows on two st
       expect(geometry.nickWhiteSpace).toBe('nowrap');
       expect(geometry.nickOverflow).toBe('hidden');
       expect(geometry.itemBackground).toBe('rgba(0, 0, 0, 0)');
+      expect(geometry.itemMarginBlockEnd).toBe('0px');
+      expect(geometry.itemMarginBlockStart).toBe('0px');
+      expect(geometry.itemPaddingBlockEnd).toBe('0px');
+      expect(geometry.itemPaddingBlockStart).toBe('0px');
       expect(geometry.itemTransform).toBe('none');
     }
+
+    const rowGaps = await rows.evaluateAll((anchors) => anchors.slice(1).map((anchor, index) => (
+      anchor.getBoundingClientRect().top - anchors[index].getBoundingClientRect().bottom
+    )));
+    for (const gap of rowGaps) expect(gap).toBeCloseTo(8, 1);
 
     const beforeHover = await first.evaluate((anchor) => anchor.getBoundingClientRect().left);
     await first.hover();
