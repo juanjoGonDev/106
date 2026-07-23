@@ -18,8 +18,11 @@ function stringValue(value) {
 }
 
 function extension(path) {
-  const match = stringValue(path).toLowerCase().match(/\.[a-z0-9]+$/);
-  return match ? match[0] : '';
+  const normalized = stringValue(path).toLowerCase();
+  for (const candidate of FRONTEND_EXTENSIONS) {
+    if (normalized.endsWith(candidate)) return candidate;
+  }
+  return '';
 }
 
 export function isFrontendPath(path) {
@@ -50,8 +53,18 @@ function parseSummary(summary) {
 }
 
 function markdownImage(detailsBody) {
-  const match = String(detailsBody).match(/!\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/);
-  return match ? match[1].trim() : '';
+  const text = String(detailsBody);
+  const imageStart = text.indexOf('![');
+  if (imageStart < 0) return '';
+  const destinationStart = text.indexOf('](', imageStart + 2);
+  if (destinationStart < 0) return '';
+  const valueStart = destinationStart + 2;
+  const destinationEnd = text.indexOf(')', valueStart);
+  if (destinationEnd < 0) return '';
+  const destination = text.slice(valueStart, destinationEnd).trim();
+  if (!destination) return '';
+  const titleSeparator = destination.indexOf(' ');
+  return titleSeparator < 0 ? destination : destination.slice(0, titleSeparator).trim();
 }
 
 function evidenceRegion(body) {
