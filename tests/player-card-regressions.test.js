@@ -6,6 +6,7 @@ const browserRadar = readFileSync('public/player-stats.js', 'utf8');
 const playerPage = readFileSync('public/player.js', 'utf8');
 const shareIntegration = readFileSync('scripts/test-player-share-local.mjs', 'utf8');
 const edgeRadarStats = edgeCard.slice(edgeCard.indexOf('function radarStats'), edgeCard.indexOf('function radarPoint'));
+const edgeRadarElement = edgeCard.slice(edgeCard.indexOf('function radarElement'), edgeCard.indexOf('function flagElement'));
 
 describe('player card radar parity', () => {
   it('uses the browser impact inputs instead of achievement points', () => {
@@ -19,11 +20,12 @@ describe('player card radar parity', () => {
 
   it('renders the same five-level labelled radar structure as the web profile', () => {
     expect(edgeCard).toContain('const RADAR_LABELS');
-    expect(edgeCard).toContain('for (const level of [20, 40, 60, 80, 100])');
-    expect(edgeCard).toContain("h('line'");
-    expect(edgeCard).toContain("h('text'");
-    expect(edgeCard).toContain("h('circle'");
-    expect(edgeCard).toContain('truncate(nick, 18)');
+    expect(edgeRadarElement).toContain('for (const level of [20, 40, 60, 80, 100])');
+    expect(edgeRadarElement).toContain("h('line'");
+    expect(edgeRadarElement).toContain("h('circle'");
+    expect(edgeRadarElement).toContain('truncate(nick, 18)');
+    expect(edgeRadarElement).toContain('axis.justifyContent');
+    expect(edgeRadarElement).not.toContain("h('text'");
     expect(edgeCard).not.toContain('`${label} ${stats[index]}`');
   });
 
