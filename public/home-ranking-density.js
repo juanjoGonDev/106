@@ -1,8 +1,8 @@
 (() => {
   const MOBILE_HOME_MEDIA = '(max-width: 700px)';
   const TEAMS = Object.freeze({
-    spain: Object.freeze({ name: 'España', asset: './assets/flag-spain.svg', flagClass: 'flag--spain' }),
-    argentina: Object.freeze({ name: 'Argentina', asset: './assets/flag-argentina.svg', flagClass: 'flag--argentina' }),
+    spain: Object.freeze({ name: 'España', flagClass: 'flag--spain' }),
+    argentina: Object.freeze({ name: 'Argentina', flagClass: 'flag--argentina' }),
   });
 
   function resolveTeam(row) {
@@ -27,9 +27,33 @@
     return Array.from(String(value)).filter((character) => ![' ', '\n', '\r', '\t'].includes(character)).join('');
   }
 
+  function isDecimal(value) {
+    if (!value) return false;
+    let decimalPointSeen = false;
+    for (const character of value) {
+      if (character >= '0' && character <= '9') continue;
+      if (character === '.' && !decimalPointSeen) {
+        decimalPointSeen = true;
+        continue;
+      }
+      return false;
+    }
+    return value.at(-1) !== '.';
+  }
+
+  function normalizeTime(value) {
+    const compact = removeWhitespace(value).toLocaleLowerCase('es').replace(',', '.');
+    if (!compact.endsWith('s')) return '';
+    const numeric = compact.slice(0, -1);
+    if (!isDecimal(numeric)) return '';
+    const seconds = Number(numeric);
+    return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';
+  }
+
   function extractTime(player) {
-    const explicit = player.querySelector('.ranking-time')?.textContent?.trim();
-    if (explicit) return removeWhitespace(explicit);
+    const explicit = normalizeTime(player.querySelector('.ranking-time')?.textContent ?? '');
+    if (explicit) return explicit;
+
     const source = String(player.querySelector('small')?.textContent ?? player.textContent ?? '')
       .replaceAll('·', ' ')
       .replaceAll('\n', ' ')
@@ -38,26 +62,24 @@
     const tokens = source.split(' ').map((token) => token.trim()).filter(Boolean);
     for (let index = 0; index < tokens.length; index += 1) {
       const token = tokens[index];
-      const next = tokens[index + 1]?.toLocaleLowerCase('es');
-      if (next === 's' && Number.isFinite(Number(token.replace(',', '.')))) return `${token}s`;
-      if (token.toLocaleLowerCase('es').endsWith('s')) {
-        const numeric = token.slice(0, -1).replace(',', '.');
-        if (Number.isFinite(Number(numeric))) return removeWhitespace(token);
-      }
+      const candidate = tokens[index + 1]?.toLocaleLowerCase('es') === 's' ? `${token}s` : token;
+      const normalized = normalizeTime(candidate);
+      if (normalized) return normalized;
     }
-    return '—';
+    return '';
+  }
+
+  function hasNumericValue(value) {
+    return Array.from(String(value)).some((character) => character >= '0' && character <= '9');
   }
 
   function createFlag(teamKey) {
     const team = TEAMS[teamKey];
-    const image = document.createElement('img');
-    image.className = `flag ranking-flag ${team.flagClass}`;
-    image.src = new URL(team.asset, document.baseURI).toString();
-    image.alt = team.name;
-    image.width = 20;
-    image.height = 14;
-    image.decoding = 'async';
-    return image;
+    const flag = document.createElement('span');
+    flag.className = `flag ranking-flag ${team.flagClass}`;
+    flag.setAttribute('role', 'img');
+    flag.setAttribute('aria-label', team.name);
+    return flag;
   }
 
   function createIdentity(teamKey, nick) {
@@ -72,28 +94,72 @@
     return identity;
   }
 
-  function compactRow(row) {
+  function hasCompleteFlag(player, teamKey) {
+    const team = TEAMS[teamKey];
+    const flag = player.querySelector(`.ranking-flag.${team.flagClass}`);
+    return flag?.getAttribute('role') === 'img' && flag.getAttribute('aria-label') === team.name;
+  }
+
+  function isNormalizedRow(row, player, teamKey, nick, time) {
+    if (row.dataset.homeRankingReady !== 'true') return false;
+    if (!hasCompleteFlag(player, teamKey)) return false;
+    if (player.querySelector('.player-link__nick')?.textContent?.trim() !== nick) return false;
+    return normalizeTime(player.querySelector('.ranking-time')?.textContent ?? '') === time;
+  }
+
+  function readRow(row) {
     const anchor = row.querySelector(':scope > .leaderboard-row-link');
-    if (!anchor) return;
+    if (!anchor) return null;
     const player = anchor.querySelector('.player, .ranking-player');
     const teamKey = resolveTeam(row);
-    if (!player || !teamKey) return;
+    if (!player || !teamKey) return null;
 
     const nick = extractNick(anchor, player);
-    if (!nick) return;
+    const time = extractTime(player);
+    const rank = anchor.querySelector('.rank')?.textContent?.trim() ?? '';
+    const difference = anchor.querySelector('.difference')?.textContent?.trim() ?? '';
+    if (!nick || !time || !hasNumericValue(rank) || !hasNumericValue(difference)) return null;
 
-    const identity = createIdentity(teamKey, nick);
+    return {
+      row,
+      player,
+      teamKey,
+      nick,
+      time,
+      ready: isNormalizedRow(row, player, teamKey, nick, time),
+    };
+  }
+
+  function compactRow(rowData) {
+    if (rowData.ready) return;
+    const identity = createIdentity(rowData.teamKey, rowData.nick);
     const timeElement = document.createElement('small');
     timeElement.className = 'ranking-time';
-    timeElement.textContent = extractTime(player);
+    timeElement.textContent = rowData.time;
 
-    player.className = 'player ranking-player ranking-player--home';
-    player.replaceChildren(identity, timeElement);
-    row.dataset.team = teamKey;
+    rowData.player.className = 'player ranking-player ranking-player--home';
+    rowData.player.replaceChildren(identity, timeElement);
+    rowData.row.dataset.team = rowData.teamKey;
+    rowData.row.dataset.homeRankingReady = 'true';
   }
 
   function compactLeaderboard(list) {
-    for (const row of list.querySelectorAll(':scope > li:not(.empty)')) compactRow(row);
+    const rows = Array.from(list.querySelectorAll(':scope > li:not(.empty)'));
+    if (!rows.length) {
+      list.removeAttribute('aria-busy');
+      list.dataset.renderState = 'empty';
+      return true;
+    }
+
+    list.setAttribute('aria-busy', 'true');
+    list.dataset.renderState = 'waiting';
+    const rowData = rows.map(readRow);
+    if (rowData.some((entry) => entry === null)) return false;
+
+    for (const entry of rowData) compactRow(entry);
+    list.removeAttribute('aria-busy');
+    list.dataset.renderState = 'ready';
+    return true;
   }
 
   function placeAwards(isMobile) {
@@ -114,8 +180,9 @@
   function initialize() {
     const list = document.querySelector('#leaderboard');
     if (list) {
+      const observer = new MutationObserver(() => compactLeaderboard(list));
+      observer.observe(list, { childList: true, subtree: true, characterData: true });
       compactLeaderboard(list);
-      new MutationObserver(() => compactLeaderboard(list)).observe(list, { childList: true });
     }
 
     const media = window.matchMedia(MOBILE_HOME_MEDIA);

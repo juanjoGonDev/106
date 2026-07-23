@@ -20,17 +20,46 @@ describe('home score and ranking density', () => {
     expect(html.indexOf('./ranking-enhancements.js')).toBeLessThan(html.indexOf('./home-ranking-density.js'));
   });
 
-  it('normalizes rows to accessible identity and timing lines', () => {
+  it('normalizes rows to accessible identity, synchronous flags and timing lines', () => {
     const script = read('public/home-ranking-density.js');
+    const styles = read('public/v12.css');
     expect(script).toContain("anchor.querySelector('.player, .ranking-player')");
     expect(script).toContain("identity.className = 'ranking-player__identity'");
-    expect(script).toContain("image.className = `flag ranking-flag ${team.flagClass}`");
-    expect(script).toContain('image.alt = team.name');
-    expect(script).toContain('image.width = 20');
-    expect(script).toContain('image.height = 14');
+    expect(script).toContain("const flag = document.createElement('span')");
+    expect(script).toContain("flag.className = `flag ranking-flag ${team.flagClass}`");
+    expect(script).toContain("flag.setAttribute('role', 'img')");
+    expect(script).toContain("flag.setAttribute('aria-label', team.name)");
+    expect(script).not.toContain("document.createElement('img')");
+    expect(script).not.toContain('image.decoding');
+    expect(script).not.toContain('team.asset');
     expect(script).toContain("timeElement.className = 'ranking-time'");
     expect(script).toContain('identity.append(createFlag(teamKey), nickElement)');
-    expect(script).toContain('player.replaceChildren(identity, timeElement)');
+    expect(script).toContain('rowData.player.replaceChildren(identity, timeElement)');
+    expect(styles).not.toContain('background: none;');
+    expect(styles).not.toContain('object-fit: cover;');
+  });
+
+  it('waits for every row field before exposing the ranking', () => {
+    const script = read('public/home-ranking-density.js');
+    const styles = read('public/v12.css');
+
+    expect(script).toContain('function normalizeTime(value)');
+    expect(script).toContain("return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';");
+    expect(script).toContain("if (!nick || !time || !hasNumericValue(rank) || !hasNumericValue(difference)) return null;");
+    expect(script).toContain("list.setAttribute('aria-busy', 'true')");
+    expect(script).toContain('if (rowData.some((entry) => entry === null)) return false;');
+    expect(script).toContain("observer.observe(list, { childList: true, subtree: true, characterData: true })");
+    expect(script).toContain("list.removeAttribute('aria-busy')");
+    expect(styles).toContain('#leaderboard[aria-busy="true"] > li:not(.empty)');
+    expect(styles).toContain('visibility: hidden;');
+  });
+
+  it('rebuilds a ready row if its flag disappears', () => {
+    const script = read('public/home-ranking-density.js');
+    expect(script).toContain('function hasCompleteFlag(player, teamKey)');
+    expect(script).toContain("const flag = player.querySelector(`.ranking-flag.${team.flagClass}`)");
+    expect(script).toContain("if (!hasCompleteFlag(player, teamKey)) return false;");
+    expect(script).toContain('ready: isNormalizedRow(row, player, teamKey, nick, time)');
   });
 
   it('renders one stable two-row surface in the desktop rail', () => {
@@ -65,15 +94,5 @@ describe('home score and ranking density', () => {
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*#awardsCard \{[\s\S]*display: block;/);
     expect(rankingEnhancement).toContain("document.addEventListener('minuto106:attempt-finished'");
     expect(rankingEnhancement).toContain('refreshAwards(event.detail?.stats)');
-  });
-
-  it('ships local flag images with intrinsic dimensions and accessible names', () => {
-    const spain = read('public/assets/flag-spain.svg');
-    const argentina = read('public/assets/flag-argentina.svg');
-    for (const flag of [spain, argentina]) {
-      expect(flag).toContain('width="30" height="20"');
-      expect(flag).toContain('role="img"');
-      expect(flag).toContain('<title id="title">Bandera de ');
-    }
   });
 });

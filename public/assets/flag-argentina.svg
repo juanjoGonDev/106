@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20" viewBox="0 0 30 20" role="img" aria-labelledby="title">
-  <title id="title">Bandera de Argentina</title>
-  <rect width="30" height="20" rx="2" fill="#74acdf"/>
-  <rect y="6.666" width="30" height="6.668" fill="#fff"/>
-  <circle cx="15" cy="10" r="1.7" fill="#f6b40e" stroke="#915800" stroke-width=".3"/>
-</svg>

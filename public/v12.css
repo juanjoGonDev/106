@@ -12,6 +12,10 @@
   gap: 8px;
 }
 
+#leaderboard[aria-busy="true"] > li:not(.empty) {
+  visibility: hidden;
+}
+
 .layout-rail .leaderboard .leaderboard-row {
   gap: 0 !important;
   margin: 0 !important;
@@ -94,8 +98,6 @@
   flex: 0 0 auto;
   border: 1px solid #ffffff61;
   border-radius: 4px;
-  background: none;
-  object-fit: cover;
   box-shadow: 0 2px 7px #0005;
 }
 
