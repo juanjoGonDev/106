@@ -26,16 +26,17 @@ test('detects frontend paths across canonical directories and media extensions',
     'docs/mockup.webp',
     'docs/flow.GIF',
   ]) assert.equal(isFrontendPath(path), true, path);
-  for (const path of ['', null, 'supabase/migrations/one.sql', 'scripts/server.mjs', 'README.md']) {
+  for (const path of ['', null, undefined, 'supabase/migrations/one.sql', 'scripts/server.mjs', 'README.md']) {
     assert.equal(isFrontendPath(path), false, String(path));
   }
 });
 
-test('parses only paired-device summaries inside the marker block', () => {
+test('parses only paired-device summaries inside a valid marker block', () => {
   const body = block([
     details('<strong>Player overview</strong> · Desktop', 'https://images.example/player-desktop.png'),
     details('Player overview - móvil', 'https://images.example/player-mobile.png "Mobile"'),
     details('Animation · GIF', 'https://images.example/animation.gif'),
+    details(' · Desktop', 'https://images.example/empty-area.png'),
     '<details><summary>Broken</summary>![x](https://images.example/x.png)</details>',
   ].join('\n'));
   assert.deepEqual(parseVisualEvidence(body), {
@@ -45,16 +46,25 @@ test('parses only paired-device summaries inside the marker block', () => {
       { area: 'Player overview', device: 'mobile', image: 'https://images.example/player-mobile.png', summary: 'Player overview - móvil' },
     ],
   });
-  assert.deepEqual(parseVisualEvidence('no markers'), { hasMarkers: false, entries: [] });
-  assert.deepEqual(parseVisualEvidence(`${VISUAL_EVIDENCE_MARKERS.end}${VISUAL_EVIDENCE_MARKERS.start}`), { hasMarkers: false, entries: [] });
 });
 
-test('does not require evidence for backend-only changes', () => {
-  assert.deepEqual(validateVisualEvidence('', ['supabase/migrations/one.sql', 'README.md', 'README.md']), {
-    required: false,
-    frontendFiles: [],
-    errors: [],
-  });
+test('rejects missing, incomplete and reversed marker blocks', () => {
+  for (const body of [
+    null,
+    'no markers',
+    VISUAL_EVIDENCE_MARKERS.start,
+    `${VISUAL_EVIDENCE_MARKERS.end}${VISUAL_EVIDENCE_MARKERS.start}`,
+  ]) assert.deepEqual(parseVisualEvidence(body), { hasMarkers: false, entries: [] });
+});
+
+test('does not require evidence for backend-only or absent changed files', () => {
+  for (const changedFiles of [undefined, ['supabase/migrations/one.sql', 'README.md', 'README.md']]) {
+    assert.deepEqual(validateVisualEvidence('', changedFiles), {
+      required: false,
+      frontendFiles: [],
+      errors: [],
+    });
+  }
 });
 
 test('requires the repository marker block and at least one evidence pair', () => {
@@ -87,9 +97,9 @@ test('reports missing images, placeholders, missing counterparts and duplicates 
     details('Home · Desktop', null),
     details('Home · Desktop', 'PASTE_DESKTOP_URL'),
     details('Profile · Mobile', 'https://example.com/mobile.png'),
-    details('Ranking - Escritorio', 'https://images.example/ranking.png'),
-    details('Ranking - Móvil', 'https://images.example/ranking-mobile.png'),
-    details('Ranking - Mobile', 'https://images.example/ranking-mobile-2.png'),
+    details('Ranking - Escritorio', 'https://images.invalid/ranking.png'),
+    details('Ranking - Móvil', 'https://images.invalid/ranking-mobile.png'),
+    details('Ranking - Mobile', 'https://images.invalid/ranking-mobile-2.png'),
   ].join('\n'));
   const result = validateVisualEvidence(body, ['public/index.html']);
   assert.deepEqual(result.frontendFiles, ['public/index.html']);
