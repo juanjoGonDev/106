@@ -58,7 +58,7 @@ test('resolves repository, public, app-root and relative asset paths safely', ()
     assert.equal(resolveAssetReference(fixture.root, source, '/robots.svg'), resolve(fixture.root, 'robots.svg'));
     assert.equal(resolveAssetReference(fixture.root, source, '../assets/a%20b.svg?v=2#x'), resolve(fixture.root, 'public/assets/a b.svg'));
     assert.equal(resolveAssetReference(fixture.root, source, '../assets/%ZZ.svg'), resolve(fixture.root, 'public/assets/%ZZ.svg'));
-    for (const value of ['', 'https://example.com/a.png', 'data:image/png;base64,AA', 'blob:abc', 'mailto:a@b.com', 'javascript:void(0)', '#icon.svg', './${name}.png']) {
+    for (const value of [null, '', 'https://example.com/a.png', 'data:image/png;base64,AA', 'blob:abc', 'mailto:a@b.com', 'javascript:void(0)', '#icon.svg', './${name}.png']) {
       assert.equal(resolveAssetReference(fixture.root, source, value), null);
     }
   } finally {
