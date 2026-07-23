@@ -17,6 +17,7 @@ Fix the production GitHub Pages deployment after PR #14 removed the build-time s
 - Persist only `public/config.js` when Pages uses legacy branch publishing.
 - Keep the deployed static HTML metadata pointed at the dynamic `player-share/_site/card.png` endpoint.
 - Add a regression test that fails when the Pages workflow references the deleted renderer or obsolete generated social-preview files.
+- Pin every action in the touched Pages workflow to the exact commit resolved from its official major-version tag.
 
 ## Acceptance
 
@@ -24,7 +25,7 @@ Fix the production GitHub Pages deployment after PR #14 removed the build-time s
 - The workflow does not stage deleted social-preview PNG paths.
 - Runtime config generation and validation remain unchanged.
 - Workflow publishing supports both legacy and workflow Pages modes.
-- Vitest, syntax, ESLint, Knip, security, asset audit, and Pages-related CI pass.
+- Vitest, syntax, ESLint, Knip, security, asset audit, player-page browser tests, Supabase integration, and the quality gate pass.
 - A normal pull request is opened from `agent/fix-pages-deploy-social-preview` to `main`.
 
 ## Scope
@@ -37,6 +38,7 @@ Fix the production GitHub Pages deployment after PR #14 removed the build-time s
 
 - Removing the renderer is safe only because both root HTML entrypoints already reference the dynamic Edge Function card.
 - Legacy branch publishing must still commit generated runtime configuration when it changes.
+- The deployment workflow runs only on `main`; the PR regression test statically enforces the removed-step contract before merge.
 
 ## Rollback
 
@@ -44,15 +46,20 @@ Revert the hotfix PR. Do not restore the deleted renderer unless the dynamic soc
 
 ## Validation
 
-Pending.
+- `Pull Request Visual Evidence` run `29986748376`: success.
+- `Public Asset Audit` run `29986748342`: success.
+- `Player Pages and Social Cards` run `29986748345`: success.
+- `Pull Request Quality Pipeline` run `29986748331`: success.
+- Quality pipeline stages passed: build and syntax, Vitest, ESLint, Knip, security, Supabase local API integration, and final quality gate.
+- Regression test verifies that `.github/workflows/pages.yml` contains neither the deleted renderer nor obsolete generated PNG paths, while preserving runtime config generation/validation and dynamic social-card metadata.
 
 ## Delivery
 
 - Branch: `agent/fix-pages-deploy-social-preview`
 - Base: `main`
-- Pull request: pending
+- Pull request: `#15`
 - Merge/deployment: not authorized in this task
 
 ## Status
 
-Implementation in progress.
+Implemented, validated, and ready for review.
