@@ -13,11 +13,13 @@ Fix two production regressions on public player profiles:
 - The Edge card uses only three grid levels, no axes or point markers, and places all statistic labels in a wrapped block below the chart.
 - The Edge card calculates Impact from achievement points, while the browser calculates it from completed referrals and bonus attempts.
 - `layout.js` creates relative navigation links while the document is initially served from `player.html`; `player.js` later calls `history.replaceState` with `/player/<nick>`. Relative anchors then resolve from the clean nested URL.
+- Quality run `29988842188` reproduced an Edge renderer incompatibility after the first radar refactor: `@vercel/og` rejects SVG `<text>` children. The local request timed out only because the renderer aborted while producing the PNG.
 
 ## Decision
 
 - Keep the Edge card renderer isolated in the existing `player-share` function, but make its radar geometry, axis order, scoring, grid, labels, points, and player legend mirror `public/player-stats.js`.
 - Remove the wrapped raw-stat label block from the generated card and position each axis label around the pentagon.
+- Keep polygons, axes, and points in SVG, but render labels and the legend as absolutely positioned HTML flex elements supported by `@vercel/og`.
 - Calculate card Impact with the same completed-referral and bonus-attempt formula as the browser.
 - After restoring the clean player URL, rewrite shared chrome links against the application base returned by `Minuto106PlayerUI.appBaseUrl()`.
 - Add static regression contracts, a clean-route browser navigation journey, and local Supabase generation of the overview PNG used for visual verification.
@@ -27,6 +29,7 @@ Fix two production regressions on public player profiles:
 - The PNG pentagon uses the same axis order and score formulas as the web radar.
 - The PNG contains five grid levels, five axis lines, axis labels around the chart, series point markers, and a player legend.
 - The generated card no longer renders the wrapped `LABEL VALUE` block below the pentagon.
+- The Edge renderer contains no unsupported SVG text nodes.
 - On `/player/<nick>` and nested player sections, the brand/home link and main navigation resolve to the application root and root pages, not `/player/`.
 - The local Supabase integration persists and validates an overview player PNG.
 - Vitest, syntax, ESLint, Knip, security, Supabase integration, desktop/mobile Playwright, public assets, and PR visual-evidence checks pass.
@@ -46,7 +49,7 @@ Fix two production regressions on public player profiles:
 
 ## Tests
 
-- Vitest source contracts for browser/Edge radar parity and clean-route link normalization.
+- Vitest source contracts for browser/Edge radar parity, rejection of SVG text nodes, and clean-route link normalization.
 - Playwright journey from a clean player URL that verifies and activates the application-root brand link.
 - Local Supabase PNG signature, dimensions, cache policy, and persisted overview preview.
 
@@ -62,4 +65,4 @@ Revert the pull request. No migration or persistent data rollback is required.
 
 ## Status
 
-Implementation in progress.
+Implementation and CI correction in progress.
