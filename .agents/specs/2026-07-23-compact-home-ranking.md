@@ -49,15 +49,20 @@ Revert the pull request. No data, API, migration, or deployment rollback is requ
 
 ## Validation
 
-Pending implementation and CI.
+- `Pull Request Visual Evidence` run `29998848117`: success.
+- `Public Asset Audit` run `29998848113`: success.
+- `Player Pages and Social Cards` run `29998848069`: success, including the desktop and mobile browser journeys.
+- `Pull Request Quality Pipeline` run `29998848091`: success.
+- Quality stages passed: workspace preparation, runtime-config generation, public-asset audit, JavaScript syntax, ESLint, Vitest regression coverage, Knip, dependency and source security checks, local Supabase API integration, and the final quality gate.
+- The visual evidence is pinned to immutable commit `73785bb301dc55f5e03bd3da436bb66f1924ab0c`; temporary evidence files are absent from the final branch tree.
 
 ## Delivery
 
 - Branch: `agent/fix-compact-home-ranking`
 - Base: `main`
-- Pull request: pending
+- Pull request: `#19`
 - Merge/deployment: not authorized
 
 ## Status
 
-In progress.
+Implemented, validated, and ready for review.
