@@ -8,7 +8,7 @@ Replace the generic site social card with an epic Open Graph image that creates 
 
 - The site already exposes a public `1200x630` PNG through the `player-share/_site/card.png` Edge Function.
 - `supabase/functions/player-share/site-card-template.svg` is the visual source loaded by the renderer.
-- The current template provides a split background and safe area, but it does not create a strong final-match atmosphere or explicitly frame the rivalry around the World Cup.
+- The previous template provided a split background and safe area, but it did not create a strong final-match atmosphere or explicitly frame the rivalry around the World Cup.
 - Both deployable HTML entrypoints reference the same dynamic image endpoint.
 
 ## Decision
@@ -40,15 +40,17 @@ Replace the generic site social card with an epic Open Graph image that creates 
 
 - Social platforms may retain the old image when the URL is unchanged; the metadata version bump mitigates this.
 - The Edge Function must be deployed after merge before the new image is served.
-- SVG filters vary between renderers; the composition uses standard primitives and is validated with a local PNG render.
+- SVG filters vary between renderers; the composition uses standard primitives and was validated with a local PNG render.
 
 ## Validation
 
-- Render the SVG locally at `1200x630`.
-- Check SVG syntax and required safe-area marker.
-- Confirm the existing `ImageResponse` renderer and image dimensions remain unchanged.
-- Confirm both HTML entrypoints reference the new image version.
-- Inspect the final PNG at full size and social-card scale.
+- Parsed `site-card-template.svg` successfully as XML.
+- Rendered the complete card preview locally to PNG at exactly `1200x630`.
+- Confirmed the explicit safe-area frame remains `x="32" y="32" width="1136" height="566"`.
+- Confirmed the template contains the World Cup rivalry copy and no FIFA marks.
+- Confirmed the existing `ImageResponse` renderer, PNG endpoint and overlay contract remain unchanged.
+- Confirmed `index.html` and `public/index.html` both reference `card.png?v=20260723-2` for Open Graph, Twitter and structured data.
+- Compared the branch with `main`: only this specification, both metadata entrypoints and the site-card template changed.
 
 ## Rollback
 
@@ -62,4 +64,4 @@ Revert the template and metadata version commits. No data migration or runtime s
 
 ## Status
 
-In progress.
+Implemented and ready for review.
