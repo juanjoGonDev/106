@@ -25,16 +25,16 @@ jobs:
     timeout-minutes: 8
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -49,6 +49,9 @@ jobs:
       - name: Generate static application configuration
         run: pnpm build:config
 
+      - name: Audit public media references and ownership
+        run: pnpm check:public-assets
+
       - name: Validate JavaScript syntax
         run: pnpm check:syntax
 
@@ -59,16 +62,16 @@ jobs:
     timeout-minutes: 8
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -84,7 +87,7 @@ jobs:
 
       - name: Upload failed test report
         if: steps.vitest.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: vitest-results-${{ github.run_id }}
           path: vitest-results.json
@@ -103,16 +106,16 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -128,7 +131,7 @@ jobs:
 
       - name: Upload failed ESLint report
         if: steps.eslint-check.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: eslint-results-${{ github.run_id }}
           path: eslint-results.json
@@ -147,16 +150,16 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -172,7 +175,7 @@ jobs:
 
       - name: Upload failed Knip report
         if: steps.knip-check.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: knip-results-${{ github.run_id }}
           path: knip-results.txt
@@ -191,16 +194,16 @@ jobs:
     timeout-minutes: 6
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -259,16 +262,16 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4.4.0
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Set up Node.js and pnpm store cache
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -278,7 +281,7 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Set up pinned Supabase CLI
-        uses: supabase/setup-cli@v2
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
@@ -288,9 +291,18 @@ jobs:
         shell: bash
         run: bash scripts/run-supabase-ci.sh
 
+      - name: Upload generated social card previews
+        if: steps.supabase-suite.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: social-card-previews-${{ github.run_id }}
+          path: .tmp/pr-previews/social
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload failed Supabase diagnostics
         if: steps.supabase-suite.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: supabase-local-diagnostics-${{ github.run_id }}
           path: |
