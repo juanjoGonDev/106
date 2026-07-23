@@ -7,7 +7,8 @@ const ROOT = process.cwd();
 const INCLUDED_EXTENSIONS = new Set(['.css', '.html', '.js', '.json', '.md', '.mjs', '.sql', '.svg', '.ts', '.yaml', '.yml']);
 const IGNORED_DIRECTORIES = new Set(['.git', '.tmp', 'node_modules']);
 const IGNORED_FILES = new Set(['pnpm-lock.yaml', 'tests/content-policy.test.js']);
-const SITE_CARD_URL = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+const SITE_CARD_PATH = 'assets/minuto-106-social-preview.jpg';
+const SITE_CARD_URL = `https://juanjogondev.github.io/106/${SITE_CARD_PATH}?v=20260723-3`;
 
 function extension(path) {
   const index = path.lastIndexOf('.');
@@ -47,7 +48,7 @@ describe('public product language', () => {
     expect(legalPages).toContain('Última actualización: 22 de julio de 2026');
   });
 
-  it('publishes crawler-first metadata backed by a live 1200x630 PNG endpoint', () => {
+  it('publishes crawler-first metadata backed by the repository-owned 1200x630 JPEG', () => {
     const index = readFileSync('public/index.html', 'utf8');
     const rootIndex = readFileSync('index.html', 'utf8');
     const favicon = readFileSync('public/assets/favicon.svg', 'utf8');
@@ -60,8 +61,12 @@ describe('public product language', () => {
     expect(index).toContain('rel="manifest" href="./site.webmanifest"');
     expect(index).toContain(SITE_CARD_URL);
     expect(rootIndex).toContain(SITE_CARD_URL);
+    expect(index).toContain('property="og:image:type" content="image/jpeg"');
+    expect(index).toContain('property="og:image:width" content="1200"');
+    expect(index).toContain('property="og:image:height" content="630"');
     expect(index).toContain('name="twitter:card" content="summary_large_image"');
     expect(rootIndex).toContain('name="twitter:image:src"');
+    expect(existsSync(`public/${SITE_CARD_PATH}`)).toBe(true);
     expect(index).not.toContain('/public/assets/social-preview');
     expect(rootIndex).not.toContain('/public/assets/social-preview');
     expect(favicon).toContain('106');

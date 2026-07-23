@@ -13,5 +13,14 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "./assets/minuto-106-social-preview.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "España contra Argentina en el reto Minuto 106"
+    }
   ]
 }

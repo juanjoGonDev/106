@@ -57,13 +57,14 @@ describe('share-first social actions', () => {
     expect(edgeShare).toContain('new ImageResponse');
   });
 
-  it('publishes the root X card through the live site PNG endpoint', () => {
-    const siteCard = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+  it('publishes the root X card through the repository-owned social preview', () => {
+    const siteCard = 'https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3';
     for (const html of [rootIndex, publicIndex]) {
       expect(html).toContain('name="twitter:card" content="summary_large_image"');
       expect(html).toContain('name="twitter:image"');
       expect(html).toContain('name="twitter:image:src"');
       expect(html).toContain('property="og:image:secure_url"');
+      expect(html).toContain('property="og:image:type" content="image/jpeg"');
       expect(html).toContain(siteCard);
       expect(html).not.toContain('/public/assets/social-preview');
     }
