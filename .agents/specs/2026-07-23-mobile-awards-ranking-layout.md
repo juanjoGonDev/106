@@ -58,8 +58,10 @@ Follow-up: reduce the excessive vertical space between ranking players so it mat
 - Updated the existing unit contract for the two-row ranking, responsive awards placement, accessible flags and retained attempt-finished refresh path.
 - Updated the source contract to require the 8px leaderboard gap and the high-specificity zero-margin/zero-padding wrapper reset.
 - Updated the Playwright journey to compare the leaderboard grid gap with the daily-awards grid, verify zero wrapper padding and margin, and measure the rendered 8px distance between adjacent profile links.
-- Previous implementation validation passed in Pull Request Quality Pipeline run `410`, Player Pages and Social Cards run `142`, and Public Asset Audit run `83`.
-- Validation for the spacing follow-up is pending on the new pull-request head.
+- Pull Request Quality Pipeline run `414` passed, including syntax, ESLint, Vitest, security policy, Knip and local Supabase integration.
+- Player Pages and Social Cards run `146` passed, including the desktop spacing regression, responsive browser journeys and frontend coverage checks.
+- Public Asset Audit run `87` passed.
+- Visually inspected `home-ranking-desktop.png` from the successful run: adjacent ranking cards now use the same compact 8px separation as daily awards.
 - Pull Request Visual Evidence remains blocked because the required generated PNG files must be uploaded as GitHub PR attachments; the available connector cannot upload local binary attachments and generated screenshots are intentionally not committed to Git.
 
 ## Rollback
@@ -75,4 +77,4 @@ Revert the home enhancement, final stylesheet, regression tests and this specifi
 
 ## Status
 
-Spacing follow-up implemented and committed. Automated validation is running; pull request remains open.
+Implementation and automated validation complete. Pull request open and blocked only by the required manual Desktop/Mobile screenshot attachments.
