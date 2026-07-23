@@ -36,6 +36,7 @@ test('parses only paired-device summaries inside a valid marker block', () => {
     details('<strong>Player overview</strong> · Desktop', 'https://images.example/player-desktop.png'),
     details('Player overview - móvil', 'https://images.example/player-mobile.png "Mobile"'),
     details('Animation · GIF', 'https://images.example/animation.gif'),
+    details('Player overview / Desktop', 'https://images.example/invalid-separator.png'),
     details(' · Desktop', 'https://images.example/empty-area.png'),
     '<details><summary>Broken</summary>![x](https://images.example/x.png)</details>',
   ].join('\n'));
@@ -55,6 +56,17 @@ test('rejects missing, incomplete and reversed marker blocks', () => {
     VISUAL_EVIDENCE_MARKERS.start,
     `${VISUAL_EVIDENCE_MARKERS.end}${VISUAL_EVIDENCE_MARKERS.start}`,
   ]) assert.deepEqual(parseVisualEvidence(body), { hasMarkers: false, entries: [] });
+});
+
+test('stops safely at every malformed details boundary', () => {
+  for (const content of [
+    '<details',
+    '<details>',
+    '<details><summary>',
+    '<details><summary>Area · Desktop</summary>',
+  ]) {
+    assert.deepEqual(parseVisualEvidence(block(content)), { hasMarkers: true, entries: [] });
+  }
 });
 
 test('does not require evidence for backend-only or absent changed files', () => {
