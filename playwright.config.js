@@ -4,6 +4,7 @@ const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
 const { defineConfig, devices } = require(runtimePath);
+const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: new Date().toISOString() });
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -23,6 +24,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    storageState: {
+      cookies: [],
+      origins: [{
+        origin: 'http://127.0.0.1:3000',
+        localStorage: [{ name: 'minuto106:consent-v1', value: storedConsent }],
+      }],
+    },
   },
   webServer: {
     command: 'pnpm dev',
