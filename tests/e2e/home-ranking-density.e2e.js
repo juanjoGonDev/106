@@ -75,11 +75,12 @@ async function expectNoHorizontalOverflow(page) {
   expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
-test('home removes redundant metrics and keeps precision rows on one accessible line', async ({ page, isMobile }, testInfo) => {
+test('home places mobile awards below the score and keeps ranking rows on two stable lines', async ({ page, isMobile }, testInfo) => {
   await installMocks(page);
   await page.goto('/');
 
   const rows = page.locator('#leaderboard .leaderboard-row-link');
+  const awards = page.locator('#awardsCard');
   await expect(rows).toHaveCount(3);
   await expect(page.locator('.stats-strip')).toHaveCount(0);
   await expect(page.getByText('jugadores globales', { exact: true })).toHaveCount(0);
@@ -99,31 +100,67 @@ test('home removes redundant metrics and keeps precision rows on one accessible 
 
   if (isMobile) {
     await expect(page.locator('.leaderboard-card')).toBeHidden();
+    await expect(awards).toBeVisible();
+    const awardsFollowScore = await page.evaluate(() => document.querySelector('.battle-card')?.nextElementSibling?.id === 'awardsCard');
+    expect(awardsFollowScore).toBe(true);
   } else {
+    const awardsInDesktopRail = await awards.evaluate((card) => (
+      card.parentElement?.classList.contains('layout-rail--right') === true
+      && card.parentElement.firstElementChild === card
+    ));
+    expect(awardsInDesktopRail).toBe(true);
+
     for (const row of await rows.all()) {
       const geometry = await row.evaluate((anchor) => {
-        const selectors = ['.rank', '.player-link__nick', '.ranking-flag', '.ranking-time', '.difference'];
-        const boxes = selectors.map((selector) => anchor.querySelector(selector)?.getBoundingClientRect()).filter(Boolean);
-        const centers = boxes.map((box) => box.top + (box.height / 2));
-        const time = anchor.querySelector('.ranking-time');
+        const center = (box) => box.top + (box.height / 2);
+        const rank = anchor.querySelector('.rank');
+        const identity = anchor.querySelector('.ranking-player__identity');
+        const flag = anchor.querySelector('.ranking-flag');
         const nick = anchor.querySelector('.player-link__nick');
+        const time = anchor.querySelector('.ranking-time');
         const difference = anchor.querySelector('.difference');
+        const flagBox = flag.getBoundingClientRect();
+        const nickBox = nick.getBoundingClientRect();
+        const timeBox = time.getBoundingClientRect();
+        const differenceBox = difference.getBoundingClientRect();
+        const itemStyle = globalThis.getComputedStyle(anchor.parentElement);
         return {
           height: anchor.getBoundingClientRect().height,
-          centerDelta: Math.max(...centers) - Math.min(...centers),
+          firstRowCenterDelta: Math.abs(center(flagBox) - center(nickBox)),
+          secondRowCenterDelta: Math.abs(center(timeBox) - center(differenceBox)),
+          rowsAreSeparated: Math.max(flagBox.bottom, nickBox.bottom) < Math.min(timeBox.top, differenceBox.top),
+          rankRowStart: globalThis.getComputedStyle(rank).gridRowStart,
+          rankRowEnd: globalThis.getComputedStyle(rank).gridRowEnd,
+          identityRow: globalThis.getComputedStyle(identity).gridRowStart,
+          timeRow: globalThis.getComputedStyle(time).gridRowStart,
+          differenceRow: globalThis.getComputedStyle(difference).gridRowStart,
           timeWhiteSpace: globalThis.getComputedStyle(time).whiteSpace,
           nickWhiteSpace: globalThis.getComputedStyle(nick).whiteSpace,
           nickOverflow: globalThis.getComputedStyle(nick).overflow,
-          differenceRow: globalThis.getComputedStyle(difference).gridRowStart,
+          itemBackground: itemStyle.backgroundColor,
+          itemTransform: itemStyle.transform,
         };
       });
-      expect(geometry.height).toBeLessThanOrEqual(40);
-      expect(geometry.centerDelta).toBeLessThanOrEqual(3);
+      expect(geometry.height).toBeLessThanOrEqual(58);
+      expect(geometry.firstRowCenterDelta).toBeLessThanOrEqual(3);
+      expect(geometry.secondRowCenterDelta).toBeLessThanOrEqual(3);
+      expect(geometry.rowsAreSeparated).toBe(true);
+      expect(geometry.rankRowStart).toBe('1');
+      expect(geometry.rankRowEnd).toBe('span 2');
+      expect(geometry.identityRow).toBe('1');
+      expect(geometry.timeRow).toBe('2');
+      expect(geometry.differenceRow).toBe('2');
       expect(geometry.timeWhiteSpace).toBe('nowrap');
       expect(geometry.nickWhiteSpace).toBe('nowrap');
       expect(geometry.nickOverflow).toBe('hidden');
-      expect(geometry.differenceRow).toBe('1');
+      expect(geometry.itemBackground).toBe('rgba(0, 0, 0, 0)');
+      expect(geometry.itemTransform).toBe('none');
     }
+
+    const beforeHover = await first.evaluate((anchor) => anchor.getBoundingClientRect().left);
+    await first.hover();
+    const afterHover = await first.evaluate((anchor) => anchor.getBoundingClientRect().left);
+    expect(Math.abs(afterHover - beforeHover)).toBeLessThanOrEqual(.5);
   }
 
   await expectNoHorizontalOverflow(page);
