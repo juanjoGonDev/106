@@ -62,4 +62,10 @@ export default [
       'security/detect-object-injection': 'off',
     },
   },
+  {
+    files: ['tests/e2e/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.nodeBuiltin, ...globals.es2025, ...globals.browser },
+    },
+  },
 ];
