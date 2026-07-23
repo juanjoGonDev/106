@@ -94,6 +94,30 @@
     return identity;
   }
 
+  function legacyNick(row) {
+    const player = row.querySelector('.player, .ranking-player');
+    if (!player) return '';
+    return player.querySelector('.player-link__nick')?.textContent?.trim()
+      || Array.from(player.childNodes).find((node) => node.nodeType === Node.TEXT_NODE)?.textContent?.trim()
+      || '';
+  }
+
+  function ensureAnchor(row) {
+    const existing = row.querySelector(':scope > .leaderboard-row-link');
+    if (existing) return existing;
+    const nick = legacyNick(row);
+    if (!nick) return null;
+    const anchor = document.createElement('a');
+    anchor.className = 'leaderboard-row-link';
+    anchor.href = window.Minuto106PlayerUI?.playerUrl(nick) || `./ranking.html?nick=${encodeURIComponent(nick)}`;
+    anchor.dataset.playerNick = nick;
+    anchor.setAttribute('aria-label', `Ver perfil de ${nick}`);
+    while (row.firstChild) anchor.append(row.firstChild);
+    row.classList.add('leaderboard-row');
+    row.append(anchor);
+    return anchor;
+  }
+
   function hasCompleteFlag(player, teamKey) {
     const team = TEAMS[teamKey];
     const flag = player.querySelector(`.ranking-flag.${team.flagClass}`);
@@ -108,7 +132,7 @@
   }
 
   function readRow(row) {
-    const anchor = row.querySelector(':scope > .leaderboard-row-link');
+    const anchor = ensureAnchor(row);
     if (!anchor) return null;
     const player = anchor.querySelector('.player, .ranking-player');
     const teamKey = resolveTeam(row);
@@ -146,6 +170,12 @@
   function compactLeaderboard(list) {
     const rows = Array.from(list.querySelectorAll(':scope > li:not(.empty)'));
     if (!rows.length) {
+      const emptyText = list.querySelector(':scope > li.empty')?.textContent?.trim() ?? '';
+      if (/^cargando/i.test(emptyText)) {
+        list.setAttribute('aria-busy', 'true');
+        list.dataset.renderState = 'loading';
+        return false;
+      }
       list.removeAttribute('aria-busy');
       list.dataset.renderState = 'empty';
       return true;

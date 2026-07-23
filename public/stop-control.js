@@ -1,6 +1,7 @@
 (() => {
   const CONTROL_WIDTH = 250;
   const CONTROL_HEIGHT = 88;
+  const DEFAULT_PRESENTATION = Object.freeze({ label: 'PARAR', detail: 'PULSA UNA VEZ' });
 
   function seedNumber(value) {
     return Array.from(String(value || '')).reduce(
@@ -27,7 +28,13 @@
     };
   }
 
-  function drawControl(canvas, interaction, armed = false, disabled = false) {
+  function normalizePresentation(input = DEFAULT_PRESENTATION) {
+    const label = String(input?.label ?? DEFAULT_PRESENTATION.label).trim().slice(0, 24) || DEFAULT_PRESENTATION.label;
+    const detail = String(input?.detail ?? '').trim().slice(0, 42);
+    return Object.freeze({ label, detail });
+  }
+
+  function drawControl(canvas, interaction, presentation, armed = false, muted = false) {
     const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     canvas.width = CONTROL_WIDTH * ratio;
     canvas.height = CONTROL_HEIGHT * ratio;
@@ -44,8 +51,8 @@
     ];
     const palette = gradients[interaction.variant % gradients.length];
     const gradient = context.createLinearGradient(0, 0, CONTROL_WIDTH, CONTROL_HEIGHT);
-    gradient.addColorStop(0, disabled ? '#555861' : palette[0]);
-    gradient.addColorStop(1, disabled ? '#30323a' : palette[1]);
+    gradient.addColorStop(0, muted ? '#555861' : palette[0]);
+    gradient.addColorStop(1, muted ? '#30323a' : palette[1]);
     context.fillStyle = gradient;
     context.beginPath();
     context.roundRect(2, 2, CONTROL_WIDTH - 4, CONTROL_HEIGHT - 4, 22);
@@ -57,10 +64,13 @@
     context.fillStyle = '#08090c';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.font = '950 21px system-ui, sans-serif';
-    context.fillText('PARAR', CONTROL_WIDTH / 2, 35);
-    context.font = '750 11px system-ui, sans-serif';
-    context.fillText('PULSA UNA VEZ', CONTROL_WIDTH / 2, 62);
+    const isCountdown = /^[1-3]$/.test(presentation.label);
+    context.font = isCountdown ? '950 46px system-ui, sans-serif' : '950 21px system-ui, sans-serif';
+    context.fillText(presentation.label, CONTROL_WIDTH / 2, presentation.detail ? 35 : CONTROL_HEIGHT / 2);
+    if (presentation.detail) {
+      context.font = '750 11px system-ui, sans-serif';
+      context.fillText(presentation.detail, CONTROL_WIDTH / 2, 62);
+    }
   }
 
   function mappedControlCoordinate(value, start, size, target) {
@@ -81,9 +91,22 @@
     );
   }
 
-  function create({ container, interaction: rawInteraction, getElapsedMs, onFinish, onInvalid }) {
+  function create(options) {
+    const timingApi = window.Minuto106AttemptTiming;
+    const {
+      container,
+      interaction: rawInteraction,
+      getElapsedMs,
+      onFinish,
+      onInvalid,
+      onPress,
+      updatePlayInstruction = true,
+    } = options ?? {};
     if (!(container instanceof Element)) throw new Error('El contenedor del control final no existe.');
+    if (!onPress && !timingApi) throw new Error('No se pudo preparar el límite temporal del intento.');
     const interaction = normalizeInteraction(rawInteraction);
+    const minimumElapsedMs = Number(options?.minimumElapsedMs ?? timingApi?.MIN_MANUAL_STOP_MS ?? 0);
+    let presentation = normalizePresentation(options?.presentation);
     const hostTag = `m106-${interaction.nonce.slice(0, 12).replace(/[^a-z0-9]/gi, 'x').toLowerCase() || 'control'}`;
     const host = document.createElement(hostTag);
     Object.assign(host.style, {
@@ -100,23 +123,29 @@
 
     const shadow = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
-    style.textContent = ':host{contain:layout style}.pad{position:relative;width:min(250px,78vw);height:88px;cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease;touch-action:none;user-select:none}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:scale(.97)}.pad[data-disabled="true"]{cursor:not-allowed;filter:none}canvas{display:block;width:100%!important;height:88px!important;pointer-events:none}';
+    style.textContent = ':host{contain:layout style}.pad{position:relative;width:min(250px,78vw);height:88px;cursor:pointer;filter:drop-shadow(0 16px 28px #0008);transition:transform .12s ease,filter .12s ease;touch-action:none;user-select:none}.pad:hover{filter:drop-shadow(0 18px 34px #000b)}.pad:active{transform:scale(.97)}.pad[data-disabled="true"]{cursor:not-allowed}canvas{display:block;width:100%!important;height:88px!important;pointer-events:none}';
     const pad = document.createElement('div');
     pad.className = 'pad';
     pad.dataset.disabled = 'false';
     const canvas = document.createElement('canvas');
     pad.append(canvas);
     shadow.append(style, pad);
-    drawControl(canvas, interaction);
-    updateInstruction();
+    drawControl(canvas, interaction, presentation);
+    if (updatePlayInstruction) updateInstruction();
 
     let disabled = false;
+    let muted = false;
     let completed = false;
     let enteredAt = 0;
     let moveCount = 0;
     let travel = 0;
     let lastPoint = null;
     let maxPressure = 0;
+    let deadline = null;
+
+    function redraw(armed = false) {
+      drawControl(canvas, interaction, presentation, armed, muted);
+    }
 
     function coordinates(event) {
       const bounds = pad.getBoundingClientRect();
@@ -126,13 +155,40 @@
       };
     }
 
+    function lockCompletedControl() {
+      completed = true;
+      disabled = true;
+      muted = true;
+      pad.dataset.disabled = 'true';
+      pad.style.pointerEvents = 'none';
+      redraw();
+      deadline?.cancel();
+    }
+
+    function finishAutomatically() {
+      if (completed) return;
+      lockCompletedControl();
+      const automatic = timingApi.createAutomaticFinishSignal({ interaction });
+      const signal = { ...automatic, pointerTrusted: true };
+      Promise.resolve(onFinish?.(signal)).catch((error) => onInvalid?.(error));
+    }
+
     function finish(event) {
       if (disabled || completed || event.isTrusted !== true) return;
       if (!['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
-      completed = true;
-      disabled = true;
-      pad.dataset.disabled = 'true';
-      drawControl(canvas, interaction, false, true);
+      if (typeof onPress === 'function') {
+        Promise.resolve(onPress({ pointerType: event.pointerType, trusted: true })).catch((error) => onInvalid?.(error));
+        return;
+      }
+
+      const elapsedMs = Math.round(Number(getElapsedMs?.()) || 0);
+      const timerConcealed = document.querySelector('#timer')?.classList.contains('concealed') === true;
+      if (!timingApi.canSubmitManualStop({ elapsedMs, timerConcealed }) || elapsedMs < minimumElapsedMs) {
+        onInvalid?.(new Error('Espera a que el cronómetro se oculte antes de parar.'));
+        return;
+      }
+
+      lockCompletedControl();
       const point = coordinates(event);
       const signal = {
         interactionMode: 'press',
@@ -150,7 +206,8 @@
         pressureMax: Number(maxPressure.toFixed(3)),
         holdDurationMs: 0,
         samePointer: true,
-        clientElapsedMs: Math.round(Number(getElapsedMs?.()) || 0),
+        automaticFinish: false,
+        clientElapsedMs: elapsedMs,
       };
       Promise.resolve(onFinish?.(signal)).catch((error) => onInvalid?.(error));
     }
@@ -166,23 +223,39 @@
       event.preventDefault();
       if (disabled || completed || event.isTrusted !== true) return;
       maxPressure = Math.max(maxPressure, Number(event.pressure) || 0);
-      drawControl(canvas, interaction, true, false);
+      redraw(true);
       finish(event);
     }, { passive: false });
 
     container.append(host);
+    if (!onPress) {
+      deadline = timingApi.createDeadline({
+        schedule: window.setTimeout.bind(window),
+        cancelScheduled: window.clearTimeout.bind(window),
+        onDeadline: finishAutomatically,
+      });
+      deadline.start();
+    }
 
     return {
-      destroy() { host.remove(); },
-      setDisabled(value) {
+      destroy() {
+        deadline?.cancel();
+        host.remove();
+      },
+      setDisabled(value, options = {}) {
         disabled = Boolean(value);
+        muted = options.muted === undefined ? disabled : Boolean(options.muted);
         pad.style.pointerEvents = disabled ? 'none' : 'auto';
         pad.dataset.disabled = String(disabled);
-        drawControl(canvas, interaction, false, disabled);
+        redraw();
+      },
+      setPresentation(value) {
+        presentation = normalizePresentation(value);
+        redraw();
       },
       interaction,
     };
   }
 
-  window.Minuto106StopControl = { create, normalizeInteraction };
+  window.Minuto106StopControl = { create, normalizeInteraction, normalizePresentation };
 })();

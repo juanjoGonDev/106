@@ -42,6 +42,12 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Enforce readiness controller coverage
+        run: pnpm test:ready-flow:coverage
+
+      - name: Enforce bounded attempt timing coverage
+        run: pnpm test:attempt-timing:coverage
+
       - name: Enforce player route and flag coverage
         run: pnpm test:player-ui:coverage
 

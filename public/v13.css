@@ -1,0 +1,47 @@
+/* Bounded attempt lifecycle and atomic async states. */
+.game-readiness-control {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  min-height: 158px;
+  display: grid;
+  place-items: center;
+}
+
+.game-readiness-control > * {
+  width: 100%;
+}
+
+.game-readiness-control[data-phase="countdown"] {
+  pointer-events: none;
+}
+
+#playing:has(.game-readiness-control) .timer-stage,
+#playing:has(.game-readiness-control) .timer-hint,
+#playing:has(.game-readiness-control) .play-instruction,
+#playing:has(.game-readiness-control) .playing-for {
+  opacity: 1;
+  visibility: visible;
+}
+
+#leaderboard[data-render-state="loading"] > .empty,
+#leaderboard[data-render-state="waiting"] > .empty {
+  color: var(--muted, #aeb4c0);
+}
+
+.award-player-link .award-flag {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 620px) {
+  .game-readiness-control {
+    min-height: 148px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-readiness-control,
+  .game-readiness-control * {
+    transition: none !important;
+  }
+}

@@ -14,14 +14,8 @@ const migrationSource = readdirSync('supabase/migrations')
   .map((file) => readFileSync(join('supabase/migrations', file), 'utf8'))
   .join('\n');
 
-const pointerMigration = readFileSync(
-  'supabase/migrations/20260721240000_pointer_only_human_checks.sql',
-  'utf8',
-);
-const mobileTouchMigration = readFileSync(
-  'supabase/migrations/20260722090000_mobile_touch_finish_compat.sql',
-  'utf8',
-);
+const pointerMigration = readFileSync('supabase/migrations/20260721240000_pointer_only_human_checks.sql', 'utf8');
+const mobileTouchMigration = readFileSync('supabase/migrations/20260722090000_mobile_touch_finish_compat.sql', 'utf8');
 
 describe('automation-resistant game interactions', () => {
   it('does not expose a static stop button or selector contract', () => {
@@ -59,22 +53,16 @@ describe('automation-resistant game interactions', () => {
     expect(humanCheckSource).toContain('action: CHECK_ACTION');
     expect(humanCheckSource).toContain('action: COMPLETE_ACTION');
     expect(humanCheckSource).toContain("createElement('canvas')");
-    expect(humanCheckSource).toContain("addEventListener('pointerdown'");
+    expect(humanCheckSource).toContain('canvas.onpointerdown = (event) => {');
     expect(humanCheckSource).toContain('readyFlowApi.isTrustedReadyPointer(event)');
     expect(readyFlowSource).toContain("Object.freeze(['mouse', 'touch', 'pen'])");
     expect(humanCheckSource).not.toContain("createElement('button');\n      ball");
   });
 
   it('persists and consumes the visual proof before creating a challenge', () => {
-    for (const contract of [
-      'game_human_checks',
-      'create_game_human_check',
-      'complete_game_human_check',
-      'consume_game_human_check',
-      'start_game_challenge_pointer_only',
-      'finish_game_attempt_pointer_only',
-    ]) expect(pointerMigration).toContain(contract);
-
+    for (const contract of ['game_human_checks', 'create_game_human_check', 'complete_game_human_check', 'consume_game_human_check', 'start_game_challenge_pointer_only', 'finish_game_attempt_pointer_only']) {
+      expect(pointerMigration).toContain(contract);
+    }
     expect(pointerMigration).toContain("interaction_mode = 'press'");
     expect(pointerMigration).toContain("finishEvent', '') <> 'pointerdown'");
     expect(pointerMigration).toContain("pointerType', '') not in ('mouse', 'touch', 'pen')");
@@ -82,7 +70,7 @@ describe('automation-resistant game interactions', () => {
     expect(migrationSource).toContain('repeated_interaction_fingerprint');
   });
 
-  it('accepts trusted mobile touch without weakening mouse or automation checks', () => {
+  it('accepts trusted mobile touch without weakening mouse checks', () => {
     expect(mobileTouchMigration).toContain("v_pointer_type = 'mouse'");
     expect(mobileTouchMigration).toContain("v_pointer_type in ('touch', 'pen')");
     expect(mobileTouchMigration).toContain("automationDetected', 'false') = 'true'");
@@ -93,17 +81,9 @@ describe('automation-resistant game interactions', () => {
   });
 
   it('normalizes proof and pointer signals before PostgreSQL RPCs', () => {
-    for (const signal of [
-      'interactionMode',
-      'controlNonce',
-      'finishEvent',
-      'pointerTrusted',
-      'userActivation',
-      'automationDetected',
-      'pointerXPercent',
-      'pointerYPercent',
-    ]) expect(apiSource).toContain(signal);
-
+    for (const signal of ['interactionMode', 'controlNonce', 'finishEvent', 'pointerTrusted', 'userActivation', 'automationDetected', 'pointerXPercent', 'pointerYPercent']) {
+      expect(apiSource).toContain(signal);
+    }
     expect(apiSource).toContain("action === 'human-check'");
     expect(apiSource).toContain("action === 'complete-human-check'");
     expect(apiSource).toContain("rpc('consume_game_human_check'");

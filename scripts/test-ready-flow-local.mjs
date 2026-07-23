@@ -7,7 +7,8 @@ const gameEndpoint = process.env.SUPABASE_FUNCTION_URL
 const readyEndpoint = gameEndpoint.replace(/\/[^/]+$/, '/game-ready-api');
 const origin = 'http://127.0.0.1:3000';
 const countdownMs = 3_000;
-const elapsedMs = 10_820;
+const elapsedMs = 2_200;
+const timeoutElapsedMs = 30_000;
 
 async function readJson(response) {
   const text = await response.text();
@@ -78,12 +79,76 @@ function validTouchSignals(interaction) {
   };
 }
 
+function automaticTimeoutSignals(interaction) {
+  return {
+    trustedStart: true,
+    trustedFinish: true,
+    timerConcealed: true,
+    visibilityChanges: 0,
+    focusLosses: 0,
+    interactionMode: 'press',
+    controlNonce: interaction.nonce,
+    finishEvent: 'timeout',
+    pointerTrusted: true,
+    userActivation: false,
+    automationDetected: false,
+    pointerType: 'timeout',
+    pointerXPercent: interaction.xPercent,
+    pointerYPercent: interaction.yPercent,
+    pointerMoveCount: 0,
+    pointerTravelPx: 0,
+    pointerDwellMs: 0,
+    pressureMax: 0,
+    holdDurationMs: 0,
+    samePointer: true,
+    automaticFinish: true,
+  };
+}
+
+function createHeaders(prefix) {
+  return {
+    'x-account-token': randomBytes(32).toString('hex'),
+    'x-device-id': `${prefix}-${randomUUID()}`,
+  };
+}
+
+async function createPreparedAttempt({ nick, team, headers }) {
+  const check = await api(readyEndpoint, { action: 'human-check' }, headers);
+  assert.equal(check.response.status, 201, JSON.stringify(check.body));
+  assert.equal(check.body.balls?.length, 4);
+
+  const completed = await api(readyEndpoint, {
+    action: 'complete-human-check',
+    checkId: check.body.checkId,
+    clicks: clicksFor(check.body.balls),
+  }, headers);
+  assert.equal(completed.response.status, 201, JSON.stringify(completed.body));
+
+  const prepared = await api(readyEndpoint, {
+    action: 'prepare-start',
+    nick,
+    team,
+    humanCheckId: completed.body.checkId,
+    humanProofToken: completed.body.proofToken,
+  }, headers);
+  assert.equal(prepared.response.status, 201, JSON.stringify(prepared.body));
+
+  const activationRequestedAt = Date.now();
+  const activated = await api(readyEndpoint, {
+    action: 'activate-start',
+    challengeId: prepared.body.challengeId,
+    countdownMs,
+  }, headers);
+  assert.equal(activated.response.status, 200, JSON.stringify(activated.body));
+  const startsAt = Date.parse(activated.body.startsAt);
+  assert.ok(startsAt - activationRequestedAt >= 2_850, `Countdown lead too short: ${startsAt - activationRequestedAt}`);
+  assert.ok(startsAt - activationRequestedAt <= 3_500, `Countdown lead too long: ${startsAt - activationRequestedAt}`);
+  return { prepared, startsAt };
+}
+
 const suffix = Date.now().toString(36).slice(-8);
 const nick = `CIReady${suffix}`.slice(0, 24);
-const headers = {
-  'x-account-token': randomBytes(32).toString('hex'),
-  'x-device-id': `ci-ready-${randomUUID()}`,
-};
+const headers = createHeaders('ci-ready');
 
 const health = await api(readyEndpoint, { action: 'health' }, {});
 assert.equal(health.response.status, 200, JSON.stringify(health.body));
@@ -174,5 +239,26 @@ const finished = await api(gameEndpoint, {
 }, headers);
 assert.equal(finished.response.status, 201, JSON.stringify(finished.body));
 assert.equal(finished.body.attempt?.verified, true, JSON.stringify(finished.body));
-assert.equal(finished.body.attempt?.differenceMs, 220);
-process.stdout.write('✓ Mobile touch completes a prepared challenge after the visible ready countdown.\n');
+assert.equal(finished.body.attempt?.differenceMs, 8_400);
+process.stdout.write('✓ Mobile touch is accepted at the 2-second concealed-timer lower bound.\n');
+
+const timeoutHeaders = createHeaders('ci-timeout');
+const timeoutNick = `CITimeout${suffix}`.slice(0, 24);
+const timeoutAttempt = await createPreparedAttempt({
+  nick: timeoutNick,
+  team: 'spain',
+  headers: timeoutHeaders,
+});
+await delay(Math.max(0, timeoutAttempt.startsAt - Date.now()) + timeoutElapsedMs);
+const timedOut = await api(gameEndpoint, {
+  action: 'finish',
+  challengeId: timeoutAttempt.prepared.body.challengeId,
+  clientElapsedMs: timeoutElapsedMs,
+  clientSignals: automaticTimeoutSignals(timeoutAttempt.prepared.body.interaction),
+}, timeoutHeaders);
+assert.equal(timedOut.response.status, 201, JSON.stringify(timedOut.body));
+assert.equal(timedOut.body.attempt?.verified, true, JSON.stringify(timedOut.body));
+assert.equal(timedOut.body.attempt?.elapsedMs, timeoutElapsedMs);
+assert.equal(timedOut.body.attempt?.differenceMs, 19_400);
+assert.equal(timedOut.body.attemptsLeft, 4);
+process.stdout.write('✓ The exact 30-second deadline consumes one attempt through the real Edge and PostgreSQL path.\n');

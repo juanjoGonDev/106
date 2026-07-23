@@ -10,6 +10,7 @@
   const MAX_SERVER_FAILURES = 2;
   const LOADING_DELAY_MS = 180;
   let activeVerification = null;
+  let activeReadinessControl = null;
   let stopControlPatched = false;
   let gateNextStopControl = false;
 
@@ -192,6 +193,7 @@
     });
 
     let cancelled = false;
+    let destroyed = false;
     let settledChallenge = null;
     let loadingTimer = 0;
     let expiryTimer = 0;
@@ -211,7 +213,7 @@
       status.textContent = message;
       loading.querySelector('strong').textContent = message;
       loadingTimer = window.setTimeout(() => {
-        if (cancelled) return;
+        if (cancelled || destroyed) return;
         loading.hidden = false;
         canvas.classList.add('is-loading');
       }, LOADING_DELAY_MS);
@@ -285,6 +287,18 @@
       });
     }
 
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      window.clearTimeout(loadingTimer);
+      window.clearTimeout(expiryTimer);
+      frameRenderer.dispose();
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('keydown', onKeyDown);
+      overlay.remove();
+      unlockViewport();
+    }
+
     function cancelDialog() {
       if (cancelled) return;
       cancelled = true;
@@ -300,16 +314,6 @@
 
     function onResize() {
       frameRenderer.request();
-    }
-
-    function destroy() {
-      window.clearTimeout(loadingTimer);
-      window.clearTimeout(expiryTimer);
-      frameRenderer.dispose();
-      window.removeEventListener('resize', onResize);
-      document.removeEventListener('keydown', onKeyDown);
-      overlay.remove();
-      unlockViewport();
     }
 
     cancel.addEventListener('click', cancelDialog);
@@ -413,16 +417,22 @@
     }
   }
 
+  function destroyActiveReadinessControl() {
+    activeReadinessControl?.destroy();
+    activeReadinessControl = null;
+  }
+
   function patchStopControlGate() {
     if (stopControlPatched) return;
     const api = window.Minuto106StopControl;
     if (!api?.create) throw new Error('No se pudo preparar el control final.');
     const originalCreate = api.create.bind(api);
     api.create = (options) => {
-      const control = originalCreate(options);
-      if (!gateNextStopControl) return control;
+      if (!gateNextStopControl) return originalCreate(options);
       gateNextStopControl = false;
-      control.setDisabled(true);
+      destroyActiveReadinessControl();
+      const control = originalCreate(options);
+      control.setDisabled(true, { muted: false });
       const timer = document.querySelector('#timer');
       const unlock = () => {
         if (!timer?.classList.contains('concealed')) return;
@@ -437,171 +447,57 @@
     stopControlPatched = true;
   }
 
-  function randomUnit() {
-    const values = new Uint32Array(1);
-    crypto.getRandomValues(values);
-    return values[0] / 0x1_0000_0000;
-  }
-
   function createReadinessStage(prepared, activation) {
     const playing = document.querySelector('#playing');
-    if (!playing) throw new Error('No se encontró la superficie de juego.');
-    patchStopControlGate();
-
-    const layer = document.createElement('div');
-    layer.className = 'game-readiness-layer';
-    layer.dataset.phase = 'ready';
-    const status = document.createElement('p');
-    status.className = 'game-readiness-status';
-    status.setAttribute('aria-live', 'assertive');
-    status.textContent = 'Pulsa el control visual cuando estés preparado.';
-    const host = document.createElement(`m106-ready-${crypto.randomUUID().slice(0, 12)}`);
-    host.className = 'game-readiness-host';
-    const shadow = host.attachShadow({ mode: 'closed' });
-    const shadowStyle = document.createElement('style');
-    shadowStyle.textContent = ':host{display:block;width:min(94vw,560px);height:min(42vh,300px);touch-action:none;user-select:none}canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none}';
-    const canvas = document.createElement('canvas');
-    shadow.append(shadowStyle, canvas);
-    layer.append(status, host);
-
-    const preview = document.createElement('div');
-    preview.className = 'game-stop-preview';
-    playing.append(preview, layer);
-
     const stopApi = window.Minuto106StopControl;
-    const previewControl = stopApi.create({
-      container: preview,
-      interaction: prepared.interaction ?? {},
-      getElapsedMs: () => 0,
-      onFinish: () => {},
-      onInvalid: () => {},
-    });
-    previewControl.setDisabled(true);
+    if (!playing || !stopApi?.create) throw new Error('No se encontró la superficie de juego.');
+    patchStopControlGate();
+    destroyActiveReadinessControl();
 
-    let target = null;
+    const container = document.createElement('div');
+    container.className = 'game-readiness-control';
+    container.dataset.phase = 'ready';
+    playing.append(container);
+
     let flow = null;
+    let control = null;
     let activationPayload = null;
     let activationError = null;
     let countdownComplete = false;
     let settled = false;
-    let resizeFrame = 0;
-
-    function drawReady() {
-      const bounds = canvas.getBoundingClientRect();
-      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const width = Math.max(240, Math.round(bounds.width || 520));
-      const height = Math.max(180, Math.round(bounds.height || 260));
-      canvas.width = width * ratio;
-      canvas.height = height * ratio;
-      const context = canvas.getContext('2d');
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, width, height);
-      context.fillStyle = 'rgba(8, 9, 12, .72)';
-      context.fillRect(0, 0, width, height);
-
-      if (!target) target = readyFlowApi.createReadyTarget({ width, height, randomX: randomUnit(), randomY: randomUnit() });
-      const gradient = context.createLinearGradient(target.x, target.y, target.x + target.width, target.y + target.height);
-      gradient.addColorStop(0, '#f4c95d');
-      gradient.addColorStop(1, '#d89b22');
-      context.fillStyle = gradient;
-      context.beginPath();
-      context.roundRect(target.x, target.y, target.width, target.height, 22);
-      context.fill();
-      context.strokeStyle = '#ffffffaa';
-      context.lineWidth = 3;
-      context.stroke();
-      context.fillStyle = '#08090c';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.font = `950 ${Math.max(17, Math.min(24, target.height * 0.3))}px system-ui, sans-serif`;
-      context.fillText('ESTOY PREPARADO', target.x + target.width / 2, target.y + target.height / 2);
-    }
-
-    function drawCountdown(value) {
-      const bounds = canvas.getBoundingClientRect();
-      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const width = Math.max(240, Math.round(bounds.width || 520));
-      const height = Math.max(180, Math.round(bounds.height || 260));
-      canvas.width = width * ratio;
-      canvas.height = height * ratio;
-      const context = canvas.getContext('2d');
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.fillStyle = 'rgba(8, 9, 12, .82)';
-      context.fillRect(0, 0, width, height);
-      context.fillStyle = '#f4c95d';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.font = `950 ${Math.min(150, height * 0.58)}px system-ui, sans-serif`;
-      context.fillText(String(value), width / 2, height / 2);
-    }
-
-    function canvasLocalPoint(event) {
-      const bounds = canvas.getBoundingClientRect();
-      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    }
 
     function cleanup() {
-      cancelAnimationFrame(resizeFrame);
-      window.removeEventListener('resize', onResize);
       flow?.dispose();
     }
 
     function destroy() {
       cleanup();
-      previewControl.destroy();
-      preview.remove();
-      layer.remove();
-    }
-
-    function revealWhenMounted() {
-      gateNextStopControl = true;
-      const observer = new MutationObserver((records) => {
-        const mounted = records.some((record) => [...record.addedNodes].some(
-          (node) => node instanceof Element && node.parentElement === playing && node.tagName.startsWith('M106-'),
-        ));
-        if (!mounted) return;
-        observer.disconnect();
-        requestAnimationFrame(destroy);
-      });
-      observer.observe(playing, { childList: true });
-      window.setTimeout(() => {
-        if (!layer.isConnected) return;
-        status.textContent = 'Cargando intento…';
-      }, 400);
+      control?.destroy();
+      container.remove();
+      if (activeReadinessControl?.destroy === destroy) activeReadinessControl = null;
     }
 
     function tryComplete(resolve, reject) {
       if (!countdownComplete || (!activationPayload && !activationError) || settled) return;
       settled = true;
       if (activationError) {
-        cleanup();
+        destroy();
         reject(activationError);
         return;
       }
-      revealWhenMounted();
+      gateNextStopControl = true;
+      activeReadinessControl = Object.freeze({ destroy });
       cleanup();
       resolve(activationPayload);
     }
-
-    function onResize() {
-      cancelAnimationFrame(resizeFrame);
-      resizeFrame = requestAnimationFrame(() => {
-        target = null;
-        if (flow?.getPhase() === readyFlowApi.PHASES.READY) drawReady();
-      });
-    }
-
-    window.addEventListener('resize', onResize);
-    drawReady();
 
     return new Promise((resolve, reject) => {
       flow = readyFlowApi.createReadyCountdownFlow({
         schedule: window.setTimeout.bind(window),
         cancelScheduled: window.clearTimeout.bind(window),
-        onPhase: (phase) => { layer.dataset.phase = phase; },
+        onPhase: (phase) => { container.dataset.phase = phase; },
         onCountdown: (value) => {
-          status.textContent = `El intento empieza en ${value}`;
-          drawCountdown(value);
+          control.setPresentation({ label: String(value), detail: '' });
         },
         onExpired: () => {
           settled = true;
@@ -610,33 +506,43 @@
         },
         onComplete: () => {
           countdownComplete = true;
-          if (!activationPayload && !activationError) {
-            layer.dataset.phase = 'loading';
-            status.textContent = 'Cargando intento…';
-          }
+          control.setPresentation({ label: 'PARAR', detail: 'ESPERA A QUE SE OCULTE' });
+          control.setDisabled(true, { muted: false });
           tryComplete(resolve, reject);
         },
       });
-      flow.markSolved();
 
-      canvas.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        if (!readyFlowApi.isTrustedReadyPointer(event)) return;
-        if (flow.getPhase() !== readyFlowApi.PHASES.READY) return;
-        if (!readyFlowApi.isPointInsideTarget(canvasLocalPoint(event), target)) return;
-        if (!flow.startCountdown()) return;
-        Promise.resolve(activation()).then((payload) => {
-          activationPayload = payload;
+      control = stopApi.create({
+        container,
+        interaction: prepared.interaction ?? {},
+        presentation: { label: 'ESTOY LISTO', detail: 'PULSA PARA EMPEZAR' },
+        updatePlayInstruction: false,
+        getElapsedMs: () => 0,
+        onFinish: () => {},
+        onInvalid: (error) => {
+          activationError = error instanceof Error ? error : new Error('No se pudo iniciar el intento.');
           tryComplete(resolve, reject);
-        }).catch((error) => {
-          activationError = error instanceof Error ? error : new Error('No se pudo activar el intento.');
-          tryComplete(resolve, reject);
-        });
-      }, { passive: false });
+        },
+        onPress: () => {
+          if (flow.getPhase() !== readyFlowApi.PHASES.READY) return;
+          control.setDisabled(true, { muted: false });
+          if (!flow.startCountdown()) return;
+          Promise.resolve(activation()).then((payload) => {
+            activationPayload = payload;
+            tryComplete(resolve, reject);
+          }).catch((error) => {
+            activationError = error instanceof Error ? error : new Error('No se pudo activar el intento.');
+            tryComplete(resolve, reject);
+          });
+        },
+      });
+      flow.markSolved();
     });
   }
 
   function restoreSetupSurface() {
+    destroyActiveReadinessControl();
+    gateNextStopControl = false;
     for (const id of ['setup', 'playing', 'result']) {
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }

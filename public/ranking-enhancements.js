@@ -4,6 +4,7 @@
   const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
+  const teamCache = new Map();
   let awardsRequest = 0;
 
   localStorage.setItem(deviceKey, deviceId);
@@ -38,6 +39,7 @@
       while (item.firstChild) anchor.append(item.firstChild);
       const player = anchor.querySelector('.player');
       const team = extractTeam(anchor);
+      if (team) teamCache.set(nick.toLocaleLowerCase('es'), team);
       if (player && !player.querySelector('.player-team')) {
         const name = Array.from(player.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
         if (name) {
@@ -69,39 +71,65 @@
     return body;
   }
 
-  async function awardTeam(award) {
+  async function resolveAwardTeam(award) {
     if (!award?.nick) return null;
+    const cacheKey = String(award.nick).toLocaleLowerCase('es');
     const direct = ui.resolveTeam(award.team);
-    if (direct) return direct;
+    if (direct) {
+      teamCache.set(cacheKey, direct.key);
+      return direct;
+    }
+    const cached = ui.resolveTeam(teamCache.get(cacheKey));
+    if (cached) return cached;
     const profile = await request('public-profile', { nick: award.nick }).catch(() => null);
-    return ui.resolveTeam(null, profile);
+    const resolved = ui.resolveTeam(null, profile);
+    if (resolved) teamCache.set(cacheKey, resolved.key);
+    return resolved;
   }
 
-  async function renderAward(selector, award, suffix) {
-    const target = document.querySelector(selector);
-    if (!target) return;
-    if (!award?.nick) {
-      target.textContent = 'Aún sin dueño';
-      return;
-    }
-    const team = await awardTeam(award);
-    const flag = team ? `<span class="flag ${team.flagClass}" aria-hidden="true"></span>` : '';
-    target.innerHTML = `<a class="award-player-link" href="${ui.escapeHtml(ui.playerUrl(award.nick))}" data-player-nick="${ui.escapeHtml(award.nick)}">${flag}<span>${ui.escapeHtml(award.nick)}</span><span>· ${Number(award.value || 0).toLocaleString('es-ES')}${suffix}</span></a>`;
+  async function resolveAward(award, suffix) {
+    if (!award?.nick) return Object.freeze({ empty: true });
+    const team = await resolveAwardTeam(award);
+    return Object.freeze({
+      empty: false,
+      nick: String(award.nick),
+      team,
+      value: Number(award.value || 0).toLocaleString('es-ES'),
+      suffix,
+    });
+  }
+
+  function awardHtml(view) {
+    if (view.empty) return 'Aún sin dueño';
+    const flag = view.team
+      ? `<span class="flag award-flag ${view.team.flagClass}" role="img" aria-label="${ui.escapeHtml(view.team.name)}"></span>`
+      : '<span class="player-team--unknown">Selección no disponible</span>';
+    return `<a class="award-player-link" href="${ui.escapeHtml(ui.playerUrl(view.nick))}" data-player-nick="${ui.escapeHtml(view.nick)}">${flag}<span>${ui.escapeHtml(view.nick)}</span><span>· ${view.value}${view.suffix}</span></a>`;
   }
 
   async function renderAwards(stats) {
     const requestId = ++awardsRequest;
     const awards = stats?.awards || {};
-    await Promise.all([
-      renderAward('#goldenBoot', awards.goldenBoot, ' ms'),
-      renderAward('#goldenGlove', awards.goldenGlove, ' ms'),
-      renderAward('#goldenBall', awards.goldenBall, ' intentos'),
+    const views = await Promise.all([
+      resolveAward(awards.goldenBoot, ' ms'),
+      resolveAward(awards.goldenGlove, ' ms'),
+      resolveAward(awards.goldenBall, ' intentos'),
     ]);
-    return requestId === awardsRequest;
+    if (requestId !== awardsRequest) return false;
+
+    const selectors = ['#goldenBoot', '#goldenGlove', '#goldenBall'];
+    for (let index = 0; index < selectors.length; index += 1) {
+      const target = document.querySelector(selectors[index]);
+      if (target) target.innerHTML = awardHtml(views[index]);
+    }
+    return true;
   }
 
   async function refreshAwards(preloadedStats = null) {
-    if (preloadedStats?.awards) await renderAwards(preloadedStats);
+    if (preloadedStats?.awards) {
+      await renderAwards(preloadedStats);
+      return;
+    }
     const stats = await request('stats').catch(() => null);
     if (stats?.awards) await renderAwards(stats);
   }
