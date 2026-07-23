@@ -22,7 +22,7 @@ Refine the home page shown in the production screenshot:
 - Remove the visible metrics section from the document flow and keep only hidden compatibility outputs for the existing aggregate renderer. This avoids a risky unrelated rewrite of the gameplay module while eliminating the section entirely from the rendered and accessibility trees.
 - Keep the API payload unchanged because the aggregate values may still be used by other pages and clients.
 - Add one final home-only normalizer after all primary, enhanced, and delayed fallback ranking renderers. It replaces their divergent metadata with one stable horizontal contract.
-- Render sidebar ranking identity as one horizontal flex line: nickname, compact flag image, and elapsed time; keep the difference as the final grid column.
+- Render sidebar ranking identity as one horizontal flex line: nickname, compact flag image, and elapsed time; keep the difference in the same grid row as the final column.
 - Use repository-owned Spain and Argentina SVG flag assets with non-empty `alt` text and explicit dimensions.
 - Add a final stylesheet override dedicated to the compact sidebar layout instead of changing unrelated historical style layers.
 
@@ -30,7 +30,8 @@ Refine the home page shown in the production screenshot:
 
 - The home page contains no visible or semantic global metrics section.
 - Existing stats refreshes remain safe and do not throw when updating aggregate compatibility targets.
-- Every populated sidebar ranking row remains a single visual line at desktop and mobile test viewports.
+- Every populated desktop sidebar ranking row keeps nickname, flag, elapsed time, and difference on one visual line.
+- The existing mobile breakpoint continues hiding the auxiliary ranking rail rather than exposing a cramped variant.
 - Sidebar rows show no visible `España` or `Argentina` text.
 - Every sidebar flag is an `img` with `alt="España"` or `alt="Argentina"`, explicit width and height, and a valid local asset.
 - Long nicknames truncate instead of forcing metrics onto another line or causing horizontal overflow.
@@ -54,8 +55,8 @@ Refine the home page shown in the production screenshot:
 ## Tests
 
 - Static Vitest contracts for removed visible markup, renderer ordering, compact structure, accessible flag assets, and no decorative ranking flags.
-- Desktop and mobile Playwright checks for absent metrics, flag `alt`, one-line geometry, nickname truncation behavior, and horizontal overflow.
-- Deterministic desktop/mobile home-ranking screenshots for the pull request.
+- Desktop Playwright geometry checks for a single-row layout, plus desktop/mobile checks for absent metrics, accessible flags, expected mobile visibility, and horizontal overflow.
+- Deterministic desktop ranking and mobile home screenshots for the pull request.
 
 ## Rollback
 
