@@ -27,11 +27,26 @@
     return Array.from(String(value)).filter((character) => ![' ', '\n', '\r', '\t'].includes(character)).join('');
   }
 
+  function isDecimal(value) {
+    if (!value) return false;
+    let decimalPointSeen = false;
+    for (const character of value) {
+      if (character >= '0' && character <= '9') continue;
+      if (character === '.' && !decimalPointSeen) {
+        decimalPointSeen = true;
+        continue;
+      }
+      return false;
+    }
+    return value.at(-1) !== '.';
+  }
+
   function normalizeTime(value) {
     const compact = removeWhitespace(value).toLocaleLowerCase('es').replace(',', '.');
-    const match = compact.match(/^(\d+(?:\.\d+)?)s$/u);
-    if (!match) return '';
-    const seconds = Number(match[1]);
+    if (!compact.endsWith('s')) return '';
+    const numeric = compact.slice(0, -1);
+    if (!isDecimal(numeric)) return '';
+    const seconds = Number(numeric);
     return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';
   }
 
@@ -44,8 +59,14 @@
       .replaceAll('\n', ' ')
       .replaceAll('\r', ' ')
       .replaceAll('\t', ' ');
-    const match = source.match(/(\d+(?:[.,]\d+)?)\s*s(?:\b|$)/iu);
-    return normalizeTime(match ? `${match[1]}s` : '');
+    const tokens = source.split(' ').map((token) => token.trim()).filter(Boolean);
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      const candidate = tokens[index + 1]?.toLocaleLowerCase('es') === 's' ? `${token}s` : token;
+      const normalized = normalizeTime(candidate);
+      if (normalized) return normalized;
+    }
+    return '';
   }
 
   function hasNumericValue(value) {
