@@ -33,13 +33,22 @@ test('extracts media references from HTML, CSS, JSON and source strings', () => 
     <img src="./assets/a.svg?v=1">
     <meta content='/assets/social.png#card'>
     <a href="mailto:test@example.com">mail</a>
-    <style>.hero{background:url('../media/hero.webp')}</style>
+    <style>
+      .hero{background:url('../media/hero.webp')}
+      .badge{background:URL("../media/badge.svg")}
+      .plain{background:url(../media/plain.png)}
+      .short{background:url(x)}
+      .empty{background:url()}
+      .broken{background:url('../media/broken.png'
+    </style>
     {"src":"./assets/icon.png"}
     const card = '/public/assets/card.jpg';
     const ignored = 'plain.txt';
   `);
   assert.deepEqual(references.sort(), [
+    '../media/badge.svg',
     '../media/hero.webp',
+    '../media/plain.png',
     './assets/a.svg?v=1',
     './assets/icon.png',
     '/assets/social.png#card',
