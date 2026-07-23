@@ -10,8 +10,8 @@ Fix two production regressions on public player profiles:
 ## Evidence
 
 - The browser radar uses five grid levels, axis lines, labels positioned around the pentagon, point markers, and the score order Precision, Regularity, Experience, Reliability, Impact.
-- The Edge card uses only three grid levels, no axes or point markers, and places all statistic labels in a wrapped block below the chart.
-- The Edge card calculates Impact from achievement points, while the browser calculates it from completed referrals and bonus attempts.
+- The Edge card used only three grid levels, no axes or point markers, and placed all statistic labels in a wrapped block below the chart.
+- The Edge card calculated Impact from achievement points, while the browser calculates it from completed referrals and bonus attempts.
 - `layout.js` creates relative navigation links while the document is initially served from `player.html`; `player.js` later calls `history.replaceState` with `/player/<nick>`. Relative anchors then resolve from the clean nested URL.
 - Quality run `29988842188` reproduced an Edge renderer incompatibility after the first radar refactor: `@vercel/og` rejects SVG `<text>` children. The local request timed out only because the renderer aborted while producing the PNG.
 
@@ -50,8 +50,17 @@ Fix two production regressions on public player profiles:
 ## Tests
 
 - Vitest source contracts for browser/Edge radar parity, rejection of SVG text nodes, and clean-route link normalization.
-- Playwright journey from a clean player URL that verifies and activates the application-root brand link.
+- Playwright journey from a clean player URL that verifies and activates the application-root brand link on desktop and mobile.
 - Local Supabase PNG signature, dimensions, cache policy, and persisted overview preview.
+
+## Validation
+
+- Implementation head `d871aff33766ad0c6255e4da52cd66fc34507cf2` passed Public Asset Audit run `29989578842`.
+- Player Pages and Social Cards run `29989578864` passed both the 100% coverage gate and desktop/mobile browser jobs and uploaded deterministic frontend previews.
+- Pull Request Visual Evidence run `29989578881` passed the paired Desktop/Mobile evidence policy.
+- Pull Request Quality Pipeline run `29989578863` passed syntax, ESLint, Knip, Vitest, security policy, local Supabase integration, real Edge PNG generation, and the final quality gate.
+- The generated overview card from artifact `social-card-previews-29989578863` was inspected: the five grid levels, axes, series points, surrounding labels, legend, metrics, and footer remain inside the card safe area.
+- Desktop and mobile navigation captures from artifact `frontend-previews-29989578864` were inspected and pinned to immutable evidence commit `0b225534b49e34a120c2ebe74282dd17f1b47c08`; the temporary wrappers were then removed from the branch tip.
 
 ## Rollback
 
@@ -61,8 +70,9 @@ Revert the pull request. No migration or persistent data rollback is required.
 
 - Branch: `agent/fix-player-card-radar`
 - Base: `main`
+- Pull request: `#16`
 - Normal pull request; no merge or deployment without explicit authorization.
 
 ## Status
 
-Implementation and CI correction in progress.
+Implementation, regression coverage, runtime PNG generation, browser validation, and immutable PR evidence are complete. Awaiting explicit merge authorization after the final branch-head checks.
