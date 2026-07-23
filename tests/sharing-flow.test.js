@@ -58,7 +58,7 @@ describe('share-first social actions', () => {
   });
 
   it('publishes the root X card through the live site PNG endpoint', () => {
-    const siteCard = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-1';
+    const siteCard = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/player-share/_site/card.png?v=20260723-2';
     for (const html of [rootIndex, publicIndex]) {
       expect(html).toContain('name="twitter:card" content="summary_large_image"');
       expect(html).toContain('name="twitter:image"');
