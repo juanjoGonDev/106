@@ -22,6 +22,7 @@ Prevent the home ranking from intermittently rendering incomplete fields: an iso
 - Observe child, subtree, and character-data mutations so the normalizer retries automatically when delayed data arrives.
 - Render ranking flags as the existing CSS flag primitives instead of asynchronously decoded image files. Each flag is created synchronously with `role="img"` and an accessible country name.
 - Revalidate completed rows. If a flag or another normalized field disappears, rebuild that row rather than trusting a stale ready marker.
+- Remove the now-unused ranking SVG flag assets so the deployable asset graph remains clean.
 
 ## Acceptance
 
@@ -39,6 +40,7 @@ Prevent the home ranking from intermittently rendering incomplete fields: an iso
 
 - `public/home-ranking-density.js`
 - `public/v12.css`
+- Removal of obsolete ranking SVG assets
 - Home ranking unit/source-contract tests
 - Home ranking Playwright regression coverage
 
@@ -56,11 +58,15 @@ Prevent the home ranking from intermittently rendering incomplete fields: an iso
 - Updated the main responsive journey to assert `role="img"`, accessible country labels, and non-empty CSS gradients for Spain and Argentina.
 - Added source-contract assertions for numeric time validation, all-row gating, subtree and character-data observation, synchronous CSS flags, stale-ready revalidation, busy-state removal, and incomplete-row hiding.
 - The first CI attempt exposed `security/detect-unsafe-regex`; the time parser was rewritten without a regular expression and the subsequent ESLint job passed.
-- Full latest-head CI completion and visual evidence are pending.
+- Removing image-backed flags exposed the two SVG files as orphan assets; both obsolete assets and their outdated test contract were removed.
+- Pull Request Quality Pipeline run `425` passed, including syntax, ESLint, Vitest, dependency and security policy, Knip, public asset checks, and local Supabase integration.
+- Player Pages and Social Cards run `157` passed, including responsive Playwright journeys, the partial-time regression, missing-flag repair, frontend module coverage, and generated previews.
+- Public Asset Audit run `98` passed.
+- Pull Request Visual Evidence remains blocked because the workflow requires actual Markdown image attachments in the PR body; the available connector cannot upload binary PR attachments and generated screenshots are intentionally not committed to Git.
 
 ## Rollback
 
-Revert the home normalizer, final stylesheet, tests, and this specification. No persistent data rollback is required.
+Revert the home normalizer, final stylesheet, asset removals, tests, and this specification. No persistent data rollback is required.
 
 ## Delivery
 
@@ -71,4 +77,4 @@ Revert the home normalizer, final stylesheet, tests, and this specification. No 
 
 ## Status
 
-Atomic time and flag rendering implemented with regression coverage; latest-head CI is running.
+Implementation and automated validation complete. Pull request open and blocked only by the required manual visual-evidence attachments.
