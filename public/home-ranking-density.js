@@ -1,8 +1,8 @@
 (() => {
   const MOBILE_HOME_MEDIA = '(max-width: 700px)';
   const TEAMS = Object.freeze({
-    spain: Object.freeze({ name: 'España', asset: './assets/flag-spain.svg', flagClass: 'flag--spain' }),
-    argentina: Object.freeze({ name: 'Argentina', asset: './assets/flag-argentina.svg', flagClass: 'flag--argentina' }),
+    spain: Object.freeze({ name: 'España', flagClass: 'flag--spain' }),
+    argentina: Object.freeze({ name: 'Argentina', flagClass: 'flag--argentina' }),
   });
 
   function resolveTeam(row) {
@@ -75,14 +75,11 @@
 
   function createFlag(teamKey) {
     const team = TEAMS[teamKey];
-    const image = document.createElement('img');
-    image.className = `flag ranking-flag ${team.flagClass}`;
-    image.src = new URL(team.asset, document.baseURI).toString();
-    image.alt = team.name;
-    image.width = 20;
-    image.height = 14;
-    image.decoding = 'async';
-    return image;
+    const flag = document.createElement('span');
+    flag.className = `flag ranking-flag ${team.flagClass}`;
+    flag.setAttribute('role', 'img');
+    flag.setAttribute('aria-label', team.name);
+    return flag;
   }
 
   function createIdentity(teamKey, nick) {
@@ -95,6 +92,19 @@
 
     identity.append(createFlag(teamKey), nickElement);
     return identity;
+  }
+
+  function hasCompleteFlag(player, teamKey) {
+    const team = TEAMS[teamKey];
+    const flag = player.querySelector(`.ranking-flag.${team.flagClass}`);
+    return flag?.getAttribute('role') === 'img' && flag.getAttribute('aria-label') === team.name;
+  }
+
+  function isNormalizedRow(row, player, teamKey, nick, time) {
+    if (row.dataset.homeRankingReady !== 'true') return false;
+    if (!hasCompleteFlag(player, teamKey)) return false;
+    if (player.querySelector('.player-link__nick')?.textContent?.trim() !== nick) return false;
+    return normalizeTime(player.querySelector('.ranking-time')?.textContent ?? '') === time;
   }
 
   function readRow(row) {
@@ -116,7 +126,7 @@
       teamKey,
       nick,
       time,
-      ready: row.dataset.homeRankingReady === 'true',
+      ready: isNormalizedRow(row, player, teamKey, nick, time),
     };
   }
 
