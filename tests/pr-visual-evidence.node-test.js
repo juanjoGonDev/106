@@ -16,6 +16,10 @@ function details(summary, image = 'https://github.com/user-attachments/assets/re
   return `<details><summary>${summary}</summary>\n\n${markdown}\n</details>`;
 }
 
+function rawDetails(summary, body) {
+  return `<details><summary>${summary}</summary>\n\n${body}\n</details>`;
+}
+
 test('detects frontend paths across canonical directories and media extensions', () => {
   for (const path of [
     'index.html',
@@ -45,6 +49,24 @@ test('parses only paired-device summaries inside a valid marker block', () => {
     entries: [
       { area: 'Player overview', device: 'desktop', image: 'https://images.example/player-desktop.png', summary: 'Player overview · Desktop' },
       { area: 'Player overview', device: 'mobile', image: 'https://images.example/player-mobile.png', summary: 'Player overview - móvil' },
+    ],
+  });
+});
+
+test('returns empty image destinations for every malformed Markdown boundary', () => {
+  const body = block([
+    rawDetails('Missing opener · Desktop', 'No image'),
+    rawDetails('Missing destination · Desktop', '![broken'),
+    rawDetails('Missing closing parenthesis · Desktop', '![broken](https://images.invalid/no-close.png'),
+    rawDetails('Empty destination · Desktop', '![]()'),
+  ].join('\n'));
+  assert.deepEqual(parseVisualEvidence(body), {
+    hasMarkers: true,
+    entries: [
+      { area: 'Missing opener', device: 'desktop', image: '', summary: 'Missing opener · Desktop' },
+      { area: 'Missing destination', device: 'desktop', image: '', summary: 'Missing destination · Desktop' },
+      { area: 'Missing closing parenthesis', device: 'desktop', image: '', summary: 'Missing closing parenthesis · Desktop' },
+      { area: 'Empty destination', device: 'desktop', image: '', summary: 'Empty destination · Desktop' },
     ],
   });
 });
