@@ -90,7 +90,7 @@ test('passes a clean deployable asset graph across root, public and edge sources
     fixture.file('public/assets/b.png', 'png-b');
     fixture.file('public/assets/c.webp', 'webp-c');
     fixture.file('index.html', '<meta content="/public/assets/a.svg">');
-    fixture.file('public/index.html', '<meta content="/assets/b.png">');
+    fixture.file('public/index.html', '<meta content="/assets/b.png"><meta content="https://cdn.example.com/external.png">');
     fixture.file('supabase/functions/card/index.ts', "const card = '../../../public/assets/c.webp';");
     fixture.file('scripts/ignored-fixture.mjs', "const missing = '/public/assets/not-production.png';");
     const report = auditPublicAssets(fixture.root);
@@ -144,4 +144,12 @@ test('reports and sorts invalid roots, missing references, orphans and duplicate
   } finally {
     fixture.cleanup();
   }
+});
+
+test('audits the current repository when no root argument is supplied', () => {
+  const report = auditPublicAssets();
+  assert.deepEqual(report.invalidRoots, []);
+  assert.deepEqual(report.missing, []);
+  assert.deepEqual(report.orphaned, []);
+  assert.deepEqual(report.duplicates, []);
 });
