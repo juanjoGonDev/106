@@ -126,7 +126,10 @@
   }
 
   async function refreshAwards(preloadedStats = null) {
-    if (preloadedStats?.awards) await renderAwards(preloadedStats);
+    if (preloadedStats?.awards) {
+      await renderAwards(preloadedStats);
+      return;
+    }
     const stats = await request('stats').catch(() => null);
     if (stats?.awards) await renderAwards(stats);
   }
