@@ -92,6 +92,7 @@
   }
 
   function create(options) {
+    const timingApi = window.Minuto106AttemptTiming;
     const {
       container,
       interaction: rawInteraction,
@@ -99,11 +100,12 @@
       onFinish,
       onInvalid,
       onPress,
-      minimumElapsedMs = 0,
       updatePlayInstruction = true,
     } = options ?? {};
     if (!(container instanceof Element)) throw new Error('El contenedor del control final no existe.');
+    if (!onPress && !timingApi) throw new Error('No se pudo preparar el límite temporal del intento.');
     const interaction = normalizeInteraction(rawInteraction);
+    const minimumElapsedMs = Number(options?.minimumElapsedMs ?? timingApi?.MIN_MANUAL_STOP_MS ?? 0);
     let presentation = normalizePresentation(options?.presentation);
     const hostTag = `m106-${interaction.nonce.slice(0, 12).replace(/[^a-z0-9]/gi, 'x').toLowerCase() || 'control'}`;
     const host = document.createElement(hostTag);
@@ -139,6 +141,7 @@
     let travel = 0;
     let lastPoint = null;
     let maxPressure = 0;
+    let deadline = null;
 
     function redraw(armed = false) {
       drawControl(canvas, interaction, presentation, armed, muted);
@@ -152,6 +155,24 @@
       };
     }
 
+    function lockCompletedControl() {
+      completed = true;
+      disabled = true;
+      muted = true;
+      pad.dataset.disabled = 'true';
+      pad.style.pointerEvents = 'none';
+      redraw();
+      deadline?.cancel();
+    }
+
+    function finishAutomatically() {
+      if (completed) return;
+      lockCompletedControl();
+      const automatic = timingApi.createAutomaticFinishSignal({ interaction });
+      const signal = { ...automatic, pointerTrusted: true };
+      Promise.resolve(onFinish?.(signal)).catch((error) => onInvalid?.(error));
+    }
+
     function finish(event) {
       if (disabled || completed || event.isTrusted !== true) return;
       if (!['mouse', 'touch', 'pen'].includes(event.pointerType)) return;
@@ -161,17 +182,13 @@
       }
 
       const elapsedMs = Math.round(Number(getElapsedMs?.()) || 0);
-      if (elapsedMs < Math.max(0, Number(minimumElapsedMs) || 0)) {
+      const timerConcealed = document.querySelector('#timer')?.classList.contains('concealed') === true;
+      if (!timingApi.canSubmitManualStop({ elapsedMs, timerConcealed }) || elapsedMs < minimumElapsedMs) {
         onInvalid?.(new Error('Espera a que el cronómetro se oculte antes de parar.'));
         return;
       }
 
-      completed = true;
-      disabled = true;
-      muted = true;
-      pad.dataset.disabled = 'true';
-      pad.style.pointerEvents = 'none';
-      redraw();
+      lockCompletedControl();
       const point = coordinates(event);
       const signal = {
         interactionMode: 'press',
@@ -211,9 +228,20 @@
     }, { passive: false });
 
     container.append(host);
+    if (!onPress) {
+      deadline = timingApi.createDeadline({
+        schedule: window.setTimeout.bind(window),
+        cancelScheduled: window.clearTimeout.bind(window),
+        onDeadline: finishAutomatically,
+      });
+      deadline.start();
+    }
 
     return {
-      destroy() { host.remove(); },
+      destroy() {
+        deadline?.cancel();
+        host.remove();
+      },
       setDisabled(value, options = {}) {
         disabled = Boolean(value);
         muted = options.muted === undefined ? disabled : Boolean(options.muted);
