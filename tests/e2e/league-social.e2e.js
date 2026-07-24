@@ -99,7 +99,7 @@ test('waiting league blocks competition and shares the clean public website URL'
   await installMocks(page);
   await page.goto('/ligas.html?league=ABC123');
 
-  await expect(page.getByRole('heading', { name: 'Final del barrio' })).toBeVisible();
+  await expect(page.locator('#leagueLookupTitle')).toHaveText('Final del barrio');
   await expect(page.locator('#leagueLookupPublicId')).toContainText('ABC123');
   await expect(page.locator('#leagueLookupEnds')).toHaveText('La cuenta atrás aún no ha empezado');
   await expect(page.locator('#leagueLookupMeta')).toContainText('2/3 cuentas');
