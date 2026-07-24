@@ -46,6 +46,7 @@ function profile(nick = 'Vieucirst') {
   return {
     nick,
     team: 'spain',
+    profileRevision: 123,
     attemptsUsed: 5,
     maxAttempts: 5,
     attemptsLeft: 0,
@@ -60,6 +61,7 @@ function profile(nick = 'Vieucirst') {
     trophies: {
       total: 3,
       days: 2,
+      leagueChampion: 0,
       goldenBoot: 1,
       goldenGlove: 1,
       goldenBall: 1,
@@ -121,7 +123,7 @@ function requestBody(request) {
 
 async function installMocks(page, currentAward) {
   await page.route('**/functions/v1/player-share/**', async (route) => {
-    if (route.request().url().endsWith('.png')) {
+    if (new URL(route.request().url()).pathname.endsWith('.png')) {
       await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: cardSvg });
       return;
     }
@@ -162,7 +164,9 @@ test('clean player routes expose responsive overview, achievements and trophies'
   await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
   await expect(page.locator('#playerTeam .flag--spain')).toBeVisible();
   await expect(page.locator('#playerRadar svg')).toBeVisible();
-  await expect(page.locator('#playerCardPreview')).toHaveAttribute('src', /player-share\/Vieucirst\/card\.png$/);
+  await expect(page.locator('#playerCardPreview')).toHaveAttribute('src', /player-share\/Vieucirst\/card\.png\?v=123$/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Vieucirst\/card\.png\?v=123$/);
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', /player-share\/Vieucirst\/card\.png\?v=123$/);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-overview');
   await captureGifFrame(page, testInfo, 1, 'overview');
