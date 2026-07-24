@@ -29,6 +29,9 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
+const ACHIEVEMENT_CODE = /^[a-z0-9_]{1,120}$/;
+const MAX_FEATURED_ACHIEVEMENTS = 3;
+const ACTIONS = new Set(['player-context', 'set-featured-achievements']);
 
 type JsonObject = Record<string, unknown>;
 
@@ -72,6 +75,13 @@ function nickKey(value: unknown) {
   return normalizeNick(value).toLocaleLowerCase('es');
 }
 
+function normalizeAchievementCodes(value: unknown) {
+  if (!Array.isArray(value) || value.length > MAX_FEATURED_ACHIEVEMENTS) return null;
+  const codes = value.map((item) => String(item ?? '').trim());
+  if (codes.some((code) => !ACHIEVEMENT_CODE.test(code))) return null;
+  return new Set(codes).size === codes.length ? codes : null;
+}
+
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest(
     'SHA-256',
@@ -105,6 +115,54 @@ function playerBelongsToAccount(value: unknown, expectedKey: string) {
   });
 }
 
+async function accountOwnership(request: Request, key: string) {
+  const rawAccountToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
+  if (!PRIVATE_TOKEN.test(rawAccountToken)) return false;
+  const accountTokenHash = await sha256(`account:${rawAccountToken}`);
+  const account = await rpc('get_game_account_players', {
+    p_account_token_hash: accountTokenHash,
+  });
+  return playerBelongsToAccount(account, key);
+}
+
+async function loadPlayerContext(request: Request, key: string) {
+  const profile = await rpc('get_game_player_profile', { p_nick_key: key }) as JsonObject;
+  if (!profile?.nick) {
+    return {
+      availability: 'available',
+      profile: null,
+      leagues: [],
+    };
+  }
+
+  const owned = await accountOwnership(request, key);
+  if (!owned) {
+    return {
+      availability: 'occupied',
+      profile,
+      leagues: [],
+    };
+  }
+
+  const leagues = await rpc('get_game_player_leagues', { p_nick_key: key });
+  return {
+    availability: 'owned',
+    profile,
+    leagues: Array.isArray(leagues) ? leagues : [],
+  };
+}
+
+function featuredErrorMessage(code: string) {
+  const messages: Record<string, string> = {
+    featured_limit: 'Puedes destacar como máximo tres logros.',
+    invalid_featured_achievement: 'La selección contiene un logro no válido.',
+    duplicate_featured_achievement: 'No puedes destacar el mismo logro más de una vez.',
+    achievement_not_unlocked: 'Solo puedes destacar logros que ya hayas desbloqueado.',
+    player_not_found: 'No se encontró el jugador.',
+  };
+  return messages[code] ?? 'No se pudieron actualizar los logros destacados.';
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
   if (request.method === 'OPTIONS') {
@@ -119,7 +177,8 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json();
-    if (body?.action !== 'player-context') {
+    const action = String(body?.action ?? '');
+    if (!ACTIONS.has(action)) {
       return jsonResponse(origin, { error: 'Acción desconocida.' }, 404);
     }
 
@@ -127,43 +186,30 @@ Deno.serve(async (request) => {
     const key = nickKey(nick);
     if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
 
-    const profile = await rpc('get_game_player_profile', { p_nick_key: key }) as JsonObject;
-    if (!profile?.nick) {
-      return jsonResponse(origin, {
-        availability: 'available',
-        profile: null,
-        leagues: [],
-      });
+    if (action === 'player-context') {
+      return jsonResponse(origin, await loadPlayerContext(request, key));
     }
 
-    const rawAccountToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
-    if (!PRIVATE_TOKEN.test(rawAccountToken)) {
-      return jsonResponse(origin, {
-        availability: 'occupied',
-        profile,
-        leagues: [],
-      });
+    const codes = normalizeAchievementCodes(body.achievementCodes);
+    if (!codes) {
+      return jsonResponse(origin, { error: 'Selecciona hasta tres logros diferentes y válidos.' }, 400);
+    }
+    if (!(await accountOwnership(request, key))) {
+      return jsonResponse(origin, { error: 'Este nick pertenece a otra cuenta o la clave no es válida.' }, 403);
     }
 
-    const accountTokenHash = await sha256(`account:${rawAccountToken}`);
-    const account = await rpc('get_game_account_players', {
-      p_account_token_hash: accountTokenHash,
-    });
-    const owned = playerBelongsToAccount(account, key);
-    if (!owned) {
+    const result = await rpc('set_game_player_featured_achievements', {
+      p_nick_key: key,
+      p_achievement_codes: codes,
+    }) as JsonObject;
+    if (result?.error) {
       return jsonResponse(origin, {
-        availability: 'occupied',
-        profile,
-        leagues: [],
-      });
+        error: featuredErrorMessage(String(result.error)),
+        code: result.error,
+      }, 400);
     }
 
-    const leagues = await rpc('get_game_player_leagues', { p_nick_key: key });
-    return jsonResponse(origin, {
-      availability: 'owned',
-      profile,
-      leagues: Array.isArray(leagues) ? leagues : [],
-    });
+    return jsonResponse(origin, await loadPlayerContext(request, key));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     return jsonResponse(origin, { error: 'Error interno. Inténtalo de nuevo.' }, 500);
