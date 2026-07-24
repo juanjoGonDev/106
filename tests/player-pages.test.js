@@ -36,21 +36,28 @@ describe('player pages and ranking links', () => {
     expect(fallback).not.toContain('ensureInitialRanking');
   });
 
-  it('provides clean overview, achievements and trophies player sections', () => {
+  it('provides clean canonical sections and a previewable 200-status share shell', () => {
     const html = read('public/player.html');
     const script = read('public/player.js');
     const fallback = read('public/404.html');
+    const server = read('scripts/serve.mjs');
     expect(html).toContain('data-player-section="overview"');
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
+    expect(html).toContain('property="og:image"');
+    expect(html).toContain('property="og:image:secure_url"');
+    expect(html).toContain('name="twitter:card" content="summary_large_image"');
+    expect(html).toContain('name="twitter:image:src"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
-    expect(script).toContain('history.replaceState');
+    expect(script).toContain("ui.shareUrl('', player.nick, route.section)");
+    expect(script).toContain("history.replaceState(null, '', shareUrl)");
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
     expect(script).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(script).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(fallback).toContain('(?:player)\\/([^/]+)');
     expect(fallback).toContain('player.html');
+    expect(server).toContain('isPlayerFallback ? 404 : 200');
   });
 
   it('separates achievement descriptions and dates into semantic elements', () => {
