@@ -7,6 +7,8 @@ const readMigration = read('supabase/migrations/20260724114500_keep_league_reads
 const identityMigration = read('supabase/migrations/20260724115000_use_stable_league_device_identity.sql');
 const profileMigration = read('supabase/migrations/20260724115500_unify_player_profile_contract.sql');
 const shareableMigration = read('supabase/migrations/20260724121000_shareable_duels_and_results.sql');
+const progressionMigration = read('supabase/migrations/20260724213000_competitive_progression_public_leagues.sql');
+const compatibilityMigration = read('supabase/migrations/20260724213100_public_league_compatibility.sql');
 
 describe('security definer permissions', () => {
   it('removes Data API execution from the referral trigger function', () => {
@@ -109,14 +111,30 @@ describe('versioned profile and league social previews', () => {
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(player).toContain('player.profileRevision');
     expect(player).toContain('Campeón de liga');
+    expect(player).toContain('trophy.leaguePublicId');
+    expect(player).toContain('ligas/${encodeURIComponent(publicId)}');
   });
 
-  it('shares league website URLs and hides competition while waiting', () => {
+  it('separates public league identifiers from private join credentials', () => {
+    expect(progressionMigration).toContain('add column if not exists public_id text');
+    expect(progressionMigration).toContain('set public_id = code');
+    expect(progressionMigration).toContain('set code = public.generate_game_league_token()');
+    expect(progressionMigration).toContain('check (code <> public_id)');
+    expect(progressionMigration).toContain("'publicId', v_public_id");
+    expect(progressionMigration).toContain("'joinCode', v_code");
+    expect(progressionMigration).toContain("'joinCode', case when league.owner_nick_key = p_nick_key then league.code else null end");
+    expect(progressionMigration).toContain("'competitionCode', league.code");
+    expect(compatibilityMigration).toContain("jsonb_build_object('code', public_view.payload->>'publicId')");
+  });
+
+  it('shares clean public league URLs and keeps private codes out of public rendering', () => {
     const leagues = read('public/ligas.js');
-    expect(leagues).toContain('new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`');
-    expect(leagues).not.toContain('/social-share');
-    expect(leagues).toContain('league.waiting === true');
-    expect(leagues).toContain("document.querySelector('#competeLeagueLink').hidden = league.active !== true");
-    expect(leagues).toContain('3 cuentas y 3 dispositivos únicos');
+    const fallback = read('public/404.html');
+    expect(leagues).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
+    expect(leagues).toContain('league.joinCode');
+    expect(leagues).toContain('league.competitionCode');
+    expect(leagues).not.toContain('leagueLookupCode');
+    expect(fallback).toContain('ligas\\/([A-Z0-9]{6})');
+    expect(fallback).toContain("url.searchParams.set('league',league[2].toUpperCase())");
   });
 });
