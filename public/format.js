@@ -5,7 +5,7 @@
 
     const sign = numeric < 0 ? '-' : '';
     let value = Math.abs(numeric);
-    const units = ['', 'k', 'M', 'B', 'T'];
+    const units = ['', 'K', 'M', 'B', 'T'];
     let unitIndex = 0;
 
     while (value >= 1000 && unitIndex < units.length - 1) {
