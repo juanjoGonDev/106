@@ -5,7 +5,6 @@
   const activeLeagueCode = /^[A-Z0-9]{6}$/.test(requestedCode) ? requestedCode : '';
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
-  const originalFetch = window.fetch.bind(window);
   let activeLeague = null;
   let leagueStatus = null;
   let lastLeagueResult = null;
@@ -19,7 +18,7 @@
 
   async function request(action, payload = {}) {
     if (!apiUrl) throw new Error('Supabase aún no está configurado.');
-    const response = await originalFetch(apiUrl, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify({ action, ...payload }),
@@ -28,62 +27,6 @@
     if (!response.ok) throw new Error(body.error || 'No se pudo cargar la competición.');
     return body;
   }
-
-  function setCompactValue(selector, value) {
-    const element = document.querySelector(selector);
-    if (!element) return;
-    const formatter = window.Minuto106Format;
-    element.textContent = formatter?.compactNumber(value) ?? String(value ?? 0);
-    element.title = formatter?.fullNumber(value) ?? String(value ?? 0);
-  }
-
-  function applyCompactStats(stats) {
-    if (!stats?.teams) return;
-    const spain = stats.teams.find((team) => team.team === 'spain') ?? { score: 0 };
-    const argentina = stats.teams.find((team) => team.team === 'argentina') ?? { score: 0 };
-    setCompactValue('#spainScore', spain.score);
-    setCompactValue('#argentinaScore', argentina.score);
-    setCompactValue('#globalPlayers', stats.totalPlayers);
-    setCompactValue('#verifiedAttempts', stats.verifiedAttempts);
-    setCompactValue('#perfectAttempts', stats.perfectAttempts);
-  }
-
-  function parseRequestBody(init) {
-    if (typeof init?.body !== 'string') return null;
-    try {
-      return JSON.parse(init.body);
-    } catch {
-      return null;
-    }
-  }
-
-  function scheduleResponseEnhancement(action, response) {
-    if (!['stats', 'finish'].includes(action)) return;
-    response.clone().json().then((payload) => {
-      window.setTimeout(() => {
-        if (action === 'stats') applyCompactStats(payload);
-        if (action === 'finish') {
-          applyCompactStats(payload.stats);
-          renderLeagueResult(payload);
-        }
-      }, 0);
-    }).catch(() => {});
-  }
-
-  window.fetch = async (input, init = {}) => {
-    const body = parseRequestBody(init);
-    let nextInit = init;
-    if (body?.action === 'start' && activeLeagueCode && !body.leagueCode) {
-      nextInit = {
-        ...init,
-        body: JSON.stringify({ ...body, leagueCode: activeLeagueCode }),
-      };
-    }
-
-    const response = await originalFetch(input, nextInit);
-    scheduleResponseEnhancement(String(body?.action || ''), response);
-    return response;
-  };
 
   function contextLabel() {
     return activeLeague?.name ? `“${activeLeague.name}”` : activeLeagueCode;
@@ -257,13 +200,13 @@
       window.clearTimeout(statusDebounce);
       statusDebounce = window.setTimeout(syncLeagueStatus, 450);
     });
-    request('stats').then(applyCompactStats).catch(() => {});
     initializeLeagueContext().catch(() => {});
   }
 
   window.Minuto106Competition = Object.freeze({
     get activeLeagueCode() { return activeLeagueCode; },
     get activeLeague() { return activeLeague; },
+    handleResult: renderLeagueResult,
     refresh: syncLeagueStatus,
   });
 
