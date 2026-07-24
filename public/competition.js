@@ -131,7 +131,7 @@
     select.replaceChildren(globalOption, ...leagueOptions);
     const candidate = resolveSelection();
     const candidateOption = [...select.options].find((option) => option.value === candidate && !option.disabled);
-    selectedValue = candidateOption?.value || [...select.options].find((option) => !option.disabled)?.value || 'global';
+    selectedValue = candidateOption?.value || 'global';
     select.value = selectedValue;
     select.disabled = contextPending || context.availability === 'occupied' || ![...select.options].some((option) => !option.disabled);
     section.hidden = false;
@@ -382,6 +382,9 @@
       renderContext();
       renderStatus();
       notify('selection');
+    });
+    document.addEventListener('minuto106:account-updated', () => {
+      syncPlayerContext('account-updated').catch(() => {});
     });
     syncPlayerContext('initial').catch(() => {});
   }
