@@ -40,6 +40,14 @@ describe('mobile browser surface', () => {
     expect(bootstrap).toContain('applyBrowserMetadata(true)');
   });
 
+  it('installs the ios multi-touch and gesture zoom fallback', () => {
+    const bootstrap = read('public/privacy-bootstrap.js');
+    expect(bootstrap).toContain("document.addEventListener('touchmove', preventMultiTouchZoom, { passive: false })");
+    expect(bootstrap).toContain("['gesturestart', 'gesturechange', 'gestureend']");
+    expect(bootstrap).toContain('if (event.touches.length > 1) event.preventDefault()');
+    expect(bootstrap).toContain('document.addEventListener(eventName, preventGestureZoom, { passive: false })');
+  });
+
   it('excludes pinch zoom while protecting device safe areas', () => {
     const styles = read('public/browser-surface.css');
     expect(styles).toContain('touch-action: pan-x pan-y;');
