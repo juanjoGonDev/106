@@ -27,6 +27,13 @@
       || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
   }
 
+  function profileShareUrl(profile) {
+    if (window.Minuto106PlayerUI?.shareUrl) return window.Minuto106PlayerUI.shareUrl('', profile.nick);
+    const url = new URL('./player.html', location.href);
+    url.searchParams.set('nick', profile.nick);
+    return url.toString();
+  }
+
   function currentNick() {
     return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
   }
@@ -51,7 +58,7 @@
     await window.Minuto106UI?.share({
       title: `${profile.nick} · Minuto 106`,
       text: `Este es mi palmarés en Minuto 106: ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${profile.achievements?.points || 0} puntos. ¿Me superas?`,
-      url: profileUrl(profile),
+      url: profileShareUrl(profile),
     });
   }
 
@@ -84,7 +91,7 @@
         <div><span>Balón de Oro</span><strong>${trophies.goldenBall || 0}</strong></div>
       </div>
       ${history.length ? `<ol class="honours-list">${history.map((trophy) => `<li><span class="honours-badge">🏆</span><span><strong>${trophyName(trophy.type)}</strong><time datetime="${escapeHtml(trophy.date)}">${formatDate(trophy.date)}</time></span><span>${trophy.type === 'golden_ball' ? `${trophy.value} intentos` : `±${trophy.value} ms`}</span></li>`).join('')}</ol>` : '<p class="empty">Los trofeos se consolidan al cerrar el día.</p>'}
-      ${items.length ? `<ol class="honours-list">${items.map((achievement) => `<li><span class="honours-badge">★</span><span><strong>${escapeHtml(achievement.title)}</strong><small>${escapeHtml(achievement.description)}</small><time datetime="${escapeHtml(achievement.date)}">${formatDate(achievement.date)}</time></span><span>${achievement.points} pt</span></li>`).join('')}</ol>` : ''}
+      ${items.length ? `<ol class="honours-list">${items.map((achievement) => `<li><span class="honours-badge">★</span><span><strong>${escapeHtml(achievement.title)}</strong><small>${escapeHtml(achievement.description)}</small><time datetime="${escapeHtml(achievement.date)}">${formatDate(achievement.date))}</time></span><span>${achievement.points} pt</span></li>`).join('')}</ol>` : ''}
       <div class="player-actions"><a class="ghost compact" href="${escapeHtml(profileUrl(profile))}">Ver perfil público</a><button id="shareOwnHonours" class="secondary honours-share" type="button">Compartir palmarés</button></div>`;
     section.querySelector('#shareOwnHonours')?.addEventListener('click', () => {
       shareProfile(profile).catch((error) => window.Minuto106UI?.error({ title: 'No se pudo compartir', message: error instanceof Error ? error.message : 'No se pudo abrir el menú para compartir.' }));
