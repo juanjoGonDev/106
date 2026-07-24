@@ -9,6 +9,7 @@ const { expect, test } = require(runtimePath);
 
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
 const previewRoot = resolve('.tmp/pr-previews');
+const apiBaseUrl = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/game-api';
 const league = Object.freeze({
   code: 'ABC123',
   name: 'Final del barrio',
@@ -44,6 +45,14 @@ async function installMocks(page) {
       value: async (payload) => {
         globalThis.__leagueSharePayload = payload;
       },
+    });
+  });
+
+  await page.route('**/config.js', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `window.__MINUTO106_CONFIG__ = ${JSON.stringify({ apiBaseUrl })};`,
     });
   });
 
