@@ -80,7 +80,7 @@ describe('versioned profile and league social previews', () => {
     expect(shareableMigration).toContain('public.get_game_profile_revision(player.nick_key)');
   });
 
-  it('uses one renderer for player, league, duel, result and referral metadata', () => {
+  it('uses one internal renderer for player, league, duel, result and referral metadata', () => {
     const edge = read('supabase/functions/social-share/index.ts');
     const config = read('supabase/config.toml');
     expect(config).toContain('[functions.social-share]');
@@ -99,21 +99,22 @@ describe('versioned profile and league social previews', () => {
     expect(edge).toContain("searchParams.get('format') === 'json'");
   });
 
-  it('mirrors current card metadata into the player page and share actions', () => {
+  it('uses the public player URL while retaining the versioned PNG renderer', () => {
     const playerUi = read('public/player-ui.js');
     const player = read('public/player.js');
-    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
-    expect(playerUi).toContain("edgeUrl.searchParams.set('v'");
+    expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
+    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
+    expect(player).toContain("upsertMeta('property', 'og:url', canonicalUrl)");
     expect(player).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(player).toContain('player.profileRevision');
     expect(player).toContain('Campeón de liga');
   });
 
-  it('shares league URLs through the metadata endpoint and hides competition while waiting', () => {
+  it('shares league website URLs and hides competition while waiting', () => {
     const leagues = read('public/ligas.js');
-    expect(leagues).toContain("url.pathname += `/league/${encodeURIComponent(league.code)}`");
-    expect(leagues).toContain("url.searchParams.set('v'");
+    expect(leagues).toContain('new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`');
+    expect(leagues).not.toContain('/social-share');
     expect(leagues).toContain('league.waiting === true');
     expect(leagues).toContain("document.querySelector('#competeLeagueLink').hidden = league.active !== true");
     expect(leagues).toContain('3 cuentas y 3 dispositivos únicos');
