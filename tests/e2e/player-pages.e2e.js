@@ -75,10 +75,30 @@ function profile(nick = 'Vieucirst') {
       total: 3,
       points: 60,
       rank: 1,
+      featured: [],
       items: [
-        { code: 'first', title: 'Primer trofeo', description: 'Conseguiste tu primer trofeo diario.', points: 10, date: '2026-07-21' },
-        { code: 'month', title: 'Primero del mes', description: 'Fuiste el primer ganador mensual.', points: 25, date: '2026-07-20' },
+        { code: 'first_trophy', kind: 'first_trophy', title: 'Primer trofeo', description: 'Conseguiste tu primer trofeo diario.', points: 10, date: '2026-07-21' },
+        { code: 'first_of_month_golden_boot_2026_07', kind: 'first_of_month', title: 'Primero del mes', description: 'Fuiste el primer ganador mensual.', points: 25, date: '2026-07-20' },
       ],
+    },
+    honoursProgress: {
+      perfectAttempts: 0,
+      verifiedAttempts: 5,
+      completedReferrals: 2,
+      duelsCreated: 0,
+      duelsWon: 0,
+      completedLeagues: 0,
+      longestTrophyStreak: 2,
+      trophyCategoryCount: 3,
+      maxDailyTrophyCategories: 1,
+      today: {
+        attempts: 2,
+        bestDifferenceMs: 4,
+        averageDifferenceMs: 250,
+        goldenBoot: { targetDifferenceMs: 4, leading: true },
+        goldenGlove: { requiredAttempts: 3, targetAverageDifferenceMs: 14, leading: false },
+        goldenBall: { targetAttempts: 5, leading: false },
+      },
     },
     history: [
       { team: 'spain', elapsedMs: 10604, differenceMs: 4, verified: true },
@@ -129,6 +149,14 @@ async function installMocks(page, currentAward) {
     }
     await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Jugador</title>' });
   });
+  await page.route('**/functions/v1/player-context', async (route) => {
+    const body = requestBody(route.request());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ availability: 'occupied', profile: profile(body.nick || 'Vieucirst'), leagues: [] }),
+    });
+  });
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = requestBody(route.request());
     if (body.action === 'stats') {
@@ -178,20 +206,22 @@ test('clean player routes expose responsive overview, achievements and trophies'
 
   await page.getByRole('link', { name: 'Logros' }).click();
   await expect(page).toHaveURL(/\/player\/Vieucirst\/achievements$/);
-  await expect(page.getByRole('heading', { name: 'Logros desbloqueados' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
   const description = page.locator('#playerAchievements small').first();
   const date = page.locator('#playerAchievements time').first();
   await expect(description).toBeVisible();
   await expect(date).toBeVisible();
   const [descriptionBox, dateBox] = await Promise.all([description.boundingBox(), date.boundingBox()]);
   expect(dateBox.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height);
+  await expect(page.locator('#playerAchievements .honours-card.is-locked').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-achievements');
   await captureGifFrame(page, testInfo, 2, 'achievements');
 
   await page.getByRole('link', { name: 'Trofeos' }).click();
   await expect(page).toHaveURL(/\/player\/Vieucirst\/trophies$/);
-  await expect(page.getByRole('heading', { name: 'Trofeos conseguidos' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Vitrina y objetivos diarios' })).toBeVisible();
+  await expect(page.locator('#playerTrophyCollection .honours-card')).toHaveCount(4);
   await expect(page.locator('#playerTrophies time').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-trophies');
