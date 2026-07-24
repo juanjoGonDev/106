@@ -5,6 +5,7 @@ const read = (path) => readFileSync(path, 'utf8');
 const migration = read('supabase/migrations/20260724213000_competitive_progression_public_leagues.sql');
 const compatibility = read('supabase/migrations/20260724213100_public_league_compatibility.sql');
 const privateLeagueMigration = read('supabase/migrations/20260724213200_hide_league_competition_credentials.sql');
+const leagueInvariantMigration = read('supabase/migrations/20260724213300_enforce_league_identifiers.sql');
 const playerContext = read('supabase/functions/player-context/index.ts');
 const config = read('supabase/config.toml');
 const app = read('public/app.js');
@@ -17,7 +18,7 @@ const leagues = read('public/ligas.js');
 const leaguesHtml = read('public/ligas.html');
 const fallback = read('public/404.html');
 
-describe('engagement achievements', () => {
+ describe('engagement achievements', () => {
   it('adds cumulative perfect, challenge, sharing and league achievement families', () => {
     for (const kind of [
       'perfect_total',
@@ -125,7 +126,7 @@ describe('single player context and attempt gating', () => {
     expect(index).toContain('Dónde cuenta este intento');
     expect(competition).toContain("const selectionKey = 'minuto106:competition-v1'");
     expect(competition).toContain("let selectedValue = 'global'");
-    expect(competition).toContain("localStorage.setItem(selectionKey, value)");
+    expect(competition).toContain('localStorage.setItem(selectionKey, value)');
     expect(competition).toContain('option.disabled = league.active !== true');
     expect(competition).toContain("context.availability !== 'occupied'");
     expect(competition).toContain('scope.available');
@@ -146,6 +147,9 @@ describe('public league identity and routes', () => {
     expect(privateLeagueMigration).toContain('where join_code = upper(trim(p_code))');
     expect(privateLeagueMigration).toContain("'competitionCode', league.public_id");
     expect(privateLeagueMigration).toContain("'joinCode', case when league.owner_nick_key = p_nick_key then league.join_code else null end");
+    expect(leagueInvariantMigration).toContain('before insert or update of code, public_id, join_code');
+    expect(leagueInvariantMigration).toContain('new.public_id := new.code');
+    expect(leagueInvariantMigration).toContain('new.join_code := public.generate_game_league_token()');
   });
 
   it('keeps the anonymous public projection secret-free', () => {
@@ -159,11 +163,12 @@ describe('public league identity and routes', () => {
     expect(compatibility).toContain("jsonb_build_object('code', public_view.payload->>'publicId')");
   });
 
-  it('uses clean public URLs while reserving the join key for the invitation form', () => {
-    expect(leagues).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
+  it('uses stable clean public URLs while reserving the join key for invitations', () => {
+    expect(leagues).toContain('const leagueBaseUrl = cleanRouteMatch');
+    expect(leagues).toContain('new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl)');
     expect(leagues).toContain("document.querySelector('#leagueJoinCode')");
     expect(leagues).toContain('Código privado: ${league.joinCode}');
-    expect(leagues).toContain("history.replaceState(null, '', `./ligas/${encodeURIComponent(resolvedPublicId)}`)");
+    expect(leagues).toContain("history.replaceState(null, '', leaguePublicUrl(resolvedPublicId))");
     expect(leaguesHtml).toContain('id="leagueJoinCode"');
     expect(leaguesHtml).not.toContain('id="leagueLookupCode"');
     expect(fallback).toContain('ligas\\/([A-Z0-9]{6})');
