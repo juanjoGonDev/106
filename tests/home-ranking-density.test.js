@@ -14,75 +14,53 @@ describe('home score and ranking density', () => {
     expect(html).toContain('class="stats-render-targets" hidden aria-hidden="true"');
   });
 
-  it('loads the home presentation after every legacy ranking renderer', () => {
+  it('loads the authoritative renderer before awards and responsive placement', () => {
     const html = read('public/index.html');
     expect(html.indexOf('./v12.css')).toBeLessThan(html.indexOf('./v13.css'));
+    expect(html.indexOf('./home-stats.js?v=20260724')).toBeLessThan(html.indexOf('./ranking-enhancements.js?v=20260723'));
     expect(html.indexOf('./ranking-enhancements.js?v=20260723')).toBeLessThan(html.indexOf('./home-ranking-density.js?v=20260723'));
   });
 
-  it('normalizes rows to accessible identity, synchronous flags and timing lines', () => {
-    const script = read('public/home-ranking-density.js');
+  it('builds complete accessible rows directly in the authoritative renderer', () => {
+    const script = read('public/home-stats.js');
+    const density = read('public/home-ranking-density.js');
     const styles = read('public/v12.css');
-    expect(script).toContain("anchor.querySelector('.player, .ranking-player')");
     expect(script).toContain("identity.className = 'ranking-player__identity'");
     expect(script).toContain("const flag = document.createElement('span')");
-    expect(script).toContain("flag.className = `flag ranking-flag ${team.flagClass}`");
+    expect(script).toContain('flag.className = `flag ranking-flag ${team.flagClass}`');
     expect(script).toContain("flag.setAttribute('role', 'img')");
     expect(script).toContain("flag.setAttribute('aria-label', team.name)");
-    expect(script).not.toContain("document.createElement('img')");
-    expect(script).toContain("timeElement.className = 'ranking-time'");
-    expect(script).toContain('identity.append(createFlag(teamKey), nickElement)');
-    expect(script).toContain('rowData.player.replaceChildren(identity, timeElement)');
+    expect(script).toContain("time.className = 'ranking-time'");
+    expect(script).toContain('identity.append(createFlag(team), nickElement)');
+    expect(script).toContain('player.append(identity, time)');
+    expect(script).toContain('list.replaceChildren(...rows)');
+    expect(density).not.toContain('MutationObserver');
+    expect(density).not.toContain('ensureAnchor');
     expect(styles).not.toContain('background: none;');
   });
 
-  it('repairs legacy rows from either stats renderer before waiting for fields', () => {
-    const script = read('public/home-ranking-density.js');
-    expect(script).toContain('function ensureAnchor(row)');
-    expect(script).toContain("row.querySelector(':scope > .leaderboard-row-link')");
-    expect(script).toContain("anchor.className = 'leaderboard-row-link'");
-    expect(script).toContain('while (row.firstChild) anchor.append(row.firstChild);');
-    expect(script).toContain('const anchor = ensureAnchor(row);');
-  });
-
-  it('keeps loading distinct from a completed empty ranking', () => {
+  it('owns loading, empty, ready and error states in one module', () => {
     const html = read('public/index.html');
-    const script = read('public/home-ranking-density.js');
+    const script = read('public/home-stats.js');
     expect(html).toContain('aria-busy="true" data-render-state="loading"');
-    expect(script).toContain("if (/^cargando/i.test(emptyText))");
-    expect(script).toContain("list.dataset.renderState = 'loading'");
     expect(script).toContain("list.dataset.renderState = 'empty'");
+    expect(script).toContain("list.dataset.renderState = 'ready'");
+    expect(script).toContain("list.dataset.renderState = 'error'");
+    expect(script).toContain("list.removeAttribute('aria-busy')");
+    expect(script).not.toContain("list.dataset.renderState = 'waiting'");
   });
 
-  it('waits for every row field before exposing the ranking', () => {
-    const script = read('public/home-ranking-density.js');
-    const styles = read('public/v12.css');
-    expect(script).toContain('function normalizeTime(value)');
-    expect(script).toContain("return Number.isFinite(seconds) ? `${seconds.toFixed(3)}s` : '';");
-    expect(script).toContain("if (!nick || !time || !hasNumericValue(rank) || !hasNumericValue(difference)) return null;");
-    expect(script).toContain("list.setAttribute('aria-busy', 'true')");
-    expect(script).toContain('if (rowData.some((entry) => entry === null)) return false;');
-    expect(script).toContain("observer.observe(list, { childList: true, subtree: true, characterData: true })");
-    expect(styles).toContain('#leaderboard[aria-busy="true"] > li:not(.empty)');
-  });
-
-  it('rebuilds a ready row if its flag disappears', () => {
-    const script = read('public/home-ranking-density.js');
-    expect(script).toContain('function hasCompleteFlag(player, teamKey)');
-    expect(script).toContain("const flag = player.querySelector(`.ranking-flag.${team.flagClass}`)");
-    expect(script).toContain("if (!hasCompleteFlag(player, teamKey)) return false;");
-    expect(script).toContain('ready: isNormalizedRow(row, player, teamKey, nick, time)');
-  });
-
-  it('commits daily awards only after all team lookups from the latest request resolve', () => {
+  it('renders daily awards synchronously from the shared snapshot', () => {
     const script = read('public/ranking-enhancements.js');
-    expect(script).toContain('const teamCache = new Map()');
-    expect(script).toContain('const views = await Promise.all([');
-    expect(script).toContain('if (requestId !== awardsRequest) return false;');
-    expect(script.indexOf('if (requestId !== awardsRequest) return false;')).toBeLessThan(script.indexOf("const selectors = ['#goldenBoot'"));
+    expect(script).toContain('const homeStats = window.Minuto106HomeStats');
+    expect(script).toContain('homeStats.subscribe(renderAwards)');
+    expect(script).toContain("const selectors = ['#goldenBoot', '#goldenGlove', '#goldenBall']");
     expect(script).toContain('target.innerHTML = awardHtml(views[index])');
     expect(script).toContain('role="img"');
     expect(script).toContain('aria-label=');
+    expect(script).not.toContain('Promise.all');
+    expect(script).not.toContain('public-profile');
+    expect(script).not.toContain("request('stats')");
   });
 
   it('renders one stable two-row surface in the desktop rail', () => {
@@ -108,13 +86,10 @@ describe('home score and ranking density', () => {
   it('moves the existing awards card below the score on mobile and restores the desktop rail', () => {
     const script = read('public/home-ranking-density.js');
     const styles = read('public/v12.css');
-    const rankingEnhancement = read('public/ranking-enhancements.js');
     expect(script).toContain("const MOBILE_HOME_MEDIA = '(max-width: 700px)'");
     expect(script).toContain('battle.after(awards)');
     expect(script).toContain('rightRail.prepend(awards)');
     expect(script).toContain("media.addEventListener('change', updateAwardsPlacement)");
     expect(styles).toMatch(/@media \(max-width: 700px\)[\s\S]*#awardsCard \{[\s\S]*display: block;/);
-    expect(rankingEnhancement).toContain("document.addEventListener('minuto106:attempt-finished'");
-    expect(rankingEnhancement).toContain('refreshAwards(event.detail?.stats)');
   });
 });
