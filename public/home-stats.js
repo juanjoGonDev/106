@@ -3,53 +3,21 @@
 
   const config = window.__MINUTO106_CONFIG__ ?? {};
   const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
-  const nativeFetch = window.fetch.bind(window);
+  const configured = Boolean(apiUrl) && !apiUrl.includes('YOUR_PROJECT_REF');
+  const deviceKey = 'minuto106:device-id';
+  const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const listeners = new Set();
-  const CACHE_RETENTION_MS = 1_000;
 
-  let cachedStatsResponse = null;
-  let cachedStatsTimer = null;
   let latestStats = null;
-  let presentationTimer = null;
-  let presentationFrame = null;
-  let presentationRevision = 0;
+  let loadPromise = null;
 
-  function requestAction(init) {
-    if (typeof init?.body !== 'string') return '';
-    try {
-      return String(JSON.parse(init.body)?.action || '');
-    } catch {
-      return '';
-    }
-  }
-
-  function requestUrl(input) {
-    if (typeof input === 'string') return input.replace(/\/$/, '');
-    if (input instanceof URL) return input.toString().replace(/\/$/, '');
-    if (input instanceof Request) return input.url.replace(/\/$/, '');
-    return '';
-  }
-
-  function isHomeStatsRequest(input, init) {
-    return Boolean(apiUrl) && requestUrl(input) === apiUrl && requestAction(init) === 'stats';
-  }
-
-  function clearCachedStatsResponse() {
-    window.clearTimeout(cachedStatsTimer);
-    cachedStatsTimer = null;
-    cachedStatsResponse = null;
-  }
-
-  function retainCachedStatsResponse() {
-    window.clearTimeout(cachedStatsTimer);
-    cachedStatsTimer = window.setTimeout(clearCachedStatsResponse, CACHE_RETENTION_MS);
-  }
+  localStorage.setItem(deviceKey, deviceId);
 
   function fullNumber(value) {
     const formatter = window.Minuto106Format;
     if (formatter) return formatter.fullNumber(value);
     const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.round(numeric).toLocaleString('es-ES') : '0';
+    return Number.isFinite(numeric) ? String(Math.round(numeric)) : '0';
   }
 
   function compactNumber(value) {
@@ -57,7 +25,7 @@
     if (formatter) return formatter.compactNumber(value);
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return '0';
-    if (Math.abs(numeric) < 1_000) return Math.round(numeric).toLocaleString('es-ES');
+    if (Math.abs(numeric) < 1_000) return String(Math.round(numeric));
     const compact = numeric / 1_000;
     return `${Number(compact.toFixed(compact < 100 && !Number.isInteger(compact) ? 1 : 0))}K`;
   }
@@ -122,7 +90,7 @@
 
     const difference = document.createElement('span');
     difference.className = 'difference';
-    difference.textContent = `±${differenceMs.toLocaleString('es-ES')} ms`;
+    difference.textContent = `±${fullNumber(differenceMs)} ms`;
 
     anchor.append(rank, player, difference);
     row.append(anchor);
@@ -177,6 +145,19 @@
     renderLeaderboard(stats);
   }
 
+  function renderLoadError() {
+    const totalAttempts = document.querySelector('#totalAttempts');
+    if (totalAttempts) totalAttempts.textContent = 'No disponible';
+    const list = document.querySelector('#leaderboard');
+    if (!list) return;
+    const empty = document.createElement('li');
+    empty.className = 'empty';
+    empty.textContent = 'No se pudo cargar el ranking. Revisa la conexión.';
+    list.replaceChildren(empty);
+    list.removeAttribute('aria-busy');
+    list.dataset.renderState = 'error';
+  }
+
   function notify(stats, source) {
     for (const listener of listeners) listener(stats, source);
     document.dispatchEvent(new CustomEvent('minuto106:home-stats-ready', {
@@ -184,66 +165,47 @@
     }));
   }
 
-  function schedulePresentation(stats, source) {
-    const revision = ++presentationRevision;
-    window.clearTimeout(presentationTimer);
-    if (presentationFrame !== null) window.cancelAnimationFrame(presentationFrame);
-
-    presentationTimer = window.setTimeout(() => {
-      presentationFrame = window.requestAnimationFrame(() => {
-        presentationFrame = window.requestAnimationFrame(() => {
-          if (revision !== presentationRevision) return;
-          renderStats(stats);
-          notify(stats, source);
-        });
-      });
-    }, 0);
-  }
-
-  function commit(stats, source = 'network') {
-    if (!stats || typeof stats !== 'object') return;
+  function commit(stats, source = 'manual') {
+    if (!stats || typeof stats !== 'object') return false;
     latestStats = stats;
-    schedulePresentation(stats, source);
+    renderStats(stats);
+    notify(stats, source);
+    return true;
   }
 
-  async function createCachedStatsResponse(input, init) {
-    const response = await nativeFetch(input, init);
-    const canonical = response.clone();
-    if (!response.ok) {
-      clearCachedStatsResponse();
-      return canonical;
-    }
-
-    const stats = await response.clone().json().catch(() => null);
-    if (stats) commit(stats, 'network');
-    retainCachedStatsResponse();
-    return canonical;
-  }
-
-  function fetchHomeStats(input, init) {
-    if (!cachedStatsResponse) cachedStatsResponse = createCachedStatsResponse(input, init).catch((error) => {
-      clearCachedStatsResponse();
-      throw error;
+  async function requestStats() {
+    if (!configured) throw new Error('Supabase aún no está configurado.');
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
+      body: JSON.stringify({ action: 'stats' }),
     });
-
-    return cachedStatsResponse.then((response) => {
-      if (latestStats) schedulePresentation(latestStats, 'cache');
-      return response.clone();
-    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'No se pudieron cargar las estadísticas.');
+    return body;
   }
 
-  window.fetch = function minuto106HomeStatsFetch(input, init = {}) {
-    if (isHomeStatsRequest(input, init)) return fetchHomeStats(input, init);
-    return nativeFetch(input, init);
-  };
-
-  document.addEventListener('minuto106:attempt-finished', (event) => {
-    if (event.detail?.stats) commit(event.detail.stats, 'finish');
-  });
+  function load() {
+    if (loadPromise) return loadPromise;
+    loadPromise = requestStats()
+      .then((stats) => {
+        commit(stats, 'network');
+        return stats;
+      })
+      .catch((error) => {
+        renderLoadError();
+        throw error;
+      })
+      .finally(() => {
+        loadPromise = null;
+      });
+    return loadPromise;
+  }
 
   window.Minuto106HomeStats = Object.freeze({
     get snapshot() { return latestStats; },
     commit,
+    load,
     subscribe(listener, { replay = true } = {}) {
       if (typeof listener !== 'function') throw new TypeError('Home stats listener must be a function.');
       listeners.add(listener);
@@ -251,4 +213,6 @@
       return () => listeners.delete(listener);
     },
   });
+
+  load().catch(() => {});
 })();
