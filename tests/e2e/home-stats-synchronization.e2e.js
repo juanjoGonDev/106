@@ -1,9 +1,12 @@
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
 const { expect, test } = require(runtimePath);
+const previewDirectory = '.tmp/pr-previews';
+mkdirSync(previewDirectory, { recursive: true });
 
 function bodyOf(request) {
   try {
@@ -36,7 +39,16 @@ function statsFor(id) {
   };
 }
 
-test('sequential delayed loads use one Supabase stats request and commit a complete stable home', async ({ page }) => {
+async function captureEvidence(page, isMobile) {
+  if (process.env.PR_VISUAL_CAPTURE !== '1') return;
+  await page.screenshot({
+    path: `${previewDirectory}/home-stats-synchronization-${isMobile ? 'mobile' : 'desktop'}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  });
+}
+
+test('sequential delayed loads use one Supabase stats request and commit a complete stable home', async ({ page, isMobile }) => {
   const cases = [
     { id: 'instant', delayMs: 0 },
     { id: 'short', delayMs: 35 },
@@ -104,6 +116,7 @@ test('sequential delayed loads use one Supabase stats request and commit a compl
     await expect(page.locator('#spainScore')).toHaveText('1.4K');
     expect(requestCounts.get(testCase.id)).toBe(1);
 
+    if (testCase.id === 'slow') await captureEvidence(page, isMobile);
     await page.waitForTimeout(80);
   }
 });
