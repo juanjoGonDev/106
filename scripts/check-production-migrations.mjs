@@ -42,24 +42,22 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
-function isVerifiedCheckConstraintExpansion(sql, pattern) {
+function isVerifiedAchievementCheckExpansion(sql, pattern) {
   if (pattern.label !== 'ALTER TABLE ... DROP') return false;
-  const replacements = [...sql.matchAll(
-    /alter\s+table\s+([\w.]+)\s+drop\s+constraint\s+(?:if\s+exists\s+)?([\w"]+)\s*;/gim,
-  )];
-  if (replacements.length === 0 || /\bdrop\s+column\b/i.test(sql)) return false;
+  const normalized = sql.toLowerCase().replaceAll(/\s+/g, ' ').trim();
+  const droppedCheck = [
+    'alter table public.game_player_achievements',
+    'drop constraint if exists game_player_achievements_achievement_kind_check;',
+  ].join(' ');
+  const recreatedCheck = [
+    'alter table public.game_player_achievements',
+    'add constraint game_player_achievements_achievement_kind_check',
+    'check (achievement_kind in (',
+  ].join(' ');
 
-  return replacements.every(([, table, rawConstraint]) => {
-    const constraint = rawConstraint.replaceAll('"', '');
-    const normalizedTable = table.replaceAll('"', '');
-    const escapedTable = normalizedTable.replaceAll('.', '\\.');
-    const escapedConstraint = constraint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const recreated = new RegExp(
-      `alter\\s+table\\s+${escapedTable}\\s+add\\s+constraint\\s+"?${escapedConstraint}"?\\s+check\\s*\\(`,
-      'i',
-    );
-    return recreated.test(sql);
-  });
+  return normalized.includes(droppedCheck)
+    && normalized.includes(recreatedCheck)
+    && !normalized.includes('drop column');
 }
 
 const files = changedMigrationFiles();
@@ -71,7 +69,7 @@ for (const file of files) {
 
   for (const pattern of destructivePatterns) {
     if (!pattern.regex.test(sql)) continue;
-    if (explicitlyApproved || isVerifiedCheckConstraintExpansion(sql, pattern)) continue;
+    if (explicitlyApproved || isVerifiedAchievementCheckExpansion(sql, pattern)) continue;
     violations.push(`${file}: ${pattern.label}`);
   }
 }
