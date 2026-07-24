@@ -54,6 +54,8 @@ declare
   v_codes text[] := coalesce(p_achievement_codes, array[]::text[]);
   v_now timestamptz := clock_timestamp();
 begin
+  perform pg_advisory_xact_lock(hashtextextended(p_nick_key, 10603));
+
   if not exists (select 1 from public.game_players where nick_key = p_nick_key) then
     return jsonb_build_object('error', 'player_not_found');
   end if;
