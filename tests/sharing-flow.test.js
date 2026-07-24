@@ -70,7 +70,8 @@ describe('share-first social actions', () => {
     expect(playerUi).toContain('return playerUrl(nick, section, publicBaseUrl)');
     expect(profileShare).toContain('navigatorLike.canShare({ files: [file] })');
     expect(profileShare).toContain('files: [file]');
-    expect(profileShare).toContain('`${payload.text}\n${payload.url}`');
+    expect(profileShare).toContain('text: `${payload.text}');
+    expect(profileShare).toContain('${payload.url}`.trim()');
     expect(playerHtml).toContain('./profile-share.js');
     expect(playerHtml).not.toContain('/assets/minuto-106-social-preview.jpg');
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
