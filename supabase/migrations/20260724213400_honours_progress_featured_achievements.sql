@@ -137,10 +137,10 @@ with today_window as (
 ), today_attempts as (
   select attempt.*
   from public.game_attempts attempt
-  cross join today_window window
+  cross join today_window day_window
   where attempt.verified = true
     and attempt.league_id is null
-    and (attempt.created_at at time zone 'Europe/Madrid')::date = window.today
+    and (attempt.created_at at time zone 'Europe/Madrid')::date = day_window.today
 ), today_summary as (
   select attempt.nick_key,
     max(attempt.nick) as nick,
