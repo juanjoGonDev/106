@@ -25,6 +25,10 @@
     return ui.escapeHtml(value);
   }
 
+  function leagueUrl(publicId) {
+    return new URL(`ligas/${encodeURIComponent(publicId)}`, ui.appBaseUrl()).toString();
+  }
+
   function normalizeSiteChromeLinks() {
     const appBaseUrl = ui.appBaseUrl();
     const links = document.querySelectorAll('.site-header a[href], .site-footer a[href], #cookieBanner a[href]');
@@ -138,7 +142,13 @@
     const history = Array.isArray(trophies.history) ? trophies.history : [];
     $('#trophyTotal').textContent = `${Number(trophies.total || 0)} trofeos · ${Number(trophies.days || 0)} días · ${Number(trophies.leagueChampion || 0)} ligas`;
     $('#playerTrophies').innerHTML = history.length
-      ? history.map((trophy) => `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${trophy.leagueName ? `<small>${escape(trophy.leagueName)} · ${escape(trophy.leagueCode)}</small>` : ''}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`).join('')
+      ? history.map((trophy) => {
+        const publicId = String(trophy.leaguePublicId || trophy.leagueCode || '');
+        const league = trophy.leagueName && publicId
+          ? `<small><a href="${escape(leagueUrl(publicId))}">${escape(trophy.leagueName)}</a> · ${escape(publicId)}</small>`
+          : trophy.leagueName ? `<small>${escape(trophy.leagueName)}</small>` : '';
+        return `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${league}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`;
+      }).join('')
       : '<li class="player-empty">Todavía no tiene trofeos.</li>';
   }
 
