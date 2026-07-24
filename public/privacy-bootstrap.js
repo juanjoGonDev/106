@@ -1,6 +1,6 @@
 (() => {
   const APP_THEME_COLOR = '#2b0d28';
-  const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,viewport-fit=cover';
+  const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
   const TAG_MANAGER_ID = 'GTM-NKZK4DC5';
   const CONSENT_KEY = 'minuto106:consent-v1';
   const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
