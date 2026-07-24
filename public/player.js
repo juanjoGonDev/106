@@ -100,7 +100,7 @@
       upsertMeta('name', 'twitter:image:alt', imageAlt);
     }
 
-    history.replaceState(null, '', shareUrl);
+    history.replaceState(null, '', canonicalUrl);
     normalizeSiteChromeLinks();
   }
 
