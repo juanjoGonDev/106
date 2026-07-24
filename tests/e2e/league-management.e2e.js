@@ -19,7 +19,7 @@ const leagues = [
     attemptsUsed: 0, attemptsLeft: 5, maxAttempts: 5, history: [],
   },
   {
-    publicId: 'ACTIVE1', competitionCode: 'ACTIVE1', joinCode: 'JOIN02', name: 'Liga activa',
+    publicId: 'ACTIV1', competitionCode: 'ACTIV1', joinCode: 'JOIN02', name: 'Liga activa',
     ownerNick: 'LeagueOwner', isOwner: true, createdAt: '2026-07-23T10:00:00.000Z',
     startsAt: '2026-07-23T12:00:00.000Z', endsAt: '2026-07-26T12:00:00.000Z',
     waiting: false, active: true, finished: false, eligibleOwners: 3, eligibleDevices: 3, participants: 3,
@@ -102,10 +102,10 @@ test('the league page switches public leagues without corrupting relative routes
 
   await page.goto('/ligas.html');
   await expect(page.locator('[data-league-card]')).toHaveCount(2);
-  const competeHref = await page.locator('[data-league-card="ACTIVE1"] a.primary').getAttribute('href');
+  const competeHref = await page.locator('[data-league-card="ACTIV1"] a.primary').getAttribute('href');
   const competeUrl = new URL(competeHref, page.url());
   expect(competeUrl.pathname).toBe('/');
-  expect(competeUrl.searchParams.get('competition')).toBe('ACTIVE1');
+  expect(competeUrl.searchParams.get('competition')).toBe('ACTIV1');
   await expect(page.locator('[data-league-card="WAIT01"] a.primary')).toHaveCount(0);
 
   await page.locator('[data-view-league="WAIT01"]').click();
@@ -113,8 +113,8 @@ test('the league page switches public leagues without corrupting relative routes
   await expect(page.locator('#leagueLookupPublicId')).toContainText('WAIT01');
   await expect(page.locator('#competeLeagueLink')).toBeHidden();
 
-  await page.locator('[data-view-league="ACTIVE1"]').click();
-  await expect(page).toHaveURL(/\/ligas\/ACTIVE1$/);
+  await page.locator('[data-view-league="ACTIV1"]').click();
+  await expect(page).toHaveURL(/\/ligas\/ACTIV1$/);
   await expect(page.locator('#leagueLookupTitle')).toHaveText('Liga activa');
   await expect(page.locator('#competeLeagueLink')).toBeVisible();
   await expect(page.locator('#myLeagueAttemptList li')).toHaveCount(2);
@@ -158,14 +158,14 @@ test('the active league route selects that competition and sends its public scop
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
-  await page.goto('/?competition=ACTIVE1');
+  await page.goto('/?competition=ACTIV1');
   await expect(page.locator('#competitionContext')).toContainText('Liga activa');
-  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIVE1');
+  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIV1');
   await page.getByRole('button', { name: 'España', exact: true }).click();
   await expect(page.locator('#startButton')).toBeEnabled();
   await page.locator('#startButton').click();
   await clickCaptcha(page);
   await expect(page.locator('.game-readiness-control')).toBeVisible();
-  expect(requestLog.find((request) => request.action === 'prepare-start')?.leagueCode).toBe('ACTIVE1');
+  expect(requestLog.find((request) => request.action === 'prepare-start')?.leagueCode).toBe('ACTIV1');
   expect(requestLog.some((request) => request.action === 'player-leagues')).toBe(false);
 });
