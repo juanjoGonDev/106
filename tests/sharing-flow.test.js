@@ -59,7 +59,7 @@ describe('share-first social actions', () => {
   it('shares profiles with the generated PNG while keeping the original public profile URL', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
     expect(honours).toContain('url: profileUrl(profile)');
-    expect(honours).toContain("button.textContent = 'Preparando...'");
+    expect(honours).toContain('disabled>Preparando...</button>');
     expect(honours).toContain('Minuto106ProfileShare?.share(payload)');
     expect(actions).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
     expect(player).toContain("const shareUrl = ui.shareUrl('', player.nick, route.section)");
@@ -70,7 +70,7 @@ describe('share-first social actions', () => {
     expect(playerUi).toContain('return playerUrl(nick, section, publicBaseUrl)');
     expect(profileShare).toContain('navigatorLike.canShare({ files: [file] })');
     expect(profileShare).toContain('files: [file]');
-    expect(profileShare).toContain('`${payload.text}\\n${payload.url}`');
+    expect(profileShare).toContain('`${payload.text}\n${payload.url}`');
     expect(playerHtml).toContain('./profile-share.js');
     expect(playerHtml).not.toContain('/assets/minuto-106-social-preview.jpg');
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
