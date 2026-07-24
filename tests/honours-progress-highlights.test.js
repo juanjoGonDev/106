@@ -9,6 +9,7 @@ const playerContext = read('supabase/functions/player-context/index.ts');
 const player = read('public/player.js');
 const playerHtml = read('public/player.html');
 const playerCss = read('public/v15.css');
+const profileCardHighlights = read('public/profile-card-highlights.js');
 const access = read('public/access.js');
 const catalogueSource = read('public/honours-catalog.js');
 
@@ -156,5 +157,12 @@ describe('public profile honours experience', () => {
     expect(player).toContain("context.availability === 'owned'");
     expect(player).toContain("requestPlayerContext('set-featured-achievements'");
     expect(player).toContain('data-featured-code');
+  });
+
+  it('uses the highlighted achievement card for profile sharing and generated previews', () => {
+    expect(playerHtml).toContain('src="./profile-card-highlights.js"');
+    expect(profileCardHighlights).toContain("section === 'overview' ? 'achievements' : section");
+    expect(profileCardHighlights).toContain('playerUi.cardUrl(apiBaseUrl, nick, cardSection, revision)');
+    expect(orderingMigration).toContain("coalesce((featured.value->>'position')::integer, 2147483647)");
   });
 });
