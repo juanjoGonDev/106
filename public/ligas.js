@@ -2,12 +2,31 @@ const leagueConfig = window.__MINUTO106_CONFIG__ ?? {};
 const leagueApi = String(leagueConfig.apiBaseUrl ?? '').replace(/\/$/, '');
 const leagueSocialApi = leagueApi.replace(/\/game-api$/, '/social-share');
 const leagueDevice = localStorage.getItem('minuto106:device-id') || crypto.randomUUID();
-const pathMatch = location.pathname.match(/\/ligas\/([A-Z0-9]{6})\/?$/i);
-const initialPublicId = String(pathMatch?.[1] || new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
+const cleanRouteMatch = location.pathname.match(/^(.*\/)ligas\/([A-Z0-9]{6})\/?$/i);
+const leagueBaseUrl = cleanRouteMatch
+  ? new URL(cleanRouteMatch[1], location.origin)
+  : new URL('./', location.href);
+const initialPublicId = String(
+  cleanRouteMatch?.[2]
+  || new URLSearchParams(location.search).get('league')
+  || '',
+).trim().toUpperCase();
 let selectedLeague = null;
 let myLeagues = [];
 
 localStorage.setItem('minuto106:device-id', leagueDevice);
+
+function installStableBaseUrl() {
+  let base = document.head.querySelector('base[data-minuto106-base]');
+  if (!base) {
+    base = document.createElement('base');
+    base.dataset.minuto106Base = 'true';
+    document.head.prepend(base);
+  }
+  base.href = leagueBaseUrl.toString();
+}
+
+installStableBaseUrl();
 
 async function leagueRequest(action, payload = {}) {
   if (!leagueApi) throw new Error('Supabase aún no está configurado.');
@@ -75,7 +94,13 @@ function eligibilityLabel(league) {
 }
 
 function leaguePublicUrl(publicId) {
-  return new URL(`./ligas/${encodeURIComponent(publicId)}`, location.href).toString();
+  return new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl).toString();
+}
+
+function competitionUrl(publicId) {
+  const url = new URL(leagueBaseUrl);
+  url.searchParams.set('competition', publicId);
+  return url.toString();
 }
 
 function privateLeague(publicId) {
@@ -145,6 +170,7 @@ function renderMyLeagueCard(league) {
   const rank = league.rank ? `#${league.rank}` : '—';
   const status = waiting ? `${remainingLabel(league)} · ${eligibilityLabel(league)}` : remainingLabel(league);
   const shareLabel = league.joinCode ? 'Compartir invitación' : 'Compartir liga';
+  const publicUrl = leaguePublicUrl(league.publicId);
   return `
     <article class="my-league-card${selectedLeague?.publicId === league.publicId ? ' active' : ''}" data-league-card="${escapeLeague(league.publicId)}">
       <header><div><h3>${escapeLeague(league.name)}</h3><small>Vista pública ${escapeLeague(league.publicId)}</small></div><span class="league-status">${escapeLeague(status)}</span></header>
@@ -153,7 +179,7 @@ function renderMyLeagueCard(league) {
         <div><span>Intentos</span><strong>${league.attemptsUsed ?? 0}/${league.maxAttempts ?? 5}</strong></div>
         <div><span>Mejor</span><strong>${formatDifference(league.bestDifferenceMs)}</strong></div>
       </div>
-      <div class="league-card-actions"><button class="ghost compact" type="button" data-view-league="${escapeLeague(league.publicId)}">Ver clasificación</button>${active && Number(league.attemptsLeft ?? 0) > 0 ? `<a class="primary compact" href="./?competition=${encodeURIComponent(league.publicId)}">Competir</a>` : ''}<button class="secondary compact" type="button" data-share-league="${escapeLeague(league.publicId)}">${shareLabel}</button></div>
+      <div class="league-card-actions"><a class="ghost compact" href="${escapeLeague(publicUrl)}" data-view-league="${escapeLeague(league.publicId)}">Ver clasificación</a>${active && Number(league.attemptsLeft ?? 0) > 0 ? `<a class="primary compact" href="${escapeLeague(competitionUrl(league.publicId))}">Competir</a>` : ''}<button class="secondary compact" type="button" data-share-league="${escapeLeague(league.publicId)}">${shareLabel}</button></div>
     </article>`;
 }
 
@@ -207,7 +233,7 @@ function renderLeague(league, status = null) {
     : `${compact(league.members ?? 0)} participantes · ${compact(league.totalAttempts ?? 0)} intentos exclusivos de esta liga`;
 
   const competeLink = document.querySelector('#competeLeagueLink');
-  competeLink.href = `./?competition=${encodeURIComponent(league.publicId)}`;
+  competeLink.href = competitionUrl(league.publicId);
   competeLink.hidden = league.active !== true || !membership || Number(membership.attemptsLeft ?? 0) <= 0;
   document.querySelector('#shareLeagueButton').textContent = membership?.joinCode ? 'Compartir invitación privada' : 'Compartir liga';
 
@@ -244,7 +270,7 @@ async function loadLeague(publicId) {
   }
 
   renderLeague(league, status);
-  history.replaceState(null, '', `./ligas/${encodeURIComponent(resolvedPublicId)}`);
+  history.replaceState(null, '', leaguePublicUrl(resolvedPublicId));
   return selectedLeague;
 }
 
@@ -305,10 +331,14 @@ document.querySelector('#shareLeagueButton')?.addEventListener('click', () => {
   const share = selectedLeague.joinCode ? shareLeagueInvitation : shareLeaguePage;
   share(selectedLeague).catch((error) => showLeagueError(error, 'No se pudo compartir la liga'));
 });
-document.querySelector('#myLeaguesList')?.addEventListener('click', (event) => {
-  const viewButton = event.target.closest('[data-view-league]');
+document.querySelector('#myLeaguesList')?.addEventListener('click', async (event) => {
+  const viewLink = event.target.closest('[data-view-league]');
   const shareButton = event.target.closest('[data-share-league]');
-  if (viewButton) loadLeague(viewButton.dataset.viewLeague).catch((error) => showLeagueError(error, 'No se pudo consultar la liga'));
+  if (viewLink) {
+    event.preventDefault();
+    await loadLeague(viewLink.dataset.viewLeague).catch((error) => showLeagueError(error, 'No se pudo consultar la liga'));
+    return;
+  }
   if (shareButton) {
     const league = privateLeague(shareButton.dataset.shareLeague);
     if (!league) return;
