@@ -154,7 +154,7 @@ function siteUrl() {
 
 function canonical(kind: string, id: string, section = 'overview') {
   if (kind === 'player') return `${siteUrl()}/player/${encodeURIComponent(id)}${section === 'overview' ? '' : `/${section}`}`;
-  if (kind === 'league') return `${siteUrl()}/ligas.html?league=${encodeURIComponent(id)}`;
+  if (kind === 'league') return `${siteUrl()}/ligas/${encodeURIComponent(id)}`;
   if (kind === 'duel') return `${siteUrl()}/?duel=${encodeURIComponent(id)}`;
   if (kind === 'result') return `${siteUrl()}/?sharedResult=${encodeURIComponent(id)}`;
   return `${siteUrl()}/?ref=${encodeURIComponent(id)}`;
@@ -281,12 +281,13 @@ function pngResponse(element: ReturnType<typeof h>, filename: string) {
 function leagueCard(data: Data) {
   const waiting = data.waiting === true;
   const active = data.active === true;
+  const publicId = String(data.publicId || data.code || '');
   return pngResponse(card({
     label: 'MINUTO 106 · MINILIGA',
     title: shortened(data.name || 'Miniliga', 38),
     status: waiting ? 'EN ESPERA' : active ? 'EN JUEGO' : 'FINALIZADA',
     statusColor: waiting ? '#f4c95d' : active ? '#68d391' : '#9ca3af',
-    subtitle: waiting ? 'Empieza con 3 cuentas y 3 dispositivos únicos.' : `Código ${data.code}`,
+    subtitle: waiting ? 'Empieza con 3 cuentas y 3 dispositivos únicos.' : `Liga pública ${publicId}`,
     metrics: [
       { label: 'PARTICIPANTES', value: String(Number(data.participantCount ?? data.members ?? 0)), width: 220 },
       { label: 'CUENTAS ÚNICAS', value: `${Number(data.eligibleOwners || 0)}/3`, width: 220 },
@@ -294,7 +295,7 @@ function leagueCard(data: Data) {
     ],
     detail: waiting ? 'La cuenta atrás de tres días todavía no ha comenzado.' : dateLabel(data.endsAt, data.finished === true ? 'Finalizó' : 'Termina'),
     cta: waiting ? 'ÚNETE PARA ACTIVAR LA COMPETICIÓN' : '¿PUEDES GANAR ESTA MINILIGA?',
-  }), `minuto-106-liga-${data.code}.png`);
+  }), `minuto-106-liga-${publicId}.png`);
 }
 
 function duelCard(data: Data) {
@@ -391,22 +392,23 @@ Deno.serve(async (request) => {
     }
 
     if (route.kind === 'league') {
-      if (!route.code) return new Response('Código de liga no válido', { status: 400 });
+      if (!route.code) return new Response('Identificador público de liga no válido', { status: 400 });
       const data = await rpc('get_game_league', { p_code: route.code });
-      if (!data.code) return new Response('Liga no encontrada', { status: 404 });
+      const publicId = String(data.publicId || data.code || '');
+      if (!publicId) return new Response('Liga no encontrada', { status: 404 });
       if (wantsJson) return jsonResponse(data);
       if (request.method === 'HEAD') return new Response(null, { status: 200, headers: { 'Content-Type': route.image ? 'image/png' : 'text/html; charset=utf-8' } });
       if (route.image) return leagueCard(data);
       const revision = data.revision;
       return metadataResponse({
-        canonical: canonical('league', route.code),
+        canonical: canonical('league', publicId),
         title: `${data.name || 'Miniliga'} · Minuto 106`,
         description: data.waiting === true
-          ? `${data.name || route.code} espera tres cuentas y tres dispositivos únicos para comenzar.`
-          : `${data.name || route.code}: ${Number(data.members || 0)} participantes y ${Number(data.totalAttempts || 0)} intentos.`,
-        shareUrl: socialUrl(request, 'league', route.code, revision),
-        imageUrl: socialUrl(request, 'league', route.code, revision, true),
-        imageAlt: `Vista previa de la miniliga ${data.name || route.code}.`,
+          ? `${data.name || publicId} espera tres cuentas y tres dispositivos únicos para comenzar.`
+          : `${data.name || publicId}: ${Number(data.members || 0)} participantes y ${Number(data.totalAttempts || 0)} intentos.`,
+        shareUrl: socialUrl(request, 'league', publicId, revision),
+        imageUrl: socialUrl(request, 'league', publicId, revision, true),
+        imageAlt: `Vista previa de la miniliga ${data.name || publicId}.`,
       });
     }
 
