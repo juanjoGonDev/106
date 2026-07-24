@@ -46,21 +46,36 @@ function playerProfile(nick) {
   };
 }
 
+function accountPlayers(accounts, token) {
+  const nicks = accounts.accountToNicks.get(token) || [];
+  return {
+    exists: Boolean(token),
+    players: nicks.map((nick) => ({
+      nick,
+      team: 'spain',
+      attemptsUsed: 0,
+      verifiedAttempts: 0,
+      attemptsLeft: 5,
+      bestDifferenceMs: null,
+    })),
+  };
+}
+
 async function installAccountApi(page, accounts, captured) {
   await page.route('**/functions/v1/player-context', async (route) => {
     const request = route.request();
     const body = bodyOf(request);
     const nick = String(body.nick || '');
     const token = request.headers()['x-account-token'] || '';
-    const entry = accounts.nickToAccount.get(nick);
-    const availability = !entry ? 'available' : entry === token ? 'owned' : 'occupied';
+    const owner = accounts.nickToAccount.get(nick);
+    const availability = !owner ? 'available' : owner === token ? 'owned' : 'occupied';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         availability,
-        profile: entry ? playerProfile(nick) : null,
-        leagues: availability === 'owned' ? [] : [],
+        profile: owner ? playerProfile(nick) : null,
+        leagues: [],
       }),
     });
   });
@@ -69,15 +84,15 @@ async function installAccountApi(page, accounts, captured) {
     const request = route.request();
     const body = bodyOf(request);
     const token = request.headers()['x-account-token'] || '';
-    captured.push({ body, token });
+    const playerToken = request.headers()['x-player-token'] || '';
+    captured.push({ body, token, playerToken });
 
     if (body.action === 'stats') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stats()) });
       return;
     }
     if (body.action === 'account-players') {
-      const nicks = accounts.accountToNicks.get(token) || [];
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(nicks.map((nick) => ({ nick }))) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(accountPlayers(accounts, token)) });
       return;
     }
     if (body.action === 'link-account-player') {
@@ -90,34 +105,15 @@ async function installAccountApi(page, accounts, captured) {
       const current = accounts.accountToNicks.get(token) || [];
       if (!current.includes(body.nick)) current.push(body.nick);
       accounts.accountToNicks.set(token, current);
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
-      return;
-    }
-    if (body.action === 'start') {
-      const owner = accounts.nickToAccount.get(body.nick);
-      if (owner && owner !== token) {
-        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Este nick pertenece a otra cuenta.' }) });
-        return;
-      }
-      accounts.nickToAccount.set(body.nick, token);
-      const current = accounts.accountToNicks.get(token) || [];
-      if (!current.includes(body.nick)) current.push(body.nick);
-      accounts.accountToNicks.set(token, current);
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          challengeId: '22222222-2222-4222-8222-222222222222',
-          interaction: { mode: 'press', nonce: '550e8400-e29b-41d4-a716-446655440000', xPercent: 50, yPercent: 50, variant: 0 },
-        }),
-      });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authorized: true, linked: true }) });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
   await page.route('**/functions/v1/game-ready-api', async (route) => {
-    const body = bodyOf(route.request());
+    const request = route.request();
+    const body = bodyOf(request);
     if (body.action === 'human-check') {
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ checkId: '11111111-1111-4111-8111-111111111111', balls, expiresAt: new Date(Date.now() + 120_000).toISOString() }) });
       return;
@@ -127,16 +123,16 @@ async function installAccountApi(page, accounts, captured) {
       return;
     }
     if (body.action === 'prepare-start') {
-      const accountToken = route.request().headers()['x-account-token'] || '';
+      const token = request.headers()['x-account-token'] || '';
       const owner = accounts.nickToAccount.get(body.nick);
-      if (owner && owner !== accountToken) {
+      if (owner && owner !== token) {
         await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Este nick pertenece a otra cuenta.' }) });
         return;
       }
-      accounts.nickToAccount.set(body.nick, accountToken);
-      const current = accounts.accountToNicks.get(accountToken) || [];
+      accounts.nickToAccount.set(body.nick, token);
+      const current = accounts.accountToNicks.get(token) || [];
       if (!current.includes(body.nick)) current.push(body.nick);
-      accounts.accountToNicks.set(accountToken, current);
+      accounts.accountToNicks.set(token, current);
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -188,20 +184,19 @@ test('one account key protects multiple nicks and can be restored on a fresh dev
   expect(accounts.nickToAccount.get('SecondPlayer')).toBe(token);
 
   await page.goto('/cuenta.html');
-  await expect(page.locator('#accountPlayersList')).toContainText('PrimaryPlayer');
-  await expect(page.locator('#accountPlayersList')).toContainText('SecondPlayer');
-  await page.locator('#copyAccountKeyButton').click();
-  const copied = await page.locator('#copyAccountKeyButton').getAttribute('data-copy-value');
-  expect(copied).toBe(token);
+  await expect(page.locator('#accountPlayers')).toContainText('PrimaryPlayer');
+  await expect(page.locator('#accountPlayers')).toContainText('SecondPlayer');
+  await page.locator('#showAccountKey').click();
+  await expect(page.locator('#accountKeyPreview')).toHaveText(token);
 
   const restoredContext = await browser.newContext();
   const restoredPage = await restoredContext.newPage();
   await installAccountApi(restoredPage, accounts, captured);
   await restoredPage.goto('/cuenta.html');
-  await restoredPage.locator('#accountKeyInput').fill(token);
-  await restoredPage.getByRole('button', { name: 'Importar cuenta' }).click();
-  await expect(restoredPage.locator('#accountPlayersList')).toContainText('PrimaryPlayer');
-  await expect(restoredPage.locator('#accountPlayersList')).toContainText('SecondPlayer');
+  await restoredPage.locator('#importAccountKey').fill(token);
+  await restoredPage.locator('#importAccountButton').click();
+  await expect(restoredPage.locator('#accountPlayers')).toContainText('PrimaryPlayer');
+  await expect(restoredPage.locator('#accountPlayers')).toContainText('SecondPlayer');
 
   await restoredContext.close();
   await context.close();
@@ -209,10 +204,9 @@ test('one account key protects multiple nicks and can be restored on a fresh dev
 
 test('a different account learns that a protected nick is occupied before starting', async ({ browser }) => {
   const accounts = { nickToAccount: new Map(), accountToNicks: new Map() };
-  const ownerCalls = [];
   const ownerContext = await browser.newContext();
   const ownerPage = await ownerContext.newPage();
-  await installAccountApi(ownerPage, accounts, ownerCalls);
+  await installAccountApi(ownerPage, accounts, []);
   await ownerPage.goto('/');
   await startWithNick(ownerPage, 'ProtectedPlayer');
   const ownerToken = accounts.nickToAccount.get('ProtectedPlayer');
@@ -226,28 +220,30 @@ test('a different account learns that a protected nick is occupied before starti
   await otherPage.getByRole('button', { name: 'España', exact: true }).click();
   await expect(otherPage.locator('#nickStatus')).toContainText('ocupado');
   await expect(otherPage.locator('#startButton')).toBeDisabled();
-  expect(otherCalls.some((entry) => entry.body.action === 'start')).toBe(false);
+  expect(otherCalls.some((entry) => entry.body.action === 'start' || entry.body.action === 'prepare-start')).toBe(false);
   expect(ownerToken).toMatch(/^[a-f0-9]{64}$/);
 
   await otherContext.close();
   await ownerContext.close();
 });
 
-test('the migration flow imports legacy nickname keys before removing the old local map', async ({ page }) => {
+test('legacy nickname keys are linked once and removed after a successful migration', async ({ page }) => {
   const accounts = { nickToAccount: new Map(), accountToNicks: new Map() };
   const captured = [];
   const legacyKey = 'b'.repeat(64);
-  await page.addInitScript(({ legacyKey }) => {
-    localStorage.setItem('minuto106:player-access-v1', JSON.stringify({ legacyplayer: legacyKey }));
-  }, { legacyKey });
+  const accountToken = 'a'.repeat(64);
+  await page.addInitScript(({ legacyKey: storedLegacyKey, accountToken: storedAccountToken }) => {
+    localStorage.setItem('minuto106:player-access-v1', JSON.stringify({ legacyplayer: storedLegacyKey }));
+    localStorage.setItem('minuto106:account-access-v1', storedAccountToken);
+  }, { legacyKey, accountToken });
   await installAccountApi(page, accounts, captured);
   await page.goto('/cuenta.html');
-  await expect(page.locator('#migrationCard')).toBeVisible();
-  await page.locator('#migrationAccountKey').fill('a'.repeat(64));
-  await page.getByRole('button', { name: 'Migrar nicks' }).click();
+
   await expect.poll(() => captured.some((entry) => entry.body.action === 'link-account-player')).toBe(true);
   const link = captured.find((entry) => entry.body.action === 'link-account-player');
   expect(link.body.nick).toBe('legacyplayer');
-  expect(link.token).toBe('a'.repeat(64));
-  await expect(page.locator('#migrationCard')).toBeHidden();
+  expect(link.token).toBe(accountToken);
+  expect(link.playerToken).toBe(legacyKey);
+  await expect(page.locator('#accountPlayers')).toContainText('legacyplayer');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('minuto106:player-access-v1'))).toBeNull();
 });
