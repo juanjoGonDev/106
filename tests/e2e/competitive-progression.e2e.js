@@ -77,7 +77,64 @@ function ownedProfile(nick, attemptsLeft) {
     verifiedAttempts: 5 - attemptsLeft,
     history: [],
     trophies: { total: 0, history: [] },
-    achievements: { total: 0, points: 0, items: [] },
+    achievements: { total: 0, points: 0, items: [], featured: [] },
+  };
+}
+
+function honoursProfile(featuredCodes = ['perfect_total_1'], revision = 1) {
+  const items = [
+    { code: 'perfect_total_1', kind: 'perfect_total', title: 'Primer latido perfecto', description: 'Clavaste el 10.600.', points: 15, date: '2026-07-24' },
+    { code: 'verified_total_10', kind: 'verified_total', title: 'Doble prórroga', description: 'Completaste diez intentos válidos.', points: 18, date: '2026-07-23' },
+    { code: 'referral_total_1', kind: 'referral_total', title: 'Primer fichaje', description: 'Conseguiste una invitación completada.', points: 15, date: '2026-07-22' },
+    { code: 'duel_wins_1', kind: 'duel_wins', title: 'Primer duelo ganado', description: 'Ganaste un reto directo.', points: 20, date: '2026-07-21' },
+  ];
+  return {
+    nick: 'Owner',
+    team: 'spain',
+    attemptsUsed: 5,
+    attemptsLeft: 0,
+    maxAttempts: 5,
+    verifiedAttempts: 12,
+    bestDifferenceMs: 80,
+    averageDifferenceMs: 120,
+    globalRankBest: 7,
+    profileRevision: revision,
+    completedReferrals: 1,
+    history: [{ team: 'spain', elapsedMs: 10680, differenceMs: 80, verified: true }],
+    trophies: {
+      total: 2,
+      days: 2,
+      goldenBoot: 1,
+      goldenGlove: 1,
+      goldenBall: 0,
+      leagueChampion: 0,
+      history: [],
+    },
+    achievements: {
+      total: items.length,
+      points: items.reduce((sum, item) => sum + item.points, 0),
+      items,
+      featured: featuredCodes.map((code, index) => ({ ...items.find((item) => item.code === code), position: index + 1 })),
+    },
+    honoursProgress: {
+      perfectAttempts: 1,
+      verifiedAttempts: 12,
+      completedReferrals: 1,
+      duelsCreated: 2,
+      duelsWon: 1,
+      completedLeagues: 0,
+      longestTrophyStreak: 1,
+      trophyCategoryCount: 2,
+      maxDailyTrophyCategories: 1,
+      today: {
+        attempts: 2,
+        bestDifferenceMs: 80,
+        averageDifferenceMs: 120,
+        goldenBoot: { targetDifferenceMs: 50, leading: false },
+        goldenGlove: { requiredAttempts: 3, targetAverageDifferenceMs: 90, leading: false },
+        goldenBall: { targetAttempts: 4, leading: false },
+      },
+    },
   };
 }
 
@@ -239,4 +296,44 @@ test('a clean public league route renders without a nickname or private join key
   await expect(page.locator('body')).not.toContainText(privateJoinCode);
   await expect(page.locator('#competeLeagueLink')).toBeHidden();
   await capture(page, 'public-league', isMobile, '#leagueLookupResult');
+});
+
+test('the owner sees locked progress and can save exactly three highlighted achievements', async ({ page, isMobile }) => {
+  const selectedRequests = [];
+  let currentProfile = honoursProfile();
+  await page.addInitScript(() => {
+    localStorage.setItem('minuto106:account-access-v1', 'a'.repeat(64));
+  });
+  await page.route('**/functions/v1/player-context', async (route) => {
+    const body = bodyOf(route.request());
+    expect(route.request().headers()['x-account-token']).toBe('a'.repeat(64));
+    if (body.action === 'set-featured-achievements') {
+      selectedRequests.push(body.achievementCodes);
+      currentProfile = honoursProfile(body.achievementCodes, 2);
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ availability: 'owned', profile: currentProfile, leagues: [] }),
+    });
+  });
+
+  await page.goto('/player/Owner/achievements');
+  await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
+  await expect(page.locator('#featuredAchievementsEditor')).toBeVisible();
+  await expect(page.locator('#playerAchievements .honours-card.is-locked').first()).toBeVisible();
+  await expect(page.locator('#playerAchievements')).toContainText('faltan 2');
+  await expect(page.locator('#featuredAchievementCount')).toHaveText('1 de 3');
+
+  await page.locator('[data-featured-code="verified_total_10"]').click();
+  await page.locator('[data-featured-code="referral_total_1"]').click();
+  await expect(page.locator('#featuredAchievementCount')).toHaveText('3 de 3');
+  await expect(page.locator('[data-featured-code="duel_wins_1"]')).toBeDisabled();
+  await page.locator('#saveFeaturedAchievements').click();
+
+  await expect.poll(() => selectedRequests.length).toBe(1);
+  expect(selectedRequests[0]).toEqual(['perfect_total_1', 'verified_total_10', 'referral_total_1']);
+  await expect(page.locator('#playerAchievements .honours-card.is-featured')).toHaveCount(3);
+  await expect(page.locator('#saveFeaturedAchievements')).toBeDisabled();
+  await capture(page, 'player-honours-progress', isMobile, '#achievementsSection');
 });
