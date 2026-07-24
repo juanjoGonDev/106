@@ -1,0 +1,57 @@
+name: Dependency Audit Remediation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-remediation-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  remediate:
+    name: Generate audited lockfile
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: 11.15.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install current exact dependency graph
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Generate patched manifest and lockfile
+        run: |
+          node scripts/generate-postcss-remediation.mjs
+          pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Verify remediated dependency graph
+        run: pnpm audit --audit-level=high
+
+      - name: Upload remediated dependency files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: postcss-remediation-${{ github.run_id }}
+          path: |
+            package.json
+            pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 1
