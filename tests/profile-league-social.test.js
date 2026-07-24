@@ -7,7 +7,7 @@ const readMigration = read('supabase/migrations/20260724114500_keep_league_reads
 const identityMigration = read('supabase/migrations/20260724115000_use_stable_league_device_identity.sql');
 const profileMigration = read('supabase/migrations/20260724115500_unify_player_profile_contract.sql');
 
- describe('security definer permissions', () => {
+describe('security definer permissions', () => {
   it('removes Data API execution from the referral trigger function', () => {
     const migration = read('supabase/migrations/20260724113000_secure_referral_trigger.sql');
     expect(migration).toContain('revoke execute on function public.reward_referred_player() from public;');
@@ -62,7 +62,7 @@ describe('versioned profile and league social previews', () => {
     expect(eligibilityMigration).toContain('from public.game_player_achievements achievement');
     expect(eligibilityMigration).toContain('from public.game_league_trophies trophy');
     expect(profileMigration).toContain("'profileRevision', public.get_game_profile_revision(p_nick_key)");
-    expect(profileMigration).toContain("'leagueChampion'");
+    expect(profileMigration).toContain("'{trophies,leagueChampion}'");
   });
 
   it('uses one server-rendered social endpoint for profile and league metadata', () => {
@@ -96,7 +96,7 @@ describe('versioned profile and league social previews', () => {
     const leagues = read('public/ligas.js');
     expect(leagues).toContain("url.pathname += `/league/${encodeURIComponent(league.code)}`");
     expect(leagues).toContain("url.searchParams.set('v'");
-    expect(leagues).toContain("league.waiting === true");
+    expect(leagues).toContain('league.waiting === true');
     expect(leagues).toContain("document.querySelector('#competeLeagueLink').hidden = league.active !== true");
     expect(leagues).toContain('3 cuentas y 3 dispositivos únicos');
   });
