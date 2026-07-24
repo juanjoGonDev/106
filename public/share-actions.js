@@ -34,37 +34,19 @@
     return body;
   }
 
-  function normalizedRevision(value) {
-    const revision = Number(value);
-    return Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0;
-  }
-
-  function socialShareUrl(kind, id, revision = 0, fallback = location.href) {
-    const configuredApiUrl = apiUrl();
-    if (!configuredApiUrl || configuredApiUrl.includes('YOUR_PROJECT_REF')) return fallback;
-    const url = new URL(configuredApiUrl);
-    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/social-share');
-    url.pathname += `/${kind}/${encodeURIComponent(id)}`;
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('v', String(normalizedRevision(revision)));
-    return url.toString();
-  }
-
   function profileCanonicalUrl(profile) {
     return window.Minuto106PlayerUI?.playerUrl(profile.nick)
       || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
   }
 
   function profileShareUrl(profile) {
-    return window.Minuto106PlayerUI?.shareUrl(apiUrl(), profile.nick, 'overview', profile.profileRevision)
-      || profileCanonicalUrl(profile);
+    return profileCanonicalUrl(profile);
   }
 
   function referralShareUrl(profile) {
-    const fallback = new URL('./', location.href);
-    fallback.searchParams.set('ref', profile.referralCode);
-    return socialShareUrl('referral', profile.referralCode, profile.profileRevision, fallback.toString());
+    const url = new URL('./', location.href);
+    url.searchParams.set('ref', profile.referralCode);
+    return url.toString();
   }
 
   function leagueCanonicalUrl(code) {
@@ -72,7 +54,7 @@
   }
 
   function leagueShareUrl(league) {
-    return socialShareUrl('league', league.code, league.revision, leagueCanonicalUrl(league.code));
+    return leagueCanonicalUrl(league.code);
   }
 
   function duelCanonicalUrl(code) {
@@ -82,14 +64,13 @@
   }
 
   function duelShareUrl(duel) {
-    const revision = Date.parse(String(duel.expiresAt || '')) - (3 * 24 * 60 * 60 * 1000);
-    return socialShareUrl('duel', duel.code, revision, duelCanonicalUrl(duel.code));
+    return duelCanonicalUrl(duel.code);
   }
 
   function resultShareUrl(attempt) {
-    const fallback = new URL('./', location.href);
-    fallback.searchParams.set('sharedResult', attempt.id);
-    return socialShareUrl('result', attempt.id, Date.parse(String(attempt.createdAt || '')), fallback.toString());
+    const url = new URL('./', location.href);
+    url.searchParams.set('sharedResult', attempt.id);
+    return url.toString();
   }
 
   async function shareProfile({ referral = false } = {}) {
