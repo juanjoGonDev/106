@@ -8,10 +8,11 @@ const honours = readFileSync('public/honours.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
+const socialShare = readFileSync('supabase/functions/social-share/index.ts', 'utf8');
 const rootIndex = readFileSync('index.html', 'utf8');
 const publicIndex = readFileSync('public/index.html', 'utf8');
 
-const visibleShareFlows = [layout, actions, ranking, honours, player, playerUi, edgeShare];
+const visibleShareFlows = [layout, actions, ranking, honours, player, playerUi, edgeShare, socialShare];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -45,15 +46,17 @@ describe('share-first social actions', () => {
     expect(actions).toContain("url.searchParams.set('duel', duel.code)");
   });
 
-  it('shares public profiles through clean pages and dynamic metadata endpoints', () => {
+  it('shares public profiles through clean pages and versioned metadata endpoints', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
     expect(honours).toContain('Minuto106PlayerUI?.shareUrl');
-    expect(player).toContain('ui.shareUrl(apiUrl, player.nick, route.section)');
-    expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
+    expect(player).toContain('ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision)');
+    expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
+    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
-    expect(edgeShare).toContain('property="og:image"');
-    expect(edgeShare).toContain('property="og:image:secure_url"');
-    expect(edgeShare).toContain('name="twitter:image:src"');
+    expect(socialShare).toContain('property="og:image"');
+    expect(socialShare).toContain('property="og:image:secure_url"');
+    expect(socialShare).toContain('name="twitter:image:src"');
+    expect(socialShare).toContain("url.searchParams.set('v'");
     expect(edgeShare).toContain('new ImageResponse');
   });
 
