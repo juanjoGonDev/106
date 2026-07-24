@@ -9,75 +9,79 @@
 
 ## Evidence
 
-- `player-share` renders the PNG from current profile data, but the image and share HTML use stable URLs with intermediary cache lifetimes. A social platform can therefore reuse a card created before a new attempt, achievement or daily trophy.
-- The static GitHub Pages player shell cannot server-render nickname-specific Open Graph metadata. The existing `player-share/<nick>` HTML endpoint is the crawler-facing profile surface and redirects human visitors to the clean Pages route.
-- `game_leagues` currently starts its three-day clock at creation and the owner can compete immediately.
-- League membership is keyed only by nick. One account can own multiple nicks, and multiple accounts can be used from one device, so a three-nick threshold alone would be farmable.
-- Daily trophies are persisted separately from leagues. No eligible completed-league winner is currently persisted in the public profile.
+- `player-share` renders the PNG from current profile data, but the image and share HTML used stable URLs with intermediary cache lifetimes. A social platform could therefore reuse a card created before a new attempt, achievement or daily trophy.
+- Static GitHub Pages cannot server-render nickname-specific Open Graph metadata before JavaScript executes.
+- `game_leagues` previously started its three-day clock at creation and allowed the owner to compete immediately.
+- League membership was keyed only by nick, so one account or one device could represent several apparent participants.
+- No eligible completed-league winner was persisted in the public profile.
 
 ## Decision
 
-1. Add a monotonic `profileRevision` derived from all persisted data that changes a public profile: global attempts, bonus/referral updates, daily trophies, achievements and league trophies.
-2. Append that revision to both crawler-facing share URLs and PNG URLs. Each profile update therefore produces a new cache key while retaining bounded caching for unchanged revisions.
-3. Keep the Edge `player-share` HTML endpoint as the authoritative server-rendered Open Graph/Twitter profile surface. Also mirror the current tags into the browser player document for inspection and client integrations.
-4. Add waiting league activation. New leagues keep their competition clock stopped until membership contains at least three distinct account IDs and three distinct device hashes.
-5. Capture account and device identity on league membership. The API passes the validated request device hash to joins; account identity is resolved from the already-authorized nick.
-6. Activate exactly once when both thresholds are reached, then set `starts_at = now()` and `ends_at = now() + 3 days`.
-7. Route new league starts through a guarded RPC that rejects waiting leagues before delegating to the existing pointer-only challenge RPC.
-8. Preserve already-created leagues as active during migration to avoid retroactively invalidating live competitions.
-9. Persist one `league_champion` trophy for the verified winner of each eligible completed league. Selection is deterministic: smallest difference, then earliest attempt, then nick key.
-10. Synchronize completed league trophies idempotently from public profile reads, expose their count/history, include them in the profile card, and include their timestamp in `profileRevision`.
+1. Add a monotonic `profileRevision` derived from global attempts, bonus/referral updates, daily trophies, achievements and league trophies.
+2. Append that revision to crawler-facing share URLs and PNG URLs so each profile change receives a new cache key.
+3. Use the Edge `social-share` endpoint as the server-rendered Open Graph/Twitter surface and mirror current metadata in the browser player document.
+4. Keep new leagues waiting until membership contains three pairwise-distinct account IDs and three pairwise-distinct stable device hashes.
+5. Use each player's first recorded device hash as the stable device identity.
+6. Activate a league exactly once and then set a new three-day competition window.
+7. Reject league challenge creation before activation.
+8. Preserve already-created leagues as active during migration.
+9. Persist one deterministic `league_champion` trophy per eligible completed league: smallest difference, earliest attempt, nick key, then attempt ID.
+10. Keep trophy synchronization idempotent and advisory-lock protected.
 
 ## Scope
 
-- Additive PostgreSQL migration and private RPCs.
+- Additive PostgreSQL migrations and service-role RPCs.
 - `game-api` action routing and league error messages.
-- Player-share metadata/card cache versioning.
-- Player page metadata and league-trophy rendering.
+- Versioned player, league, duel, result and referral share metadata/cards.
+- Player profile metadata and league-trophy rendering.
 - League waiting/activation UI.
-- Unit/static contracts and local Supabase integration coverage.
-- README documentation.
+- Unit, security, database integration and browser coverage.
 
 ## Risks
 
-- Social platforms retain caches outside application control. Versioned share and image URLs provide the strongest deterministic invalidation available without owning a reverse proxy for the GitHub Pages path.
-- Existing leagues are grandfathered as active; only leagues created after this migration require three eligible participants.
-- Account and device hashes are sensitive identifiers. They remain server-only, RLS-protected and are never returned by public RPCs.
-- Lazy trophy synchronization must be idempotent and advisory-lock protected to avoid duplicate winners under concurrent profile reads.
-- A league with no verified attempt produces no champion trophy.
+- Social platforms retain caches outside application control; versioned URLs provide deterministic invalidation for changed persisted data.
+- Existing leagues are grandfathered as active to avoid invalidating competitions in progress.
+- Account and device hashes remain server-only, RLS-protected and absent from public RPC responses.
+- A completed league without a verified attempt produces no champion trophy.
 
 ## Acceptance
 
-- [ ] A global attempt changes `profileRevision`.
-- [ ] A daily trophy or achievement changes `profileRevision`.
-- [ ] A league champion trophy changes `profileRevision`.
-- [ ] Player share HTML emits `og:image`, `og:image:secure_url`, `twitter:image` and `twitter:image:src` using the same revisioned PNG URL.
-- [ ] Browser player metadata mirrors the revisioned image and share URL.
-- [ ] New leagues report a waiting state and cannot create a challenge with one or two eligible participants.
-- [ ] Multiple nicks from one account do not increase the eligible-owner count.
-- [ ] Multiple accounts from one device do not increase the eligible-device count.
-- [ ] The third distinct account on the third distinct device activates the league exactly once and starts its three-day clock.
-- [ ] Existing leagues remain active after migration.
-- [ ] An eligible completed league awards exactly one deterministic `league_champion` trophy.
-- [ ] Repeated synchronization does not duplicate league trophies.
-- [ ] League trophies appear in the public profile and generated overview/trophy cards.
-- [ ] Global and league attempt isolation remains unchanged.
+- [x] A global attempt changes `profileRevision`.
+- [x] A daily trophy or achievement changes `profileRevision`.
+- [x] A league champion trophy changes `profileRevision`.
+- [x] Player share HTML emits `og:image`, `og:image:secure_url`, `twitter:image` and `twitter:image:src` using the revisioned PNG URL.
+- [x] Browser player metadata mirrors the revisioned image and share URL.
+- [x] New leagues report a waiting state and cannot create a challenge with one or two eligible participants.
+- [x] Multiple nicks from one account do not increase the eligible-owner count.
+- [x] Multiple accounts represented by the same stable device do not activate a league.
+- [x] The third distinct account on the third distinct device activates the league exactly once and starts its three-day clock.
+- [x] Existing leagues remain active after migration.
+- [x] An eligible completed league awards exactly one deterministic `league_champion` trophy.
+- [x] Repeated synchronization does not duplicate league trophies.
+- [x] League trophies appear in the public profile and generated overview/trophy cards.
+- [x] Global and league attempt isolation remains unchanged.
 
 ## Validation
 
-- Pending implementation.
+- Pull Request Quality Pipeline #479: build, syntax, package policy, Vitest, ESLint, Knip, dependency/security checks, empty rebuild and full local Supabase/API journey passed.
+- Player Pages and Social Cards #211: focused 100% coverage gates plus desktop/mobile Playwright journeys passed.
+- Public Asset Audit #152 passed.
+- Pull Request Visual Evidence #176 passed.
+- Local integration generated and validated 1200×630 profile, league, duel, result and referral PNGs and their Open Graph/X metadata.
+- PostgreSQL integration asserted trigger-function privileges, league identity rules, waiting-state rejection, activation and global/league isolation.
 
 ## Rollback
 
 - Revert application and Edge changes normally.
-- Database changes are forward-only. If already deployed, leave additive columns/table/functions in place and supersede behavior with a corrective migration.
+- Database changes are forward-only. If already deployed, retain additive structures and supersede behavior with a corrective migration.
 
 ## Delivery
 
 - Branch: `agent/feat-profile-cards-league-trophies`
 - Base: `main`
-- Normal pull request; no merge, production migration or deployment without explicit authorization.
+- Pull request: #26
+- No merge, production migration or deployment performed.
 
 ## Status
 
-In progress.
+Completed in pull request #26. Implementation and CI validation are complete; merge and deployment remain explicit owner actions.
