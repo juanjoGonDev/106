@@ -57,7 +57,7 @@ Investigate why the main page performs multiple Supabase statistics requests and
 
 ## Risks
 
-- Removing the compatibility paths exposes any undocumented consumer that still depended on legacy DOM shapes; contract tests must reject such consumers rather than preserving them.
+- Removing the compatibility paths exposes any undocumented consumer that still depended on legacy DOM shapes; contract tests reject such consumers rather than preserving them.
 - Award entries without a valid `team` now surface as unavailable instead of causing hidden profile requests.
 - The explicit miniliga boundary requires `Minuto106Competition` to be loaded before the user can start an attempt; scripts are loaded before interaction is possible.
 
@@ -65,7 +65,7 @@ Investigate why the main page performs multiple Supabase statistics requests and
 
 - Vitest verifies single ownership, absence of fetch interception, absence of duplicated statistics actions, direct snapshot rendering, explicit attempt/competition integration and compact/full score semantics.
 - Playwright reloads the same page sequentially with artificial delays of 0 ms, 35 ms, 140 ms and 420 ms on desktop and mobile, counts network calls and validates the stable final DOM after an additional wait.
-- Browser coverage verifies completed-attempt updates without fallback ranking repair or auxiliary award requests.
+- Browser coverage verifies snapshot publication, completed-attempt updates and authoritative DOM reconstruction without fallback ranking repair or auxiliary award requests.
 - Existing gameplay, account, security and Supabase integration tests remain applicable.
 
 ## Rollback
@@ -74,15 +74,19 @@ Revert the branch commits. No database, migration, API contract or production da
 
 ## Validation
 
-Pending GitHub Actions execution on the compatibility-free branch head.
+- Pull Request Quality Pipeline #506: passed, including syntax, ESLint, Knip, Vitest, security policy and local Supabase integration.
+- Player Pages and Social Cards #238: passed on desktop and mobile, including the sequential delayed statistics journeys.
+- Pull Request Visual Evidence #208: passed.
+- Public Asset Audit #179: passed.
+- Validated head before this documentation-only closure: `0e0e7698e464c7b544c16cfd3b4f304032c3e55e`.
 
 ## Delivery
 
 - Branch: `agent/fix-home-stats-synchronization`
 - Base: `main`
-- Pull request: #28, normal and ready for review after validation.
+- Pull request: #28, normal and ready for review.
 - No merge or deployment without explicit authorization.
 
 ## Status
 
-Compatibility-free refactor implemented; validation pending.
+Implemented and validated without backward-compatibility adapters.
