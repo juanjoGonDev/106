@@ -1,0 +1,37 @@
+name: Dependency Audit Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-audit-diagnostics-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Dependency audit details
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Print exact audit result
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          case "$HEAD_SHA" in
+            (*[!0-9a-f]*|'') echo "Invalid pull request head SHA" >&2; exit 1 ;;
+          esac
+          base_url="https://raw.githubusercontent.com/${REPOSITORY}/${HEAD_SHA}"
+          curl --fail --silent --show-error --location "$base_url/package.json" --output package.json
+          curl --fail --silent --show-error --location "$base_url/pnpm-lock.yaml" --output pnpm-lock.yaml
+          curl --fail --silent --show-error --location "$base_url/pnpm-workspace.yaml" --output pnpm-workspace.yaml
+          corepack enable
+          corepack prepare pnpm@11.15.1 --activate
+          pnpm audit --json
