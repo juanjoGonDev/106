@@ -41,6 +41,20 @@ function stats(nick = 'RaceWinner', team = 'spain') {
   };
 }
 
+function profile(nick = 'E2EPlayer', attemptsLeft = 5) {
+  return {
+    nick,
+    team: 'spain',
+    history: [],
+    attemptsUsed: 5 - attemptsLeft,
+    verifiedAttempts: 5 - attemptsLeft,
+    maxAttempts: 5,
+    attemptsLeft,
+    trophies: { total: 0, history: [] },
+    achievements: { total: 0, points: 0, items: [] },
+  };
+}
+
 function bodyOf(request) {
   try {
     return request.postDataJSON() || {};
@@ -49,7 +63,25 @@ function bodyOf(request) {
   }
 }
 
+async function installPlayerContextMock(page, response = {}) {
+  await page.route('**/functions/v1/player-context', async (route) => {
+    const body = bodyOf(route.request());
+    const nick = body.nick || 'E2EPlayer';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        availability: 'owned',
+        profile: profile(nick),
+        leagues: [],
+        ...response,
+      }),
+    });
+  });
+}
+
 async function installGameMocks(page, finishBodies) {
+  await installPlayerContextMock(page);
   await page.route('**/functions/v1/game-ready-api', async (route) => {
     const body = bodyOf(route.request());
     if (body.action === 'human-check') {
@@ -78,7 +110,7 @@ async function installGameMocks(page, finishBodies) {
       return;
     }
     if (body.action === 'profile' || body.action === 'public-profile' || body.action === 'nick-status') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ nick: body.nick || 'E2EPlayer', team: 'spain', history: [], attemptsUsed: 0, maxAttempts: 5, attemptsLeft: 5 }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile(body.nick || 'E2EPlayer')) });
       return;
     }
     if (body.action === 'access-status') {
@@ -95,7 +127,7 @@ async function installGameMocks(page, finishBodies) {
           attemptsLeft: 4,
           maxAttempts: 5,
           stats: stats('E2EPlayer', 'spain'),
-          profile: { nick: 'E2EPlayer', attemptsUsed: 1, maxAttempts: 5, attemptsLeft: 4, history: [] },
+          profile: profile('E2EPlayer', 4),
         }),
       });
       return;
@@ -194,6 +226,7 @@ test('the 30-second deadline submits one exact automatic result', async ({ page 
 test('the authoritative snapshot updates ranking and awards without fallback requests', async ({ page }) => {
   let statsRequests = 0;
   let publicProfileRequests = 0;
+  await installPlayerContextMock(page);
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = bodyOf(route.request());
     if (body.action === 'stats') {
