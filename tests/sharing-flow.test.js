@@ -10,12 +10,13 @@ const leagues = readFileSync('public/ligas.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
 const playerHtml = readFileSync('public/player.html', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
+const profileShare = readFileSync('public/profile-share.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
 const socialShare = readFileSync('supabase/functions/social-share/index.ts', 'utf8');
 const rootIndex = readFileSync('index.html', 'utf8');
 const publicIndex = readFileSync('public/index.html', 'utf8');
 
-const visibleShareFlows = [layout, actions, duelContext, ranking, honours, leagues, player, playerUi, edgeShare, socialShare];
+const visibleShareFlows = [layout, actions, duelContext, ranking, honours, leagues, player, playerUi, profileShare, edgeShare, socialShare];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -55,17 +56,23 @@ describe('share-first social actions', () => {
     expect(duelContext).toContain('formatElapsed(duel.targetElapsedMs)');
   });
 
-  it('shares profiles through a previewable website document and keeps other public routes canonical', () => {
+  it('shares profiles with the generated PNG while keeping the original public profile URL', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
-    expect(honours).toContain('url: profileShareUrl(profile)');
-    expect(honours).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
+    expect(honours).toContain('url: profileUrl(profile)');
+    expect(honours).toContain("button.textContent = 'Preparando...'");
+    expect(honours).toContain('Minuto106ProfileShare?.share(payload)');
     expect(actions).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
-    expect(player).toContain("const share = ui.shareUrl('', player.nick, route.section)");
+    expect(player).toContain("const shareUrl = ui.shareUrl('', player.nick, route.section)");
+    expect(player).toContain("button.textContent = 'Preparando...'");
+    expect(player).toContain('file: getShareFile()');
     expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
     expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
-    expect(playerUi).toContain('return playerShellUrl(nick, section, publicBaseUrl)');
-    expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
-    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
+    expect(playerUi).toContain('return playerUrl(nick, section, publicBaseUrl)');
+    expect(profileShare).toContain('navigatorLike.canShare({ files: [file] })');
+    expect(profileShare).toContain('files: [file]');
+    expect(profileShare).toContain('`${payload.text}\\n${payload.url}`');
+    expect(playerHtml).toContain('./profile-share.js');
+    expect(playerHtml).not.toContain('/assets/minuto-106-social-preview.jpg');
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
     expect(actions).toContain("url.searchParams.set('ref', profile.referralCode)");
     expect(actions).toContain('return leagueCanonicalUrl(league.code)');
@@ -73,18 +80,6 @@ describe('share-first social actions', () => {
     expect(actions).not.toContain("'/social-share'");
     expect(leagues).not.toContain('/social-share');
     expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
-  });
-
-  it('publishes complete static image metadata in the initial player document', () => {
-    const siteCard = 'https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3';
-    expect(playerHtml).toContain('<link rel="canonical" href="https://juanjogondev.github.io/106/player.html">');
-    expect(playerHtml).toContain('property="og:image"');
-    expect(playerHtml).toContain('property="og:image:secure_url"');
-    expect(playerHtml).toContain('property="og:image:type" content="image/jpeg"');
-    expect(playerHtml).toContain('name="twitter:card" content="summary_large_image"');
-    expect(playerHtml).toContain('name="twitter:image"');
-    expect(playerHtml).toContain('name="twitter:image:src"');
-    expect(playerHtml).toContain(siteCard);
   });
 
   it('keeps dynamic metadata and PNG renderers as internal infrastructure', () => {
