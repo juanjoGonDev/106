@@ -10,11 +10,15 @@
     return String(document.querySelector(selector)?.value || localStorage.getItem('minuto106:nick') || '').trim();
   }
 
-  async function request(action, payload = {}) {
+  function apiUrl() {
     const config = window.__MINUTO106_CONFIG__ ?? {};
-    const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
-    if (!apiUrl || apiUrl.includes('YOUR_PROJECT_REF')) throw new Error('Supabase aún no está configurado.');
-    const response = await fetch(apiUrl, {
+    return String(config.apiBaseUrl ?? '').replace(/\/$/, '');
+  }
+
+  async function request(action, payload = {}) {
+    const url = apiUrl();
+    if (!url || url.includes('YOUR_PROJECT_REF')) throw new Error('Supabase aún no está configurado.');
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify({ action, ...payload }),
@@ -31,8 +35,21 @@
     return url.toString();
   }
 
-  function leagueUrl(code) {
+  function leagueCanonicalUrl(code) {
     return new URL(`./ligas.html?league=${encodeURIComponent(code)}`, location.href).toString();
+  }
+
+  function leagueShareUrl(league) {
+    const configuredApiUrl = apiUrl();
+    if (!configuredApiUrl || configuredApiUrl.includes('YOUR_PROJECT_REF')) return leagueCanonicalUrl(league.code);
+    const url = new URL(configuredApiUrl);
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/social-share');
+    url.pathname += `/league/${encodeURIComponent(league.code)}`;
+    url.search = '';
+    url.hash = '';
+    const revision = Number(league.revision);
+    url.searchParams.set('v', String(Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0));
+    return url.toString();
   }
 
   async function shareProfile({ referral = false } = {}) {
@@ -77,12 +94,18 @@
     return { code, name };
   }
 
-  async function shareLeague(league = selectedLeague()) {
-    if (!/^[A-Z0-9]{6}$/.test(league.code)) throw new Error('Selecciona primero una miniliga válida.');
+  async function shareLeague(leagueReference = selectedLeague()) {
+    if (!/^[A-Z0-9]{6}$/.test(leagueReference.code)) throw new Error('Selecciona primero una miniliga válida.');
+    const league = await request('league', { code: leagueReference.code });
+    const name = String(league.name || leagueReference.name || 'Miniliga');
+    const waiting = league.waiting === true;
+    const text = waiting
+      ? `⚽ Únete a mi miniliga “${name}” de Minuto 106. Empezará cuando haya 3 cuentas y 3 dispositivos únicos. Código ${league.code}.`
+      : `⚽ Únete a mi miniliga “${name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}.`;
     await window.Minuto106UI.share({
-      title: `Miniliga ${league.name}`,
-      text: `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}.`,
-      url: leagueUrl(league.code),
+      title: `Miniliga ${name}`,
+      text,
+      url: leagueShareUrl(league),
     });
   }
 
