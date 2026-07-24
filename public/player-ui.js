@@ -91,14 +91,10 @@
     return url;
   }
 
-  function shareUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
-    const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'social-share');
-    if (!edgeUrl) return playerUrl(nick, section);
-    const normalizedSection = normalizeSection(section);
-    edgeUrl.pathname += `/player/${encodeURIComponent(normalizeNick(nick))}`;
-    if (normalizedSection !== 'overview') edgeUrl.pathname += `/${normalizedSection}`;
-    edgeUrl.searchParams.set('v', String(normalizeRevision(revision)));
-    return edgeUrl.toString();
+  function shareUrl(baseUrl, nick, section = 'overview') {
+    const raw = String(baseUrl ?? '').trim();
+    const publicBaseUrl = raw && !raw.includes('/functions/') ? raw : undefined;
+    return playerUrl(nick, section, publicBaseUrl);
   }
 
   function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
