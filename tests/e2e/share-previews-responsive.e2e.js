@@ -161,7 +161,7 @@ test('duel recipients see the exact verified time to beat', async ({ page }, tes
   await capture(page, testInfo, 'duel-target');
 });
 
-test('shared attempts use a result-specific social preview URL', async ({ page }, testInfo) => {
+test('shared attempts use the public result URL without exposing Supabase', async ({ page }, testInfo) => {
   await installCommonMocks(page);
   await page.goto('/');
   await page.evaluate((attempt) => {
@@ -182,9 +182,13 @@ test('shared attempts use a result-specific social preview URL', async ({ page }
   await page.locator('#shareButton').click();
   await expect.poll(() => page.evaluate(() => globalThis.__sharePayload ?? null)).not.toBeNull();
   const payload = await page.evaluate(() => globalThis.__sharePayload);
+  const sharedUrl = new URL(payload.url);
   expect(payload.title).toContain('10.604 s');
   expect(payload.text).toContain('4 ms del 10.600');
-  expect(payload.url).toMatch(new RegExp(`/functions/v1/social-share/result/${resultId}\\?v=`));
+  expect(sharedUrl.hostname).toBe('127.0.0.1');
+  expect(sharedUrl.pathname).toBe('/');
+  expect(sharedUrl.searchParams.get('sharedResult')).toBe(resultId);
+  expect(payload.url).not.toContain('supabase.co');
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'shared-result');
 });

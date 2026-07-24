@@ -75,6 +75,7 @@ async function socialHtml(path) {
   });
   const html = await response.text();
   assert.equal(response.status, 200, html);
+  assert.match(response.headers.get('content-type') || '', /^text\/html(?:;|$)/i);
   return html;
 }
 

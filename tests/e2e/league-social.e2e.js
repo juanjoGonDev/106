@@ -93,7 +93,7 @@ async function capture(page, testInfo) {
   });
 }
 
-test('waiting league blocks competition and shares a versioned social preview', async ({ page }, testInfo) => {
+test('waiting league blocks competition and shares the public website URL', async ({ page }, testInfo) => {
   await installMocks(page);
   await page.goto('/ligas.html?league=ABC123');
 
@@ -107,8 +107,12 @@ test('waiting league blocks competition and shares a versioned social preview', 
   await page.locator('#shareLeagueButton').click();
   await expect.poll(() => page.evaluate(() => globalThis.__leagueSharePayload ?? null)).not.toBeNull();
   const payload = await page.evaluate(() => globalThis.__leagueSharePayload);
+  const sharedUrl = new URL(payload.url);
   expect(payload.title).toBe('Miniliga Final del barrio');
-  expect(payload.url).toMatch(/\/functions\/v1\/social-share\/league\/ABC123\?v=456$/);
+  expect(sharedUrl.hostname).toBe('127.0.0.1');
+  expect(sharedUrl.pathname).toBe('/ligas.html');
+  expect(sharedUrl.searchParams.get('league')).toBe('ABC123');
+  expect(payload.url).not.toContain('supabase.co');
   expect(payload.text).toContain('3 cuentas y 3 dispositivos únicos');
 
   const overflow = await page.evaluate(() => ({
