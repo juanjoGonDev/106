@@ -26,4 +26,12 @@ describe('compact number formatting', () => {
     expect(formatter.compactNumber(1_000_000)).toBe('1M');
     expect(formatter.compactNumber(1_200_000)).toBe('1.2M');
   });
+
+  it('groups full values consistently across JavaScript engines', () => {
+    expect(formatter.fullNumber(999)).toBe('999');
+    expect(formatter.fullNumber(1_404)).toBe('1.404');
+    expect(formatter.fullNumber(1_987_654)).toBe('1.987.654');
+    expect(formatter.fullNumber(-1_404)).toBe('-1.404');
+    expect(formatter.fullNumber('invalid')).toBe('0');
+  });
 });
