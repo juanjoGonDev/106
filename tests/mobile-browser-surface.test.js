@@ -13,7 +13,7 @@ const bootstrappedPages = [
   'public/legal.html',
   'public/player.html',
 ];
-const staticViewportPages = ['index.html', 'public/index.html', 'public/404.html'];
+const staticViewportPages = ['index.html', 'public/404.html'];
 
 function read(path) {
   return readFileSync(path, 'utf8');
