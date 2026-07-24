@@ -99,16 +99,21 @@ describe('versioned profile and league social previews', () => {
     expect(edge).toContain("searchParams.get('format') === 'json'");
   });
 
-  it('uses the public player URL while retaining the versioned PNG renderer', () => {
+  it('uses a previewable public shell while retaining canonical routes and the versioned PNG renderer', () => {
+    const playerHtml = read('public/player.html');
     const playerUi = read('public/player-ui.js');
     const player = read('public/player.js');
+    expect(playerUi).toContain('return playerShellUrl(nick, section, publicBaseUrl)');
     expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
-    expect(player).toContain("upsertMeta('property', 'og:url', canonicalUrl)");
+    expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
     expect(player).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
+    expect(player).toContain("history.replaceState(null, '', shareUrl)");
     expect(player).toContain('player.profileRevision');
     expect(player).toContain('Campeón de liga');
+    expect(playerHtml).toContain('property="og:image"');
+    expect(playerHtml).toContain('name="twitter:card" content="summary_large_image"');
   });
 
   it('shares league website URLs and hides competition while waiting', () => {
