@@ -109,7 +109,7 @@ describe('versioned profile and league social previews', () => {
     expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
     expect(player).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
-    expect(player).toContain("history.replaceState(null, '', shareUrl)");
+    expect(player).toContain("history.replaceState(null, '', canonicalUrl)");
     expect(player).toContain('player.profileRevision');
     expect(player).toContain('Campeón de liga');
     expect(playerHtml).toContain('property="og:image"');
