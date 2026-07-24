@@ -56,10 +56,10 @@ async function installMocks(page) {
 }
 
 test('profile sharing uses a 200 document with crawler-visible image metadata', async ({ page, request }) => {
-  const cleanRoute = await request.get('/player/Yisucrist');
+  const cleanRoute = await request.get('http://127.0.0.1:3000/player/Yisucrist');
   expect(cleanRoute.status()).toBe(404);
 
-  const shareDocument = await request.get('/player.html?nick=Yisucrist');
+  const shareDocument = await request.get('http://127.0.0.1:3000/player.html?nick=Yisucrist');
   expect(shareDocument.status()).toBe(200);
   const html = await shareDocument.text();
   expect(html).toContain('property="og:image"');
@@ -72,7 +72,7 @@ test('profile sharing uses a 200 document with crawler-visible image metadata', 
   await installMocks(page);
   await page.goto('/player.html?nick=Yisucrist');
   await expect(page.getByRole('heading', { level: 1, name: 'Yisucrist' })).toBeVisible();
-  await expect(page).toHaveURL(/\/player\.html\?nick=Yisucrist$/);
+  await expect(page).toHaveURL(/\/player\/Yisucrist$/);
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Yisucrist\/card\.png\?v=321$/);
 
   await page.getByRole('button', { name: 'Compartir perfil' }).click();
