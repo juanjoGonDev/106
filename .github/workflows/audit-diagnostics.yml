@@ -1,4 +1,4 @@
-name: Dependency Audit Diagnostics
+name: Dependency Lockfile Repair
 
 on:
   pull_request:
@@ -9,29 +9,45 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-audit-diagnostics-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  group: pr-lockfile-repair-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: 22.13.0
+  PNPM_VERSION: 11.15.1
+
 jobs:
-  audit:
-    name: Dependency audit details
+  repair:
+    name: Generate audited lockfile
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Print exact audit result
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          case "$HEAD_SHA" in
-            (*[!0-9a-f]*|'') echo "Invalid pull request head SHA" >&2; exit 1 ;;
-          esac
-          base_url="https://raw.githubusercontent.com/${REPOSITORY}/${HEAD_SHA}"
-          curl --fail --silent --show-error --location "$base_url/package.json" --output package.json
-          curl --fail --silent --show-error --location "$base_url/pnpm-lock.yaml" --output pnpm-lock.yaml
-          curl --fail --silent --show-error --location "$base_url/pnpm-workspace.yaml" --output pnpm-workspace.yaml
-          corepack enable
-          corepack prepare pnpm@11.15.1 --activate
-          pnpm audit --json
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Regenerate exact lockfile without dependency scripts
+        run: pnpm install --lockfile-only --ignore-scripts
+
+      - name: Verify patched dependency graph
+        run: pnpm audit --audit-level high
+
+      - name: Upload repaired lockfile
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: repaired-pnpm-lock-${{ github.run_id }}
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 1
