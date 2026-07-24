@@ -35,8 +35,9 @@ createServer(async (request, response) => {
     await sendFile(response, file);
   } catch {
     try {
-      const fallback = /^\/player\/[^/]+(?:\/(?:achievements|trophies))?\/?$/i.test(pathname) ? '404.html' : 'index.html';
-      await sendFile(response, join(root, fallback));
+      const isPlayerFallback = /^\/player\/[^/]+(?:\/(?:achievements|trophies))?\/?$/i.test(pathname);
+      const fallback = isPlayerFallback ? '404.html' : 'index.html';
+      await sendFile(response, join(root, fallback), isPlayerFallback ? 404 : 200);
     } catch {
       response.writeHead(404).end('Not found');
     }
