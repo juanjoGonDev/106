@@ -15,6 +15,7 @@
     "public/home-ranking-density.js",
     "public/home-stats.js",
     "public/honours.js",
+    "public/honours-catalog.js",
     "public/share-actions.js",
     "public/layout.js",
     "public/player-stats.js",
