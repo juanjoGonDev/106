@@ -2,33 +2,40 @@
 
 ## Request
 
-Investigate why the main page performs multiple Supabase statistics requests and why network delay can randomly leave the ranking visually empty or show the full score `1404` instead of the compact `1.4K` representation. Make the home deterministic, efficient and covered by sequential delayed browser tests.
+Investigate why the main page performs multiple Supabase statistics requests and why network delay can randomly leave the ranking visually empty or show the full score `1404` instead of the compact `1.4K` representation. Make the home deterministic, efficient and covered by sequential delayed browser tests. The final architecture must not retain backward-compatibility adapters for the duplicated statistics consumers.
 
 ## Evidence
 
-- `app.js` requests `stats` during initialisation and renders the score and ranking.
-- `v3.js` independently requests `stats` for daily awards.
-- `v4.js` independently requests `stats` for a fallback ranking renderer.
-- `ranking-enhancements.js` independently requests `stats` for enriched awards.
-- `competition.js` independently requests `stats` for compact score formatting.
-- These calls can resolve in any order and use incompatible DOM structures.
-- `home-ranking-density.js` hides incomplete non-empty rows while it waits for every field. A final partial renderer can therefore leave an apparently tall but blank ranking.
-- `app.js` writes locale-formatted full scores after `competition.js` has compacted them, so the last response determines whether the user sees `1.4K` or `1404`/`1.404`.
+- `app.js` requested `stats` during initialisation and rendered the score and ranking.
+- `v3.js` independently requested `stats` for daily awards.
+- `v4.js` independently requested `stats` for a fallback ranking renderer.
+- `ranking-enhancements.js` independently requested `stats` for enriched awards and could perform extra public-profile lookups.
+- `competition.js` independently requested `stats` for compact score formatting and intercepted `fetch` to modify game requests and results.
+- These calls could resolve in any order and used incompatible DOM structures.
+- `home-ranking-density.js` hid incomplete non-empty rows while waiting for legacy fields. A final partial renderer could therefore leave an apparently tall but blank ranking.
+- `app.js` wrote locale-formatted full scores after `competition.js` compacted them, so the last response determined whether the user saw `1.4K` or `1404`/`1.404`.
 
 ## Decision
 
-1. Add a home statistics coordinator before every module that consumes `stats`.
-2. Deduplicate concurrent startup `stats` calls at the fetch boundary and return independent response clones to legacy consumers.
-3. Keep the shared response briefly so module and `DOMContentLoaded` consumers reuse the same network result; expire it to allow later genuine refreshes.
-4. Store the latest valid snapshot and perform one authoritative atomic presentation after legacy renderers and mutation observers have settled.
-5. Rebuild every ranking row from validated data with accessible flags, explicit nick and time nodes, and a final `ready` render state.
-6. Compact scores in the authoritative renderer while preserving the deterministic full value in `title`.
-7. Use uppercase `K` consistently for thousands.
-8. Recommit statistics delivered by a completed attempt without a new network request.
+1. Make `home-stats.js` the only owner of the initial `stats` request, the snapshot and the home statistics render.
+2. Remove the `window.fetch` interception, response cloning, temporary response cache and delayed compatibility commit.
+3. Remove every other initial `stats` request and all fallback or legacy ranking renderers.
+4. Render complete ranking rows directly from the validated snapshot with accessible flags, explicit nick and time nodes, and a terminal `ready`, `empty` or `error` state.
+5. Render daily awards by subscribing to the shared snapshot; never resolve missing award teams through extra profile requests.
+6. Pass miniliga context explicitly when starting a game and pass completed results explicitly back to the competition module.
+7. Commit statistics returned by a completed attempt directly to the store without another Supabase read.
+8. Keep `home-ranking-density.js` limited to responsive placement; remove MutationObserver-based legacy row repair.
+9. Compact scores in the authoritative renderer while preserving the deterministic full value in `title` and use uppercase `K` consistently.
 
 ## Scope
 
 - `public/home-stats.js`
+- `public/app.js`
+- `public/v3.js`
+- `public/v4.js`
+- `public/competition.js`
+- `public/ranking-enhancements.js`
+- `public/home-ranking-density.js`
 - `public/index.html`
 - `public/format.js`
 - package and Knip entrypoint checks
@@ -37,25 +44,29 @@ Investigate why the main page performs multiple Supabase statistics requests and
 
 ## Acceptance
 
-- One actual Supabase `stats` request occurs per initial page load despite all current consumers.
+- Exactly one source file contains the home `stats` request.
+- One actual Supabase `stats` request occurs per initial page load.
+- No home module intercepts `window.fetch` for statistics or competition integration.
+- No fallback ranking renderer, legacy row normalizer or auxiliary award profile lookup remains.
 - Delays of 0 ms, 35 ms, 140 ms and 420 ms produce the same complete ranking.
 - The ranking has no lingering `aria-busy` state and contains all expected names, times and accessible flags.
 - Waiting after the delayed response cannot replace the committed ranking with stale or partial content.
 - A Spain score of 1404 always renders as `1.4K` and exposes `1.404` as the full value.
-- Attempt completion can commit returned statistics without another Supabase read.
+- Attempt completion commits returned statistics and competition results explicitly without another Supabase read.
 - Syntax, lint, dead-code, unit, security, browser, Supabase and repository checks pass.
 
 ## Risks
 
-- The coordinator currently protects legacy consumers at the fetch boundary rather than deleting all historical renderers in one breaking refactor.
-- Response caching must be short-lived so later explicit refreshes can reach Supabase.
-- The authoritative render must execute after legacy microtasks and zero-delay timers without adding visible latency.
+- Removing the compatibility paths exposes any undocumented consumer that still depended on legacy DOM shapes; contract tests must reject such consumers rather than preserving them.
+- Award entries without a valid `team` now surface as unavailable instead of causing hidden profile requests.
+- The explicit miniliga boundary requires `Minuto106Competition` to be loaded before the user can start an attempt; scripts are loaded before interaction is possible.
 
 ## Tests
 
-- Vitest verifies script ordering, request deduplication, cache expiry, atomic row construction and compact/full score semantics.
+- Vitest verifies single ownership, absence of fetch interception, absence of duplicated statistics actions, direct snapshot rendering, explicit attempt/competition integration and compact/full score semantics.
 - Playwright reloads the same page sequentially with artificial delays of 0 ms, 35 ms, 140 ms and 420 ms on desktop and mobile, counts network calls and validates the stable final DOM after an additional wait.
-- Existing ranking race, daily award, gameplay, account, security and Supabase integration tests remain applicable.
+- Browser coverage verifies completed-attempt updates without fallback ranking repair or auxiliary award requests.
+- Existing gameplay, account, security and Supabase integration tests remain applicable.
 
 ## Rollback
 
@@ -63,23 +74,15 @@ Revert the branch commits. No database, migration, API contract or production da
 
 ## Validation
 
-Implementation head `4b570cb949e26812310ce320b336be4ddb1b30f6` passed:
-
-- Pull Request Quality Pipeline #490, including syntax, ESLint, Knip, Vitest, security policy, dependency audit, local Supabase API integration and the final quality gate.
-- Player Pages and Social Cards #222, including module coverage and the complete desktop/mobile Playwright matrix.
-- Pull Request Visual Evidence #190.
-- Public Asset Audit #163.
-- Generated desktop and mobile evidence confirms a complete three-row ranking, deterministic `1.4K` score and responsive layout.
-
-The final branch head only removes temporary evidence files after their commit-pinned URLs are recorded; the same CI suite is required on that final head.
+Pending GitHub Actions execution on the compatibility-free branch head.
 
 ## Delivery
 
 - Branch: `agent/fix-home-stats-synchronization`
 - Base: `main`
-- Pull request: #28, normal and ready for review.
+- Pull request: #28, normal and ready for review after validation.
 - No merge or deployment without explicit authorization.
 
 ## Status
 
-Implemented, validated and delivered in PR #28.
+Compatibility-free refactor implemented; validation pending.
