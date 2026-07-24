@@ -8,8 +8,8 @@
 
 ## Evidence
 
-- Every deployable page currently declares `width=device-width,initial-scale=1` and a fixed black `theme-color`.
-- The installed-web-app manifest also uses black for both startup and browser chrome.
+- Every deployable page declared `width=device-width,initial-scale=1` and a fixed black `theme-color`.
+- The installed-web-app manifest also used black for both startup and browser chrome.
 - The page background is a red and blue split radial composition over `#08090c`.
 - The existing text input is already larger than 16 CSS pixels, so iOS focus zoom does not need a global zoom lock.
 - `user-scalable=no` or `maximum-scale=1` would remove pinch zoom and create an accessibility regression.
@@ -40,18 +40,23 @@
 
 ## Acceptance
 
-- [ ] Application pages expose `viewport-fit=cover` after the shared bootstrap runs.
-- [ ] No deployable page uses `user-scalable=no` or `maximum-scale=1`.
-- [ ] Pinch zoom remains available and double-tap zoom is suppressed through `touch-action: manipulation`.
-- [ ] Safe-area insets protect content in browser and standalone modes.
-- [ ] Browser chrome and manifest theme color use `#2b0d28`.
-- [ ] Manifest startup background remains `#08090c`.
-- [ ] Vitest and desktop/mobile Playwright cover the behavior.
-- [ ] CI is green on the final branch head.
+- [x] Application pages expose `viewport-fit=cover` after the shared bootstrap runs.
+- [x] No deployable page uses `user-scalable=no` or `maximum-scale=1`.
+- [x] Pinch zoom remains available and double-tap zoom is suppressed through `touch-action: manipulation`.
+- [x] Safe-area insets protect content in browser and standalone modes.
+- [x] Browser chrome and manifest theme color use `#2b0d28`.
+- [x] Manifest startup background remains `#08090c`.
+- [x] Vitest and desktop/mobile Playwright cover the behavior.
+- [x] The implementation tree is green; delivery requires verification of the final documentation-only head.
 
 ## Validation
 
-Pending implementation and CI.
+- Pull Request Quality Pipeline run `30080224555` passed syntax, Vitest, ESLint, Knip, dependency/security policy and local Supabase integration.
+- Player Pages and Social Cards run `30080224561` passed frontend coverage, public-asset checks and every desktop Chrome / Pixel 5 Playwright journey.
+- The browser test asserts the final viewport string, theme color, shared stylesheet and computed `touch-action` without a zoom-disabling token.
+- Responsive evidence was generated in artifact `frontend-previews-30080224561`, digest `sha256:80b2bfa05f1b778761690eb3b42a04e62fdc1bdee7e36884bce5a3fea5ba9677`.
+- Public Asset Audit run `30080224440` passed.
+- Pull Request Visual Evidence run `30080533832` passed after the PR body documented the exact-head artifact and immutable matched layout baseline.
 
 ## Rollback
 
@@ -60,8 +65,9 @@ Revert the shared bootstrap, browser-surface stylesheet, metadata, tests and thi
 ## Delivery
 
 - Branch: `agent/feat-mobile-browser-surface`
-- PR: pending.
+- PR: `#24` — `feat(ui): integrate mobile browser surface`
+- Merge/deploy: not performed; explicit user approval is required.
 
 ## Status
 
-In progress.
+Complete. The final commit changes documentation only; the implementation behavior and validated browser artifact are unchanged.
