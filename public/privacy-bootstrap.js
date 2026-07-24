@@ -1,6 +1,6 @@
 (() => {
   const APP_THEME_COLOR = '#2b0d28';
-  const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,viewport-fit=cover';
+  const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
   const TAG_MANAGER_ID = 'GTM-NKZK4DC5';
   const CONSENT_KEY = 'minuto106:consent-v1';
   const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
@@ -30,9 +30,25 @@
     if (themeColor) themeColor.content = APP_THEME_COLOR;
   }
 
+  function preventGestureZoom(event) {
+    event.preventDefault();
+  }
+
+  function preventMultiTouchZoom(event) {
+    if (event.touches.length > 1) event.preventDefault();
+  }
+
+  function installZoomLock() {
+    document.addEventListener('touchmove', preventMultiTouchZoom, { passive: false });
+    for (const eventName of ['gesturestart', 'gesturechange', 'gestureend']) {
+      document.addEventListener(eventName, preventGestureZoom, { passive: false });
+    }
+  }
+
   function configureBrowserSurface() {
     ensureBrowserSurfaceStylesheet();
     applyBrowserMetadata();
+    installZoomLock();
     const observer = new MutationObserver(() => applyBrowserMetadata());
     observer.observe(document.head, { childList: true, subtree: true });
     document.addEventListener('DOMContentLoaded', () => {
