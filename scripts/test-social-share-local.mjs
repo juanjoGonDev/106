@@ -29,6 +29,19 @@ function assertPng(response, png, label) {
   assert.match(response.headers.get('cache-control') || '', /max-age=300/);
 }
 
+function assertSocialHtml(html, { canonicalPattern, imagePattern, titlePattern }) {
+  assert.match(html, /property="og:image"/);
+  assert.match(html, /property="og:image:secure_url"/);
+  assert.match(html, /property="og:image:width" content="1200"/);
+  assert.match(html, /property="og:image:height" content="630"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /name="twitter:image"/);
+  assert.match(html, /name="twitter:image:src"/);
+  assert.match(html, canonicalPattern);
+  assert.match(html, imagePattern);
+  assert.match(html, titlePattern);
+}
+
 function persistPreview(name, png) {
   const path = resolve('.tmp/pr-previews/social', name);
   mkdirSync(dirname(path), { recursive: true });
@@ -53,6 +66,27 @@ async function json(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+async function socialHtml(path) {
+  const response = await fetch(`${apiUrl}${path}`, {
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(30_000),
+  });
+  const html = await response.text();
+  assert.equal(response.status, 200, html);
+  return html;
+}
+
+async function socialPng(path, filename, label) {
+  const response = await fetch(`${apiUrl}${path}`, {
+    headers,
+    signal: AbortSignal.timeout(60_000),
+  });
+  const png = new Uint8Array(await response.arrayBuffer());
+  assertPng(response, png, label);
+  persistPreview(filename, png);
+}
+
 const stats = await json('/functions/v1/game-api', {
   method: 'POST',
   body: { action: 'stats' },
@@ -65,51 +99,97 @@ const profile = await json('/rest/v1/rpc/get_game_player_profile', {
   body: { p_nick_key: String(player.nick).toLocaleLowerCase('es') },
 });
 assert.ok(Number(profile.profileRevision) > 0);
+assert.match(String(profile.referralCode), /^[0-9a-f-]{36}$/i);
 const nick = encodeURIComponent(player.nick);
-const revision = String(profile.profileRevision);
+const profileRevision = String(profile.profileRevision);
 
-const profileHtmlResponse = await fetch(`${apiUrl}/functions/v1/social-share/player/${nick}/achievements?v=${revision}`, {
-  headers,
-  redirect: 'manual',
-  signal: AbortSignal.timeout(30_000),
+const profileHtml = await socialHtml(`/functions/v1/social-share/player/${nick}/achievements?v=${profileRevision}`);
+assertSocialHtml(profileHtml, {
+  canonicalPattern: new RegExp(`/player/${nick}/achievements`),
+  imagePattern: new RegExp(`/functions/v1/player-share/${nick}/achievements\\.png\\?v=${profileRevision}`),
+  titlePattern: new RegExp(player.nick, 'i'),
 });
-const profileHtml = await profileHtmlResponse.text();
-assert.equal(profileHtmlResponse.status, 200, profileHtml);
-assert.match(profileHtml, /property="og:image"/);
-assert.match(profileHtml, /property="og:image:secure_url"/);
-assert.match(profileHtml, /name="twitter:image"/);
-assert.match(profileHtml, /name="twitter:image:src"/);
-assert.match(profileHtml, new RegExp(`/functions/v1/player-share/${nick}/achievements\\.png\\?v=${revision}`));
-assert.match(profileHtml, new RegExp(`/functions/v1/social-share/player/${nick}/achievements\\?v=${revision}`));
+assert.match(profileHtml, new RegExp(`/functions/v1/social-share/player/${nick}/achievements\\?v=${profileRevision}`));
 
 const leagues = await json('/rest/v1/game_leagues?select=code&order=created_at.desc&limit=1');
-const code = leagues?.[0]?.code;
-assert.match(String(code), /^[A-Z0-9]{6}$/);
+const leagueCode = leagues?.[0]?.code;
+assert.match(String(leagueCode), /^[A-Z0-9]{6}$/);
 const league = await json('/rest/v1/rpc/get_game_league', {
   method: 'POST',
-  body: { p_code: code },
+  body: { p_code: leagueCode },
 });
 assert.ok(Number(league.revision) > 0);
 const leagueRevision = String(league.revision);
-
-const leagueHtmlResponse = await fetch(`${apiUrl}/functions/v1/social-share/league/${code}?v=${leagueRevision}`, {
-  headers,
-  redirect: 'manual',
-  signal: AbortSignal.timeout(30_000),
+const leagueHtml = await socialHtml(`/functions/v1/social-share/league/${leagueCode}?v=${leagueRevision}`);
+assertSocialHtml(leagueHtml, {
+  canonicalPattern: new RegExp(`ligas\\.html\\?league=${leagueCode}`),
+  imagePattern: new RegExp(`/functions/v1/social-share/league/${leagueCode}/card\\.png\\?v=${leagueRevision}`),
+  titlePattern: new RegExp(String(league.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
 });
-const leagueHtml = await leagueHtmlResponse.text();
-assert.equal(leagueHtmlResponse.status, 200, leagueHtml);
-assert.match(leagueHtml, /property="og:image"/);
-assert.match(leagueHtml, /name="twitter:image:src"/);
-assert.match(leagueHtml, new RegExp(`/functions/v1/social-share/league/${code}/card\\.png\\?v=${leagueRevision}`));
-assert.match(leagueHtml, new RegExp(`ligas\\.html\\?league=${code}`));
+await socialPng(
+  `/functions/v1/social-share/league/${leagueCode}/card.png?v=${leagueRevision}`,
+  'league-card.png',
+  'League social card',
+);
 
-const leagueImageResponse = await fetch(`${apiUrl}/functions/v1/social-share/league/${code}/card.png?v=${leagueRevision}`, {
-  headers,
-  signal: AbortSignal.timeout(60_000),
+const duels = await json('/rest/v1/game_duels?select=code,challenger_elapsed_ms,challenger_best_difference_ms,created_at&order=created_at.desc&limit=1');
+const duel = duels?.[0];
+assert.match(String(duel?.code), /^[0-9a-f-]{36}$/i);
+assert.ok(Number(duel?.challenger_elapsed_ms) >= 500);
+const publicDuel = await json('/rest/v1/rpc/get_game_public_duel', {
+  method: 'POST',
+  body: { p_code: duel.code },
 });
-const leaguePng = new Uint8Array(await leagueImageResponse.arrayBuffer());
-assertPng(leagueImageResponse, leaguePng, 'League social card');
-persistPreview('league-card.png', leaguePng);
+assert.equal(Number(publicDuel.targetElapsedMs), Number(duel.challenger_elapsed_ms));
+assert.equal(Number(publicDuel.targetDifferenceMs), Number(duel.challenger_best_difference_ms));
+const duelRevision = String(publicDuel.revision);
+const duelHtml = await socialHtml(`/functions/v1/social-share/duel/${duel.code}?v=${duelRevision}`);
+assertSocialHtml(duelHtml, {
+  canonicalPattern: new RegExp(`\\?duel=${duel.code}`),
+  imagePattern: new RegExp(`/functions/v1/social-share/duel/${duel.code}/card\\.png\\?v=${duelRevision}`),
+  titlePattern: /te reta/i,
+});
+assert.match(duelHtml, new RegExp(`${(Number(publicDuel.targetElapsedMs) / 1000).toFixed(3)} s`));
+await socialPng(
+  `/functions/v1/social-share/duel/${duel.code}/card.png?v=${duelRevision}`,
+  'duel-card.png',
+  'Duel social card',
+);
 
-console.log('Versioned profile metadata and league Open Graph/Twitter PNG generation passed.');
+const attempts = await json('/rest/v1/game_attempts?select=id,nick,client_elapsed_ms,difference_ms,created_at&league_id=is.null&verified=eq.true&order=created_at.desc&limit=1');
+const attempt = attempts?.[0];
+assert.match(String(attempt?.id), /^[0-9a-f-]{36}$/i);
+const publicAttempt = await json('/rest/v1/rpc/get_game_public_attempt', {
+  method: 'POST',
+  body: { p_attempt_id: attempt.id },
+});
+assert.equal(Number(publicAttempt.elapsedMs), Number(attempt.client_elapsed_ms));
+assert.equal(Number(publicAttempt.differenceMs), Number(attempt.difference_ms));
+const resultRevision = String(publicAttempt.revision);
+const resultHtml = await socialHtml(`/functions/v1/social-share/result/${attempt.id}?v=${resultRevision}`);
+assertSocialHtml(resultHtml, {
+  canonicalPattern: new RegExp(`\\?sharedResult=${attempt.id}`),
+  imagePattern: new RegExp(`/functions/v1/social-share/result/${attempt.id}/card\\.png\\?v=${resultRevision}`),
+  titlePattern: new RegExp(String(attempt.nick).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+});
+assert.match(resultHtml, new RegExp(`${(Number(attempt.client_elapsed_ms) / 1000).toFixed(3)} s`));
+await socialPng(
+  `/functions/v1/social-share/result/${attempt.id}/card.png?v=${resultRevision}`,
+  'result-card.png',
+  'Result social card',
+);
+
+const referralCode = String(profile.referralCode);
+const referralHtml = await socialHtml(`/functions/v1/social-share/referral/${referralCode}?v=${profileRevision}`);
+assertSocialHtml(referralHtml, {
+  canonicalPattern: new RegExp(`\\?ref=${referralCode}`),
+  imagePattern: new RegExp(`/functions/v1/social-share/referral/${referralCode}/card\\.png\\?v=${profileRevision}`),
+  titlePattern: /te invita/i,
+});
+await socialPng(
+  `/functions/v1/social-share/referral/${referralCode}/card.png?v=${profileRevision}`,
+  'referral-card.png',
+  'Referral social card',
+);
+
+console.log('Profile, league, duel, result and referral Open Graph/Twitter previews passed.');
