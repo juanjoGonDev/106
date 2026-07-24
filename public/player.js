@@ -148,24 +148,60 @@
       : '<li class="player-empty">Todavía no tiene trofeos.</li>';
   }
 
-  function renderShareActions(player) {
-    const share = ui.shareUrl('', player.nick, route.section);
-    const card = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
-    $('#playerCardPreview').src = card;
-    $('#downloadPlayerCard').href = card;
-    $('#sharePlayer').addEventListener('click', () => {
-      const trophies = Number(player.trophies?.total || 0);
-      const achievements = Number(player.achievements?.total || 0);
-      window.Minuto106UI?.share({
-        title: `${player.nick} · Minuto 106`,
-        text: `${player.nick} suma ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${Number(player.achievements?.points || 0)} puntos.`,
-        url: share,
+  function shareText(player) {
+    const trophies = Number(player.trophies?.total || 0);
+    const achievements = Number(player.achievements?.total || 0);
+    return `${player.nick} suma ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${Number(player.achievements?.points || 0)} puntos.`;
+  }
+
+  function prepareShareButton(button, player, cardUrl) {
+    let shareFile = null;
+    button.disabled = true;
+    button.textContent = 'Preparando...';
+
+    const preparation = window.Minuto106ProfileShare?.prepareFile({
+      url: cardUrl,
+      nick: player.nick,
+      section: route.section,
+    });
+
+    Promise.resolve(preparation)
+      .then((file) => { shareFile = file || null; })
+      .catch(() => { shareFile = null; })
+      .finally(() => {
+        button.disabled = false;
+        button.textContent = 'Compartir perfil';
       });
+
+    return () => shareFile;
+  }
+
+  function renderShareActions(player) {
+    const shareUrl = ui.shareUrl('', player.nick, route.section);
+    const cardUrl = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
+    const shareButton = $('#sharePlayer');
+    const getShareFile = prepareShareButton(shareButton, player, cardUrl);
+
+    $('#playerCardPreview').src = cardUrl;
+    $('#downloadPlayerCard').href = cardUrl;
+    shareButton.addEventListener('click', () => {
+      const payload = {
+        title: `${player.nick} · Minuto 106`,
+        text: shareText(player),
+        url: shareUrl,
+        file: getShareFile(),
+      };
+      const sharing = window.Minuto106ProfileShare?.share(payload)
+        ?? window.Minuto106UI?.share(payload);
+      Promise.resolve(sharing).catch((error) => window.Minuto106UI?.error({
+        title: 'No se pudo compartir',
+        message: error instanceof Error ? error.message : 'No se pudo abrir el menú para compartir.',
+      }));
     });
     $('#downloadPlayerCard').addEventListener('click', async (event) => {
       event.preventDefault();
       try {
-        const response = await fetch(card);
+        const response = await fetch(cardUrl);
         if (!response.ok || !String(response.headers.get('content-type')).startsWith('image/png')) throw new Error('No se pudo generar la tarjeta PNG.');
         const objectUrl = URL.createObjectURL(await response.blob());
         const anchor = document.createElement('a');
