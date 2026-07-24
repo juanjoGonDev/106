@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path) => readFileSync(path, 'utf8');
 const migration = read('supabase/migrations/20260724213000_competitive_progression_public_leagues.sql');
 const compatibility = read('supabase/migrations/20260724213100_public_league_compatibility.sql');
+const privateLeagueMigration = read('supabase/migrations/20260724213200_hide_league_competition_credentials.sql');
 const playerContext = read('supabase/functions/player-context/index.ts');
 const config = read('supabase/config.toml');
 const app = read('public/app.js');
@@ -135,10 +136,19 @@ describe('single player context and attempt gating', () => {
 });
 
 describe('public league identity and routes', () => {
-  it('rotates exposed join credentials and keeps the public projection secret-free', () => {
+  it('rotates previously exposed credentials into a private join column', () => {
     expect(migration).toContain('set public_id = code');
     expect(migration).toContain('set code = public.generate_game_league_token()');
-    expect(migration).toContain('check (code <> public_id)');
+    expect(privateLeagueMigration).toContain('add column if not exists join_code text');
+    expect(privateLeagueMigration).toContain('set join_code = code');
+    expect(privateLeagueMigration).toContain('set code = public_id');
+    expect(privateLeagueMigration).toContain('check (join_code <> public_id)');
+    expect(privateLeagueMigration).toContain('where join_code = upper(trim(p_code))');
+    expect(privateLeagueMigration).toContain("'competitionCode', league.public_id");
+    expect(privateLeagueMigration).toContain("'joinCode', case when league.owner_nick_key = p_nick_key then league.join_code else null end");
+  });
+
+  it('keeps the anonymous public projection secret-free', () => {
     expect(migration).toContain('create or replace function public.get_game_public_league(p_public_id text)');
     const publicLeague = migration.slice(
       migration.indexOf('create or replace function public.get_game_public_league(p_public_id text)'),
