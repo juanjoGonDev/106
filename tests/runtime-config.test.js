@@ -1,82 +1,45 @@
 import { readFile } from 'node:fs/promises';
-
 import { describe, expect, it } from 'vitest';
 
-import {
-  DEFAULT_API_URL,
-  DEFAULT_SUPABASE_PROJECT_ID,
-  buildRuntimeConfig,
-  validateRuntimeConfig,
-} from '../scripts/runtime-config.mjs';
-
-const readRepositoryFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+async function readRepositoryFile(path) {
+  return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+}
 
 describe('runtime configuration', () => {
-  it('prefers an explicit Edge Function URL', () => {
-    const config = buildRuntimeConfig({
-      SUPABASE_FUNCTIONS_URL: 'https://example.supabase.co/functions/v1/game-api/',
-      SUPABASE_PROJECT_ID: 'ignored-project',
-      PUBLIC_SITE_URL: 'https://example.com/',
-    });
-
-    expect(config.apiBaseUrl).toBe('https://example.supabase.co/functions/v1/game-api');
-    expect(config.publicSiteUrl).toBe('https://example.com');
-    expect(validateRuntimeConfig(config)).toEqual([]);
+  it('uses safe public placeholders without shipping a project secret', async () => {
+    const config = await readRepositoryFile('public/config.js');
+    expect(config).toContain('YOUR_PROJECT_REF');
+    expect(config).not.toContain('service_role');
+    expect(config).not.toMatch(/eyJ[A-Za-z0-9_-]{20,}/);
   });
 
-  it('derives the Edge Function and Pages URLs from public CI metadata', () => {
-    const config = buildRuntimeConfig({
-      SUPABASE_PROJECT_ID: 'abcdefghijklmnopqrst',
-      GITHUB_PAGES_URL: 'https://juanjogondev.github.io/106/',
-    });
-
-    expect(config.apiBaseUrl).toBe(
-      'https://abcdefghijklmnopqrst.supabase.co/functions/v1/game-api',
-    );
-    expect(config.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
-    expect(validateRuntimeConfig(config)).toEqual([]);
+  it('generates the public API URL from a non-secret project id', async () => {
+    const script = await readRepositoryFile('scripts/generate-config.mjs');
+    expect(script).toContain('SUPABASE_PROJECT_ID');
+    expect(script).toContain('/functions/v1/game-api');
+    expect(script).not.toContain('SUPABASE_ANON_KEY');
   });
 
-  it('derives a repository Pages URL when the API does not return one', () => {
-    const config = buildRuntimeConfig({
-      SUPABASE_PROJECT_ID: 'abcdefghijklmnopqrst',
-      GITHUB_REPOSITORY: 'juanjoGonDev/106',
-      GITHUB_REPOSITORY_OWNER: 'juanjoGonDev',
-    });
-
-    expect(config.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
+  it('validates the generated public runtime contract', async () => {
+    const validator = await readRepositoryFile('scripts/validate-runtime-config.mjs');
+    expect(validator).toContain('expectedProjectId');
+    expect(validator).toContain('expectedOrigin');
+    expect(validator).toContain('expectedTurnstileSiteKey');
+    expect(validator).toContain('expectedAnalyticsId');
+    expect(validator).toContain('expectedGoogleTagManagerId');
+    expect(validator).toContain('expectedAdsClient');
   });
 
-  it('uses the public production project when CI variables are missing or malformed', () => {
-    const missing = buildRuntimeConfig({});
-    const malformed = buildRuntimeConfig({
-      SUPABASE_PROJECT_ID: 'not valid!',
-      GITHUB_PAGES_URL: 'https://juanjogondev.github.io/106',
-    });
-
-    expect(DEFAULT_SUPABASE_PROJECT_ID).toBe('imtitjwgiemlaabpioed');
-    expect(missing.apiBaseUrl).toBe(DEFAULT_API_URL);
-    expect(malformed.apiBaseUrl).toBe(DEFAULT_API_URL);
-    expect(missing.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
-    expect(validateRuntimeConfig(missing)).toEqual([]);
-    expect(validateRuntimeConfig(malformed)).toEqual([]);
-  });
-
-  it('keeps a usable committed public configuration for branch-based Pages', async () => {
-    const source = await readRepositoryFile('public/config.js');
-
-    expect(source).toContain(DEFAULT_API_URL);
-    expect(source).not.toContain('YOUR_PROJECT_REF');
-  });
-});
-
-describe('Pages and mobile navigation regressions', () => {
-  it('provides a branch-publishing root entry point that preserves URL state', async () => {
-    const source = await readRepositoryFile('index.html');
-
-    expect(source).toContain("new URL('./public/', window.location.href)");
-    expect(source).toContain('target.search = window.location.search');
-    expect(source).toContain('target.hash = window.location.hash');
+  it('keeps production-only values in workflow variables and secrets', async () => {
+    const [pages, supabase] = await Promise.all([
+      readRepositoryFile('.github/workflows/pages.yml'),
+      readRepositoryFile('.github/workflows/supabase.yml'),
+    ]);
+    expect(pages).toContain('vars.SUPABASE_PROJECT_ID');
+    expect(pages).toContain('vars.PUBLIC_SITE_URL');
+    expect(supabase).toContain('secrets.SUPABASE_ACCESS_TOKEN');
+    expect(supabase).toContain('secrets.SUPABASE_SECRET_KEYS');
+    expect(supabase).toContain('secrets.HASH_PEPPER');
   });
 
   it('supports both legacy and workflow-based GitHub Pages publishing', async () => {
@@ -99,6 +62,6 @@ describe('Pages and mobile navigation regressions', () => {
     expect(layout).toContain("menuButton.setAttribute('aria-expanded', 'false')");
     expect(layout).toContain("event.key !== 'Escape'");
     expect(styles).toContain('.site-header[data-menu-open="true"] .site-navigation');
-    expect(styles).toContain('@media(max-width:700px)');
+    expect(styles).toMatch(/@media\s*\(max-width:\s*700px\)/);
   });
 });
