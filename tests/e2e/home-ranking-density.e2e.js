@@ -193,44 +193,21 @@ test('home places mobile awards below the score and keeps ranking rows on two st
   await capture(page, testInfo);
 });
 
-test('home hides partial fields and repairs a missing ranking flag', async ({ page, isMobile }) => {
+test('authoritative commits rebuild complete rows after external DOM corruption', async ({ page, isMobile }) => {
   test.skip(isMobile, 'The home leaderboard is intentionally hidden on mobile.');
   await installMocks(page);
   await page.goto('/');
-  await expect(page.locator('#leaderboard .leaderboard-row-link')).toHaveCount(3);
-
-  await page.evaluate(() => {
-    globalThis.document.querySelector('#leaderboard').innerHTML = `
-      <li class="leaderboard-row leader" data-team="spain">
-        <a class="leaderboard-row-link" href="./player/Vieucirst" data-player-nick="Vieucirst" aria-label="Ver perfil de Vieucirst">
-          <span class="rank">#1</span>
-          <span class="ranking-player"><span class="player-link__nick">Vieucirst</span><small>s</small></span>
-          <span class="difference">±4 ms</span>
-        </a>
-      </li>`;
-  });
-
   const list = page.locator('#leaderboard');
-  const partialRow = list.locator(':scope > li');
-  await expect(list).toHaveAttribute('aria-busy', 'true');
-  await expect(partialRow).toBeHidden();
-  await expect(list.locator('.ranking-time')).toHaveCount(0);
-  await expect(list.locator('.ranking-flag')).toHaveCount(0);
+  await expect(list.locator('.leaderboard-row-link')).toHaveCount(3);
 
   await page.evaluate(() => {
-    globalThis.document.querySelector('#leaderboard .ranking-player small').textContent = '10.604 s';
+    globalThis.document.querySelector('#leaderboard').replaceChildren(globalThis.document.createElement('li'));
+    globalThis.Minuto106HomeStats.commit(globalThis.Minuto106HomeStats.snapshot, 'repair-test');
   });
 
+  await expect(list).toHaveAttribute('data-render-state', 'ready');
   await expect(list).not.toHaveAttribute('aria-busy', 'true');
-  await expect(partialRow).toBeVisible();
-  await expect(list.locator('.ranking-time')).toHaveText('10.604s');
-  await expect(list.locator('.ranking-time')).not.toHaveText('s');
-  await expectCssFlag(list.locator('.ranking-flag'), 'España');
-
-  await page.evaluate(() => {
-    globalThis.document.querySelector('#leaderboard .ranking-flag').remove();
-  });
-
-  await expectCssFlag(list.locator('.ranking-flag'), 'España');
-  await expect(list).not.toHaveAttribute('aria-busy', 'true');
+  await expect(list.locator('.leaderboard-row-link')).toHaveCount(3);
+  await expect(list.locator('.ranking-time')).toHaveText(['10.604s', '10.614s', '10.789s']);
+  await expectCssFlag(list.locator('.ranking-flag').first(), 'España');
 });
