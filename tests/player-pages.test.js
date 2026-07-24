@@ -51,7 +51,7 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('name="twitter:image:src"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
     expect(script).toContain("ui.shareUrl('', player.nick, route.section)");
-    expect(script).toContain("history.replaceState(null, '', shareUrl)");
+    expect(script).toContain("history.replaceState(null, '', canonicalUrl)");
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
     expect(script).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(script).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
