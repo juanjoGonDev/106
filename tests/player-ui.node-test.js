@@ -70,14 +70,14 @@ test('parses query, clean, malformed and unrelated locations', () => {
   assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/ranking.html') }, { nick: '', section: 'overview' });
 });
 
-test('builds public share routes and versioned png endpoints without leaking API paths', () => {
+test('builds previewable public share documents and versioned png endpoints without leaking API paths', () => {
   const { api } = loadPlayerUi();
   assert.equal(api.edgeFunctionBaseUrl('', 'player-share'), null);
   assert.equal(api.edgeFunctionBaseUrl('https://project.supabase.co/functions/v1/game-api?x=1#hash', 'player-share').toString(), 'https://project.supabase.co/functions/v1/player-share');
-  assert.equal(api.shareUrl('', 'Juan', 'trophies'), 'https://example.test/106/player/Juan/trophies');
-  assert.equal(api.shareUrl('https://project.supabase.co/functions/v1/game-api', 'Juan Pérez'), 'https://example.test/106/player/Juan%20P%C3%A9rez');
-  assert.equal(api.shareUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'achievements', 123.8), 'https://example.test/106/player/Juan/achievements');
-  assert.equal(api.shareUrl('https://public.example/106/', 'Juan', 'trophies'), 'https://public.example/106/player/Juan/trophies');
+  assert.equal(api.shareUrl('', 'Juan', 'trophies'), 'https://example.test/106/player.html?nick=Juan&section=trophies');
+  assert.equal(api.shareUrl('https://project.supabase.co/functions/v1/game-api', 'Juan Pérez'), 'https://example.test/106/player.html?nick=Juan+P%C3%A9rez');
+  assert.equal(api.shareUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'achievements', 123.8), 'https://example.test/106/player.html?nick=Juan&section=achievements');
+  assert.equal(api.shareUrl('https://public.example/106/', 'Juan', 'trophies'), 'https://public.example/106/player.html?nick=Juan&section=trophies');
   assert.equal(api.cardUrl('', 'Juan'), '');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456');
