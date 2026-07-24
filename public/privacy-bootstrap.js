@@ -1,7 +1,45 @@
 (() => {
+  const APP_THEME_COLOR = '#2b0d28';
+  const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,viewport-fit=cover';
   const TAG_MANAGER_ID = 'GTM-NKZK4DC5';
   const CONSENT_KEY = 'minuto106:consent-v1';
   const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
+
+  function ensureBrowserSurfaceStylesheet() {
+    if (document.querySelector('link[data-minuto106-browser-surface]')) return;
+    const stylesheet = document.createElement('link');
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = './browser-surface.css';
+    stylesheet.dataset.minuto106BrowserSurface = 'true';
+    document.head.append(stylesheet);
+  }
+
+  function ensureMeta(name, createMissing) {
+    const existing = document.head.querySelector(`meta[name="${name}"]`);
+    if (existing || !createMissing) return existing;
+    const meta = document.createElement('meta');
+    meta.name = name;
+    document.head.append(meta);
+    return meta;
+  }
+
+  function applyBrowserMetadata(createMissing = false) {
+    const viewport = ensureMeta('viewport', createMissing);
+    if (viewport) viewport.content = APP_VIEWPORT_CONTENT;
+    const themeColor = ensureMeta('theme-color', createMissing);
+    if (themeColor) themeColor.content = APP_THEME_COLOR;
+  }
+
+  function configureBrowserSurface() {
+    ensureBrowserSurfaceStylesheet();
+    applyBrowserMetadata();
+    const observer = new MutationObserver(() => applyBrowserMetadata());
+    observer.observe(document.head, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', () => {
+      observer.disconnect();
+      applyBrowserMetadata(true);
+    }, { once: true });
+  }
 
   function readStoredConsent(storage = window.localStorage, now = Date.now()) {
     try {
@@ -58,6 +96,7 @@
   });
   window.Minuto106Privacy = privacyApi;
 
+  configureBrowserSurface();
   setDefaultConsent(readStoredConsent());
   loadTagManager();
 })();
