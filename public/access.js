@@ -116,15 +116,17 @@ window.fetch = async (input, init = {}) => {
     const headers = new Headers(init.headers || {});
     if (accountToken) headers.set('x-account-token', accountToken);
 
-    const nick = String(
-      body.nick
-      || document.querySelector('#nick')?.value
-      || document.querySelector('#leagueNick')?.value
-      || localStorage.getItem('minuto106:nick')
-      || '',
-    ).trim();
-    const legacyToken = getLegacyPlayerKey(nick);
-    if (legacyToken) headers.set('x-player-token', legacyToken);
+    if (protectedActions.has(action)) {
+      const nick = String(
+        body.nick
+        || document.querySelector('#nick')?.value
+        || document.querySelector('#leagueNick')?.value
+        || localStorage.getItem('minuto106:nick')
+        || '',
+      ).trim();
+      const legacyToken = getLegacyPlayerKey(nick);
+      if (legacyToken) headers.set('x-player-token', legacyToken);
+    }
     init = { ...init, headers };
   }
 
