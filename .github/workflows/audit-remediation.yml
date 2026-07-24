@@ -38,7 +38,7 @@ jobs:
       - name: Install current exact dependency graph
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Generate patched manifest and lockfile
+      - name: Generate patched workspace and lockfile
         run: |
           node scripts/generate-postcss-remediation.mjs
           pnpm install --lockfile-only --no-frozen-lockfile
@@ -53,7 +53,7 @@ jobs:
         with:
           name: postcss-remediation-${{ github.run_id }}
           path: |
-            package.json
+            pnpm-workspace.yaml
             pnpm-lock.yaml
             remediated-audit.json
           if-no-files-found: error
