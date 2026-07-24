@@ -94,7 +94,7 @@
   function shareUrl(baseUrl, nick, section = 'overview') {
     const raw = String(baseUrl ?? '').trim();
     const publicBaseUrl = raw && !raw.includes('/functions/') ? raw : undefined;
-    return playerShellUrl(nick, section, publicBaseUrl);
+    return playerUrl(nick, section, publicBaseUrl);
   }
 
   function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
