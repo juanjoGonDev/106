@@ -6,6 +6,7 @@ const actions = readFileSync('public/share-actions.js', 'utf8');
 const duelContext = readFileSync('public/duel-context.js', 'utf8');
 const ranking = readFileSync('public/ranking.js', 'utf8');
 const honours = readFileSync('public/honours.js', 'utf8');
+const leagues = readFileSync('public/ligas.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
@@ -13,7 +14,7 @@ const socialShare = readFileSync('supabase/functions/social-share/index.ts', 'ut
 const rootIndex = readFileSync('index.html', 'utf8');
 const publicIndex = readFileSync('public/index.html', 'utf8');
 
-const visibleShareFlows = [layout, actions, duelContext, ranking, honours, player, playerUi, edgeShare, socialShare];
+const visibleShareFlows = [layout, actions, duelContext, ranking, honours, leagues, player, playerUi, edgeShare, socialShare];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -41,27 +42,36 @@ describe('share-first social actions', () => {
     expect(actions).toContain('event.stopImmediatePropagation()');
   });
 
-  it('creates direct challenges and shares the exact persisted target', () => {
+  it('creates direct challenges and shares the exact persisted target through the public game URL', () => {
     expect(actions.indexOf("request('create-duel'"))
       .toBeLessThan(actions.indexOf("title: `${nick} te reta · Minuto 106`"));
-    expect(actions).toContain("socialShareUrl('duel', duel.code");
+    expect(actions).toContain('url: duelShareUrl(duel)');
+    expect(actions).toContain('return duelCanonicalUrl(duel.code)');
+    expect(actions).toContain("url.searchParams.set('duel', code)");
     expect(actions).toContain('duel.targetElapsedMs');
     expect(actions).toContain('duel.targetDifferenceMs');
     expect(duelContext).toContain("requestShareData('duel', duelCode)");
     expect(duelContext).toContain('formatElapsed(duel.targetElapsedMs)');
   });
 
-  it('shares persisted attempts, referrals, profiles and leagues through versioned metadata routes', () => {
+  it('shares persisted attempts, referrals, profiles and leagues through canonical website routes', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
-    expect(honours).toContain('Minuto106PlayerUI?.shareUrl');
-    expect(player).toContain('ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision)');
+    expect(honours).toContain('url: profileUrl(profile)');
+    expect(player).toContain('const share = ui.playerUrl(player.nick, route.section)');
+    expect(player).toContain("upsertMeta('property', 'og:url', canonicalUrl)");
     expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
-    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
+    expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
-    expect(actions).toContain("socialShareUrl('result', attempt.id");
-    expect(actions).toContain("socialShareUrl('referral', profile.referralCode");
-    expect(actions).toContain("socialShareUrl('league', league.code");
+    expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
+    expect(actions).toContain("url.searchParams.set('ref', profile.referralCode)");
+    expect(actions).toContain('return leagueCanonicalUrl(league.code)');
+    expect(leagues).toContain('return new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`');
+    expect(actions).not.toContain("'/social-share'");
+    expect(leagues).not.toContain('/social-share');
     expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
+  });
+
+  it('keeps dynamic metadata and PNG renderers as internal infrastructure', () => {
     expect(socialShare).toContain('property="og:image"');
     expect(socialShare).toContain('property="og:image:secure_url"');
     expect(socialShare).toContain('name="twitter:image:src"');
