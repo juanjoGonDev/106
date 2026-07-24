@@ -43,8 +43,10 @@ jobs:
           node scripts/generate-postcss-remediation.mjs
           pnpm install --lockfile-only --no-frozen-lockfile
 
-      - name: Verify remediated dependency graph
-        run: pnpm audit --audit-level=high
+      - name: Audit remediated dependency graph
+        id: remediated-audit
+        continue-on-error: true
+        run: pnpm audit --audit-level=high --json > remediated-audit.json
 
       - name: Upload remediated dependency files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -53,5 +55,10 @@ jobs:
           path: |
             package.json
             pnpm-lock.yaml
+            remediated-audit.json
           if-no-files-found: error
           retention-days: 1
+
+      - name: Enforce remediated dependency audit
+        if: steps.remediated-audit.outcome == 'failure'
+        run: exit 1
