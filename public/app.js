@@ -211,6 +211,7 @@ async function startGame(event) {
       team: state.team,
       referralCode: state.referralCode || undefined,
       turnstileToken: state.turnstileToken || undefined,
+      leagueCode: window.Minuto106Competition?.activeLeagueCode || undefined,
     });
     state.challengeId = challenge.challengeId;
     state.integrity = createIntegrityState(event);
@@ -320,7 +321,8 @@ async function stopGame(signal) {
     renderAchievement(data.achievement, data.profile);
     renderProfile(data.profile);
     showPanel('result');
-    renderStats(data.stats);
+    window.Minuto106HomeStats?.commit(data.stats, 'finish');
+    window.Minuto106Competition?.handleResult(data);
   } catch (error) {
     await uiError(error, 'No se pudo validar la parada');
     showPanel('setup');
@@ -332,38 +334,6 @@ async function stopGame(signal) {
     destroyStopControl();
     clearTimerFrame();
   }
-}
-
-function renderStats(stats) {
-  const spain = stats.teams.find((team) => team.team === 'spain') ?? { score: 0 };
-  const argentina = stats.teams.find((team) => team.team === 'argentina') ?? { score: 0 };
-  const spainScore = Number(spain.score ?? 0);
-  const argentinaScore = Number(argentina.score ?? 0);
-  const totalScore = spainScore + argentinaScore;
-  const spainPercent = totalScore ? Math.round((spainScore / totalScore) * 100) : 50;
-
-  $('#spainScore').textContent = spainScore.toLocaleString('es-ES');
-  $('#argentinaScore').textContent = argentinaScore.toLocaleString('es-ES');
-  $('#battleFill').style.width = `${spainPercent}%`;
-  $('#battlePercent').textContent = `${spainPercent}% · ${100 - spainPercent}%`;
-  $('#battleTrack').setAttribute('aria-valuenow', String(spainPercent));
-  $('#totalAttempts').textContent = `${Number(stats.totalAttempts ?? 0).toLocaleString('es-ES')} intentos`;
-  $('#globalPlayers').textContent = Number(stats.totalPlayers ?? 0).toLocaleString('es-ES');
-  $('#verifiedAttempts').textContent = Number(stats.verifiedAttempts ?? 0).toLocaleString('es-ES');
-  $('#perfectAttempts').textContent = Number(stats.perfectAttempts ?? 0).toLocaleString('es-ES');
-
-  const leaderboard = $('#leaderboard');
-  if (!stats.leaderboard?.length) {
-    leaderboard.innerHTML = '<li class="empty">Aún no hay marcas verificadas. Sé el primero.</li>';
-    return;
-  }
-  leaderboard.innerHTML = stats.leaderboard.slice(0, 10).map((entry, index) => `
-    <li class="${index === 0 ? 'leader' : ''}">
-      <span class="rank">#${index + 1}</span>
-      <span class="player">${escapeHtml(entry.nick)}<small><span class="flag ${teamFlagClass(entry.team)}" aria-hidden="true"></span>${teamName(entry.team)} · ${formatMs(entry.elapsedMs)}</small></span>
-      <span class="difference">${formatDifference(entry.differenceMs)}</span>
-    </li>
-  `).join('');
 }
 
 function renderProfile(profile) {
@@ -438,10 +408,6 @@ async function copyReferral() {
   window.setTimeout(() => { $('#copyReferralButton').textContent = 'Copiar invitación'; }, 1800);
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-}
-
 function resetTurnstile() {
   state.turnstileToken = '';
   if (state.turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(state.turnstileWidgetId);
@@ -509,6 +475,5 @@ $('#copyReferralButton').addEventListener('click', (event) => {
 });
 
 initializeTurnstile();
-if (configured) request('stats').then(renderStats).catch(() => {});
 validateSetup();
 refreshNickStatus();
