@@ -1,14 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const manifestPath = new URL('../package.json', import.meta.url);
-const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const workspacePath = new URL('../pnpm-workspace.yaml', import.meta.url);
+const workspace = readFileSync(workspacePath, 'utf8').trimEnd();
 
-manifest.pnpm = {
-  ...(manifest.pnpm ?? {}),
-  overrides: {
-    ...(manifest.pnpm?.overrides ?? {}),
-    postcss: '8.5.19',
-  },
-};
+if (/^overrides:/m.test(workspace)) {
+  throw new Error('pnpm-workspace.yaml already defines overrides; update the remediation generator explicitly.');
+}
 
-writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+writeFileSync(workspacePath, `${workspace}\n\noverrides:\n  postcss: 8.5.19\n`);
