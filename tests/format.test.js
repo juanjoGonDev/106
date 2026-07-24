@@ -15,10 +15,11 @@ describe('compact number formatting', () => {
     expect(formatter.compactNumber(999)).toBe('999');
   });
 
-  it('uses k for thousands', () => {
-    expect(formatter.compactNumber(1000)).toBe('1k');
-    expect(formatter.compactNumber(1200)).toBe('1.2k');
-    expect(formatter.compactNumber(12_500)).toBe('12.5k');
+  it('uses K for thousands', () => {
+    expect(formatter.compactNumber(1000)).toBe('1K');
+    expect(formatter.compactNumber(1200)).toBe('1.2K');
+    expect(formatter.compactNumber(1404)).toBe('1.4K');
+    expect(formatter.compactNumber(12_500)).toBe('12.5K');
   });
 
   it('uses M for millions', () => {
