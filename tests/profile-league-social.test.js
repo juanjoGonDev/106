@@ -6,6 +6,7 @@ const eligibilityMigration = read('supabase/migrations/20260724114000_profile_re
 const readMigration = read('supabase/migrations/20260724114500_keep_league_reads_side_effect_free.sql');
 const identityMigration = read('supabase/migrations/20260724115000_use_stable_league_device_identity.sql');
 const profileMigration = read('supabase/migrations/20260724115500_unify_player_profile_contract.sql');
+const shareableMigration = read('supabase/migrations/20260724121000_shareable_duels_and_results.sql');
 
 describe('security definer permissions', () => {
   it('removes Data API execution from the referral trigger function', () => {
@@ -54,7 +55,7 @@ describe('eligible league activation and trophies', () => {
   });
 });
 
-describe('versioned profile and league social previews', () => {
+describe('universal versioned social previews', () => {
   it('changes profile revisions for attempts, daily rewards, achievements and league trophies', () => {
     expect(eligibilityMigration).toContain('create or replace function public.get_game_profile_revision');
     expect(eligibilityMigration).toContain('from public.game_attempts attempt');
@@ -65,31 +66,62 @@ describe('versioned profile and league social previews', () => {
     expect(profileMigration).toContain("'{trophies,leagueChampion}'");
   });
 
-  it('uses one server-rendered social endpoint for profile and league metadata', () => {
+  it('persists the exact verified attempt used by every direct challenge', () => {
+    expect(shareableMigration).toContain('add column if not exists challenger_attempt_id uuid references public.game_attempts');
+    expect(shareableMigration).toContain('add column if not exists challenger_elapsed_ms integer');
+    expect(shareableMigration).toContain('order by attempt.difference_ms, attempt.created_at, attempt.id');
+    expect(shareableMigration).toContain("'targetAttemptId', v_attempt.id");
+    expect(shareableMigration).toContain("'targetElapsedMs', v_attempt.client_elapsed_ms");
+    expect(shareableMigration).toContain("'targetDifferenceMs', v_attempt.difference_ms");
+  });
+
+  it('exposes server-owned projections for duels, results and referrals only to service role', () => {
+    for (const signature of [
+      'public.get_game_public_duel(uuid)',
+      'public.get_game_public_attempt(uuid)',
+      'public.get_game_public_referral(uuid)',
+    ]) {
+      expect(shareableMigration).toContain(`revoke all on function ${signature} from public, anon, authenticated;`);
+      expect(shareableMigration).toContain(`grant execute on function ${signature} to service_role;`);
+    }
+    expect(shareableMigration).toContain('attempt.client_elapsed_ms');
+    expect(shareableMigration).toContain('duel.challenger_elapsed_ms');
+    expect(shareableMigration).toContain('public.get_game_profile_revision(player.nick_key)');
+  });
+
+  it('uses one renderer for player, league, duel, result and referral metadata', () => {
     const edge = read('supabase/functions/social-share/index.ts');
     const config = read('supabase/config.toml');
     expect(config).toContain('[functions.social-share]');
-    expect(edge).toContain("kind: 'player' as const");
-    expect(edge).toContain("kind: 'league' as const");
-    expect(edge).toContain('profileImageUrl');
-    expect(edge).toContain('leagueImageUrl');
+    for (const kind of ['player', 'league', 'duel', 'result', 'referral']) {
+      expect(edge).toContain(`kind: '${kind}'`);
+    }
+    expect(edge).toContain("rpc('get_game_public_duel'");
+    expect(edge).toContain("rpc('get_game_public_attempt'");
+    expect(edge).toContain("rpc('get_game_public_referral'");
     expect(edge).toContain('property="og:image"');
     expect(edge).toContain('property="og:image:secure_url"');
     expect(edge).toContain('name="twitter:image"');
     expect(edge).toContain('name="twitter:image:src"');
     expect(edge).toContain("url.searchParams.set('v'");
     expect(edge).toContain('new ImageResponse');
+    expect(edge).toContain("url.searchParams.get('format') === 'json'");
   });
 
   it('mirrors current card metadata into the player page and share actions', () => {
     const playerUi = read('public/player-ui.js');
     const player = read('public/player.js');
+    const actions = read('public/share-actions.js');
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeUrl.searchParams.set('v'");
     expect(player).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(player).toContain('player.profileRevision');
     expect(player).toContain('Campeón de liga');
+    expect(actions).toContain("socialShareUrl('duel'");
+    expect(actions).toContain("socialShareUrl('result'");
+    expect(actions).toContain("socialShareUrl('referral'");
+    expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
   });
 
   it('shares league URLs through the metadata endpoint and hides competition while waiting', () => {
@@ -99,5 +131,17 @@ describe('versioned profile and league social previews', () => {
     expect(leagues).toContain('league.waiting === true');
     expect(leagues).toContain("document.querySelector('#competeLeagueLink').hidden = league.active !== true");
     expect(leagues).toContain('3 cuentas y 3 dispositivos únicos');
+  });
+
+  it('shows exact duel targets and uses responsive account action grids', () => {
+    const duelContext = read('public/duel-context.js');
+    const styles = read('public/site.css');
+    expect(duelContext).toContain('formatElapsed(duel.targetElapsedMs)');
+    expect(duelContext).toContain('formatDifference(duel.targetDifferenceMs)');
+    expect(duelContext).toContain('quedar más cerca del objetivo');
+    expect(styles).toContain('.account-player-actions { display: grid;');
+    expect(styles).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    expect(styles).toContain('.account-player-actions > *');
+    expect(styles).toContain('min-width: 0');
   });
 });
