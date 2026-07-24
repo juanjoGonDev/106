@@ -216,7 +216,22 @@ jobs:
         run: pnpm check:package-policy
 
       - name: Audit dependency vulnerabilities
-        run: pnpm audit --audit-level=high
+        id: dependency-audit
+        continue-on-error: true
+        run: pnpm audit --audit-level=high --json > pnpm-audit.json
+
+      - name: Upload failed dependency audit
+        if: steps.dependency-audit.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pnpm-audit-${{ github.run_id }}
+          path: pnpm-audit.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce dependency audit result
+        if: steps.dependency-audit.outcome == 'failure'
+        run: exit 1
 
       - name: Reject native browser dialogs
         shell: bash
