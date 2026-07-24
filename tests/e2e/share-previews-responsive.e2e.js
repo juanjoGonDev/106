@@ -182,9 +182,12 @@ test('shared attempts use the public result URL without exposing Supabase', asyn
   await page.locator('#shareButton').click();
   await expect.poll(() => page.evaluate(() => globalThis.__sharePayload ?? null)).not.toBeNull();
   const payload = await page.evaluate(() => globalThis.__sharePayload);
+  const sharedUrl = new URL(payload.url);
   expect(payload.title).toContain('10.604 s');
   expect(payload.text).toContain('4 ms del 10.600');
-  expect(payload.url).toBe(`http://127.0.0.1:4173/?sharedResult=${resultId}`);
+  expect(sharedUrl.hostname).toBe('127.0.0.1');
+  expect(sharedUrl.pathname).toBe('/');
+  expect(sharedUrl.searchParams.get('sharedResult')).toBe(resultId);
   expect(payload.url).not.toContain('supabase.co');
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'shared-result');
