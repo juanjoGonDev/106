@@ -62,7 +62,6 @@
     const title = `${player.nick} · Minuto 106`;
     const description = `Perfil público de ${player.nick}: estadísticas, trofeos y logros en Minuto 106.`;
     const canonicalUrl = ui.playerUrl(player.nick, route.section);
-    const shareUrl = ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision);
     const cardUrl = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     const imageAlt = `Tarjeta actualizada de ${player.nick} con estadísticas, trofeos y logros de Minuto 106.`;
 
@@ -81,7 +80,7 @@
     upsertMeta('property', 'og:site_name', 'Minuto 106');
     upsertMeta('property', 'og:title', title);
     upsertMeta('property', 'og:description', description);
-    upsertMeta('property', 'og:url', shareUrl);
+    upsertMeta('property', 'og:url', canonicalUrl);
     upsertMeta('property', 'og:image', cardUrl);
     upsertMeta('property', 'og:image:secure_url', cardUrl);
     upsertMeta('property', 'og:image:type', 'image/png');
@@ -144,7 +143,7 @@
   }
 
   function renderShareActions(player) {
-    const share = ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision);
+    const share = ui.playerUrl(player.nick, route.section);
     const card = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     $('#playerCardPreview').src = card;
     $('#downloadPlayerCard').href = card;
