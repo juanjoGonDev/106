@@ -90,12 +90,33 @@ function parseRoute(request: Request): Route {
   return { kind: 'invalid', image: false };
 }
 
+function firstHeaderValue(request: Request, name: string) {
+  return request.headers.get(name)?.split(',')[0]?.trim() ?? '';
+}
+
+function publicFunctionsOrigin(request: Request) {
+  const explicitOrigin = String(Deno.env.get('PUBLIC_FUNCTIONS_ORIGIN') || '').trim();
+  if (explicitOrigin) return new URL(explicitOrigin).origin;
+
+  const host = firstHeaderValue(request, 'x-forwarded-host')
+    || firstHeaderValue(request, 'x-original-host')
+    || firstHeaderValue(request, 'host');
+  const internalHost = /^(?:supabase_edge_runtime|kong)(?::|$)/i.test(host);
+  if (host && !internalHost) {
+    const forwardedProtocol = firstHeaderValue(request, 'x-forwarded-proto').toLowerCase();
+    const localHost = /^(?:localhost|127\.0\.0\.1)(?::|$)/i.test(host);
+    const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https'
+      ? forwardedProtocol
+      : localHost ? 'http' : 'https';
+    return `${protocol}://${host}`;
+  }
+
+  return new URL(supabaseUrl).origin;
+}
+
 function functionUrl(request: Request, functionName: string) {
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean);
-  const functionIndex = parts.lastIndexOf('social-share');
-  const prefix = functionIndex >= 0 ? parts.slice(0, functionIndex) : ['functions', 'v1'];
-  url.pathname = `/${[...prefix, functionName].join('/')}`;
+  const url = new URL(publicFunctionsOrigin(request));
+  url.pathname = `/functions/v1/${functionName}`;
   url.search = '';
   url.hash = '';
   return url;
