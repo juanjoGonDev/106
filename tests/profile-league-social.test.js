@@ -11,7 +11,7 @@ const progressionMigration = read('supabase/migrations/20260724213000_competitiv
 const compatibilityMigration = read('supabase/migrations/20260724213100_public_league_compatibility.sql');
 const privateLeagueMigration = read('supabase/migrations/20260724213200_hide_league_competition_credentials.sql');
 
-describe('security definer permissions', () => {
+ describe('security definer permissions', () => {
   it('removes Data API execution from the referral trigger function', () => {
     const migration = read('supabase/migrations/20260724113000_secure_referral_trigger.sql');
     expect(migration).toContain('revoke execute on function public.reward_referred_player() from public;');
@@ -133,7 +133,7 @@ describe('versioned profile and league social previews', () => {
   it('shares clean public league URLs and keeps private codes out of public rendering', () => {
     const leagues = read('public/ligas.js');
     const fallback = read('public/404.html');
-    expect(leagues).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
+    expect(leagues).toContain('new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl)');
     expect(leagues).toContain('league.joinCode');
     expect(leagues).toContain('membership?.competitionCode');
     expect(leagues).not.toContain('leagueLookupCode');
