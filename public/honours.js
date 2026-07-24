@@ -27,11 +27,6 @@
       || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
   }
 
-  function profileShareUrl(profile) {
-    const config = window.__MINUTO106_CONFIG__ ?? {};
-    return window.Minuto106PlayerUI?.shareUrl(config.apiBaseUrl, profile.nick) || profileUrl(profile);
-  }
-
   function currentNick() {
     return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
   }
@@ -56,7 +51,7 @@
     await window.Minuto106UI?.share({
       title: `${profile.nick} · Minuto 106`,
       text: `Este es mi palmarés en Minuto 106: ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${profile.achievements?.points || 0} puntos. ¿Me superas?`,
-      url: profileShareUrl(profile),
+      url: profileUrl(profile),
     });
   }
 
