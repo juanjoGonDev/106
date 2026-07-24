@@ -18,7 +18,7 @@ const leagues = read('public/ligas.js');
 const leaguesHtml = read('public/ligas.html');
 const fallback = read('public/404.html');
 
- describe('engagement achievements', () => {
+describe('engagement achievements', () => {
   it('adds cumulative perfect, challenge, sharing and league achievement families', () => {
     for (const kind of [
       'perfect_total',
@@ -102,7 +102,7 @@ describe('deterministic global ranking', () => {
 describe('single player context and attempt gating', () => {
   it('registers a dedicated context function that checks ownership without creating an account', () => {
     expect(config).toContain('[functions.player-context]');
-    expect(playerContext).toContain("body?.action !== 'player-context'");
+    expect(playerContext).toContain("const ACTIONS = new Set(['player-context', 'set-featured-achievements'])");
     expect(playerContext).toContain("rpc('get_game_player_profile'");
     expect(playerContext).toContain("rpc('get_game_account_players'");
     expect(playerContext).toContain("rpc('get_game_player_leagues'");
