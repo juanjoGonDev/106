@@ -22,7 +22,7 @@ Investigate why the main page performs multiple Supabase statistics requests and
 3. Keep the shared response briefly so module and `DOMContentLoaded` consumers reuse the same network result; expire it to allow later genuine refreshes.
 4. Store the latest valid snapshot and perform one authoritative atomic presentation after legacy renderers and mutation observers have settled.
 5. Rebuild every ranking row from validated data with accessible flags, explicit nick and time nodes, and a final `ready` render state.
-6. Compact scores in the authoritative renderer while preserving the full locale value in `title`.
+6. Compact scores in the authoritative renderer while preserving the deterministic full value in `title`.
 7. Use uppercase `K` consistently for thousands.
 8. Recommit statistics delivered by a completed attempt without a new network request.
 
@@ -31,7 +31,7 @@ Investigate why the main page performs multiple Supabase statistics requests and
 - `public/home-stats.js`
 - `public/index.html`
 - `public/format.js`
-- package syntax checks
+- package and Knip entrypoint checks
 - unit contract tests
 - sequential desktop and mobile Playwright coverage
 
@@ -43,7 +43,7 @@ Investigate why the main page performs multiple Supabase statistics requests and
 - Waiting after the delayed response cannot replace the committed ranking with stale or partial content.
 - A Spain score of 1404 always renders as `1.4K` and exposes `1.404` as the full value.
 - Attempt completion can commit returned statistics without another Supabase read.
-- Syntax, lint, unit, browser and repository checks pass.
+- Syntax, lint, dead-code, unit, security, browser, Supabase and repository checks pass.
 
 ## Risks
 
@@ -53,9 +53,9 @@ Investigate why the main page performs multiple Supabase statistics requests and
 
 ## Tests
 
-- Vitest verifies script ordering, request deduplication, cache expiry, atomic row construction and compact score semantics.
-- Playwright reloads the same page sequentially with several artificial response delays on desktop and mobile, counts network calls and validates the stable final DOM after an additional wait.
-- Existing ranking race, daily award and gameplay tests remain applicable.
+- Vitest verifies script ordering, request deduplication, cache expiry, atomic row construction and compact/full score semantics.
+- Playwright reloads the same page sequentially with artificial delays of 0 ms, 35 ms, 140 ms and 420 ms on desktop and mobile, counts network calls and validates the stable final DOM after an additional wait.
+- Existing ranking race, daily award, gameplay, account, security and Supabase integration tests remain applicable.
 
 ## Rollback
 
@@ -63,14 +63,23 @@ Revert the branch commits. No database, migration, API contract or production da
 
 ## Validation
 
-Pending GitHub Actions execution on the pull request head.
+Implementation head `4b570cb949e26812310ce320b336be4ddb1b30f6` passed:
+
+- Pull Request Quality Pipeline #490, including syntax, ESLint, Knip, Vitest, security policy, dependency audit, local Supabase API integration and the final quality gate.
+- Player Pages and Social Cards #222, including module coverage and the complete desktop/mobile Playwright matrix.
+- Pull Request Visual Evidence #190.
+- Public Asset Audit #163.
+- Generated desktop and mobile evidence confirms a complete three-row ranking, deterministic `1.4K` score and responsive layout.
+
+The final branch head only removes temporary evidence files after their commit-pinned URLs are recorded; the same CI suite is required on that final head.
 
 ## Delivery
 
 - Branch: `agent/fix-home-stats-synchronization`
 - Base: `main`
-- Normal pull request; no merge or deployment without explicit authorization.
+- Pull request: #28, normal and ready for review.
+- No merge or deployment without explicit authorization.
 
 ## Status
 
-Implemented; validation pending.
+Implemented, validated and delivered in PR #28.
