@@ -5,7 +5,7 @@
 
     const sign = numeric < 0 ? '-' : '';
     let value = Math.abs(numeric);
-    const units = ['', 'k', 'M', 'B', 'T'];
+    const units = ['', 'K', 'M', 'B', 'T'];
     let unitIndex = 0;
 
     while (value >= 1000 && unitIndex < units.length - 1) {
@@ -27,7 +27,15 @@
 
   function fullNumber(input) {
     const numeric = Number(input);
-    return Number.isFinite(numeric) ? Math.round(numeric).toLocaleString('es-ES') : '0';
+    if (!Number.isFinite(numeric)) return '0';
+
+    const rounded = Math.round(numeric);
+    const digits = String(Math.abs(rounded));
+    const groups = [];
+    for (let end = digits.length; end > 0; end -= 3) {
+      groups.unshift(digits.slice(Math.max(0, end - 3), end));
+    }
+    return `${rounded < 0 ? '-' : ''}${groups.join('.')}`;
   }
 
   window.Minuto106Format = Object.freeze({ compactNumber, fullNumber });

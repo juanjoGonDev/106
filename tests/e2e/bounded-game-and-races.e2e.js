@@ -191,53 +191,53 @@ test('the 30-second deadline submits one exact automatic result', async ({ page 
   expect(finishes[0].clientSignals.timerConcealed).toBe(true);
 });
 
-test('delayed legacy ranking rows and stale award lookups stay complete across repeated races', async ({ page, isMobile }) => {
-  let statsRequest = 0;
+test('the authoritative snapshot updates ranking and awards without fallback requests', async ({ page }) => {
+  let statsRequests = 0;
+  let publicProfileRequests = 0;
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = bodyOf(route.request());
     if (body.action === 'stats') {
-      statsRequest += 1;
-      await new Promise((resolve) => setTimeout(resolve, statsRequest % 2 ? 120 : 15));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stats(statsRequest % 2 ? 'Delayed' : 'Fast', statsRequest % 2 ? 'spain' : 'argentina')) });
+      statsRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(stats('Initial', 'spain')) });
       return;
     }
-    if (body.action === 'public-profile') {
-      await new Promise((resolve) => setTimeout(resolve, body.nick === 'StaleAward' ? 180 : 5));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ nick: body.nick, team: body.nick === 'StaleAward' ? 'spain' : 'argentina' }) });
-      return;
-    }
+    if (body.action === 'public-profile') publicProfileRequests += 1;
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-  await page.goto('/');
 
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    await page.evaluate((index) => {
-      document.querySelector('#leaderboard').innerHTML = `<li data-team="${index % 2 ? 'argentina' : 'spain'}"><span class="rank">#1</span><span class="player">Race${index}<small>${index % 2 ? 'Argentina' : 'España'} · 10.604 s</small></span><span class="difference">±4 ms</span></li>`;
-    }, iteration);
-    const list = page.locator('#leaderboard');
-    await expect(list).toHaveAttribute('data-render-state', 'ready');
-    await expect(list.locator('.leaderboard-row-link')).toHaveCount(1);
-    await expect(list.locator('.ranking-time')).toHaveText('10.604s');
-    await expect(list.locator('.ranking-flag')).toHaveAttribute('role', 'img');
-  }
+  await page.goto('/');
+  const list = page.locator('#leaderboard');
+  await expect(list).toHaveAttribute('data-render-state', 'ready');
+  await expect(list.locator('.player-link__nick')).toHaveText('Initial');
+  await expect(page.locator('#goldenBoot')).toContainText('Initial');
+  expect(statsRequests).toBe(1);
+  expect(publicProfileRequests).toBe(0);
 
   await page.evaluate(() => {
-    document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', { detail: { stats: { awards: {
-      goldenBoot: { nick: 'StaleAward', value: 4 },
-      goldenGlove: { nick: 'StaleAward', value: 8 },
-      goldenBall: { nick: 'StaleAward', value: 5 },
-    } } } }));
-    document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', { detail: { stats: { awards: {
-      goldenBoot: { nick: 'LatestAward', team: 'argentina', value: 3 },
-      goldenGlove: { nick: 'LatestAward', team: 'argentina', value: 7 },
-      goldenBall: { nick: 'LatestAward', team: 'argentina', value: 6 },
-    } } } }));
+    window.Minuto106HomeStats.commit({
+      totalAttempts: 31,
+      totalPlayers: 9,
+      verifiedAttempts: 29,
+      perfectAttempts: 0,
+      teams: [
+        { team: 'spain', score: 292 },
+        { team: 'argentina', score: 103 },
+      ],
+      leaderboard: [{ nick: 'Latest', team: 'argentina', elapsedMs: 10603, differenceMs: 3 }],
+      awards: {
+        goldenBoot: { nick: 'Latest', team: 'argentina', value: 3 },
+        goldenGlove: { nick: 'Latest', team: 'argentina', value: 7 },
+        goldenBall: { nick: 'Latest', team: 'argentina', value: 6 },
+      },
+    }, 'test');
   });
-  await expect(page.locator('#goldenBoot')).toContainText('LatestAward');
+
+  await expect(list.locator('.player-link__nick')).toHaveText('Latest');
+  await expect(list.locator('.ranking-flag')).toHaveAttribute('aria-label', 'Argentina');
+  await expect(page.locator('#goldenBoot')).toContainText('Latest');
   await expect(page.locator('#goldenBoot .award-flag')).toHaveClass(/flag--argentina/);
   await page.waitForTimeout(300);
-  await expect(page.locator('#goldenBoot')).toContainText('LatestAward');
-  await expect(page.locator('#goldenBoot .award-flag')).toHaveAttribute('aria-label', 'Argentina');
-
-  if (!isMobile) await expect(page.locator('#leaderboard')).toBeVisible();
+  expect(statsRequests).toBe(1);
+  expect(publicProfileRequests).toBe(0);
 });

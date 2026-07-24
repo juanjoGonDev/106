@@ -1,6 +1,5 @@
 const v4Config = window.__MINUTO106_CONFIG__ ?? {};
 const v4ApiUrl = String(v4Config.apiBaseUrl ?? '').replace(/\/$/, '');
-const v4PlayerUi = window.Minuto106PlayerUI;
 const v4$ = (selector) => document.querySelector(selector);
 
 async function v4Request(action, payload = {}) {
@@ -19,42 +18,6 @@ function showV4Error(error) {
     title: 'No se pudo compartir',
     message: error instanceof Error ? error.message : String(error || 'Se produjo un error inesperado.'),
   }) ?? Promise.resolve();
-}
-
-function escapeV4(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
-}
-
-function renderFallbackRanking(stats) {
-  const list = v4$('#leaderboard');
-  if (!list) return;
-  const entries = Array.isArray(stats.leaderboard) ? stats.leaderboard.slice(0, 10) : [];
-  if (!entries.length) {
-    list.innerHTML = '<li class="empty">Aún no hay marcas verificadas. Sé el primero.</li>';
-    return;
-  }
-  list.innerHTML = entries.map((entry, index) => {
-    const nick = String(entry.nick || '');
-    const href = v4PlayerUi?.playerUrl(nick) || `./ranking.html?nick=${encodeURIComponent(nick)}`;
-    const team = v4PlayerUi?.teamHtml(entry.team) || `<span>${entry.team === 'spain' ? 'España' : 'Argentina'}</span>`;
-    return `<li class="leaderboard-row${index === 0 ? ' leader' : ''}" data-team="${escapeV4(entry.team)}"><a class="leaderboard-row-link" href="${escapeV4(href)}" data-player-nick="${escapeV4(nick)}" aria-label="Ver perfil de ${escapeV4(nick)}"><span class="rank">#${index + 1}</span><span class="ranking-player"><span class="player-link__nick">${escapeV4(nick)}</span>${team}<small>${(Number(entry.elapsedMs) / 1000).toFixed(3)} s</small></span><span class="difference">±${Number(entry.differenceMs).toLocaleString('es-ES')} ms</span></a></li>`;
-  }).join('');
-  const total = v4$('#totalAttempts');
-  if (total) total.textContent = `${Number(stats.totalAttempts || 0).toLocaleString('es-ES')} intentos`;
-}
-
-async function ensureInitialRanking(attempt = 0) {
-  if (!v4ApiUrl || v4ApiUrl.includes('YOUR_PROJECT_REF')) return;
-  try {
-    const stats = await v4Request('stats');
-    renderFallbackRanking(stats);
-  } catch {
-    if (attempt < 3) setTimeout(() => ensureInitialRanking(attempt + 1), 900 * (attempt + 1));
-    else {
-      const list = v4$('#leaderboard');
-      if (list && list.querySelector('.empty')) list.innerHTML = '<li class="empty">No se pudo cargar el ranking. Revisa la conexión.</li>';
-    }
-  }
 }
 
 function referralUrl(profile) {
@@ -98,5 +61,3 @@ async function handleCompactShare(event) {
 document.addEventListener('click', (event) => {
   if (event.target.closest('#shareButton, #copyReferralButton')) handleCompactShare(event).catch(showV4Error);
 }, true);
-
-document.addEventListener('DOMContentLoaded', () => ensureInitialRanking());

@@ -7,7 +7,7 @@ describe('player pages and ranking links', () => {
   it('loads the shared player contract before all ranking renderers', () => {
     const index = read('public/index.html');
     const ranking = read('public/ranking.html');
-    expect(index.indexOf('./player-ui.js')).toBeLessThan(index.indexOf('./app.js'));
+    expect(index.indexOf('./player-ui.js')).toBeLessThan(index.indexOf('./home-stats.js'));
     expect(index).toContain('./attempt-refresh.js');
     expect(index).toContain('./ranking-enhancements.js');
     expect(index).not.toContain('./profile-overlay.js');
@@ -25,13 +25,15 @@ describe('player pages and ranking links', () => {
     expect(ranking).not.toContain('showProfile(');
   });
 
-  it('keeps flags and links when the delayed fallback ranking wins the request race', () => {
-    const fallbackRanking = read('public/v4.js');
-    expect(fallbackRanking).toContain('v4PlayerUi?.playerUrl(nick)');
-    expect(fallbackRanking).toContain('v4PlayerUi?.teamHtml(entry.team)');
-    expect(fallbackRanking).toContain('class="leaderboard-row-link"');
-    expect(fallbackRanking).toContain('data-player-nick=');
-    expect(fallbackRanking).not.toContain('<small>${teamLabel(entry.team)}');
+  it('builds home ranking links and flags in the authoritative renderer', () => {
+    const home = read('public/home-stats.js');
+    const fallback = read('public/v4.js');
+    expect(home).toContain('window.Minuto106PlayerUI?.playerUrl(nick)');
+    expect(home).toContain('anchor.className = \'leaderboard-row-link\'');
+    expect(home).toContain('anchor.dataset.playerNick = nick');
+    expect(home).toContain('identity.append(createFlag(team), nickElement)');
+    expect(fallback).not.toContain('renderFallbackRanking');
+    expect(fallback).not.toContain('ensureInitialRanking');
   });
 
   it('provides clean overview, achievements and trophies player sections', () => {
@@ -122,14 +124,16 @@ describe('dynamic player social card', () => {
     expect(migration).toContain('order by attempt.nick_key, attempt.created_at desc, attempt.id desc');
   });
 
-  it('refreshes awards and profile honours after successful finishes', () => {
+  it('refreshes awards from the committed snapshot and honours from the finish event', () => {
+    const app = read('public/app.js');
     const observer = read('public/attempt-refresh.js');
     const ranking = read('public/ranking-enhancements.js');
     const honours = read('public/honours.js');
+    expect(app).toContain("window.Minuto106HomeStats?.commit(data.stats, 'finish')");
+    expect(ranking).toContain('homeStats.subscribe(renderAwards)');
+    expect(ranking).not.toContain("request('stats')");
     expect(observer).toContain("action !== 'finish'");
     expect(observer).toContain('minuto106:attempt-finished');
-    expect(ranking).toContain("document.addEventListener('minuto106:attempt-finished'");
-    expect(ranking).toContain("request('stats')");
     expect(honours).toContain("document.addEventListener('minuto106:attempt-finished'");
   });
 });
