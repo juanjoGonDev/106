@@ -4,6 +4,7 @@
   let refreshTimer = 0;
   let requestPending = false;
   let lastSignature = '';
+  let profileShareModulePromise = null;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -27,11 +28,10 @@
       || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
   }
 
-  function profileShareUrl(profile) {
-    if (window.Minuto106PlayerUI?.shareUrl) return window.Minuto106PlayerUI.shareUrl('', profile.nick);
-    const url = new URL('./player.html', location.href);
-    url.searchParams.set('nick', profile.nick);
-    return url.toString();
+  function profileCardUrl(profile) {
+    const config = window.__MINUTO106_CONFIG__ ?? {};
+    const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
+    return window.Minuto106PlayerUI?.cardUrl(apiUrl, profile.nick, 'overview', profile.profileRevision) || '';
   }
 
   function currentNick() {
@@ -52,13 +52,60 @@
     return body;
   }
 
-  async function shareProfile(profile) {
+  function ensureProfileShareModule() {
+    if (window.Minuto106ProfileShare) return Promise.resolve(window.Minuto106ProfileShare);
+    if (profileShareModulePromise) return profileShareModulePromise;
+
+    profileShareModulePromise = new Promise((resolve) => {
+      const existing = document.querySelector('script[data-minuto106-profile-share]');
+      const script = existing || document.createElement('script');
+      const finish = () => resolve(window.Minuto106ProfileShare || null);
+      script.addEventListener('load', finish, { once: true });
+      script.addEventListener('error', () => resolve(null), { once: true });
+      if (!existing) {
+        script.src = './profile-share.js';
+        script.async = false;
+        script.dataset.minuto106ProfileShare = 'true';
+        document.head.append(script);
+      }
+    });
+    return profileShareModulePromise;
+  }
+
+  async function shareProfile(profile, file) {
     const trophies = Number(profile.trophies?.total || 0);
     const achievements = Number(profile.achievements?.total || 0);
-    await window.Minuto106UI?.share({
+    const payload = {
       title: `${profile.nick} · Minuto 106`,
       text: `Este es mi palmarés en Minuto 106: ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${profile.achievements?.points || 0} puntos. ¿Me superas?`,
-      url: profileShareUrl(profile),
+      url: profileUrl(profile),
+      file,
+    };
+    const sharing = window.Minuto106ProfileShare?.share(payload)
+      ?? window.Minuto106UI?.share(payload);
+    return sharing;
+  }
+
+  function prepareHonoursShare(button, profile) {
+    let shareFile = null;
+    ensureProfileShareModule()
+      .then((module) => module?.prepareFile({
+        url: profileCardUrl(profile),
+        nick: profile.nick,
+        section: 'overview',
+      }))
+      .then((file) => { shareFile = file || null; })
+      .catch(() => { shareFile = null; })
+      .finally(() => {
+        button.disabled = false;
+        button.textContent = 'Compartir palmarés';
+      });
+
+    button.addEventListener('click', () => {
+      shareProfile(profile, shareFile).catch((error) => window.Minuto106UI?.error({
+        title: 'No se pudo compartir',
+        message: error instanceof Error ? error.message : 'No se pudo abrir el menú para compartir.',
+      }));
     });
   }
 
@@ -69,7 +116,13 @@
     const achievements = profile.achievements || {};
     const history = Array.isArray(trophies.history) ? trophies.history.slice(0, 6) : [];
     const items = Array.isArray(achievements.items) ? achievements.items.slice(0, 6) : [];
-    const signature = JSON.stringify({ nick: profile.nick, trophies: [trophies.total, trophies.rank, history], achievements: [achievements.total, achievements.points, achievements.rank, items] });
+    const signature = JSON.stringify({
+      nick: profile.nick,
+      profileRevision: profile.profileRevision,
+      performance: [profile.verifiedAttempts, profile.bestDifferenceMs, profile.averageDifferenceMs],
+      trophies: [trophies.total, trophies.rank, history],
+      achievements: [achievements.total, achievements.points, achievements.rank, items],
+    });
     if (signature === lastSignature && card.querySelector('#ownHonours')) return;
     lastSignature = signature;
 
@@ -92,10 +145,9 @@
       </div>
       ${history.length ? `<ol class="honours-list">${history.map((trophy) => `<li><span class="honours-badge">🏆</span><span><strong>${trophyName(trophy.type)}</strong><time datetime="${escapeHtml(trophy.date)}">${formatDate(trophy.date)}</time></span><span>${trophy.type === 'golden_ball' ? `${trophy.value} intentos` : `±${trophy.value} ms`}</span></li>`).join('')}</ol>` : '<p class="empty">Los trofeos se consolidan al cerrar el día.</p>'}
       ${items.length ? `<ol class="honours-list">${items.map((achievement) => `<li><span class="honours-badge">★</span><span><strong>${escapeHtml(achievement.title)}</strong><small>${escapeHtml(achievement.description)}</small><time datetime="${escapeHtml(achievement.date)}">${formatDate(achievement.date)}</time></span><span>${achievement.points} pt</span></li>`).join('')}</ol>` : ''}
-      <div class="player-actions"><a class="ghost compact" href="${escapeHtml(profileUrl(profile))}">Ver perfil público</a><button id="shareOwnHonours" class="secondary honours-share" type="button">Compartir palmarés</button></div>`;
-    section.querySelector('#shareOwnHonours')?.addEventListener('click', () => {
-      shareProfile(profile).catch((error) => window.Minuto106UI?.error({ title: 'No se pudo compartir', message: error instanceof Error ? error.message : 'No se pudo abrir el menú para compartir.' }));
-    });
+      <div class="player-actions"><a class="ghost compact" href="${escapeHtml(profileUrl(profile))}">Ver perfil público</a><button id="shareOwnHonours" class="secondary honours-share" type="button" disabled>Preparando...</button></div>`;
+    const shareButton = section.querySelector('#shareOwnHonours');
+    if (shareButton) prepareHonoursShare(shareButton, profile);
   }
 
   async function refresh() {
@@ -138,6 +190,7 @@
   function initialize() {
     ensureStyles();
     ensureShareActions();
+    ensureProfileShareModule();
     const card = document.querySelector('#profileCard');
     if (!card) return;
     const referralButton = document.querySelector('#copyReferralButton');
