@@ -114,7 +114,7 @@ const siteResponse = await fetch(`${apiUrl}/functions/v1/player-share/_site/card
   signal: AbortSignal.timeout(60_000),
 });
 const sitePng = new Uint8Array(await siteResponse.arrayBuffer());
-assertPng(siteResponse, sitePng, 'Site social card', 86400);
+assertPng(siteResponse, sitePng, 'Site social card', 31536000);
 persistPreview('site-social-card.png', sitePng);
 
 console.log('Player and site social cards passed.');
