@@ -29,32 +29,36 @@ describe('player pages and ranking links', () => {
     const home = read('public/home-stats.js');
     const fallback = read('public/v4.js');
     expect(home).toContain('window.Minuto106PlayerUI?.playerUrl(nick)');
-    expect(home).toContain('anchor.className = \'leaderboard-row-link\'');
+    expect(home).toContain("anchor.className = 'leaderboard-row-link'");
     expect(home).toContain('anchor.dataset.playerNick = nick');
     expect(home).toContain('identity.append(createFlag(team), nickElement)');
     expect(fallback).not.toContain('renderFallbackRanking');
     expect(fallback).not.toContain('ensureInitialRanking');
   });
 
-  it('provides clean canonical sections and a previewable 200-status share shell', () => {
+  it('keeps canonical sections and prepares the current PNG before enabling profile sharing', () => {
     const html = read('public/player.html');
     const script = read('public/player.js');
+    const share = read('public/profile-share.js');
     const fallback = read('public/404.html');
     const server = read('scripts/serve.mjs');
     expect(html).toContain('data-player-section="overview"');
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
-    expect(html).toContain('property="og:image"');
-    expect(html).toContain('property="og:image:secure_url"');
-    expect(html).toContain('name="twitter:card" content="summary_large_image"');
-    expect(html).toContain('name="twitter:image:src"');
+    expect(html).toContain('./profile-share.js');
+    expect(html).not.toContain('property="og:image"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
     expect(script).toContain("ui.shareUrl('', player.nick, route.section)");
+    expect(script).toContain("button.textContent = 'Preparando...'");
+    expect(script).toContain("button.textContent = 'Compartir perfil'");
+    expect(script).toContain('file: getShareFile()');
     expect(script).toContain("history.replaceState(null, '', canonicalUrl)");
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
     expect(script).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(script).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
+    expect(share).toContain('new File([blob]');
+    expect(share).toContain('navigatorLike.canShare({ files: [file] })');
     expect(fallback).toContain('(?:player)\\/([^/]+)');
     expect(fallback).toContain('player.html');
     expect(server).toContain('isPlayerFallback ? 404 : 200');
