@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { expect, test } = require(runtimePath);
 
 const APP_THEME_COLOR = '#2b0d28';
-const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,viewport-fit=cover';
+const APP_VIEWPORT_CONTENT = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
 const previewRoot = resolve('.tmp/pr-previews');
 
@@ -16,7 +16,7 @@ function projectDevice(testInfo) {
   return testInfo.project.name.includes('mobile') ? 'mobile' : 'desktop';
 }
 
-test('uses app-like browser chrome without disabling pinch zoom', async ({ page }, testInfo) => {
+test('blocks mobile page zoom and keeps app browser chrome', async ({ page, context }, testInfo) => {
   await page.goto('/');
 
   await expect.poll(() => page.locator('meta[name="viewport"]').getAttribute('content')).toBe(APP_VIEWPORT_CONTENT);
@@ -24,13 +24,30 @@ test('uses app-like browser chrome without disabling pinch zoom', async ({ page 
   await expect(page.locator('link[data-minuto106-browser-surface]')).toHaveAttribute('href', './browser-surface.css');
 
   const browserSurface = await page.evaluate(() => ({
+    scale: globalThis.visualViewport?.scale ?? 1,
     touchAction: getComputedStyle(document.body).touchAction,
     viewport: document.querySelector('meta[name="viewport"]')?.content || '',
   }));
 
-  expect(browserSurface.touchAction).toBe('manipulation');
-  expect(browserSurface.viewport).not.toContain('user-scalable=no');
-  expect(browserSurface.viewport).not.toContain('maximum-scale=1');
+  expect(browserSurface.scale).toBe(1);
+  expect(browserSurface.touchAction).toBe('pan-x pan-y');
+  expect(browserSurface.viewport).toContain('maximum-scale=1');
+  expect(browserSurface.viewport).toContain('user-scalable=no');
+
+  if (testInfo.project.name.includes('mobile')) {
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error('Mobile viewport is required for pinch regression coverage.');
+    const client = await context.newCDPSession(page);
+    await client.send('Input.synthesizePinchGesture', {
+      x: Math.round(viewport.width / 2),
+      y: Math.round(viewport.height / 2),
+      scaleFactor: 2,
+      relativeSpeed: 800,
+      gestureSourceType: 'touch',
+    });
+    await expect.poll(() => page.evaluate(() => globalThis.visualViewport?.scale ?? 1)).toBe(1);
+    await client.detach();
+  }
 
   if (visualCapture) {
     mkdirSync(previewRoot, { recursive: true });
