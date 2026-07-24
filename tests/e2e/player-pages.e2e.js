@@ -222,7 +222,7 @@ test('dedicated precision, trophy and achievement rankings always show flags and
   await capture(page, testInfo, 'ranking-achievements');
 });
 
-test('finishing an attempt refreshes sidebar ranking and daily awards without a reload', async ({ page, isMobile }, testInfo) => {
+test('publishing a completed response refreshes sidebar ranking and daily awards without a reload', async ({ page, isMobile }, testInfo) => {
   const currentAward = { value: 'Antes' };
   await installMocks(page, currentAward);
   await page.goto('/');
@@ -240,11 +240,13 @@ test('finishing an attempt refreshes sidebar ranking and daily awards without a 
 
   currentAward.value = 'Después';
   await page.evaluate(async (url) => {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'finish', challengeId: 'e2e' }),
     });
+    const detail = await response.json();
+    globalThis.Minuto106HomeStats.commit(detail.stats, 'finish-test');
   }, apiUrl);
 
   await expect(page.locator('#goldenBoot .award-player-link')).toContainText('Después');
