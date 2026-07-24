@@ -6,10 +6,10 @@ Show both earned and locked trophies and achievements on public player profiles.
 
 ## Evidence
 
-- `public/player.js` currently renders only persisted trophy history and unlocked achievement rows.
-- The public profile contract exposes earned achievements but no progress metrics, no trophy challenge state and no owner-managed highlights.
-- `player-share` always selects the first three earned items instead of an explicit player choice.
-- `player-context` already establishes whether the current account owns a nickname without creating or claiming an account, making it the correct write boundary.
+- `public/player.js` previously rendered only persisted trophy history and unlocked achievement rows.
+- The previous public profile contract exposed earned achievements but no progress metrics, no trophy challenge state and no owner-managed highlights.
+- `player-share` selected the first three earned items instead of an explicit player choice.
+- `player-context` already established whether the current account owns a nickname without creating or claiming an account, making it the correct write boundary.
 - Profile images use `profileRevision` as their cache key, so highlight changes must advance that revision.
 
 ## Decision
@@ -23,37 +23,47 @@ Show both earned and locked trophies and achievements on public player profiles.
 7. Render locked rows with reduced contrast, grayscale and explicit progress text/bars while retaining accessible labels and readable descriptions.
 8. Show the selected achievements prominently on the profile overview and prioritize them in generated overview and achievement images.
 9. Provide the editor only when `player-context` reports `availability: owned`; public visitors remain read-only.
+10. Serialize highlight replacement per nickname with a transaction-scoped advisory lock before deactivating active slots.
 
 ## Scope
 
-- Forward-only Supabase migration for highlight storage, mutation RPC, progress metrics and profile projection.
+- Forward-only Supabase migrations for highlight storage, mutation RPC, progress metrics, profile projection and featured ordering.
 - `player-context` mutation action with ownership and input validation.
 - Shared client-side honours catalogue.
 - Public profile overview, achievement collection, trophy collection and highlight editor.
-- Dynamic player image highlight rendering.
+- Generated player image routing and featured ordering.
 - Contract, unit, Supabase integration and responsive Playwright coverage.
 
 ## Acceptance
 
-- [ ] Trophy and achievement sections display earned and locked entries.
-- [ ] Every locked deterministic milestone displays current, target, remaining value and a progress bar.
-- [ ] Trophy cards explain today's Bota, Guante and Balón progress using the current Madrid-day standings.
-- [ ] Locked entries are visually distinct without hiding their name, requirement or progress from assistive technology.
-- [ ] Only an account owning the nickname can modify highlights.
-- [ ] Selections contain at most three distinct unlocked achievement codes.
-- [ ] Replacing, reordering or clearing highlights is atomic and idempotent.
-- [ ] Selected achievements appear prominently on the public overview and achievement collection.
-- [ ] Generated profile and achievement images prioritize the selected achievements.
-- [ ] Highlight changes advance `profileRevision` and therefore the generated image URL.
-- [ ] Existing public profile reads remain anonymous and secret-free.
-- [ ] Syntax, lint, dead-code, unit, security, Supabase integration and desktop/mobile browser checks pass.
+- [x] Trophy and achievement sections display earned and locked entries.
+- [x] Every locked deterministic milestone displays current, target, remaining value and a progress bar.
+- [x] Trophy cards explain today's Bota, Guante and Balón progress using the current Madrid-day standings.
+- [x] Locked entries are visually distinct without hiding their name, requirement or progress from assistive technology.
+- [x] Only an account owning the nickname can modify highlights.
+- [x] Selections contain at most three distinct unlocked achievement codes.
+- [x] Replacing, reordering or clearing highlights is atomic, serialized and idempotent.
+- [x] Selected achievements appear prominently on the public overview and achievement collection.
+- [x] Generated profile and achievement images prioritize the selected achievements.
+- [x] Highlight changes advance `profileRevision` and therefore the generated image URL.
+- [x] Existing public profile reads remain anonymous and secret-free.
+- [x] Syntax, lint, dead-code, unit, security, Supabase integration and desktop/mobile browser checks pass.
 
 ## Risks
 
-- A duplicated browser catalogue can drift from backend unlock rules. Mitigation: keep thresholds explicit, small and contract-tested against migration constants.
-- Replacing active selections could violate slot uniqueness mid-transaction. Mitigation: deactivate current rows before ordered upserts and enforce a partial unique index only for active rows.
-- Public progress calculations could leak private league credentials. Mitigation: expose aggregate counts and public ranking state only; no join codes or account identifiers.
-- Cached social images could remain stale. Mitigation: include highlight update timestamps in `profileRevision`.
+- A duplicated browser catalogue can drift from backend unlock rules. Mitigation: thresholds are explicit and contract-tested against migration constants.
+- Replacing active selections could violate slot uniqueness under concurrent writes. Mitigation: a player-scoped advisory transaction lock serializes replacement before soft deactivation and ordered upsert; the partial unique index remains the database invariant.
+- Public progress calculations could leak private league credentials. Mitigation: the projection exposes aggregate counts and public ranking state only; no join codes or account identifiers.
+- Cached social images could remain stale. Mitigation: highlight update timestamps participate in `profileRevision`.
+
+## Tests
+
+- Catalogue unit tests cover earned/locked ordering, count milestones, lower-is-better precision milestones, daily trophy objectives and max-three normalization.
+- Contract tests cover the service-role-only table and RPC boundary, owner verification, generated-card route and highlighted ordering.
+- Supabase integration tests exercise ordered selection, replacement, clearing, revision changes and rejection of limits, duplicates and locked codes.
+- A concurrency regression contract requires the advisory lock before active-slot deactivation.
+- Responsive Playwright journeys verify locked progress, the owner-only editor, exactly three selections, disabled fourth selection, persistence and highlighted rendering on desktop and mobile.
+- Existing player navigation, player pages, public assets, syntax, ESLint, Knip, dependency/security and social-card suites remain green.
 
 ## Rollback
 
@@ -61,14 +71,20 @@ Revert application reads and mutation routing if necessary. Keep persisted highl
 
 ## Validation
 
-Pending implementation and CI evidence.
+Implementation head `d7a445e89a22e8a3c0414a6651f2c2f815d8aecb`:
+
+- Pull Request Quality Pipeline `30130089515`: build, syntax, Vitest, ESLint, Knip, dependency/security policy, clean Supabase rebuild, API integration, highlight persistence journey, generated social previews and Quality Gate passed.
+- Player Pages and Social Cards `30130089542`: desktop/mobile Playwright journeys and strict frontend module coverage passed.
+- Pull Request Visual Evidence `30130089529`: passed.
+- Public Asset Audit `30130089846`: passed.
 
 ## Delivery
 
 - Branch: `agent/feat-competitive-progression`.
 - Pull request: `#30`.
-- No merge, deployment or production migration without explicit authorization.
+- Implementation validation head: `d7a445e89a22e8a3c0414a6651f2c2f815d8aecb`.
+- No merge, deployment or production migration performed.
 
 ## Status
 
-Implementation in progress.
+Completed and validated. Pending review, merge and deployment authorization.
