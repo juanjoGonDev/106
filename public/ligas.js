@@ -67,32 +67,19 @@ function eligibilityLabel(league) {
 }
 
 function leagueShareUrl(league) {
-  if (!leagueApi) return new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`, location.href).toString();
-  const url = new URL(leagueApi);
-  url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/social-share');
-  url.pathname += `/league/${encodeURIComponent(league.code)}`;
-  url.search = '';
-  url.hash = '';
-  const revision = Number(league.revision);
-  url.searchParams.set('v', String(Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0));
-  return url.toString();
+  return new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`, location.href).toString();
 }
 
 async function copyLeagueInvitation(league) {
   const waiting = league.waiting === true;
   const text = waiting
-    ? `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Empezará cuando haya 3 cuentas y 3 dispositivos únicos. Código ${league.code}: ${leagueShareUrl(league)}`
-    : `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}: ${leagueShareUrl(league)}`;
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: `Miniliga ${league.name}`, text, url: leagueShareUrl(league) });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-    }
-  }
-  await navigator.clipboard.writeText(text);
-  await window.Minuto106UI?.success({ title: 'Invitación copiada', message: `Comparte el código ${league.code} con tus amigos.` });
+    ? `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Empezará cuando haya 3 cuentas y 3 dispositivos únicos. Código ${league.code}.`
+    : `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}.`;
+  await window.Minuto106UI?.share({
+    title: `Miniliga ${league.name}`,
+    text,
+    url: leagueShareUrl(league),
+  });
 }
 
 function renderMyLeagueCard(league) {
