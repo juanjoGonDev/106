@@ -42,6 +42,7 @@
     "supabase/functions/**/*.ts"
   ],
   "ignoreBinaries": [
+    "psql",
     "supabase"
   ],
   "ignoreDependencies": [
