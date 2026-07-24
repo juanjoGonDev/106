@@ -9,6 +9,7 @@ const profileMigration = read('supabase/migrations/20260724115500_unify_player_p
 const shareableMigration = read('supabase/migrations/20260724121000_shareable_duels_and_results.sql');
 const progressionMigration = read('supabase/migrations/20260724213000_competitive_progression_public_leagues.sql');
 const compatibilityMigration = read('supabase/migrations/20260724213100_public_league_compatibility.sql');
+const privateLeagueMigration = read('supabase/migrations/20260724213200_hide_league_competition_credentials.sql');
 
 describe('security definer permissions', () => {
   it('removes Data API execution from the referral trigger function', () => {
@@ -119,11 +120,13 @@ describe('versioned profile and league social previews', () => {
     expect(progressionMigration).toContain('add column if not exists public_id text');
     expect(progressionMigration).toContain('set public_id = code');
     expect(progressionMigration).toContain('set code = public.generate_game_league_token()');
-    expect(progressionMigration).toContain('check (code <> public_id)');
-    expect(progressionMigration).toContain("'publicId', v_public_id");
-    expect(progressionMigration).toContain("'joinCode', v_code");
-    expect(progressionMigration).toContain("'joinCode', case when league.owner_nick_key = p_nick_key then league.code else null end");
-    expect(progressionMigration).toContain("'competitionCode', league.code");
+    expect(privateLeagueMigration).toContain('add column if not exists join_code text');
+    expect(privateLeagueMigration).toContain('set join_code = code');
+    expect(privateLeagueMigration).toContain('set code = public_id');
+    expect(privateLeagueMigration).toContain("'publicId', v_public_id");
+    expect(privateLeagueMigration).toContain("'joinCode', v_join_code");
+    expect(privateLeagueMigration).toContain("'joinCode', case when league.owner_nick_key = p_nick_key then league.join_code else null end");
+    expect(privateLeagueMigration).toContain("'competitionCode', league.public_id");
     expect(compatibilityMigration).toContain("jsonb_build_object('code', public_view.payload->>'publicId')");
   });
 
