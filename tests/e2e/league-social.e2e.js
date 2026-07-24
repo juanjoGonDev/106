@@ -11,7 +11,9 @@ const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
 const previewRoot = resolve('.tmp/pr-previews');
 const apiBaseUrl = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/game-api';
 const league = Object.freeze({
+  publicId: 'ABC123',
   code: 'ABC123',
+  competitionCode: 'ABC123',
   name: 'Final del barrio',
   revision: 456,
   waiting: true,
@@ -93,11 +95,12 @@ async function capture(page, testInfo) {
   });
 }
 
-test('waiting league blocks competition and shares the public website URL', async ({ page }, testInfo) => {
+test('waiting league blocks competition and shares the clean public website URL', async ({ page }, testInfo) => {
   await installMocks(page);
   await page.goto('/ligas.html?league=ABC123');
 
-  await expect(page.getByRole('heading', { name: 'Final del barrio · ABC123' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Final del barrio' })).toBeVisible();
+  await expect(page.locator('#leagueLookupPublicId')).toContainText('ABC123');
   await expect(page.locator('#leagueLookupEnds')).toHaveText('La cuenta atrás aún no ha empezado');
   await expect(page.locator('#leagueLookupMeta')).toContainText('2/3 cuentas');
   await expect(page.locator('#leagueLookupMeta')).toContainText('2/3 dispositivos');
@@ -108,12 +111,12 @@ test('waiting league blocks competition and shares the public website URL', asyn
   await expect.poll(() => page.evaluate(() => globalThis.__leagueSharePayload ?? null)).not.toBeNull();
   const payload = await page.evaluate(() => globalThis.__leagueSharePayload);
   const sharedUrl = new URL(payload.url);
-  expect(payload.title).toBe('Miniliga Final del barrio');
+  expect(payload.title).toBe('Final del barrio · Minuto 106');
   expect(sharedUrl.hostname).toBe('127.0.0.1');
-  expect(sharedUrl.pathname).toBe('/ligas.html');
-  expect(sharedUrl.searchParams.get('league')).toBe('ABC123');
+  expect(sharedUrl.pathname).toBe('/ligas/ABC123');
+  expect(sharedUrl.search).toBe('');
   expect(payload.url).not.toContain('supabase.co');
-  expect(payload.text).toContain('3 cuentas y 3 dispositivos únicos');
+  expect(payload.text).toContain('tres cuentas y tres dispositivos únicos');
 
   const overflow = await page.evaluate(() => ({
     content: globalThis.document.documentElement.scrollWidth,
