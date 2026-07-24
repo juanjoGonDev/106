@@ -13,7 +13,12 @@
   const hasValue = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
   const formatDifference = (value) => hasValue(value) ? `±${Number(value).toLocaleString('es-ES')} ms` : '—';
   const formatTime = (value) => hasValue(value) ? `${(Number(value) / 1000).toFixed(3)} s` : '—';
-  const trophyName = (type) => ({ golden_boot: 'Bota de Oro', golden_glove: 'Guante de Oro', golden_ball: 'Balón de Oro' })[type] || 'Trofeo';
+  const trophyName = (type) => ({
+    golden_boot: 'Bota de Oro',
+    golden_glove: 'Guante de Oro',
+    golden_ball: 'Balón de Oro',
+    league_champion: 'Campeón de liga',
+  })[type] || 'Trofeo';
   const trophyMetric = (trophy) => trophy.type === 'golden_ball' ? `${Number(trophy.value || 0)} intentos` : formatDifference(trophy.value);
 
   function escape(value) {
@@ -28,6 +33,16 @@
       if (!href || href.startsWith('#') || href.startsWith('//') || absoluteSchemePattern.test(href)) continue;
       anchor.href = new URL(href, appBaseUrl).toString();
     }
+  }
+
+  function upsertMeta(attribute, key, content) {
+    let meta = document.head.querySelector(`meta[${attribute}="${CSS.escape(key)}"]`);
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute(attribute, key);
+      document.head.append(meta);
+    }
+    meta.setAttribute('content', content);
   }
 
   async function requestProfile(nick) {
@@ -46,6 +61,11 @@
   function setMetadata(player) {
     const title = `${player.nick} · Minuto 106`;
     const description = `Perfil público de ${player.nick}: estadísticas, trofeos y logros en Minuto 106.`;
+    const canonicalUrl = ui.playerUrl(player.nick, route.section);
+    const shareUrl = ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision);
+    const cardUrl = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
+    const imageAlt = `Tarjeta actualizada de ${player.nick} con estadísticas, trofeos y logros de Minuto 106.`;
+
     document.title = title;
     document.querySelector('meta[name="description"]')?.setAttribute('content', description);
     let canonical = document.querySelector('link[rel="canonical"]');
@@ -54,8 +74,28 @@
       canonical.rel = 'canonical';
       document.head.append(canonical);
     }
-    canonical.href = ui.playerUrl(player.nick, route.section);
-    history.replaceState(null, '', canonical.href);
+    canonical.href = canonicalUrl;
+
+    upsertMeta('property', 'og:locale', 'es_ES');
+    upsertMeta('property', 'og:type', 'profile');
+    upsertMeta('property', 'og:site_name', 'Minuto 106');
+    upsertMeta('property', 'og:title', title);
+    upsertMeta('property', 'og:description', description);
+    upsertMeta('property', 'og:url', shareUrl);
+    upsertMeta('property', 'og:image', cardUrl);
+    upsertMeta('property', 'og:image:secure_url', cardUrl);
+    upsertMeta('property', 'og:image:type', 'image/png');
+    upsertMeta('property', 'og:image:width', '1200');
+    upsertMeta('property', 'og:image:height', '630');
+    upsertMeta('property', 'og:image:alt', imageAlt);
+    upsertMeta('name', 'twitter:card', 'summary_large_image');
+    upsertMeta('name', 'twitter:title', title);
+    upsertMeta('name', 'twitter:description', description);
+    upsertMeta('name', 'twitter:image', cardUrl);
+    upsertMeta('name', 'twitter:image:src', cardUrl);
+    upsertMeta('name', 'twitter:image:alt', imageAlt);
+
+    history.replaceState(null, '', canonicalUrl);
     normalizeSiteChromeLinks();
   }
 
@@ -76,7 +116,7 @@
       ['Trofeos', Number(player.trophies?.total || 0).toLocaleString('es-ES')],
       ['Logros', Number(player.achievements?.total || 0).toLocaleString('es-ES')],
       ['Puntos', Number(player.achievements?.points || 0).toLocaleString('es-ES')],
-      ['Días premiado', Number(player.trophies?.days || 0).toLocaleString('es-ES')],
+      ['Ligas ganadas', Number(player.trophies?.leagueChampion || 0).toLocaleString('es-ES')],
     ].map(([label, value]) => `<div><span>${label}</span><strong>${escape(value)}</strong></div>`).join('');
 
     const attempts = Array.isArray(player.history) ? player.history : [];
@@ -97,15 +137,15 @@
   function renderTrophies(player) {
     const trophies = player.trophies || {};
     const history = Array.isArray(trophies.history) ? trophies.history : [];
-    $('#trophyTotal').textContent = `${Number(trophies.total || 0)} trofeos · ${Number(trophies.days || 0)} días`;
+    $('#trophyTotal').textContent = `${Number(trophies.total || 0)} trofeos · ${Number(trophies.days || 0)} días · ${Number(trophies.leagueChampion || 0)} ligas`;
     $('#playerTrophies').innerHTML = history.length
-      ? history.map((trophy) => `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${trophyName(trophy.type)}</strong><time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`).join('')
-      : '<li class="player-empty">Todavía no tiene trofeos diarios cerrados.</li>';
+      ? history.map((trophy) => `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${trophy.leagueName ? `<small>${escape(trophy.leagueName)} · ${escape(trophy.leagueCode)}</small>` : ''}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`).join('')
+      : '<li class="player-empty">Todavía no tiene trofeos.</li>';
   }
 
   function renderShareActions(player) {
-    const share = ui.shareUrl(apiUrl, player.nick, route.section);
-    const card = ui.cardUrl(apiUrl, player.nick, route.section);
+    const share = ui.shareUrl(apiUrl, player.nick, route.section, player.profileRevision);
+    const card = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     $('#playerCardPreview').src = card;
     $('#downloadPlayerCard').href = card;
     $('#sharePlayer').addEventListener('click', () => {
