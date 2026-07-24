@@ -39,26 +39,31 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Generate patched workspace and lockfile
+        id: remediation
+        continue-on-error: true
         run: |
           node scripts/generate-postcss-remediation.mjs
-          pnpm install --lockfile-only --no-frozen-lockfile
+          pnpm install --lockfile-only --no-frozen-lockfile > remediation-install.log 2>&1
 
       - name: Audit remediated dependency graph
         id: remediated-audit
+        if: steps.remediation.outcome == 'success'
         continue-on-error: true
         run: pnpm audit --audit-level=high --json > remediated-audit.json
 
-      - name: Upload remediated dependency files
+      - name: Upload remediation diagnostics
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: postcss-remediation-${{ github.run_id }}
           path: |
             pnpm-workspace.yaml
             pnpm-lock.yaml
+            remediation-install.log
             remediated-audit.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 1
 
-      - name: Enforce remediated dependency audit
-        if: steps.remediated-audit.outcome == 'failure'
+      - name: Enforce remediation result
+        if: steps.remediation.outcome == 'failure' || steps.remediated-audit.outcome == 'failure'
         run: exit 1
