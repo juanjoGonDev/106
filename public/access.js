@@ -12,7 +12,7 @@ const protectedActions = new Set([
   'league-status',
   'link-account-player',
 ]);
-const accountActions = new Set([...protectedActions, 'account-players']);
+const accountActions = new Set([...protectedActions, 'account-players', 'player-context']);
 
 function normalizeAccessNick(value) {
   return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
