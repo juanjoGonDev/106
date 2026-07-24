@@ -16,6 +16,7 @@
     "public/home-stats.js",
     "public/honours.js",
     "public/share-actions.js",
+    "public/profile-share.js",
     "public/layout.js",
     "public/player-stats.js",
     "public/player-ui.js",
