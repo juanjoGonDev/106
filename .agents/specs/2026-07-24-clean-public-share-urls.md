@@ -37,6 +37,15 @@ Sharing from the application must expose only the public website URL. Supabase E
 - GitHub Pages cannot provide route-specific server-rendered metadata. Clean links therefore use the static repository-owned social preview rather than a dynamic player/result preview.
 - Exposing a clean and trustworthy public URL takes precedence over route-specific Edge metadata in the share payload.
 
+## Validation
+
+- Pull Request Quality Pipeline #485: passed, including syntax, Vitest, ESLint, Knip, security policy and the full local Supabase journey.
+- Player Pages and Social Cards #217: passed, including 100% focused module coverage and desktop/mobile Playwright journeys.
+- Public Asset Audit #158: passed.
+- Pull Request Visual Evidence #184: passed.
+- Regression tests validate canonical player, referral, league, duel and result URLs and reject `supabase.co` in user-visible share payloads.
+- The local Edge integration asserts `Content-Type: text/html` for metadata documents and validates generated PNG cards separately.
+
 ## Rollback
 
 Revert the application commit. No database migration or production data change is involved.
@@ -50,4 +59,4 @@ Revert the application commit. No database migration or production data change i
 
 ## Status
 
-Implemented. CI validation in progress.
+Completed and ready to merge.
