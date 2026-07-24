@@ -44,7 +44,9 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('width="1200" height="630"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
     expect(script).toContain('history.replaceState');
-    expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section)');
+    expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
+    expect(script).toContain("upsertMeta('property', 'og:image', cardUrl)");
+    expect(script).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(fallback).toContain('(?:player)\\/([^/]+)');
     expect(fallback).toContain('player.html');
   });
