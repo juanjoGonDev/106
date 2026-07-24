@@ -132,7 +132,7 @@ describe('versioned profile and league social previews', () => {
     const fallback = read('public/404.html');
     expect(leagues).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
     expect(leagues).toContain('league.joinCode');
-    expect(leagues).toContain('league.competitionCode');
+    expect(leagues).toContain('membership?.competitionCode');
     expect(leagues).not.toContain('leagueLookupCode');
     expect(fallback).toContain('ligas\\/([A-Z0-9]{6})');
     expect(fallback).toContain("url.searchParams.set('league',league[2].toUpperCase())");
