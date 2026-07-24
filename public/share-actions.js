@@ -34,13 +34,11 @@
     return body;
   }
 
-  function profileCanonicalUrl(profile) {
-    return window.Minuto106PlayerUI?.playerUrl(profile.nick)
-      || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
-  }
-
   function profileShareUrl(profile) {
-    return profileCanonicalUrl(profile);
+    if (window.Minuto106PlayerUI?.shareUrl) return window.Minuto106PlayerUI.shareUrl('', profile.nick);
+    const url = new URL('./player.html', location.href);
+    url.searchParams.set('nick', profile.nick);
+    return url.toString();
   }
 
   function referralShareUrl(profile) {
