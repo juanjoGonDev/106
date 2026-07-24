@@ -25,7 +25,9 @@ describe('eligible league activation and trophies', () => {
     expect(eligibilityMigration).toContain('first_member.device_hash <> second_member.device_hash');
     expect(eligibilityMigration).toContain('second_member.device_hash <> third_member.device_hash');
     expect(eligibilityMigration).toContain("if v_league.activated_at is null and coalesce((v_state->>'eligible')::boolean, false)");
-    expect(eligibilityMigration).toContain("set activated_at = v_now,\n        starts_at = v_now,\n        ends_at = v_now + interval '3 days'");
+    expect(eligibilityMigration).toContain(`set activated_at = v_now,
+        starts_at = v_now,
+        ends_at = v_now + interval '3 days'`);
   });
 
   it('uses a stable first-seen device identity instead of a rotatable current device', () => {
@@ -99,11 +101,12 @@ describe('versioned profile and league social previews', () => {
     expect(edge).toContain("searchParams.get('format') === 'json'");
   });
 
-  it('uses a previewable public shell while retaining canonical routes and the versioned PNG renderer', () => {
+  it('attaches the versioned PNG while retaining canonical public profile routes', () => {
     const playerHtml = read('public/player.html');
     const playerUi = read('public/player-ui.js');
     const player = read('public/player.js');
-    expect(playerUi).toContain('return playerShellUrl(nick, section, publicBaseUrl)');
+    const profileShare = read('public/profile-share.js');
+    expect(playerUi).toContain('return playerUrl(nick, section, publicBaseUrl)');
     expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
     expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
@@ -111,9 +114,11 @@ describe('versioned profile and league social previews', () => {
     expect(player).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
     expect(player).toContain("history.replaceState(null, '', canonicalUrl)");
     expect(player).toContain('player.profileRevision');
+    expect(player).toContain('file: getShareFile()');
     expect(player).toContain('Campeón de liga');
-    expect(playerHtml).toContain('property="og:image"');
-    expect(playerHtml).toContain('name="twitter:card" content="summary_large_image"');
+    expect(playerHtml).toContain('./profile-share.js');
+    expect(playerHtml).not.toContain('property="og:image"');
+    expect(profileShare).toContain('files: [file]');
   });
 
   it('shares league website URLs and hides competition while waiting', () => {
