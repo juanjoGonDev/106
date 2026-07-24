@@ -79,7 +79,7 @@ Revert the branch commits. No database, migration, API contract or production da
 - Pull Request Visual Evidence #208: passed.
 - Public Asset Audit #179: passed.
 - Validated implementation head: `0e0e7698e464c7b544c16cfd3b4f304032c3e55e`.
-- Documentation-only closure commits do not alter runtime behavior or test inputs.
+- Subsequent commits only finalize this specification and do not alter runtime behavior or test inputs.
 
 ## Delivery
 
