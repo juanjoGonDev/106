@@ -78,7 +78,8 @@ Revert the branch commits. No database, migration, API contract or production da
 - Player Pages and Social Cards #238: passed on desktop and mobile, including the sequential delayed statistics journeys.
 - Pull Request Visual Evidence #208: passed.
 - Public Asset Audit #179: passed.
-- Validated head before this documentation-only closure: `0e0e7698e464c7b544c16cfd3b4f304032c3e55e`.
+- Validated implementation head: `0e0e7698e464c7b544c16cfd3b4f304032c3e55e`.
+- Documentation-only closure commits do not alter runtime behavior or test inputs.
 
 ## Delivery
 
