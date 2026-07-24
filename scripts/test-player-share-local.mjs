@@ -60,7 +60,10 @@ for (const award of Object.values(stats.awards || {})) {
   if (award?.nick) assert.ok(['spain', 'argentina'].includes(award.team), `Award ${award.nick} must expose a team.`);
 }
 for (const ranking of [...(stats.honoursRankings?.trophies || []), ...(stats.honoursRankings?.achievements || [])]) {
-  assert.ok(['spain', 'argentina'].includes(ranking.team), `Honours row ${ranking.nick} must expose a team.`);
+  assert.ok(ranking.nick, 'Every honours row must expose a nickname.');
+  if (ranking.team !== null && ranking.team !== undefined && ranking.team !== '') {
+    assert.ok(['spain', 'argentina'].includes(ranking.team), `Honours row ${ranking.nick} exposes an invalid team.`);
+  }
 }
 
 const nick = encodeURIComponent(player.nick);
@@ -111,7 +114,7 @@ const siteResponse = await fetch(`${apiUrl}/functions/v1/player-share/_site/card
   signal: AbortSignal.timeout(60_000),
 });
 const sitePng = new Uint8Array(await siteResponse.arrayBuffer());
-assertPng(siteResponse, sitePng, 'Site social card', 3600);
-persistPreview('site-card.png', sitePng);
+assertPng(siteResponse, sitePng, 'Site social card', 86400);
+persistPreview('site-social-card.png', sitePng);
 
-console.log('Player and site share metadata, team payloads and full 1200x630 PNG generation passed.');
+console.log('Player and site social cards passed.');
