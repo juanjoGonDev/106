@@ -28,7 +28,7 @@ function workspace() {
   };
 }
 
-test('extracts media references from HTML, CSS, JSON and source strings', () => {
+test('extracts media references from HTML, CSS, JSON and canonical source strings', () => {
   const references = extractAssetReferences(`
     <img src="./assets/a.svg?v=1">
     <meta content='/assets/social.png#card'>
@@ -43,6 +43,8 @@ test('extracts media references from HTML, CSS, JSON and source strings', () => 
     </style>
     {"src":"./assets/icon.png"}
     const card = '/public/assets/card.jpg';
+    const rootCard = '/106/public/assets/root-card.webp';
+    const generatedRoute = '/card.png';
     const ignored = 'plain.txt';
   `);
   assert.deepEqual(references.sort(), [
@@ -51,6 +53,7 @@ test('extracts media references from HTML, CSS, JSON and source strings', () => 
     '../media/plain.png',
     './assets/a.svg?v=1',
     './assets/icon.png',
+    '/106/public/assets/root-card.webp',
     '/assets/social.png#card',
     '/public/assets/card.jpg',
   ]);
