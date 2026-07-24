@@ -121,6 +121,19 @@ function assertGatewayAllowsOrigin(response) {
   assert.ok(allowedOrigin === origin || allowedOrigin === '*', `Unexpected allow-origin: ${allowedOrigin}`);
 }
 
+function accountHeaders(accountToken, deviceId) {
+  return {
+    'x-account-token': accountToken,
+    'x-device-id': deviceId,
+  };
+}
+
+async function joinLeague({ accountToken, code, deviceId, nick }) {
+  return api({ action: 'join-league', nick, code }, {
+    headers: accountHeaders(accountToken, deviceId),
+  });
+}
+
 async function runSmokeChecks() {
   const stats = await waitForFunction();
   assert.equal(stats.response.status, 200);
@@ -178,10 +191,7 @@ async function runGameJourney() {
   const nick = `CIPlayer${suffix}`.slice(0, 24);
   const accountToken = randomBytes(32).toString('hex');
   const deviceId = `ci-device-${randomUUID()}`;
-  const privateHeaders = {
-    'x-account-token': accountToken,
-    'x-device-id': deviceId,
-  };
+  const privateHeaders = accountHeaders(accountToken, deviceId);
 
   const missingToken = await api({ action: 'account-players' });
   assert.equal(missingToken.response.status, 400);
@@ -230,12 +240,65 @@ async function runGameJourney() {
   }, { headers: privateHeaders });
   assert.equal(league.response.status, 201, JSON.stringify(league.body));
   assert.match(String(league.body.code), /^[A-Z0-9]{6}$/);
+  assert.equal(league.body.waiting, true);
+  assert.equal(league.body.active, false);
 
   const joinedLeaguesBefore = await api({ action: 'player-leagues', nick }, { headers: privateHeaders });
   assert.equal(joinedLeaguesBefore.response.status, 200, JSON.stringify(joinedLeaguesBefore.body));
   assert.equal(joinedLeaguesBefore.body[0]?.attemptsUsed, 0);
   assert.equal(joinedLeaguesBefore.body[0]?.attemptsLeft, 5);
-  logStep('The owner sees the newly created league in their private league list');
+  assert.equal(joinedLeaguesBefore.body[0]?.waiting, true);
+  logStep('A new league keeps its competition clock stopped while it waits for eligible identities');
+
+  const blockedStart = await startAttempt({
+    nick,
+    team: 'argentina',
+    leagueCode: league.body.code,
+  }, privateHeaders);
+  assert.notEqual(blockedStart.response.status, 201, JSON.stringify(blockedStart.body));
+  assert.equal(blockedStart.body.challengeId, undefined);
+  logStep('A waiting league cannot create a challenge');
+
+  const aliasNick = `CIAlias${suffix}`.slice(0, 24);
+  const aliasDevice = `ci-device-${randomUUID()}`;
+  const aliasJoin = await joinLeague({
+    accountToken,
+    code: league.body.code,
+    deviceId: aliasDevice,
+    nick: aliasNick,
+  });
+  assert.equal(aliasJoin.response.status, 200, JSON.stringify(aliasJoin.body));
+  assert.equal(aliasJoin.body.waiting, true);
+  assert.equal(aliasJoin.body.eligibleOwners, 1);
+  logStep('A second nickname owned by the same account does not increase eligible owners');
+
+  const sameDeviceNick = `CISameDev${suffix}`.slice(0, 24);
+  const sameDeviceJoin = await joinLeague({
+    accountToken: randomBytes(32).toString('hex'),
+    code: league.body.code,
+    deviceId,
+    nick: sameDeviceNick,
+  });
+  assert.equal(sameDeviceJoin.response.status, 200, JSON.stringify(sameDeviceJoin.body));
+  assert.equal(sameDeviceJoin.body.waiting, true);
+  assert.equal(sameDeviceJoin.body.eligibleOwners, 2);
+  assert.equal(sameDeviceJoin.body.eligibleDevices, 2);
+  logStep('A different account on an already represented device does not activate the league');
+
+  const eligibleNick = `CIEligible${suffix}`.slice(0, 24);
+  const eligibleJoin = await joinLeague({
+    accountToken: randomBytes(32).toString('hex'),
+    code: league.body.code,
+    deviceId: `ci-device-${randomUUID()}`,
+    nick: eligibleNick,
+  });
+  assert.equal(eligibleJoin.response.status, 200, JSON.stringify(eligibleJoin.body));
+  assert.equal(eligibleJoin.body.active, true);
+  assert.equal(eligibleJoin.body.waiting, false);
+  assert.ok(eligibleJoin.body.startsAt);
+  assert.ok(eligibleJoin.body.endsAt);
+  assert.ok(new Date(eligibleJoin.body.endsAt).getTime() > new Date(eligibleJoin.body.startsAt).getTime());
+  logStep('The third pairwise-distinct owner and device activates the three-day league exactly once');
 
   const leagueStarted = await startAttempt({
     nick,
@@ -252,11 +315,13 @@ async function runGameJourney() {
   assert.equal(leagueFinished.body.attempt?.verified, true, JSON.stringify(leagueFinished.body));
   assert.equal(leagueFinished.body.attempt?.competitionType, 'league');
   assert.equal(leagueFinished.body.attempt?.leagueCode, league.body.code);
-  logStep('A league attempt is persisted with an explicit league scope');
+  logStep('An activated league persists attempts with an explicit league scope');
 
   const publicLeague = await api({ action: 'league', code: league.body.code });
   assert.equal(publicLeague.response.status, 200, JSON.stringify(publicLeague.body));
+  assert.equal(publicLeague.body.active, true);
   assert.equal(publicLeague.body.totalAttempts, 1);
+  assert.ok(Number(publicLeague.body.revision) > 0);
   assert.match(JSON.stringify(publicLeague.body.leaderboard), new RegExp(nick, 'i'));
 
   const leagueStatus = await api({ action: 'league-status', nick, code: league.body.code }, { headers: privateHeaders });
@@ -264,7 +329,7 @@ async function runGameJourney() {
   assert.equal(leagueStatus.body.attemptsUsed, 1);
   assert.equal(leagueStatus.body.attemptsLeft, 4);
   assert.equal(leagueStatus.body.history?.[0]?.differenceMs, 0);
-  logStep('League membership exposes its own attempt budget, rank and history');
+  logStep('League membership exposes its own attempt budget, rank, activation and history');
 
   const finalStats = await api({ action: 'stats' });
   assert.equal(finalStats.response.status, 200);
@@ -276,6 +341,7 @@ async function runGameJourney() {
   assert.equal(globalProfile.body.attemptsUsed, 1);
   assert.equal(globalProfile.body.verifiedAttempts, 1);
   assert.equal(globalProfile.body.history?.length, 1);
+  assert.ok(Number(globalProfile.body.profileRevision) > 0);
   logStep('League attempts never consume global attempts or enter global statistics and profiles');
 }
 
