@@ -30,9 +30,25 @@
     if (themeColor) themeColor.content = APP_THEME_COLOR;
   }
 
+  function preventGestureZoom(event) {
+    event.preventDefault();
+  }
+
+  function preventMultiTouchZoom(event) {
+    if (event.touches.length > 1) event.preventDefault();
+  }
+
+  function installZoomLock() {
+    document.addEventListener('touchmove', preventMultiTouchZoom, { passive: false });
+    for (const eventName of ['gesturestart', 'gesturechange', 'gestureend']) {
+      document.addEventListener(eventName, preventGestureZoom, { passive: false });
+    }
+  }
+
   function configureBrowserSurface() {
     ensureBrowserSurfaceStylesheet();
     applyBrowserMetadata();
+    installZoomLock();
     const observer = new MutationObserver(() => applyBrowserMetadata());
     observer.observe(document.head, { childList: true, subtree: true });
     document.addEventListener('DOMContentLoaded', () => {
