@@ -32,14 +32,20 @@ The metadata image remains rendered by `player-share`:
 /functions/v1/player-share/<nick>/trophies.png?v=<profileRevision>
 ```
 
-League:
+League metadata and image:
 
 ```text
-/functions/v1/social-share/league/<code>?v=<leagueRevision>
-/functions/v1/social-share/league/<code>/card.png?v=<leagueRevision>
+/functions/v1/social-share/league/<public-id>?v=<leagueRevision>
+/functions/v1/social-share/league/<public-id>/card.png?v=<leagueRevision>
 ```
 
-The league share page redirects human visitors to `ligas.html?league=<code>` and emits a 1200×630 PNG with the current activation state, eligible identity counts, leaderboard or champion.
+Human visitors use the clean website route:
+
+```text
+https://juanjogondev.github.io/106/ligas/<public-id>
+```
+
+The public identifier is not a join credential. Membership requires the separate private `join_code`, which only the authenticated owner receives as `joinCode`. The social renderer and public page use the immutable `public_id` and emit a 1200×630 PNG with the current activation state, eligible identity counts, leaderboard or champion.
 
 ## Eligible league activation
 
@@ -54,7 +60,7 @@ Existing leagues are grandfathered as active during migration to avoid invalidat
 
 The backend rejects challenge creation while a league is waiting. The frontend only exposes the competition action after the API reports the league as active.
 
-## League champion trophies
+## League champion trophies and podium achievements
 
 An eligible completed league can persist one `league_champion` trophy. Selection is deterministic:
 
@@ -65,7 +71,7 @@ An eligible completed league can persist one `league_champion` trophy. Selection
 
 The league must still satisfy the three-account and three-device eligibility rule. A completed league without a verified attempt produces no trophy. Synchronization is idempotent and protected by advisory locks.
 
-League trophies appear in the public player trophy history and update the player profile revision. Deployment snapshots treat their row count as monotonic history.
+The first three eligible finishers also receive persistent podium achievements with points. Their metadata stores the public league identifier, league name, final position and best difference. League trophies and achievements appear in the public player history with the league name, public route and award date, and update the player profile revision. Deployment snapshots treat their row counts as monotonic history.
 
 ## Supabase function privilege warning
 
@@ -79,13 +85,14 @@ No Dashboard configuration is required. Applying the migration is sufficient. Th
 
 ## Deployment
 
-The normal Supabase workflow applies the additive migrations and deploys the registered `social-share` Edge Function. Do not manually edit applied migrations or execute schema changes in the Dashboard.
+The normal Supabase workflow applies the additive migrations and deploys the registered `social-share` and `player-context` Edge Functions. Do not manually edit applied migrations or execute schema changes in the Dashboard.
 
 After deployment, confirm:
 
 ```text
 /functions/v1/social-share/player/<known-nick>
-/functions/v1/social-share/league/<known-code>
+/functions/v1/social-share/league/<known-public-id>
+https://juanjogondev.github.io/106/ligas/<known-public-id>
 ```
 
-Both responses should contain versioned `og:image` and `twitter:image` URLs. The corresponding PNG routes must return `image/png` at 1200×630.
+Both metadata responses should contain versioned `og:image` and `twitter:image` URLs. The corresponding PNG routes must return `image/png` at 1200×630. Public league responses and profile links must not contain the private `joinCode`.
