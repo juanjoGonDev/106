@@ -1,4 +1,7 @@
 (() => {
+  if (window.__MINUTO106_SHARE_ACTIONS__) return;
+  window.__MINUTO106_SHARE_ACTIONS__ = true;
+
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const activeLeagueCode = String(new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
