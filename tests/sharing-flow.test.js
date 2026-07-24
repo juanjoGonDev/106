@@ -8,6 +8,7 @@ const ranking = readFileSync('public/ranking.js', 'utf8');
 const honours = readFileSync('public/honours.js', 'utf8');
 const leagues = readFileSync('public/ligas.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
+const playerHtml = readFileSync('public/player.html', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
 const socialShare = readFileSync('supabase/functions/social-share/index.ts', 'utf8');
@@ -54,12 +55,15 @@ describe('share-first social actions', () => {
     expect(duelContext).toContain('formatElapsed(duel.targetElapsedMs)');
   });
 
-  it('shares persisted attempts, referrals, profiles and leagues through canonical website routes', () => {
+  it('shares profiles through a previewable website document and keeps other public routes canonical', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
-    expect(honours).toContain('url: profileUrl(profile)');
-    expect(player).toContain('const share = ui.playerUrl(player.nick, route.section)');
-    expect(player).toContain("upsertMeta('property', 'og:url', canonicalUrl)");
+    expect(honours).toContain('url: profileShareUrl(profile)');
+    expect(honours).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
+    expect(actions).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
+    expect(player).toContain("const share = ui.shareUrl('', player.nick, route.section)");
+    expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
     expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
+    expect(playerUi).toContain('return playerShellUrl(nick, section, publicBaseUrl)');
     expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
     expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
@@ -69,6 +73,18 @@ describe('share-first social actions', () => {
     expect(actions).not.toContain("'/social-share'");
     expect(leagues).not.toContain('/social-share');
     expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
+  });
+
+  it('publishes complete static image metadata in the initial player document', () => {
+    const siteCard = 'https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3';
+    expect(playerHtml).toContain('<link rel="canonical" href="https://juanjogondev.github.io/106/player.html">');
+    expect(playerHtml).toContain('property="og:image"');
+    expect(playerHtml).toContain('property="og:image:secure_url"');
+    expect(playerHtml).toContain('property="og:image:type" content="image/jpeg"');
+    expect(playerHtml).toContain('name="twitter:card" content="summary_large_image"');
+    expect(playerHtml).toContain('name="twitter:image"');
+    expect(playerHtml).toContain('name="twitter:image:src"');
+    expect(playerHtml).toContain(siteCard);
   });
 
   it('keeps dynamic metadata and PNG renderers as internal infrastructure', () => {
