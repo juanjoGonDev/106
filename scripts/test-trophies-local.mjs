@@ -242,6 +242,35 @@ async function runFixtureJourney() {
   assert.ok([...achievementCodes].some((code) => code.startsWith('first_of_month_golden_ball_')));
   logStep('Profiles expose dated trophy counts, a seven-day streak, collection, thresholds, monthly firsts and a daily hat trick');
 
+  const featuredCodes = alphaProfile.achievements.items.slice(0, 3).map((achievement) => achievement.code);
+  const selection = await rpc('set_game_player_featured_achievements', {
+    p_nick_key: alpha.nick_key,
+    p_achievement_codes: featuredCodes,
+  });
+  assert.deepEqual(selection.featuredAchievements.map((achievement) => achievement.code), featuredCodes);
+  const highlightedProfile = await rpc('get_game_player_profile', { p_nick_key: alpha.nick_key });
+  assert.deepEqual(highlightedProfile.achievements.featured.map((achievement) => achievement.code), featuredCodes);
+  assert.deepEqual(highlightedProfile.achievements.items.slice(0, 3).map((achievement) => achievement.code), featuredCodes);
+  assert.ok(highlightedProfile.profileRevision >= alphaProfile.profileRevision);
+  assert.equal((await rpc('set_game_player_featured_achievements', {
+    p_nick_key: alpha.nick_key,
+    p_achievement_codes: [...featuredCodes, alphaProfile.achievements.items[3].code],
+  })).error, 'featured_limit');
+  assert.equal((await rpc('set_game_player_featured_achievements', {
+    p_nick_key: alpha.nick_key,
+    p_achievement_codes: [featuredCodes[0], featuredCodes[0]],
+  })).error, 'duplicate_featured_achievement');
+  assert.equal((await rpc('set_game_player_featured_achievements', {
+    p_nick_key: alpha.nick_key,
+    p_achievement_codes: ['not_unlocked'],
+  })).error, 'achievement_not_unlocked');
+  const cleared = await rpc('set_game_player_featured_achievements', {
+    p_nick_key: alpha.nick_key,
+    p_achievement_codes: [],
+  });
+  assert.deepEqual(cleared.featuredAchievements, []);
+  logStep('Featured achievements enforce ownership-ready unlocked, distinct and three-slot persistence contracts');
+
   const bravoProfile = await rpc('get_game_player_profile', { p_nick_key: bravo.nick_key });
   const bravoCodes = new Set(bravoProfile.achievements.items.map((achievement) => achievement.code));
   assert.ok([...bravoCodes].some((code) => code.startsWith('first_of_month_golden_boot_')));
