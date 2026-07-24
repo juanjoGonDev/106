@@ -56,7 +56,11 @@ function extractCssUrlReferences(content) {
 }
 
 function isRepositorySourcePath(value) {
-  return value.startsWith('/') || value.startsWith('./') || value.startsWith('../');
+  return value.startsWith('./')
+    || value.startsWith('../')
+    || value.startsWith('/106/')
+    || value.startsWith('/public/')
+    || value.startsWith('/assets/');
 }
 
 function extractQuotedRepositoryPaths(content) {

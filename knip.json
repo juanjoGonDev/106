@@ -8,6 +8,7 @@
     "public/attempt-refresh.js",
     "public/compliance.js",
     "public/competition.js",
+    "public/duel-context.js",
     "public/format.js",
     "public/human-check-ready-flow.js",
     "public/human-check.js",
@@ -42,6 +43,7 @@
     "supabase/functions/**/*.ts"
   ],
   "ignoreBinaries": [
+    "psql",
     "supabase"
   ],
   "ignoreDependencies": [

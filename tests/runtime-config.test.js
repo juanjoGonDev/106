@@ -99,6 +99,6 @@ describe('Pages and mobile navigation regressions', () => {
     expect(layout).toContain("menuButton.setAttribute('aria-expanded', 'false')");
     expect(layout).toContain("event.key !== 'Escape'");
     expect(styles).toContain('.site-header[data-menu-open="true"] .site-navigation');
-    expect(styles).toContain('@media(max-width:700px)');
+    expect(styles).toMatch(/@media\s*\(max-width:\s*700px\)/);
   });
 });

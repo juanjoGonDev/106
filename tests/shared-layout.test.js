@@ -23,9 +23,9 @@ describe('shared application shell', () => {
   });
 
   it('uses a flex page shell that pushes short-page footers to the bottom', () => {
-    expect(siteStyles).toContain('body{display:flex;min-height:100vh;flex-direction:column}');
-    expect(siteStyles).toContain('body>main{flex:1 0 auto}');
-    expect(siteStyles).toContain('margin-top:auto');
+    expect(siteStyles).toMatch(/body\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*100vh;[^}]*flex-direction:\s*column;/s);
+    expect(siteStyles).toMatch(/body\s*>\s*main\s*\{[^}]*flex:\s*1 0 auto;/s);
+    expect(siteStyles).toMatch(/\.site-footer\s*\{[^}]*margin-top:\s*auto;/s);
   });
 
   it('provides close controls and backdrop dismissal for dialogs', () => {

@@ -53,23 +53,39 @@ function formatDifference(value) {
   return hasValue(value) ? `±${Number(value).toLocaleString('es-ES')} ms` : 'Sin marca';
 }
 
-function remainingLabel(endsAt) {
-  const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now());
+function remainingLabel(league) {
+  if (league?.waiting === true) return 'En espera de participantes';
+  const remaining = Math.max(0, new Date(league?.endsAt).getTime() - Date.now());
   if (!remaining) return 'Finalizada';
   const hours = Math.ceil(remaining / 3_600_000);
   if (hours <= 24) return `Termina en ${hours} h`;
   return `Termina en ${Math.ceil(hours / 24)} días`;
 }
 
-function leagueShareUrl(code) {
-  return new URL(`./ligas.html?league=${encodeURIComponent(code)}`, location.href).toString();
+function eligibilityLabel(league) {
+  return `${Number(league?.eligibleOwners || 0)}/3 cuentas · ${Number(league?.eligibleDevices || 0)}/3 dispositivos`;
+}
+
+function leagueShareUrl(league) {
+  if (!leagueApi) return new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`, location.href).toString();
+  const url = new URL(leagueApi);
+  url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/social-share');
+  url.pathname += `/league/${encodeURIComponent(league.code)}`;
+  url.search = '';
+  url.hash = '';
+  const revision = Number(league.revision);
+  url.searchParams.set('v', String(Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0));
+  return url.toString();
 }
 
 async function copyLeagueInvitation(league) {
-  const text = `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}: ${leagueShareUrl(league.code)}`;
+  const waiting = league.waiting === true;
+  const text = waiting
+    ? `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Empezará cuando haya 3 cuentas y 3 dispositivos únicos. Código ${league.code}: ${leagueShareUrl(league)}`
+    : `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}: ${leagueShareUrl(league)}`;
   if (navigator.share) {
     try {
-      await navigator.share({ title: `Miniliga ${league.name}`, text, url: leagueShareUrl(league.code) });
+      await navigator.share({ title: `Miniliga ${league.name}`, text, url: leagueShareUrl(league) });
       return;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -81,10 +97,12 @@ async function copyLeagueInvitation(league) {
 
 function renderMyLeagueCard(league) {
   const active = league.active === true;
+  const waiting = league.waiting === true;
   const rank = league.rank ? `#${league.rank}` : '—';
+  const status = waiting ? `${remainingLabel(league)} · ${eligibilityLabel(league)}` : remainingLabel(league);
   return `
     <article class="my-league-card${selectedLeague?.code === league.code ? ' active' : ''}" data-league-card="${escapeLeague(league.code)}">
-      <header><div><h3>${escapeLeague(league.name)}</h3><code>${escapeLeague(league.code)}</code></div><span class="league-status">${escapeLeague(active ? remainingLabel(league.endsAt) : 'Finalizada')}</span></header>
+      <header><div><h3>${escapeLeague(league.name)}</h3><code>${escapeLeague(league.code)}</code></div><span class="league-status">${escapeLeague(status)}</span></header>
       <div class="league-card-stats">
         <div><span>Puesto</span><strong>${rank}</strong></div>
         <div><span>Intentos</span><strong>${league.attemptsUsed ?? 0}/${league.maxAttempts ?? 5}</strong></div>
@@ -130,18 +148,21 @@ function renderLeagueAttempts(status) {
 
 function renderLeague(league, status = null) {
   selectedLeague = league;
+  const waiting = league.waiting === true;
   const section = document.querySelector('#leagueLookupResult');
   section.hidden = false;
   document.querySelector('#leagueLookupTitle').textContent = `${league.name} · ${league.code}`;
-  document.querySelector('#leagueLookupEnds').textContent = remainingLabel(league.endsAt);
-  document.querySelector('#leagueLookupMeta').textContent = `${compact(league.members ?? 0)} participantes · ${compact(league.totalAttempts ?? 0)} intentos exclusivos de esta liga`;
+  document.querySelector('#leagueLookupEnds').textContent = waiting ? 'La cuenta atrás aún no ha empezado' : remainingLabel(league);
+  document.querySelector('#leagueLookupMeta').textContent = waiting
+    ? `${compact(league.members ?? 0)} participantes · ${eligibilityLabel(league)} · la liga empieza al alcanzar tres identidades válidas`
+    : `${compact(league.members ?? 0)} participantes · ${compact(league.totalAttempts ?? 0)} intentos exclusivos de esta liga`;
   document.querySelector('#competeLeagueLink').href = `./?league=${encodeURIComponent(league.code)}`;
-  document.querySelector('#competeLeagueLink').hidden = league.active === false || status?.member === false;
+  document.querySelector('#competeLeagueLink').hidden = league.active !== true || status?.member === false;
 
   const nickKey = currentNick().normalize('NFKC').trim().toLocaleLowerCase('es');
   document.querySelector('#leagueLookupList').innerHTML = league.leaderboard?.length
     ? league.leaderboard.map((entry) => `<li data-current="${String(entry.nick || '').normalize('NFKC').trim().toLocaleLowerCase('es') === nickKey}"><span class="rank">${entry.rank ? `#${entry.rank}` : '—'}</span><span class="player">${escapeLeague(entry.nick)}<small>${entry.attemptsUsed ?? 0}/5 intentos · ${entry.verifiedAttempts ?? 0} válidos</small></span><span class="difference">${formatDifference(entry.bestDifferenceMs)}</span></li>`).join('')
-    : '<li class="empty">Todavía no hay participantes.</li>';
+    : `<li class="empty">${waiting ? 'La clasificación se abrirá cuando empiece la liga.' : 'Todavía no hay participantes con marca.'}</li>`;
 
   renderLeagueAttempts(status);
   document.querySelectorAll('[data-league-card]').forEach((card) => {
@@ -179,8 +200,8 @@ async function createLeague() {
   const league = await leagueRequest('create-league', { nick, name });
   document.querySelector('#newLeagueName').value = '';
   await loadMyLeagues();
-  await loadLeague(league.code);
-  await copyLeagueInvitation(league);
+  const currentLeague = await loadLeague(league.code);
+  await copyLeagueInvitation(currentLeague);
 }
 
 async function joinLeague() {
@@ -188,10 +209,13 @@ async function joinLeague() {
   const code = String(document.querySelector('#leagueLookupCode').value || '').trim().toUpperCase();
   if (nick.length < 2) throw new Error('Escribe el nick con el que te unirás.');
   if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Introduce un código válido de seis caracteres.');
-  const league = await leagueRequest('join-league', { nick, code });
+  const joined = await leagueRequest('join-league', { nick, code });
   await loadMyLeagues();
-  await loadLeague(league.code);
-  await window.Minuto106UI?.success({ title: 'Ya estás dentro', message: `Dispones de 5 intentos propios en “${league.name}”.` });
+  const league = await loadLeague(joined.code);
+  const message = league.active === true
+    ? `La liga “${league.name}” ya está activa. Dispones de 5 intentos propios.`
+    : `Ya formas parte de “${league.name}”. ${eligibilityLabel(league)} para comenzar.`;
+  await window.Minuto106UI?.success({ title: league.active === true ? 'Liga activada' : 'Ya estás dentro', message });
 }
 
 async function initializeLeagues() {
@@ -232,7 +256,7 @@ document.querySelector('#myLeaguesList')?.addEventListener('click', (event) => {
     const code = card?.dataset.leagueCard;
     const league = code === selectedLeague?.code
       ? selectedLeague
-      : { code, name: card?.querySelector('h3')?.textContent || 'Miniliga' };
+      : { code, name: card?.querySelector('h3')?.textContent || 'Miniliga', revision: 0 };
     copyLeagueInvitation(league).catch((error) => showLeagueError(error, 'No se pudo compartir la miniliga'));
   }
 });

@@ -1,8 +1,14 @@
 (() => {
+  if (window.__MINUTO106_SHARE_ACTIONS__) return;
+  window.__MINUTO106_SHARE_ACTIONS__ = true;
+
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const activeLeagueCode = String(new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
   let actionPending = false;
+  let latestAttempt = window.__MINUTO106_LATEST_ATTEMPT__?.id
+    ? window.__MINUTO106_LATEST_ATTEMPT__
+    : null;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -10,11 +16,15 @@
     return String(document.querySelector(selector)?.value || localStorage.getItem('minuto106:nick') || '').trim();
   }
 
-  async function request(action, payload = {}) {
+  function apiUrl() {
     const config = window.__MINUTO106_CONFIG__ ?? {};
-    const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
-    if (!apiUrl || apiUrl.includes('YOUR_PROJECT_REF')) throw new Error('Supabase aún no está configurado.');
-    const response = await fetch(apiUrl, {
+    return String(config.apiBaseUrl ?? '').replace(/\/$/, '');
+  }
+
+  async function request(action, payload = {}) {
+    const url = apiUrl();
+    if (!url || url.includes('YOUR_PROJECT_REF')) throw new Error('Supabase aún no está configurado.');
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify({ action, ...payload }),
@@ -24,32 +34,93 @@
     return body;
   }
 
-  function profileUrl(profile, referral = false) {
-    const url = new URL(referral ? './' : './ranking.html', location.href);
-    if (referral && profile?.referralCode) url.searchParams.set('ref', profile.referralCode);
-    if (!referral && profile?.nick) url.searchParams.set('nick', profile.nick);
+  function normalizedRevision(value) {
+    const revision = Number(value);
+    return Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0;
+  }
+
+  function socialShareUrl(kind, id, revision = 0, fallback = location.href) {
+    const configuredApiUrl = apiUrl();
+    if (!configuredApiUrl || configuredApiUrl.includes('YOUR_PROJECT_REF')) return fallback;
+    const url = new URL(configuredApiUrl);
+    url.pathname = url.pathname.replace(/\/[^/]+\/?$/, '/social-share');
+    url.pathname += `/${kind}/${encodeURIComponent(id)}`;
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('v', String(normalizedRevision(revision)));
     return url.toString();
   }
 
-  function leagueUrl(code) {
+  function profileCanonicalUrl(profile) {
+    return window.Minuto106PlayerUI?.playerUrl(profile.nick)
+      || new URL(`./ranking.html?nick=${encodeURIComponent(profile.nick)}`, location.href).toString();
+  }
+
+  function profileShareUrl(profile) {
+    return window.Minuto106PlayerUI?.shareUrl(apiUrl(), profile.nick, 'overview', profile.profileRevision)
+      || profileCanonicalUrl(profile);
+  }
+
+  function referralShareUrl(profile) {
+    const fallback = new URL('./', location.href);
+    fallback.searchParams.set('ref', profile.referralCode);
+    return socialShareUrl('referral', profile.referralCode, profile.profileRevision, fallback.toString());
+  }
+
+  function leagueCanonicalUrl(code) {
     return new URL(`./ligas.html?league=${encodeURIComponent(code)}`, location.href).toString();
+  }
+
+  function leagueShareUrl(league) {
+    return socialShareUrl('league', league.code, league.revision, leagueCanonicalUrl(league.code));
+  }
+
+  function duelCanonicalUrl(code) {
+    const url = new URL('./', location.href);
+    url.searchParams.set('duel', code);
+    return url.toString();
+  }
+
+  function duelShareUrl(duel) {
+    const revision = Date.parse(String(duel.expiresAt || '')) - (3 * 24 * 60 * 60 * 1000);
+    return socialShareUrl('duel', duel.code, revision, duelCanonicalUrl(duel.code));
+  }
+
+  function resultShareUrl(attempt) {
+    const fallback = new URL('./', location.href);
+    fallback.searchParams.set('sharedResult', attempt.id);
+    return socialShareUrl('result', attempt.id, Date.parse(String(attempt.createdAt || '')), fallback.toString());
   }
 
   async function shareProfile({ referral = false } = {}) {
     const nick = currentNick();
     if (nick.length < 2) throw new Error('Escribe primero tu nick.');
     const profile = await request('profile', { nick });
-    const history = Array.isArray(profile.history) ? profile.history : [];
-    const latest = history[0];
     const trophies = Number(profile.trophies?.total || 0);
     const achievements = Number(profile.achievements?.total || 0);
     const text = referral
-      ? `⚽ Te reto en Minuto 106. Completa tus 5 intentos válidos y ambos ganaremos un intento extra. Mi palmarés: ${trophies} trofeos y ${achievements} logros.`
-      : `⚽ Mi marca en Minuto 106 es ${latest ? `±${latest.differenceMs} ms` : 'un reto pendiente'}. Tengo ${trophies} trofeos y ${achievements} logros. ¿Me superas?`;
+      ? `⚽ ${profile.nick} te invita a Minuto 106. Completa tus 5 intentos válidos y ambos ganaréis un intento extra.`
+      : `⚽ ${profile.nick} tiene ${trophies} trofeos y ${achievements} logros en Minuto 106. ¿Puedes superarle?`;
     await window.Minuto106UI.share({
-      title: `${profile.nick} · Minuto 106`,
+      title: referral ? `${profile.nick} te invita · Minuto 106` : `${profile.nick} · Minuto 106`,
       text,
-      url: profileUrl(profile, referral),
+      url: referral ? referralShareUrl(profile) : profileShareUrl(profile),
+    });
+  }
+
+  async function shareResult() {
+    if (!latestAttempt?.id) {
+      await shareProfile();
+      return;
+    }
+    const elapsedSeconds = (Number(latestAttempt.elapsedMs) / 1000).toFixed(3);
+    const competition = latestAttempt.competitionType === 'league' && latestAttempt.leagueName
+      ? ` en la miniliga “${latestAttempt.leagueName}”`
+      : '';
+    await window.Minuto106UI.share({
+      title: `${latestAttempt.nick}: ${elapsedSeconds} s · Minuto 106`,
+      text: `⚽ He marcado ${elapsedSeconds} s${competition} y me he quedado a ${latestAttempt.differenceMs} ms del 10.600. ¿Puedes acercarte más?`,
+      url: resultShareUrl(latestAttempt),
     });
   }
 
@@ -57,12 +128,11 @@
     const nick = currentNick();
     if (nick.length < 2) throw new Error('Escribe primero tu nick y completa al menos un intento válido.');
     const duel = await request('create-duel', { nick });
-    const url = new URL('./', location.href);
-    url.searchParams.set('duel', duel.code);
+    const targetSeconds = (Number(duel.targetElapsedMs) / 1000).toFixed(3);
     await window.Minuto106UI.share({
-      title: 'Reto directo · Minuto 106',
-      text: `Te reto en Minuto 106. Mi marca objetivo está a ${duel.targetDifferenceMs} ms del tiempo perfecto. Si me superas, ganas 3 intentos extra.`,
-      url: url.toString(),
+      title: `${nick} te reta · Minuto 106`,
+      text: `⚽ Te reto a superar mi tiempo verificado de ${targetSeconds} s (±${duel.targetDifferenceMs} ms del 10.600). Si me superas, ganas 3 intentos extra.`,
+      url: duelShareUrl(duel),
     });
   }
 
@@ -77,12 +147,18 @@
     return { code, name };
   }
 
-  async function shareLeague(league = selectedLeague()) {
-    if (!/^[A-Z0-9]{6}$/.test(league.code)) throw new Error('Selecciona primero una miniliga válida.');
+  async function shareLeague(leagueReference = selectedLeague()) {
+    if (!/^[A-Z0-9]{6}$/.test(leagueReference.code)) throw new Error('Selecciona primero una miniliga válida.');
+    const league = await request('league', { code: leagueReference.code });
+    const name = String(league.name || leagueReference.name || 'Miniliga');
+    const waiting = league.waiting === true;
+    const text = waiting
+      ? `⚽ Únete a mi miniliga “${name}” de Minuto 106. Empezará cuando haya 3 cuentas y 3 dispositivos únicos. Código ${league.code}.`
+      : `⚽ Únete a mi miniliga “${name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}.`;
     await window.Minuto106UI.share({
-      title: `Miniliga ${league.name}`,
-      text: `⚽ Únete a mi miniliga “${league.name}” de Minuto 106. Tienes 5 intentos propios y no afectan al ranking global. Código ${league.code}.`,
-      url: leagueUrl(league.code),
+      title: `Miniliga ${name}`,
+      text,
+      url: leagueShareUrl(league),
     });
   }
 
@@ -118,6 +194,11 @@
     }
   }
 
+  document.addEventListener('minuto106:attempt-finished', (event) => {
+    latestAttempt = event.detail?.attempt?.id ? event.detail.attempt : null;
+    window.__MINUTO106_LATEST_ATTEMPT__ = latestAttempt;
+  });
+
   document.addEventListener('submit', (event) => {
     const form = event.target.closest('#createLeagueForm');
     if (!form || event.isTrusted !== true) return;
@@ -137,13 +218,21 @@
       run(createAndShareDuel);
       return;
     }
-    if (target.matches('#shareLeagueButton, [data-share-league]') || activeLeagueCode) {
+    if (target.id === 'shareButton') {
+      run(shareResult);
+      return;
+    }
+    if (target.matches('#shareLeagueButton, [data-share-league]')) {
       const code = target.dataset.shareLeague;
       const card = target.closest('[data-league-card]');
       run(() => shareLeague(code ? {
         code,
         name: card?.querySelector('h3')?.textContent || 'Miniliga',
       } : selectedLeague()));
+      return;
+    }
+    if (target.id === 'copyReferralButton' && activeLeagueCode) {
+      run(() => shareLeague(selectedLeague()));
       return;
     }
     run(() => shareProfile({ referral: target.id === 'copyReferralButton' }));

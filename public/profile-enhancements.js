@@ -74,6 +74,18 @@
     });
   }
 
+  function ensureSharedCompetitionContext() {
+    const parameters = new URLSearchParams(location.search);
+    if (!parameters.has('duel') && !parameters.has('sharedResult')) return;
+    if (document.querySelector('script[data-minuto106-duel-context]')) return;
+    const script = document.createElement('script');
+    script.src = './duel-context.js';
+    script.async = false;
+    script.dataset.minuto106DuelContext = 'true';
+    document.head.append(script);
+  }
+
+  ensureSharedCompetitionContext();
   const profileContent = document.querySelector('#publicProfileContent');
   if (!profileContent) return;
   const observer = new MutationObserver(() => {

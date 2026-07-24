@@ -24,6 +24,7 @@ const monotonicMetrics = [
   'accountPlayers',
   'trophyRuns',
   'trophies',
+  'leagueTrophies',
   'achievements',
 ];
 

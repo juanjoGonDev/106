@@ -20,6 +20,11 @@
     return SECTIONS.includes(String(value)) ? String(value) : 'overview';
   }
 
+  function normalizeRevision(value) {
+    const revision = Number(value);
+    return Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0;
+  }
+
   function resolveTeam(value, profile = null) {
     const direct = String(value ?? '');
     if (hasTeam(direct)) return TEAMS[direct];
@@ -86,20 +91,22 @@
     return url;
   }
 
-  function shareUrl(apiBaseUrl, nick, section = 'overview') {
-    const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
+  function shareUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
+    const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'social-share');
     if (!edgeUrl) return playerUrl(nick, section);
     const normalizedSection = normalizeSection(section);
-    edgeUrl.pathname += `/${encodeURIComponent(normalizeNick(nick))}`;
+    edgeUrl.pathname += `/player/${encodeURIComponent(normalizeNick(nick))}`;
     if (normalizedSection !== 'overview') edgeUrl.pathname += `/${normalizedSection}`;
+    edgeUrl.searchParams.set('v', String(normalizeRevision(revision)));
     return edgeUrl.toString();
   }
 
-  function cardUrl(apiBaseUrl, nick, section = 'overview') {
+  function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
     const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
     if (!edgeUrl) return '';
     const normalizedSection = normalizeSection(section);
     edgeUrl.pathname += `/${encodeURIComponent(normalizeNick(nick))}/${normalizedSection === 'overview' ? 'card' : normalizedSection}.png`;
+    edgeUrl.searchParams.set('v', String(normalizeRevision(revision)));
     return edgeUrl.toString();
   }
 
@@ -126,6 +133,7 @@
     escapeHtml,
     formatDate,
     normalizeNick,
+    normalizeRevision,
     normalizeSection,
     parsePlayerLocation,
     playerLinkHtml,
