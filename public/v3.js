@@ -31,23 +31,6 @@ function currentNick() {
   return String(v3$('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
 }
 
-function formatAward(award, suffix = ' ms') {
-  if (!award?.nick) return 'Aún sin dueño';
-  return `${award.nick} · ${Number(award.value).toLocaleString('es-ES')}${suffix}`;
-}
-
-async function loadAwards() {
-  if (!v3ApiUrl) return;
-  try {
-    const stats = await v3Request('stats');
-    v3$('#goldenBoot').textContent = formatAward(stats.awards?.goldenBoot);
-    v3$('#goldenGlove').textContent = formatAward(stats.awards?.goldenGlove);
-    v3$('#goldenBall').textContent = formatAward(stats.awards?.goldenBall, ' intentos');
-  } catch {
-    // Main app already handles the global error surface.
-  }
-}
-
 function buildGameUrl(key, value) {
   const url = new URL(location.href);
   url.search = '';
@@ -105,6 +88,7 @@ async function loadLeague(code) {
   const league = await v3Request('league', { code });
   if (!league?.code) return;
   const panel = v3$('#leaguePanel');
+  if (!panel) return;
   panel.hidden = false;
   v3$('#leagueTitle').textContent = `${league.name} · ${league.code}`;
   const remaining = Math.max(0, new Date(league.endsAt).getTime() - Date.now());
@@ -114,32 +98,6 @@ async function loadLeague(code) {
   list.innerHTML = league.leaderboard?.length
     ? league.leaderboard.map((entry) => `<li><span class="rank">#${entry.rank ?? '—'}</span><span class="player">${escapeV3(entry.nick)}</span><span class="difference">${hasValue(entry.bestDifferenceMs) ? `±${entry.bestDifferenceMs} ms` : 'Sin marca'}</span></li>`).join('')
     : '<li class="empty">Todavía no hay participantes.</li>';
-}
-
-async function openPublicProfile(nick) {
-  const profile = await v3Request('public-profile', { nick });
-  if (!profile?.nick) throw new Error('No se encontró el perfil.');
-  const dialog = v3$('#profileDialog');
-  v3$('#publicProfileContent').innerHTML = `
-    <p class="eyebrow">PERFIL PÚBLICO</p>
-    <h2>${escapeV3(profile.nick)}</h2>
-    <div class="public-profile-grid">
-      <div><span>Mejor marca</span><strong>${hasValue(profile.bestDifferenceMs) ? `±${profile.bestDifferenceMs} ms` : '—'}</strong></div>
-      <div><span>Media</span><strong>${hasValue(profile.averageDifferenceMs) ? `±${profile.averageDifferenceMs} ms` : '—'}</strong></div>
-      <div><span>Puesto global</span><strong>${profile.globalRankBest ? `#${profile.globalRankBest}` : '—'}</strong></div>
-      <div><span>Intentos válidos</span><strong>${profile.verifiedAttempts ?? 0}</strong></div>
-      <div><span>Referidos</span><strong>${profile.completedReferrals ?? 0}</strong></div>
-      <div><span>Intentos extra</span><strong>${profile.bonusAttempts ?? 0}</strong></div>
-    </div>
-    <h3>Últimos intentos</h3>
-    <ol class="attempt-history">${profile.history?.length ? profile.history.slice(0, 10).map((attempt, index) => `<li><span class="history-number">${index + 1}</span><span>${(Number(attempt.elapsedMs) / 1000).toFixed(3)} s</span><strong>±${attempt.differenceMs} ms</strong><small class="${attempt.verified ? 'valid' : 'invalid'}">${attempt.verified ? 'Válido' : 'Excluido'}</small></li>`).join('') : '<li class="empty">Sin intentos.</li>'}</ol>`;
-  dialog.showModal();
-}
-
-function extractLeaderboardNick(item) {
-  const player = item.querySelector('.player');
-  if (!player) return '';
-  return Array.from(player.childNodes).find((node) => node.nodeType === Node.TEXT_NODE)?.textContent?.trim() || '';
 }
 
 function drawResultCard(profile) {
@@ -223,12 +181,6 @@ const achievementObserver = new MutationObserver(() => {
 });
 if (v3$('#achievementBanner')) achievementObserver.observe(v3$('#achievementBanner'), { attributes: true, childList: true, subtree: true });
 
-v3$('#leaderboard')?.addEventListener('click', (event) => {
-  const item = event.target.closest('li');
-  const nick = item ? extractLeaderboardNick(item) : '';
-  if (nick) openPublicProfile(nick).catch((error) => showV3Error(error, 'No se pudo abrir el perfil'));
-});
-v3$('#closeProfileDialog')?.addEventListener('click', () => v3$('#profileDialog').close());
 v3$('#createDuelButton')?.addEventListener('click', () => createDuel().catch((error) => showV3Error(error, 'No se pudo crear el reto')));
 v3$('#quickDuelButton')?.addEventListener('click', () => createDuel().catch((error) => showV3Error(error, 'No se pudo crear el reto')));
 v3$('#createLeagueButton')?.addEventListener('click', () => createLeague().catch((error) => showV3Error(error, 'No se pudo crear la miniliga')));
@@ -246,5 +198,3 @@ if (leagueCodeFromUrl) {
   v3$('#leagueCode').value = leagueCodeFromUrl;
   loadLeague(leagueCodeFromUrl).catch(() => {});
 }
-
-loadAwards();
