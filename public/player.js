@@ -62,6 +62,7 @@
     const title = `${player.nick} · Minuto 106`;
     const description = `Perfil público de ${player.nick}: estadísticas, trofeos y logros en Minuto 106.`;
     const canonicalUrl = ui.playerUrl(player.nick, route.section);
+    const shareUrl = ui.shareUrl('', player.nick, route.section);
     const cardUrl = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     const imageAlt = `Tarjeta actualizada de ${player.nick} con estadísticas, trofeos y logros de Minuto 106.`;
 
@@ -80,21 +81,26 @@
     upsertMeta('property', 'og:site_name', 'Minuto 106');
     upsertMeta('property', 'og:title', title);
     upsertMeta('property', 'og:description', description);
-    upsertMeta('property', 'og:url', canonicalUrl);
-    upsertMeta('property', 'og:image', cardUrl);
-    upsertMeta('property', 'og:image:secure_url', cardUrl);
-    upsertMeta('property', 'og:image:type', 'image/png');
-    upsertMeta('property', 'og:image:width', '1200');
-    upsertMeta('property', 'og:image:height', '630');
-    upsertMeta('property', 'og:image:alt', imageAlt);
+    upsertMeta('property', 'og:url', shareUrl);
+    if (cardUrl) {
+      upsertMeta('property', 'og:image', cardUrl);
+      upsertMeta('property', 'og:image:url', cardUrl);
+      upsertMeta('property', 'og:image:secure_url', cardUrl);
+      upsertMeta('property', 'og:image:type', 'image/png');
+      upsertMeta('property', 'og:image:width', '1200');
+      upsertMeta('property', 'og:image:height', '630');
+      upsertMeta('property', 'og:image:alt', imageAlt);
+    }
     upsertMeta('name', 'twitter:card', 'summary_large_image');
     upsertMeta('name', 'twitter:title', title);
     upsertMeta('name', 'twitter:description', description);
-    upsertMeta('name', 'twitter:image', cardUrl);
-    upsertMeta('name', 'twitter:image:src', cardUrl);
-    upsertMeta('name', 'twitter:image:alt', imageAlt);
+    if (cardUrl) {
+      upsertMeta('name', 'twitter:image', cardUrl);
+      upsertMeta('name', 'twitter:image:src', cardUrl);
+      upsertMeta('name', 'twitter:image:alt', imageAlt);
+    }
 
-    history.replaceState(null, '', canonicalUrl);
+    history.replaceState(null, '', shareUrl);
     normalizeSiteChromeLinks();
   }
 
@@ -143,7 +149,7 @@
   }
 
   function renderShareActions(player) {
-    const share = ui.playerUrl(player.nick, route.section);
+    const share = ui.shareUrl('', player.nick, route.section);
     const card = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     $('#playerCardPreview').src = card;
     $('#downloadPlayerCard').href = card;
