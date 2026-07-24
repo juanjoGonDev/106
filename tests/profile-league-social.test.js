@@ -96,7 +96,7 @@ describe('versioned profile and league social previews', () => {
     expect(edge).toContain('name="twitter:image:src"');
     expect(edge).toContain("url.searchParams.set('v'");
     expect(edge).toContain('new ImageResponse');
-    expect(edge).toContain("url.searchParams.get('format') === 'json'");
+    expect(edge).toContain("searchParams.get('format') === 'json'");
   });
 
   it('mirrors current card metadata into the player page and share actions', () => {
