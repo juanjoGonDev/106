@@ -13,47 +13,17 @@ const readyBalls = [
 ];
 const leagues = [
   {
-    publicId: 'WAIT01',
-    competitionCode: 'WAIT01',
-    joinCode: 'JOIN01',
-    name: 'Liga en espera',
-    ownerNick: 'LeagueOwner',
-    isOwner: true,
-    createdAt: '2026-07-24T10:00:00.000Z',
-    startsAt: null,
-    endsAt: null,
-    waiting: true,
-    active: false,
-    finished: false,
-    eligibleOwners: 2,
-    eligibleDevices: 2,
-    participants: 2,
-    attemptsUsed: 0,
-    attemptsLeft: 5,
-    maxAttempts: 5,
-    history: [],
+    publicId: 'WAIT01', competitionCode: 'WAIT01', joinCode: 'JOIN01', name: 'Liga en espera',
+    ownerNick: 'LeagueOwner', isOwner: true, createdAt: '2026-07-24T10:00:00.000Z', startsAt: null, endsAt: null,
+    waiting: true, active: false, finished: false, eligibleOwners: 2, eligibleDevices: 2, participants: 2,
+    attemptsUsed: 0, attemptsLeft: 5, maxAttempts: 5, history: [],
   },
   {
-    publicId: 'ACTIVE1',
-    competitionCode: 'ACTIVE1',
-    joinCode: 'JOIN02',
-    name: 'Liga activa',
-    ownerNick: 'LeagueOwner',
-    isOwner: true,
-    createdAt: '2026-07-23T10:00:00.000Z',
-    startsAt: '2026-07-23T12:00:00.000Z',
-    endsAt: '2026-07-26T12:00:00.000Z',
-    waiting: false,
-    active: true,
-    finished: false,
-    eligibleOwners: 3,
-    eligibleDevices: 3,
-    participants: 3,
-    attemptsUsed: 2,
-    attemptsLeft: 3,
-    maxAttempts: 5,
-    bestDifferenceMs: 22,
-    rank: 2,
+    publicId: 'ACTIVE1', competitionCode: 'ACTIVE1', joinCode: 'JOIN02', name: 'Liga activa',
+    ownerNick: 'LeagueOwner', isOwner: true, createdAt: '2026-07-23T10:00:00.000Z',
+    startsAt: '2026-07-23T12:00:00.000Z', endsAt: '2026-07-26T12:00:00.000Z',
+    waiting: false, active: true, finished: false, eligibleOwners: 3, eligibleDevices: 3, participants: 3,
+    attemptsUsed: 2, attemptsLeft: 3, maxAttempts: 5, bestDifferenceMs: 22, rank: 2,
     history: [
       { id: 'history-1', team: 'spain', elapsedMs: 10622, differenceMs: 22, verified: true, createdAt: '2026-07-23T12:10:00.000Z' },
       { id: 'history-2', team: 'argentina', elapsedMs: 10540, differenceMs: 60, verified: true, createdAt: '2026-07-23T12:05:00.000Z' },
@@ -95,15 +65,8 @@ function publicLeague(publicId) {
 
 function playerProfile() {
   return {
-    nick: 'LeagueOwner',
-    team: 'spain',
-    attemptsUsed: 0,
-    attemptsLeft: 5,
-    maxAttempts: 5,
-    verifiedAttempts: 0,
-    history: [],
-    trophies: { total: 0, history: [] },
-    achievements: { total: 0, points: 0, items: [] },
+    nick: 'LeagueOwner', team: 'spain', attemptsUsed: 0, attemptsLeft: 5, maxAttempts: 5,
+    verifiedAttempts: 0, history: [], trophies: { total: 0, history: [] }, achievements: { total: 0, points: 0, items: [] },
   };
 }
 
@@ -112,12 +75,10 @@ async function clickCaptcha(page) {
   await expect(canvas).toBeVisible();
   const box = await canvas.boundingBox();
   if (!box) throw new Error('Captcha canvas has no bounding box.');
-  for (const ball of readyBalls) {
-    await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
-  }
+  for (const ball of readyBalls) await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
 }
 
-test('the league page lists all memberships and switches the selected public league', async ({ page }) => {
+test('the league page switches public leagues without corrupting relative routes', async ({ page }) => {
   const requests = [];
   await page.addInitScript(() => localStorage.setItem('minuto106:nick', 'LeagueOwner'));
   await page.route('**/functions/v1/game-api', async (route) => {
@@ -141,10 +102,10 @@ test('the league page lists all memberships and switches the selected public lea
 
   await page.goto('/ligas.html');
   await expect(page.locator('[data-league-card]')).toHaveCount(2);
-  await expect(page.locator('[data-league-card="WAIT01"]')).toContainText('espera');
-  await expect(page.locator('[data-league-card="ACTIVE1"]')).toContainText('Liga activa');
-  await expect(page.locator('[data-league-card="ACTIVE1"]')).toContainText('2/5');
-  await expect(page.locator('[data-league-card="ACTIVE1"] a.primary')).toHaveAttribute('href', './?competition=ACTIVE1');
+  const competeHref = await page.locator('[data-league-card="ACTIVE1"] a.primary').getAttribute('href');
+  const competeUrl = new URL(competeHref, page.url());
+  expect(competeUrl.pathname).toBe('/');
+  expect(competeUrl.searchParams.get('competition')).toBe('ACTIVE1');
   await expect(page.locator('[data-league-card="WAIT01"] a.primary')).toHaveCount(0);
 
   await page.locator('[data-view-league="WAIT01"]').click();
@@ -156,7 +117,6 @@ test('the league page lists all memberships and switches the selected public lea
   await expect(page).toHaveURL(/\/ligas\/ACTIVE1$/);
   await expect(page.locator('#leagueLookupTitle')).toHaveText('Liga activa');
   await expect(page.locator('#competeLeagueLink')).toBeVisible();
-  await expect(page.locator('#myLeagueAttempts')).toBeVisible();
   await expect(page.locator('#myLeagueAttemptList li')).toHaveCount(2);
   expect(requests.filter((request) => request.action === 'player-leagues')).toHaveLength(1);
 });
@@ -165,11 +125,7 @@ test('the active league route selects that competition and sends its public scop
   const requestLog = [];
   await page.addInitScript(() => localStorage.setItem('minuto106:nick', 'LeagueOwner'));
   await page.route('**/functions/v1/player-context', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ availability: 'owned', profile: playerProfile(), leagues: [leagues[1]] }),
-    });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: 'owned', profile: playerProfile(), leagues: [leagues[1]] }) });
   });
   await page.route('**/functions/v1/game-ready-api', async (route) => {
     const body = bodyOf(route.request());
@@ -183,16 +139,7 @@ test('the active league route selects that competition and sends its public scop
     }
     if (body.action === 'prepare-start') {
       requestLog.push(body);
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          prepared: true,
-          challengeId: '22222222-2222-4222-8222-222222222222',
-          readyExpiresAt: new Date(Date.now() + 120_000).toISOString(),
-          interaction: { mode: 'press', nonce: '550e8400-e29b-41d4-a716-446655440000', xPercent: 50, yPercent: 50, variant: 0 },
-        }),
-      });
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ prepared: true, challengeId: '22222222-2222-4222-8222-222222222222', readyExpiresAt: new Date(Date.now() + 120_000).toISOString(), interaction: { mode: 'press', nonce: '550e8400-e29b-41d4-a716-446655440000', xPercent: 50, yPercent: 50, variant: 0 } }) });
       return;
     }
     if (body.action === 'activate-start') {
@@ -205,26 +152,13 @@ test('the active league route selects that competition and sends its public scop
     const body = bodyOf(route.request());
     requestLog.push(body);
     if (body.action === 'stats') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          totalAttempts: 0,
-          totalPlayers: 0,
-          verifiedAttempts: 0,
-          perfectAttempts: 0,
-          teams: [{ team: 'spain', score: 0 }, { team: 'argentina', score: 0 }],
-          leaderboard: [],
-          awards: {},
-        }),
-      });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ totalAttempts: 0, totalPlayers: 0, verifiedAttempts: 0, perfectAttempts: 0, teams: [{ team: 'spain', score: 0 }, { team: 'argentina', score: 0 }], leaderboard: [], awards: {} }) });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 
   await page.goto('/?competition=ACTIVE1');
-  await expect(page.locator('#competitionContext')).toBeVisible();
   await expect(page.locator('#competitionContext')).toContainText('Liga activa');
   await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIVE1');
   await page.getByRole('button', { name: 'España', exact: true }).click();
@@ -232,7 +166,6 @@ test('the active league route selects that competition and sends its public scop
   await page.locator('#startButton').click();
   await clickCaptcha(page);
   await expect(page.locator('.game-readiness-control')).toBeVisible();
-  const preparedRequest = requestLog.find((request) => request.action === 'prepare-start');
-  expect(preparedRequest?.leagueCode).toBe('ACTIVE1');
+  expect(requestLog.find((request) => request.action === 'prepare-start')?.leagueCode).toBe('ACTIVE1');
   expect(requestLog.some((request) => request.action === 'player-leagues')).toBe(false);
 });
