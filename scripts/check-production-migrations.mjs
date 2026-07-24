@@ -42,6 +42,26 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
+function isVerifiedCheckConstraintExpansion(sql, pattern) {
+  if (pattern.label !== 'ALTER TABLE ... DROP') return false;
+  const replacements = [...sql.matchAll(
+    /alter\s+table\s+([\w.]+)\s+drop\s+constraint\s+(?:if\s+exists\s+)?([\w"]+)\s*;/gim,
+  )];
+  if (replacements.length === 0 || /\bdrop\s+column\b/i.test(sql)) return false;
+
+  return replacements.every(([, table, rawConstraint]) => {
+    const constraint = rawConstraint.replaceAll('"', '');
+    const normalizedTable = table.replaceAll('"', '');
+    const escapedTable = normalizedTable.replaceAll('.', '\\.');
+    const escapedConstraint = constraint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const recreated = new RegExp(
+      `alter\\s+table\\s+${escapedTable}\\s+add\\s+constraint\\s+"?${escapedConstraint}"?\\s+check\\s*\\(`,
+      'i',
+    );
+    return recreated.test(sql);
+  });
+}
+
 const files = changedMigrationFiles();
 const violations = [];
 
@@ -50,9 +70,9 @@ for (const file of files) {
   const explicitlyApproved = /--\s*production-data-loss-approved:\s*[^\s].+/i.test(sql);
 
   for (const pattern of destructivePatterns) {
-    if (pattern.regex.test(sql) && !explicitlyApproved) {
-      violations.push(`${file}: ${pattern.label}`);
-    }
+    if (!pattern.regex.test(sql)) continue;
+    if (explicitlyApproved || isVerifiedCheckConstraintExpansion(sql, pattern)) continue;
+    violations.push(`${file}: ${pattern.label}`);
   }
 }
 
