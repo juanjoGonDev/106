@@ -1,4 +1,4 @@
-# Profile cards, league previews and league trophies
+# Profile cards, honours progress, league previews and league trophies
 
 ## Player profile revisions
 
@@ -8,11 +8,40 @@ Public player profiles expose a monotonic `profileRevision` derived from every p
 - referral and bonus updates;
 - closed daily trophies;
 - achievements;
+- featured-achievement selections;
 - eligible league champion trophies.
 
-The revision is appended to the crawler-facing share URL and to the PNG URL. Unchanged profiles keep cacheable URLs; changed profiles receive a new cache key immediately.
+The revision is appended to the crawler-facing share URL and to the PNG URL. Unchanged profiles keep cacheable URLs; changed profiles receive a new cache key immediately. Selecting, replacing, reordering or clearing featured achievements therefore invalidates the previous generated image without changing the human profile URL.
 
 The GitHub Pages player document mirrors the current Open Graph and X/Twitter tags for browser inspection. Social crawlers must use the server-rendered `social-share` route because static Pages HTML cannot emit nickname-specific metadata before JavaScript runs.
+
+## Honours collections and progress
+
+The public profile exposes both earned and pending trophy and achievement entries:
+
+- earned entries retain their date, points and persisted history;
+- pending entries remain readable but use a low-contrast, grayscale presentation;
+- deterministic milestones include the current value, target, remaining amount and an accessible progress bar;
+- daily Bota, Guante and Balón objectives use the current Madrid-day standings and explain the next concrete action required to lead;
+- non-linear rewards such as monthly firsts and league podiums explain the qualifying condition instead of inventing a numeric percentage.
+
+Progress values come from the backend profile projection. The browser catalogue contains the stable display names, descriptions and milestone thresholds, and contract tests keep those rules aligned with the achievement migration.
+
+## Featured achievements
+
+A player may highlight zero to three distinct achievements that have already been unlocked. Selection is ordered: the first selected achievement appears first in the public showcase and generated image.
+
+The write path is intentionally narrow:
+
+1. the browser sends `set-featured-achievements` to `player-context`;
+2. `player-context` verifies the private account token owns the requested nickname;
+3. the service-role-only RPC validates the maximum, uniqueness and unlocked state;
+4. existing rows are softly deactivated before ordered upserts;
+5. the refreshed public profile returns `achievements.featured` and a new `profileRevision`.
+
+Anonymous visitors can read the showcase but cannot modify it. The public payload contains achievement metadata only; it never exposes account tokens, league join credentials or internal ownership identifiers.
+
+The profile page uses the achievements PNG for its main generated preview. The profile projection orders explicitly featured achievements before the remaining unlocked collection, so the first three image rows are the player’s selected showcase. With no selection, the image falls back to the normal earned-achievement order.
 
 ## Share routes
 
@@ -31,6 +60,8 @@ The metadata image remains rendered by `player-share`:
 /functions/v1/player-share/<nick>/achievements.png?v=<profileRevision>
 /functions/v1/player-share/<nick>/trophies.png?v=<profileRevision>
 ```
+
+The interactive public profile promotes the versioned `achievements.png` image as its preview so selected highlights are visible in the generated image.
 
 League metadata and image:
 
@@ -83,6 +114,8 @@ The first three eligible finishers also receive persistent podium achievements w
 
 No Dashboard configuration is required. Applying the migration is sufficient. The local integration suite queries `pg_proc` and `has_function_privilege` to verify that the function remains `SECURITY DEFINER` for trigger execution while both exposed API roles lack `EXECUTE`.
 
+The featured-achievement table and mutation functions follow the same boundary: public roles have no table access and no direct RPC execution. Reads and writes are mediated by service-role Edge Functions after applying the appropriate public-read or owner-write checks.
+
 ## Deployment
 
 The normal Supabase workflow applies the additive migrations and deploys the registered `social-share` and `player-context` Edge Functions. Do not manually edit applied migrations or execute schema changes in the Dashboard.
@@ -92,7 +125,8 @@ After deployment, confirm:
 ```text
 /functions/v1/social-share/player/<known-nick>
 /functions/v1/social-share/league/<known-public-id>
+https://juanjogondev.github.io/106/player/<known-nick>/achievements
 https://juanjogondev.github.io/106/ligas/<known-public-id>
 ```
 
-Both metadata responses should contain versioned `og:image` and `twitter:image` URLs. The corresponding PNG routes must return `image/png` at 1200×630. Public league responses and profile links must not contain the private `joinCode`.
+Both metadata responses should contain versioned `og:image` and `twitter:image` URLs. The corresponding PNG routes must return `image/png` at 1200×630. A known owner should be able to select three unlocked highlights and observe the revisioned achievements image change. Public league responses and profile links must not contain the private `joinCode`.
