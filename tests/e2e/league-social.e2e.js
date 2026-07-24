@@ -105,6 +105,7 @@ test('waiting league blocks competition and shares a versioned social preview', 
   await expect(page.locator('#leagueLookupList')).toContainText('La clasificación se abrirá cuando empiece la liga.');
 
   await page.locator('#shareLeagueButton').click();
+  await expect.poll(() => page.evaluate(() => globalThis.__leagueSharePayload ?? null)).not.toBeNull();
   const payload = await page.evaluate(() => globalThis.__leagueSharePayload);
   expect(payload.title).toBe('Miniliga Final del barrio');
   expect(payload.url).toMatch(/\/functions\/v1\/social-share\/league\/ABC123\?v=456$/);
