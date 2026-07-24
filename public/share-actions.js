@@ -6,7 +6,9 @@
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const activeLeagueCode = String(new URLSearchParams(location.search).get('league') || '').trim().toUpperCase();
   let actionPending = false;
-  let latestAttempt = null;
+  let latestAttempt = window.__MINUTO106_LATEST_ATTEMPT__?.id
+    ? window.__MINUTO106_LATEST_ATTEMPT__
+    : null;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -194,6 +196,7 @@
 
   document.addEventListener('minuto106:attempt-finished', (event) => {
     latestAttempt = event.detail?.attempt?.id ? event.detail.attempt : null;
+    window.__MINUTO106_LATEST_ATTEMPT__ = latestAttempt;
   });
 
   document.addEventListener('submit', (event) => {
