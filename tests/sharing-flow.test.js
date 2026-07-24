@@ -67,7 +67,7 @@ describe('share-first social actions', () => {
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
     expect(actions).toContain("url.searchParams.set('ref', profile.referralCode)");
     expect(actions).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
-    expect(leagues).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
+    expect(leagues).toContain('new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl)');
     expect(actions).not.toContain("'/social-share'");
     expect(actions).not.toContain('league.code');
     expect(leagues).toContain('Código privado: ${league.joinCode}');
