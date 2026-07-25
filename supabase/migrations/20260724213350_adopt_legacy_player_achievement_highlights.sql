@@ -45,57 +45,55 @@ begin
     raise exception 'public.player_achievement_highlights has an unsupported schema';
   end if;
 
-  execute $legacy_copy$
-    with ranked_legacy as (
-      select
-        legacy.player_nick_key as nick_key,
-        legacy.achievement_code,
-        row_number() over (
-          partition by legacy.player_nick_key
-          order by legacy.position, legacy.achievement_code
-        )::smallint as normalized_position,
-        coalesce(legacy.created_at, clock_timestamp()) as selected_at,
-        coalesce(legacy.updated_at, legacy.created_at, clock_timestamp()) as updated_at
-      from public.player_achievement_highlights legacy
-      join public.game_players player
-        on player.nick_key = legacy.player_nick_key
-      join public.game_player_achievements achievement
-        on achievement.nick_key = legacy.player_nick_key
-       and achievement.achievement_code = legacy.achievement_code
-      where legacy.position between 1 and 3
-        and not exists (
-          select 1
-          from public.game_player_featured_achievements current_selection
-          where current_selection.nick_key = legacy.player_nick_key
-            and current_selection.active = true
-        )
-    )
-    insert into public.game_player_featured_achievements (
-      nick_key,
-      achievement_code,
-      position,
-      active,
-      selected_at,
-      updated_at
-    )
+  with ranked_legacy as (
     select
-      legacy.nick_key,
+      legacy.player_nick_key as nick_key,
       legacy.achievement_code,
-      legacy.normalized_position,
-      true,
-      legacy.selected_at,
-      legacy.updated_at
-    from ranked_legacy legacy
-    where legacy.normalized_position <= 3
-    on conflict (nick_key, achievement_code) do update
-    set position = excluded.position,
-        active = true,
-        selected_at = excluded.selected_at,
-        updated_at = excluded.updated_at
-  $legacy_copy$;
+      row_number() over (
+        partition by legacy.player_nick_key
+        order by legacy.position, legacy.achievement_code
+      )::smallint as normalized_position,
+      coalesce(legacy.created_at, clock_timestamp()) as selected_at,
+      coalesce(legacy.updated_at, legacy.created_at, clock_timestamp()) as updated_at
+    from public.player_achievement_highlights legacy
+    join public.game_players player
+      on player.nick_key = legacy.player_nick_key
+    join public.game_player_achievements achievement
+      on achievement.nick_key = legacy.player_nick_key
+     and achievement.achievement_code = legacy.achievement_code
+    where legacy.position between 1 and 3
+      and not exists (
+        select 1
+        from public.game_player_featured_achievements current_selection
+        where current_selection.nick_key = legacy.player_nick_key
+          and current_selection.active = true
+      )
+  )
+  insert into public.game_player_featured_achievements (
+    nick_key,
+    achievement_code,
+    position,
+    active,
+    selected_at,
+    updated_at
+  )
+  select
+    legacy.nick_key,
+    legacy.achievement_code,
+    legacy.normalized_position,
+    true,
+    legacy.selected_at,
+    legacy.updated_at
+  from ranked_legacy legacy
+  where legacy.normalized_position <= 3
+  on conflict (nick_key, achievement_code) do update
+  set position = excluded.position,
+      active = true,
+      selected_at = excluded.selected_at,
+      updated_at = excluded.updated_at;
 
-  execute 'alter table public.player_achievement_highlights enable row level security';
-  execute 'revoke all on table public.player_achievement_highlights from public, anon, authenticated';
-  execute 'grant select on table public.player_achievement_highlights to service_role';
+  alter table public.player_achievement_highlights enable row level security;
+  revoke all on table public.player_achievement_highlights from public, anon, authenticated;
+  grant select on table public.player_achievement_highlights to service_role;
 end;
 $$;
