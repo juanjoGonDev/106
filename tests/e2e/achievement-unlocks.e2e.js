@@ -86,8 +86,12 @@ async function dispatchUnlock(page, { worldRecord = false } = {}) {
     document.dispatchEvent(new CustomEvent('minuto106:player-context', {
       detail: { availability: 'owned', profile: previous },
     }));
+    document.dispatchEvent(new CustomEvent('minuto106:player-context', {
+      detail: { availability: 'owned', profile: next, source: 'finish:global' },
+    }));
     document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', {
       detail: {
+        previousProfile: previous,
         profile: next,
         achievement: { isWorldRecord },
       },

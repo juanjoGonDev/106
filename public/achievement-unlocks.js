@@ -193,11 +193,13 @@
       previousProfile = profileFromContext(event.detail);
     });
     documentRef.addEventListener('minuto106:attempt-finished', (event) => {
-      const nextProfile = event.detail?.profile;
+      const detail = event.detail ?? {};
+      const nextProfile = detail.profile;
       if (!nextProfile?.achievements) return;
-      const unlocked = findNewAchievements(previousProfile, nextProfile);
+      const baseline = Object.hasOwn(detail, 'previousProfile') ? detail.previousProfile : previousProfile;
+      const unlocked = findNewAchievements(baseline, nextProfile);
       previousProfile = nextProfile;
-      notifier.enqueue(unlocked, { delayMs: notificationDelay(event.detail?.achievement) });
+      notifier.enqueue(unlocked, { delayMs: notificationDelay(detail.achievement) });
     });
 
     windowRef.Minuto106AchievementUnlockNotifier = notifier;
