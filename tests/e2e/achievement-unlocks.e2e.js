@@ -103,12 +103,15 @@ function recordingContextOptions(isMobile) {
   const device = isMobile
     ? devices['Pixel 5']
     : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  const videoSize = isMobile
+    ? { ...device.viewport }
+    : { width: 1280, height: 800 };
   return {
     ...device,
     baseURL: applicationUrl,
     recordVideo: {
       dir: join(previewDirectory, 'recordings'),
-      size: isMobile ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+      size: videoSize,
     },
     storageState: {
       cookies: [],
