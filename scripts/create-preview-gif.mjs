@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
 import process from 'node:process';
@@ -41,6 +41,32 @@ function findFfmpeg(root) {
   return null;
 }
 
+function commandOutput(command, arguments_) {
+  const result = spawnSync(command, arguments_, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.error || result.status !== 0) return '';
+  return `${result.stdout || ''}\n${result.stderr || ''}`;
+}
+
+function supportsGifEncoding(command) {
+  const formats = commandOutput(command, ['-hide_banner', '-formats']);
+  const filters = commandOutput(command, ['-hide_banner', '-filters']);
+  return /\bE\s+gif\b/i.test(formats)
+    && /\bpalettegen\b/i.test(filters)
+    && /\bpaletteuse\b/i.test(filters);
+}
+
+function gifCapableFfmpeg() {
+  const candidates = [
+    'ffmpeg',
+    ...cacheRoots().map(findFfmpeg).filter(Boolean),
+  ];
+  return candidates.find(supportsGifEncoding) || null;
+}
+
 function recordingFiles() {
   if (!existsSync(outputDirectory)) throw new Error(`Missing PR preview directory: ${outputDirectory}`);
   return readdirSync(outputDirectory, { withFileTypes: true })
@@ -58,9 +84,7 @@ function generateGif(ffmpeg, recording) {
   const output = join(outputDirectory, `${name}.gif`);
   const width = outputWidth(name);
   const filter = [
-    `fps=${FRAME_RATE}`,
-    `scale=${width}:-2:flags=lanczos`,
-    'split[base][paletteSource]',
+    `fps=${FRAME_RATE},scale=${width}:-2:flags=lanczos,split[base][paletteSource]`,
     '[paletteSource]palettegen=max_colors=256:stats_mode=full[palette]',
     '[base][palette]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
   ].join(';');
@@ -80,7 +104,8 @@ function generateGif(ffmpeg, recording) {
 mkdirSync(outputDirectory, { recursive: true });
 const recordings = recordingFiles();
 if (!recordings.length) throw new Error(`No WebM viewport recordings found in ${outputDirectory}.`);
-const ffmpeg = cacheRoots().map(findFfmpeg).find(Boolean);
-if (!ffmpeg) throw new Error('Playwright FFmpeg was not found. Run the responsive browser capture after Playwright has installed FFmpeg.');
-if (!statSync(ffmpeg).isFile()) throw new Error(`Invalid FFmpeg path: ${ffmpeg}`);
+const ffmpeg = gifCapableFfmpeg();
+if (!ffmpeg) {
+  throw new Error('A full FFmpeg installation with GIF muxing plus palettegen/paletteuse filters is required to generate PR GIF evidence.');
+}
 for (const recording of recordings) generateGif(ffmpeg, recording);
