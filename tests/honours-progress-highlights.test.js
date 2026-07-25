@@ -3,7 +3,10 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const read = (path) => readFileSync(path, 'utf8');
-const migration = read('supabase/migrations/20260724213400_honours_progress_featured_achievements.sql');
+const compatibilityMigrationPath = 'supabase/migrations/20260724213350_adopt_legacy_player_achievement_highlights.sql';
+const compatibilityMigration = read(compatibilityMigrationPath);
+const migrationPath = 'supabase/migrations/20260724213400_honours_progress_featured_achievements.sql';
+const migration = read(migrationPath);
 const orderingMigration = read('supabase/migrations/20260724213500_prioritize_featured_achievements.sql');
 const playerContext = read('supabase/functions/player-context/index.ts');
 const player = read('public/player.js');
@@ -94,6 +97,18 @@ describe('featured achievement persistence', () => {
     expect(migration).not.toMatch(/\bdelete\s+from\s+public\.game_player_featured_achievements\b/i);
   });
 
+  it('adopts the observed legacy relation before the canonical honours migration', () => {
+    expect(compatibilityMigrationPath.localeCompare(migrationPath)).toBeLessThan(0);
+    expect(compatibilityMigration).toContain("to_regclass('public.player_achievement_highlights')");
+    expect(compatibilityMigration).toContain('create table if not exists public.game_player_featured_achievements');
+    expect(compatibilityMigration).toContain('join public.game_player_achievements achievement');
+    expect(compatibilityMigration).toContain('row_number() over');
+    expect(compatibilityMigration).toContain('legacy.normalized_position <= 3');
+    expect(compatibilityMigration).toContain('current_selection.active = true');
+    expect(compatibilityMigration).toContain('revoke all on table public.player_achievement_highlights from public, anon, authenticated');
+    expect(compatibilityMigration).not.toMatch(/\bdrop\s+table\b/i);
+  });
+
   it('projects highlights, progress and a revised image cache key', () => {
     expect(migration).toContain("'featured', v_featured");
     expect(migration).toContain("'honoursProgress', v_progress");
@@ -157,6 +172,17 @@ describe('public profile honours experience', () => {
     expect(player).toContain("context.availability === 'owned'");
     expect(player).toContain("requestPlayerContext('set-featured-achievements'");
     expect(player).toContain('data-featured-code');
+  });
+
+  it('falls back to the existing public profile endpoint without enabling owner controls', () => {
+    expect(playerHtml).toContain('id="playerRecoveryNotice"');
+    expect(playerHtml).toContain('id="retryPlayerProfile"');
+    expect(playerHtml).toContain('id="retryPlayerContext"');
+    expect(player).toContain("action: 'public-profile'");
+    expect(player).toContain("availability: 'unknown'");
+    expect(player).toContain('degraded: true');
+    expect(player).toContain('return await requestPublicProfile()');
+    expect(player).toContain("loadProfile({ keepCurrent: true })");
   });
 
   it('uses the highlighted achievement card for profile sharing and generated previews', () => {
