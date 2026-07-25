@@ -19,6 +19,8 @@ const mime = {
   '.woff2': 'font/woff2',
 };
 
+const cleanPublicRoute = /^(?:\/player\/[^/]+(?:\/(?:achievements|trophies))?|\/ligas\/[A-Z0-9]{6})\/?$/i;
+
 async function sendFile(response, path, status = 200) {
   const content = await readFile(path);
   response.writeHead(status, { 'content-type': mime[extname(path).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' });
@@ -35,9 +37,8 @@ createServer(async (request, response) => {
     await sendFile(response, file);
   } catch {
     try {
-      const isPlayerFallback = /^\/player\/[^/]+(?:\/(?:achievements|trophies))?\/?$/i.test(pathname);
-      const fallback = isPlayerFallback ? '404.html' : 'index.html';
-      await sendFile(response, join(root, fallback), isPlayerFallback ? 404 : 200);
+      const fallback = cleanPublicRoute.test(pathname) ? '404.html' : 'index.html';
+      await sendFile(response, join(root, fallback));
     } catch {
       response.writeHead(404).end('Not found');
     }
