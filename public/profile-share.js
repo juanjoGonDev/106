@@ -86,8 +86,8 @@
 
   function setButton(button, { disabled, label }) {
     if (!button) return;
-    button.disabled = disabled;
-    button.textContent = label;
+    if (button.disabled !== disabled) button.disabled = disabled;
+    if (button.textContent !== label) button.textContent = label;
   }
 
   async function bindButton({
@@ -108,10 +108,16 @@
 
     installShareBridge();
     const signature = `${shareUrl}\n${source}`;
+    const existing = shareStates.get(shareUrl);
+    if (button.dataset.profileShareSignature === signature && existing?.signature === signature) {
+      if (existing.file) return existing.file;
+      if (existing.failed) return null;
+      if (existing.promise) return existing.promise.catch(() => null);
+    }
+
     button.dataset.profileShareSignature = signature;
     setButton(button, { disabled: true, label: PREPARING_LABEL });
 
-    const existing = shareStates.get(shareUrl);
     let preparation;
     if (existing?.signature === signature && existing.file) {
       preparation = Promise.resolve(existing.file);
@@ -119,7 +125,7 @@
       preparation = existing.promise;
     } else {
       preparation = prepareFile({ url: source, nick, section, fetchImpl });
-      shareStates.set(shareUrl, { signature, promise: preparation, file: null });
+      shareStates.set(shareUrl, { signature, promise: preparation, file: null, failed: false });
     }
 
     let file = null;
@@ -127,7 +133,7 @@
       file = await preparation;
       shareStates.set(shareUrl, { signature, promise: null, file });
     } catch {
-      shareStates.delete(shareUrl);
+      shareStates.set(shareUrl, { signature, promise: null, file: null, failed: true });
     } finally {
       if (button.dataset.profileShareSignature === signature) {
         setButton(button, { disabled: false, label: readyLabel });
