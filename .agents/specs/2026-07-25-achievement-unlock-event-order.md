@@ -52,12 +52,19 @@ Validated on implementation head `5423f9d1ebe1e6b5f28d504df13ab41e9b9e44ad`:
 - Pull Request Visual Evidence run `30171491694`: passed.
 - Regression coverage reproduces the refreshed-context-before-completion ordering and the new-player `null` baseline.
 
-The final documentation-only head must retain the same green workflow state before delivery.
+Validated again on documentation and evidence head `7336ddfd9c9165dea48ff2ce24b71a26a9bc1554`:
+
+- Pull Request Quality Pipeline run `30171710220`: passed.
+- Player Pages and Social Cards run `30171710211`: passed and generated artifact `frontend-previews-30171710211` with digest `sha256:daa25acd9f8461a655d14e2666747cb6ca76afdfa67337e7fff19cbb80313dc8`.
+- Public Asset Audit run `30171710221`: passed.
+- Pull Request Visual Evidence run `30171710218`: passed.
+- The exact six achievement HUD PNG/GIF/WebM files were verified from that artifact and published outside the feature branch under `pr-evidence/34`.
 
 ## Delivery
 
 - Branch: `agent/fix-achievement-unlock-event-order`
 - Pull request: `#34`
+- Evidence branch: `pr-evidence/34`
 - Merge: not authorized
 - Deployment: not authorized
 
@@ -67,4 +74,4 @@ Revert PR #34. No database migration, backend contract, generated asset, or pers
 
 ## Status
 
-Implementation complete. Awaiting final CI on the documentation-only closure commit, then review and merge.
+Complete and ready for review. PR #34 remains open, unmerged, and undeployed.
