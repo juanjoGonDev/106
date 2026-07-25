@@ -118,17 +118,15 @@ test('public player profile falls back to read-only data and retries full contex
     await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Acción desconocida.' }) });
   });
 
-  await page.goto('/player/Recovery');
+  await page.goto('/player/Recovery/achievements');
 
   await expect(page.getByRole('heading', { level: 1, name: 'Recovery' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
   await expect(page.locator('#playerRecoveryNotice')).toBeVisible();
   await expect(page.locator('#playerRecoveryNotice')).toContainText('modo lectura');
+  await expect(page.locator('#featuredAchievementsEditor')).toBeHidden();
   expect(contextRequests).toBe(1);
   expect(fallbackRequests).toBe(1);
-
-  await page.getByRole('link', { name: 'Logros' }).click();
-  await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
-  await expect(page.locator('#featuredAchievementsEditor')).toBeHidden();
   await capture(page, testInfo);
 
   contextAvailable = true;
