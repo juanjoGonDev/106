@@ -20,13 +20,21 @@
   <link rel="stylesheet" href="./v9.css">
   <link rel="stylesheet" href="./v11.css">
   <link rel="stylesheet" href="./v15.css">
+  <link rel="stylesheet" href="./v16.css">
 </head>
 <body>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <header class="site-header"></header>
   <main id="playerPage" class="player-page">
     <section id="playerLoading" class="player-panel player-loading" aria-live="polite">Cargando perfil público…</section>
-    <section id="playerError" class="player-error" hidden><h1>No se pudo cargar el jugador</h1><p id="playerErrorMessage"></p><a class="secondary" href="./ranking.html">Volver al ranking</a></section>
+    <section id="playerError" class="player-error" hidden>
+      <h1>No se pudo cargar el jugador</h1>
+      <p id="playerErrorMessage"></p>
+      <div class="player-error__actions">
+        <button id="retryPlayerProfile" class="primary" type="button">Reintentar</button>
+        <a class="secondary" href="./ranking.html">Volver al ranking</a>
+      </div>
+    </section>
     <div id="playerContent" hidden>
       <section class="player-hero">
         <div class="player-identity">
@@ -35,6 +43,10 @@
         </div>
         <nav id="playerTabs" class="player-tabs" aria-label="Secciones del jugador"></nav>
         <p class="player-social-note">La vista compartida utiliza una imagen PNG dinámica con el palmarés, los logros destacados y las estadísticas actuales.</p>
+        <div id="playerRecoveryNotice" class="player-recovery-notice" role="status" hidden>
+          <p id="playerRecoveryMessage">Perfil cargado en modo lectura mientras termina la actualización del servidor.</p>
+          <button id="retryPlayerContext" class="secondary compact" type="button">Reintentar conexión</button>
+        </div>
       </section>
       <div class="player-content-grid">
         <div>
