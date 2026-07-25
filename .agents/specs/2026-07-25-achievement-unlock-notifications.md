@@ -43,8 +43,8 @@ Add animations and a video-game-style notification whenever a player unlocks an 
 - [x] The surface is responsive, does not block interaction and remains inside safe-area insets.
 - [x] Screen readers receive one polite atomic status announcement per achievement.
 - [x] Reduced-motion users receive the same information without movement or shine animations.
-- [ ] New and modified event modules maintain 100% line, function and branch coverage on the final head.
-- [ ] Required repository and browser CI workflows are green on the final head.
+- [x] New and modified event modules maintain 100% line, function and branch coverage.
+- [x] Required repository and browser CI workflows are green on the implementation head.
 
 ## Risks
 
@@ -62,6 +62,17 @@ Add animations and a video-game-style notification whenever a player unlocks an 
 - Playwright coverage for desktop/mobile layout, visible copy, point rendering, viewport containment and reduced-motion behavior.
 - Syntax, ESLint, Knip, Vitest, public-asset checks and browser workflows remain authoritative in CI.
 
+## Validation
+
+Implementation head `94a71b88c37ed5b65d9252b9e29df83de76e25b0` passed:
+
+- Pull Request Quality Pipeline `30162854080`: build, frozen install, syntax, ESLint, Knip, Vitest, dependency/security policy and local Supabase API integration succeeded.
+- Player Pages and Social Cards `30162854049`: strict frontend module coverage and all responsive Playwright journeys succeeded; desktop/mobile preview artifacts were uploaded.
+- Public Asset Audit `30162854090`: public media, tooling coverage and visual-evidence enforcement succeeded.
+- Pull Request Visual Evidence `30162854046`: PR evidence structure succeeded.
+
+The branch browser workflow captures `achievement-unlock-desktop.png` and `achievement-unlock-mobile.png`. The documentation-only closure commit must pass the same required PR checks before merge readiness is final.
+
 ## Rollback
 
 Revert the notification module, loader/event baseline changes, styles, tests and tooling registration. No database, API, permission or persisted-data rollback is required.
@@ -69,9 +80,10 @@ Revert the notification module, loader/event baseline changes, styles, tests and
 ## Delivery
 
 - Branch: `agent/feat-achievement-unlock-notifications`
+- Pull request: `#33`
 - Base: `main`
 - Normal pull request; no merge or deployment without explicit authorization.
 
 ## Status
 
-Implementation complete. Final-head repository and browser CI validation is pending.
+Implementation and validation complete. Awaiting required CI confirmation for this documentation-only closure commit.
