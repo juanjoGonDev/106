@@ -12,18 +12,27 @@ class TestCustomEvent {
   }
 }
 
-function response({ ok = true, detail = {}, jsonError = null } = {}) {
+function response({ ok = true, detail = {}, jsonError = null, jsonPromise = null } = {}) {
   return {
     ok,
     clone() {
       return {
         json: async () => {
+          if (jsonPromise) return jsonPromise;
           if (jsonError) throw jsonError;
           return detail;
         },
       };
     },
   };
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 function load(responses, { existingUnlockScript = false } = {}) {
@@ -76,6 +85,10 @@ async function settle() {
   await Promise.resolve();
 }
 
+function attemptEvents(harness) {
+  return harness.events.filter((event) => event.type === 'minuto106:attempt-finished');
+}
+
 test('loads the achievement notification asset once', () => {
   const harness = load([]);
   assert.equal(harness.scripts.length, 1);
@@ -97,22 +110,58 @@ test('retains and clears player context baselines', () => {
   assert.equal(harness.window.__MINUTO106_PLAYER_CONTEXT__, null);
 });
 
-test('dispatches and retains the completed attempt payload after a successful finish', async () => {
+test('dispatches and retains one completed attempt payload after a successful finish', async () => {
   const attempt = { id: 'attempt-one', elapsedMs: 10_604 };
   const detail = { attempt, stats: { awards: { goldenBoot: { nick: 'Ana' } } } };
   const harness = load([response({ detail })]);
+  harness.document.dispatchEvent(new TestCustomEvent('minuto106:player-context', {
+    detail: { profile: 'invalid-profile' },
+  }));
   const returned = await harness.window.fetch('/game-api', {
     method: 'POST',
     body: JSON.stringify({ action: 'finish', challengeId: 'one' }),
   });
   await settle();
 
+  const [event] = attemptEvents(harness);
   assert.equal(returned.ok, true);
   assert.equal(harness.requests.length, 1);
-  assert.equal(harness.events.length, 1);
-  assert.equal(harness.events[0].type, 'minuto106:attempt-finished');
-  assert.deepEqual(harness.events[0].detail, detail);
+  assert.equal(attemptEvents(harness).length, 1);
+  assert.deepEqual(event.detail, { ...detail, previousProfile: null });
+  assert.equal(Object.isFrozen(event.detail), true);
   assert.deepEqual(harness.window.__MINUTO106_LATEST_ATTEMPT__, attempt);
+});
+
+test('captures the pre-finish profile even when the refreshed player context wins the race', async () => {
+  const previousProfile = {
+    achievements: { items: [{ code: 'first_attempt' }] },
+  };
+  const nextProfile = {
+    achievements: { items: [{ code: 'first_attempt' }, { code: 'precision_250' }] },
+  };
+  const attempt = { id: 'attempt-race', elapsedMs: 10_604 };
+  const body = deferred();
+  const harness = load([response({ jsonPromise: body.promise })]);
+
+  harness.document.dispatchEvent(new TestCustomEvent('minuto106:player-context', {
+    detail: { availability: 'owned', profile: previousProfile },
+  }));
+  const returned = await harness.window.fetch('/game-api', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'finish', challengeId: 'race' }),
+  });
+  harness.document.dispatchEvent(new TestCustomEvent('minuto106:player-context', {
+    detail: { availability: 'owned', profile: nextProfile, source: 'finish:global' },
+  }));
+  body.resolve({ attempt, profile: nextProfile });
+  await settle();
+
+  const [event] = attemptEvents(harness);
+  assert.equal(returned.ok, true);
+  assert.equal(attemptEvents(harness).length, 1);
+  assert.deepEqual(event.detail.previousProfile, previousProfile);
+  assert.deepEqual(event.detail.profile, nextProfile);
+  assert.deepEqual(harness.window.__MINUTO106_PLAYER_CONTEXT__?.profile, nextProfile);
 });
 
 test('retains attempts from external completion events for late-loaded share actions', () => {
@@ -127,8 +176,8 @@ test('dispatches a null detail and clears the retained attempt when decoding fai
   harness.window.__MINUTO106_LATEST_ATTEMPT__ = { id: 'stale' };
   await harness.window.fetch('/game-api', { body: JSON.stringify({ action: 'finish' }) });
   await settle();
-  assert.equal(harness.events.length, 1);
-  assert.equal(harness.events[0].detail, null);
+  assert.equal(attemptEvents(harness).length, 1);
+  assert.equal(attemptEvents(harness)[0].detail, null);
   assert.equal(harness.window.__MINUTO106_LATEST_ATTEMPT__, null);
 });
 
@@ -138,7 +187,7 @@ test('does not publish events for unrelated, invalid or bodyless requests', asyn
   await harness.window.fetch('/game-api', { body: '{not-json' });
   await harness.window.fetch('/game-api', { body: new Uint8Array([1]) });
   await settle();
-  assert.equal(harness.events.length, 0);
+  assert.equal(attemptEvents(harness).length, 0);
   assert.equal(harness.requests.length, 3);
 });
 
@@ -146,7 +195,7 @@ test('handles a valid JSON body without an action as unrelated', async () => {
   const harness = load([response()]);
   await harness.window.fetch('/game-api', { body: JSON.stringify({ nick: 'Ana' }) });
   await settle();
-  assert.equal(harness.events.length, 0);
+  assert.equal(attemptEvents(harness).length, 0);
 });
 
 test('does not publish rejected finish responses', async () => {
@@ -154,17 +203,17 @@ test('does not publish rejected finish responses', async () => {
   const returned = await harness.window.fetch('/game-api', { body: JSON.stringify({ action: 'finish' }) });
   await settle();
   assert.equal(returned.ok, false);
-  assert.equal(harness.events.length, 0);
+  assert.equal(attemptEvents(harness).length, 0);
 });
 
 test('installs the wrapper only once', async () => {
-  const harness = load([response({ detail: { first: true } })]);
+  const harness = load([response({ detail: { attempt: { id: 'first' } } })]);
   const wrapped = harness.window.fetch;
   vm.runInNewContext(source, harness.context, { filename: 'public/attempt-refresh.js' });
   assert.equal(harness.window.fetch, wrapped);
   assert.equal(harness.scripts.length, 1);
   await harness.window.fetch('/game-api', { body: JSON.stringify({ action: 'finish' }) });
   await settle();
-  assert.equal(harness.events.length, 1);
+  assert.equal(attemptEvents(harness).length, 1);
   assert.equal(harness.requests.length, 1);
 });
