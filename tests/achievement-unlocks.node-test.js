@@ -26,6 +26,9 @@ class FakeClassList {
 class FakeElement {
   constructor(tagName) {
     this.tagName = tagName;
+    this.id = '';
+    this.rel = '';
+    this.href = '';
     this.className = '';
     this.textContent = '';
     this.hidden = false;
@@ -49,13 +52,24 @@ class FakeElement {
 }
 
 class FakeDocument {
-  constructor() {
+  constructor({ currentScriptSrc = 'https://example.test/106/achievement-unlocks.js', existingStyle = false } = {}) {
     this.body = new FakeElement('body');
+    this.head = new FakeElement('head');
     this.listeners = new Map();
+    this.currentScript = currentScriptSrc ? { src: currentScriptSrc } : null;
+    if (existingStyle) {
+      const stylesheet = new FakeElement('link');
+      stylesheet.id = 'minuto106AchievementUnlockStyles';
+      this.head.append(stylesheet);
+    }
   }
 
   createElement(tagName) {
     return new FakeElement(tagName);
+  }
+
+  getElementById(id) {
+    return [...this.head.children, ...this.body.children].find((element) => element.id === id) ?? null;
   }
 
   addEventListener(type, listener) {
@@ -94,8 +108,13 @@ function scheduler() {
   };
 }
 
-function load({ contextProfile = null, frame = (callback) => callback() } = {}) {
-  const document = new FakeDocument();
+function load({
+  contextProfile = null,
+  currentScriptSrc,
+  existingStyle = false,
+  frame = (callback) => callback(),
+} = {}) {
+  const document = new FakeDocument({ currentScriptSrc, existingStyle });
   const clock = scheduler();
   const window = {
     __MINUTO106_PLAYER_CONTEXT__: contextProfile,
@@ -103,7 +122,7 @@ function load({ contextProfile = null, frame = (callback) => callback() } = {}) 
     clearTimeout: clock.cancel,
     requestAnimationFrame: frame,
   };
-  const context = { document, window, Array, Boolean, Number, Object, Set, String };
+  const context = { document, window, Array, Boolean, Number, Object, Set, String, URL };
   vm.runInNewContext(source, context, { filename: 'public/achievement-unlocks.js' });
   return { api: window.Minuto106AchievementUnlocks, clock, document, window };
 }
@@ -112,8 +131,15 @@ function profile(items) {
   return { achievements: { items } };
 }
 
-test('boots once and creates an accessible notification view', () => {
+test('boots once with versioned styles and creates an accessible notification view', () => {
   const harness = load();
+  const [stylesheet] = harness.document.head.children;
+  assert.equal(stylesheet.tagName, 'link');
+  assert.equal(stylesheet.id, 'minuto106AchievementUnlockStyles');
+  assert.equal(stylesheet.rel, 'stylesheet');
+  assert.equal(stylesheet.href, 'https://example.test/106/v17.css');
+  assert.equal(harness.api.ensureAchievementUnlockStyles(harness.document), stylesheet);
+
   const [root] = harness.document.body.children;
   assert.equal(root.tagName, 'aside');
   assert.equal(root.hidden, true);
@@ -125,6 +151,12 @@ test('boots once and creates an accessible notification view', () => {
   const notifier = harness.window.Minuto106AchievementUnlockNotifier;
   assert.equal(harness.api.bootAchievementUnlocks(harness.window, harness.document), notifier);
   assert.equal(harness.document.body.children.length, 1);
+  assert.equal(harness.document.head.children.length, 1);
+
+  const fallback = load({ currentScriptSrc: '' });
+  assert.equal(fallback.document.head.children[0].href, 'v17.css');
+  const existing = load({ existingStyle: true });
+  assert.equal(existing.document.head.children.length, 1);
 });
 
 test('finds only distinct newly unlocked achievements and normalizes display data', () => {
