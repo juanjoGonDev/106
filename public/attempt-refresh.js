@@ -22,6 +22,11 @@
     }
   }
 
+  function playerProfileBaseline() {
+    const profile = window.__MINUTO106_PLAYER_CONTEXT__?.profile;
+    return profile && typeof profile === 'object' ? profile : null;
+  }
+
   function loadAchievementUnlocks() {
     if (document.getElementById('minuto106AchievementUnlocksScript')) return;
     const script = document.createElement('script');
@@ -40,12 +45,14 @@
 
   window.fetch = async function minuto106AttemptRefreshFetch(input, init) {
     const action = requestAction(init);
+    const previousProfile = action === 'finish' ? playerProfileBaseline() : null;
     const response = await previousFetch(input, init);
     if (action !== 'finish' || !response.ok) return response;
 
     response.clone().json().then((detail) => {
-      rememberAttempt(detail);
-      document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', { detail }));
+      const completion = Object.freeze({ ...detail, previousProfile });
+      rememberAttempt(completion);
+      document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', { detail: completion }));
     }).catch(() => {
       rememberAttempt(null);
       document.dispatchEvent(new CustomEvent('minuto106:attempt-finished', { detail: null }));
