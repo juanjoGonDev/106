@@ -77,7 +77,12 @@ function uiError(error, title = 'No se pudo completar') {
 
 function validateSetup() {
   const captchaReady = !config.turnstileSiteKey || Boolean(state.turnstileToken);
-  startButton.disabled = !configured || nickInput.value.trim().length < 2 || !state.team || !captchaReady;
+  const competitionReady = window.Minuto106Competition?.canStart === true;
+  startButton.disabled = !configured
+    || nickInput.value.trim().length < 2
+    || !state.team
+    || !captchaReady
+    || !competitionReady;
 }
 
 async function request(action, payload = {}) {
@@ -93,30 +98,7 @@ async function request(action, payload = {}) {
 }
 
 async function refreshNickStatus() {
-  const nick = nickInput.value.trim();
-  const status = $('#nickStatus');
-  if (!configured) {
-    status.textContent = 'Configura Supabase para activar los intentos y el ranking.';
-    return;
-  }
-  if (nick.length < 2) {
-    status.textContent = 'Cada nick dispone de 5 intentos.';
-    $('#profileCard').hidden = true;
-    return;
-  }
-  try {
-    const profile = await request('profile', { nick });
-    state.profile = profile.nick ? profile : null;
-    const maxAttempts = Number(profile.maxAttempts ?? 5);
-    const attemptsLeft = Number(profile.attemptsLeft ?? 5);
-    status.textContent = attemptsLeft
-      ? `${attemptsLeft} de ${maxAttempts} intentos disponibles para este nick.`
-      : `Has agotado ${maxAttempts} intentos. Comparte tu invitación para conseguir otro.`;
-    if (profile.nick) renderProfile(profile);
-    else $('#profileCard').hidden = true;
-  } catch {
-    status.textContent = 'No se pudo comprobar el nick.';
-  }
+  return window.Minuto106Competition?.refresh?.('app');
 }
 
 function clearTimerFrame() {
@@ -200,6 +182,12 @@ function mountStopControl(interaction) {
 
 async function startGame(event) {
   if (event?.isTrusted !== true || state.phase === 'playing') return;
+  if (window.Minuto106Competition?.canStart !== true) {
+    await uiError('Selecciona una competición con intentos disponibles y utiliza un nick de tu cuenta.', 'No puedes iniciar este intento');
+    validateSetup();
+    return;
+  }
+
   startButton.disabled = true;
   startButton.textContent = 'Preparando reto…';
   state.nick = nickInput.value.trim();
@@ -438,11 +426,14 @@ document.querySelectorAll('.team-button').forEach((button) => button.addEventLis
   validateSetup();
 }));
 
-let nickDebounce;
-nickInput.addEventListener('input', () => {
+nickInput.addEventListener('input', validateSetup);
+document.addEventListener('minuto106:player-context', (event) => {
+  const detail = event.detail ?? {};
+  const ownedProfile = detail.availability === 'owned' ? detail.profile : null;
+  state.profile = ownedProfile;
+  if (ownedProfile?.nick) renderProfile(ownedProfile);
+  else $('#profileCard').hidden = true;
   validateSetup();
-  clearTimeout(nickDebounce);
-  nickDebounce = setTimeout(refreshNickStatus, 300);
 });
 document.addEventListener('visibilitychange', () => {
   if (state.phase === 'playing' && document.hidden && state.integrity) state.integrity.visibilityChanges += 1;
@@ -453,6 +444,11 @@ window.addEventListener('blur', () => {
 startButton.addEventListener('click', (event) => startGame(event).catch((error) => uiError(error)));
 $('#retryButton').addEventListener('click', (event) => {
   if (!event.isTrusted) return;
+  if (window.Minuto106Competition?.canStart !== true) {
+    showPanel('setup');
+    validateSetup();
+    return;
+  }
   if (config.turnstileSiteKey) {
     showPanel('setup');
     validateSetup();
@@ -465,7 +461,7 @@ $('#changeNickButton').addEventListener('click', (event) => {
   destroyStopControl();
   showPanel('setup');
   nickInput.focus();
-  refreshNickStatus();
+  window.Minuto106Competition?.scheduleRefresh?.('change-nick');
 });
 $('#shareButton').addEventListener('click', (event) => {
   if (event.isTrusted) shareResult().catch((error) => uiError(error, 'No se pudo compartir'));
@@ -476,4 +472,3 @@ $('#copyReferralButton').addEventListener('click', (event) => {
 
 initializeTurnstile();
 validateSetup();
-refreshNickStatus();

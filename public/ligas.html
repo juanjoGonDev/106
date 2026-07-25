@@ -1,1 +1,74 @@
-<!doctype html><html lang="es"><head><script src="./privacy-bootstrap.js"></script><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08090c"><title>Miniligas — Minuto 106</title><meta name="description" content="Crea, comparte y compite en miniligas privadas de Minuto 106 con activación antifraude."><link rel="icon" href="./assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="./site.webmanifest"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./v2.css"><link rel="stylesheet" href="./v3.css"><link rel="stylesheet" href="./v4.css"><link rel="stylesheet" href="./site.css"><link rel="stylesheet" href="./v7.css"></head><body><!-- Google Tag Manager (noscript) --><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><!-- End Google Tag Manager (noscript) --><header class="site-header"></header><main class="page-shell"><section class="page-card"><p class="eyebrow">MINILIGAS DE 3 DÍAS</p><h1>Tus competiciones privadas</h1><p>Cada miniliga concede <strong>5 intentos independientes</strong>. La competición y su plazo de tres días solo empiezan cuando participan al menos <strong>3 cuentas distintas desde 3 dispositivos distintos</strong>.</p><div class="league-explanation">Mientras espera participantes puedes compartir su enlace y su vista previa dinámica. Una vez activada, elige la liga y pulsa <strong>Competir</strong>: sus tiempos no consumen intentos globales, no suman puntos a España o Argentina y no alteran el ranking mundial.</div><div class="league-nick-row"><label for="leagueNick">Nick con el que competirás<input id="leagueNick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label><a class="ghost compact" href="./cuenta.html">Gestionar mi cuenta</a></div><div class="league-management-grid"><article class="league-action-card"><h2>Crear miniliga</h2><p>Serás el primer participante. El reloj no empezará hasta alcanzar tres cuentas y tres dispositivos únicos.</p><form id="createLeagueForm" class="league-form"><label for="newLeagueName">Nombre de la liga<input id="newLeagueName" maxlength="40" placeholder="Ej. Los del barrio"></label><button class="secondary" type="submit">Crear y compartir invitación</button></form></article><article class="league-action-card"><h2>Unirme o consultar</h2><p>Introduce el código de seis caracteres. La unión se realiza únicamente desde esta vista.</p><form id="joinLeagueForm" class="league-form"><label for="leagueLookupCode">Código<input id="leagueLookupCode" data-code maxlength="6" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="ABC123"></label><div class="league-card-actions"><button class="primary" type="submit">Unirme</button><button id="leagueLookupButton" class="ghost" type="button">Solo consultar</button></div></form></article></div></section><section class="page-card" aria-labelledby="myLeaguesTitle"><div class="section-heading"><div><p class="eyebrow">MI CUENTA</p><h2 id="myLeaguesTitle">Miniligas en las que participo</h2></div><span id="myLeaguesCount">0 ligas</span></div><div id="myLeaguesList" class="my-leagues-grid"><p class="empty">Escribe tu nick para cargar tus miniligas.</p></div></section><section id="leagueLookupResult" class="page-card" hidden><div class="section-heading"><div><p class="eyebrow">CLASIFICACIÓN DE LA MINILIGA</p><h2 id="leagueLookupTitle"></h2></div><span id="leagueLookupEnds"></span></div><p id="leagueLookupMeta" class="leaderboard-help"></p><div class="league-detail-actions"><a id="competeLeagueLink" class="primary" href="./">Competir en esta liga</a><button id="shareLeagueButton" class="secondary" type="button">Compartir liga</button></div><ol id="leagueLookupList" class="leaderboard"></ol><section id="myLeagueAttempts" class="league-attempts" hidden><h3>Mis tiempos en esta liga</h3><ol id="myLeagueAttemptList" class="attempt-history"></ol></section></section></main><footer class="site-footer"></footer><script src="./config.js"></script><script src="./layout.js"></script><script src="./access.js"></script><script src="./format.js"></script><script src="./ligas.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <title>Ligas públicas — Minuto 106</title>
+  <meta name="description" content="Consulta clasificaciones públicas, crea una liga o entra con una clave privada en Minuto 106.">
+  <link rel="canonical" href="https://juanjogondev.github.io/106/ligas.html">
+  <link rel="image_src" href="./assets/minuto-106-social-preview.jpg">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Minuto 106">
+  <meta property="og:url" content="https://juanjogondev.github.io/106/ligas.html">
+  <meta property="og:title" content="Ligas públicas — Minuto 106">
+  <meta property="og:description" content="Compite durante tres días, consulta la clasificación pública y gana logros por entrar en el podio.">
+  <meta property="og:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:secure_url" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Ligas públicas de Minuto 106">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Ligas públicas — Minuto 106">
+  <meta name="twitter:description" content="Compite durante tres días y gana logros por entrar en el podio.">
+  <meta name="twitter:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:src" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:alt" content="Ligas públicas de Minuto 106">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./site.css">
+  <link rel="stylesheet" href="./v7.css">
+  <link rel="stylesheet" href="./v11.css">
+  <link rel="stylesheet" href="./v14.css">
+</head>
+<body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <header class="site-header"></header>
+  <main class="page-shell">
+    <section class="page-card">
+      <p class="eyebrow">LIGAS PÚBLICAS DE 3 DÍAS</p>
+      <h1>Competiciones visibles. Entrada privada.</h1>
+      <p>Cualquiera puede consultar una clasificación mediante su identificador público. Para entrar hace falta una clave privada distinta, que solo se comparte con las personas invitadas.</p>
+      <div class="league-explanation">Cada liga concede <strong>5 intentos independientes</strong>. La cuenta atrás empieza al participar al menos <strong>3 cuentas distintas desde 3 dispositivos distintos</strong>. Primer, segundo y tercer puesto reciben logros y puntos; el campeón también conserva un trofeo fechado.</div>
+      <div class="league-nick-row"><label for="leagueNick">Nick con el que competirás<input id="leagueNick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label><a class="ghost compact" href="./cuenta.html">Gestionar mi cuenta</a></div>
+      <div class="league-management-grid">
+        <article class="league-action-card"><h2>Crear liga</h2><p>Serás el primer participante. Recibirás una vista pública y una clave privada de invitación.</p><form id="createLeagueForm" class="league-form"><label for="newLeagueName">Nombre de la liga<input id="newLeagueName" maxlength="40" placeholder="Ej. Los del barrio"></label><button class="secondary" type="submit">Crear y compartir invitación</button></form></article>
+        <article class="league-action-card"><h2>Entrar con invitación</h2><p>La clave privada tiene seis caracteres y no forma parte de la URL pública.</p><form id="joinLeagueForm" class="league-form"><label for="leagueJoinCode">Clave privada<input id="leagueJoinCode" data-code maxlength="6" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="ABC123"></label><button class="primary" type="submit">Unirme a la liga</button></form></article>
+      </div>
+    </section>
+    <section class="page-card" aria-labelledby="myLeaguesTitle"><div class="section-heading"><div><p class="eyebrow">MI CUENTA</p><h2 id="myLeaguesTitle">Ligas en las que participo</h2></div><span id="myLeaguesCount">0 ligas</span></div><div id="myLeaguesList" class="my-leagues-grid"><p class="empty">Escribe tu nick para cargar tus ligas.</p></div></section>
+    <section id="leagueLookupResult" class="page-card league-public-detail" hidden>
+      <div class="section-heading"><div><p class="eyebrow">CLASIFICACIÓN PÚBLICA</p><h2 id="leagueLookupTitle"></h2><small id="leagueLookupPublicId"></small></div><span id="leagueLookupEnds"></span></div>
+      <p id="leagueLookupMeta" class="leaderboard-help"></p>
+      <div class="league-detail-actions"><a id="competeLeagueLink" class="primary" href="./" hidden>Competir en esta liga</a><button id="shareLeagueButton" class="secondary" type="button">Compartir liga</button></div>
+      <ol id="leagueLookupList" class="leaderboard"></ol>
+      <section id="myLeagueAttempts" class="league-attempts" hidden><h3>Mis tiempos en esta liga</h3><ol id="myLeagueAttemptList" class="attempt-history"></ol></section>
+    </section>
+  </main>
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./share-actions.js" data-minuto106-share-actions="true"></script>
+  <script src="./access.js?v=20260724"></script>
+  <script src="./format.js"></script>
+  <script src="./ligas.js?v=20260724"></script>
+</body>
+</html>

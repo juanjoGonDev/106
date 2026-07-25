@@ -23,21 +23,28 @@ function formatDifference(value) {
   return Number.isFinite(Number(value)) ? `±${Number(value).toLocaleString('es-ES')} ms` : '—';
 }
 
-function playerRow({ rank, nick, team, summary, metric, leader = false, section = 'overview' }) {
+function playerRow({ rank, nick, team, summary, metric, detail = '', leader = false, section = 'overview', tied = false }) {
   const href = playerUi.playerUrl(nick, section);
-  return `<li class="leaderboard-row${leader ? ' leader' : ''}" data-nick="${escape(nick)}" data-team="${escape(team || '')}"><a class="leaderboard-row-link" href="${escape(href)}" data-player-nick="${escape(nick)}"><span class="rank">#${rank}</span><span class="ranking-player"><span>${escape(nick)}</span>${playerUi.teamHtml(team)}<small>${escape(summary)}</small></span><span class="difference">${escape(metric)}</span></a></li>`;
+  return `<li class="leaderboard-row${leader ? ' leader' : ''}${tied ? ' ranking-time-tie' : ''}" data-nick="${escape(nick)}" data-team="${escape(team || '')}"><a class="leaderboard-row-link" href="${escape(href)}" data-player-nick="${escape(nick)}"><span class="rank">#${rank}</span><span class="ranking-player"><span>${escape(nick)}</span>${playerUi.teamHtml(team)}<small>${escape(summary)}</small>${detail ? `<small class="ranking-tiebreak">${escape(detail)}</small>` : ''}</span><span class="difference">${escape(metric)}</span></a></li>`;
+}
+
+function tieBreakDetail(entry) {
+  if (entry.tiedOnTime !== true) return '';
+  return `Desempate: ${Number(entry.achievementPoints || 0)} pt · ${Number(entry.dailyTrophies || 0)} trofeos diarios · ${Number(entry.leagueWins || 0)} ligas · ${Number(entry.verifiedAttempts || 0)} intentos válidos · media ${formatDifference(entry.averageDifferenceMs)}`;
 }
 
 function renderPrecision(entries) {
   const list = document.querySelector('#fullRanking');
   list.innerHTML = entries.length
     ? entries.map((entry, index) => playerRow({
-      rank: index + 1,
+      rank: Number(entry.rank || index + 1),
       nick: entry.nick,
       team: entry.team,
       summary: `${(Number(entry.elapsedMs) / 1000).toFixed(3)} s`,
+      detail: tieBreakDetail(entry),
       metric: formatDifference(entry.differenceMs),
       leader: index === 0,
+      tied: entry.tiedOnTime === true,
     })).join('')
     : '<li class="empty">Todavía no hay resultados verificados.</li>';
 }

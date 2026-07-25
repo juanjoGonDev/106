@@ -19,8 +19,9 @@ function profile() {
     globalRankBest: 1,
     completedReferrals: 2,
     bonusAttempts: 1,
-    trophies: { total: 3, days: 2, history: [] },
-    achievements: { total: 3, points: 60, items: [] },
+    trophies: { total: 3, days: 2, goldenBoot: 1, goldenGlove: 1, goldenBall: 1, leagueChampion: 0, history: [] },
+    achievements: { total: 3, points: 60, items: [], featured: [] },
+    honoursProgress: { today: {} },
     history: [],
   };
 }
@@ -29,8 +30,12 @@ async function installMocks(page) {
   await page.route('**/functions/v1/player-share/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>' });
   });
-  await page.route('**/functions/v1/game-api', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile()) });
+  await page.route('**/functions/v1/player-context', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ availability: 'occupied', profile: profile(), leagues: [] }),
+    });
   });
 }
 

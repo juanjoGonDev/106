@@ -1,11 +1,17 @@
 (() => {
   const config = window.__MINUTO106_CONFIG__ ?? {};
   const apiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
+  const playerContextUrl = apiUrl.replace(/\/game-api$/, '/player-context');
   const ui = window.Minuto106PlayerUI;
+  const catalog = window.Minuto106HonoursCatalog;
   const route = ui?.parsePlayerLocation(location) ?? { nick: '', section: 'overview' };
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const absoluteSchemePattern = /^[a-z][a-z0-9+.-]*:/i;
+  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+  let persistedFeaturedCodes = [];
+  let draftFeaturedCodes = [];
+  let savePending = false;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -19,10 +25,16 @@
     golden_ball: 'Balón de Oro',
     league_champion: 'Campeón de liga',
   })[type] || 'Trofeo';
-  const trophyMetric = (trophy) => trophy.type === 'golden_ball' ? `${Number(trophy.value || 0)} intentos` : formatDifference(trophy.value);
+  const trophyMetric = (trophy) => trophy.type === 'golden_ball'
+    ? `${Number(trophy.value || 0)} intentos`
+    : formatDifference(trophy.value ?? trophy.bestDifferenceMs);
 
   function escape(value) {
     return ui.escapeHtml(value);
+  }
+
+  function leagueUrl(publicId) {
+    return new URL(`ligas/${encodeURIComponent(publicId)}`, ui.appBaseUrl()).toString();
   }
 
   function normalizeSiteChromeLinks() {
@@ -45,25 +57,27 @@
     meta.setAttribute('content', content);
   }
 
-  async function requestProfile(nick) {
-    if (!apiUrl) throw new Error('No se ha configurado el servidor de perfiles.');
-    const response = await fetch(apiUrl, {
+  async function requestPlayerContext(action, payload = {}) {
+    if (!playerContextUrl || playerContextUrl === apiUrl) {
+      throw new Error('No se ha configurado el servidor de perfiles.');
+    }
+    const response = await fetch(playerContextUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
-      body: JSON.stringify({ action: 'public-profile', nick }),
+      body: JSON.stringify({ action, nick: route.nick, ...payload }),
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'No se pudo cargar el jugador.');
-    if (!body?.nick) throw new Error('No se encontró el jugador.');
+    if (!body?.profile?.nick) throw new Error('No se encontró el jugador.');
     return body;
   }
 
   function setMetadata(player) {
     const title = `${player.nick} · Minuto 106`;
-    const description = `Perfil público de ${player.nick}: estadísticas, trofeos y logros en Minuto 106.`;
+    const description = `Perfil público de ${player.nick}: estadísticas, trofeos, progreso y logros destacados en Minuto 106.`;
     const canonicalUrl = ui.playerUrl(player.nick, route.section);
     const cardUrl = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
-    const imageAlt = `Tarjeta actualizada de ${player.nick} con estadísticas, trofeos y logros de Minuto 106.`;
+    const imageAlt = `Tarjeta actualizada de ${player.nick} con estadísticas, trofeos y logros destacados de Minuto 106.`;
 
     document.title = title;
     document.querySelector('meta[name="description"]')?.setAttribute('content', description);
@@ -106,7 +120,47 @@
     });
   }
 
-  function renderOverview(player) {
+  function progressMarkup(progress) {
+    const percent = Math.max(0, Math.min(100, Number(progress?.percent || 0)));
+    return `<span class="honours-card__progress-label">${escape(progress?.label || 'Progreso no disponible.')}</span><span class="honours-progress" role="progressbar" aria-label="${escape(progress?.label || 'Progreso')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="--honours-progress:${percent}%"></span></span>`;
+  }
+
+  function achievementCard(achievement, { compact = false, editable = false } = {}) {
+    const classes = [
+      'honours-card',
+      achievement.unlocked ? 'is-unlocked' : 'is-locked',
+      achievement.featured ? 'is-featured' : '',
+      compact ? 'is-compact' : '',
+    ].filter(Boolean).join(' ');
+    const selected = draftFeaturedCodes.includes(achievement.code);
+    const selectionFull = draftFeaturedCodes.length >= catalog.MAX_FEATURED;
+    const toggle = editable && achievement.unlocked
+      ? `<button class="honours-card__toggle" type="button" data-featured-code="${escape(achievement.code)}" aria-pressed="${selected}" aria-label="${selected ? 'Quitar' : 'Destacar'} ${escape(achievement.title)}" ${!selected && selectionFull ? 'disabled' : ''}>${selected ? `★ ${draftFeaturedCodes.indexOf(achievement.code) + 1}` : '☆'}</button>`
+      : '';
+    const date = achievement.unlocked && achievement.date
+      ? `<time datetime="${escape(achievement.date)}">${escape(ui.formatDate(achievement.date))}</time>`
+      : '';
+    const points = achievement.points === null || achievement.points === undefined
+      ? ''
+      : `<span>${Number(achievement.points)} pt</span>`;
+    const badge = achievement.featured
+      ? `<span class="honours-card__badge">Destacado #${Number(achievement.featuredPosition || 1)}</span>`
+      : achievement.unlocked
+        ? '<span class="honours-card__badge">Desbloqueado</span>'
+        : '<span class="honours-card__badge">Bloqueado</span>';
+
+    return `<li class="${classes}" data-achievement-code="${escape(achievement.code)}" data-unlocked="${achievement.unlocked}"><span class="honours-card__icon" aria-hidden="true">${achievement.unlocked ? '★' : '◇'}</span><span class="honours-card__content"><strong>${escape(achievement.title)}</strong><small>${escape(achievement.description)}</small>${achievement.unlocked ? '' : progressMarkup(achievement.progress)}<span class="honours-card__meta">${badge}${points}${date}</span></span>${toggle}</li>`;
+  }
+
+  function renderFeatured(player, achievements) {
+    const featured = achievements.filter((achievement) => achievement.featured && achievement.unlocked)
+      .sort((left, right) => Number(left.featuredPosition || 99) - Number(right.featuredPosition || 99));
+    const section = $('#playerFeaturedSection');
+    section.hidden = featured.length === 0;
+    $('#playerFeatured').innerHTML = featured.map((achievement) => achievementCard(achievement, { compact: true })).join('');
+  }
+
+  function renderOverview(player, achievements) {
     $('#playerStats').innerHTML = [
       ['Mejor marca', formatDifference(player.bestDifferenceMs)],
       ['Media global', formatDifference(player.averageDifferenceMs)],
@@ -118,28 +172,77 @@
       ['Ligas ganadas', Number(player.trophies?.leagueChampion || 0).toLocaleString('es-ES')],
     ].map(([label, value]) => `<div><span>${label}</span><strong>${escape(value)}</strong></div>`).join('');
 
+    renderFeatured(player, achievements);
     const attempts = Array.isArray(player.history) ? player.history : [];
     $('#playerHistory').innerHTML = attempts.length
       ? attempts.slice(0, 20).map((attempt, index) => `<li><span class="player-list__icon">${index + 1}</span><span class="player-list__copy"><strong>${ui.teamHtml(attempt.team, player)}</strong><small>${formatTime(attempt.elapsedMs)} · ${attempt.verified ? 'Válido' : 'Excluido'}</small></span><span class="player-list__metric">${formatDifference(attempt.differenceMs)}</span></li>`).join('')
       : '<li class="player-empty">Todavía no hay intentos globales.</li>';
   }
 
-  function renderAchievements(player) {
-    const achievements = player.achievements || {};
-    const items = Array.isArray(achievements.items) ? achievements.items : [];
-    $('#achievementTotal').textContent = `${Number(achievements.total || 0)} logros · ${Number(achievements.points || 0)} pt`;
-    $('#playerAchievements').innerHTML = items.length
-      ? items.map((achievement) => `<li><span class="player-list__icon">★</span><span class="player-list__copy"><strong>${escape(achievement.title)}</strong><small>${escape(achievement.description)}</small><time datetime="${escape(achievement.date)}">${escape(ui.formatDate(achievement.date))}</time></span><span class="player-list__metric">${Number(achievement.points || 0)} pt</span></li>`).join('')
-      : '<li class="player-empty">Todavía no ha desbloqueado logros.</li>';
+  function updateEditorState(achievements) {
+    const editor = $('#featuredAchievementsEditor');
+    const editable = context.availability === 'owned';
+    editor.hidden = !editable;
+    if (!editable) return;
+    const unlockedCodes = new Set(achievements.filter((achievement) => achievement.unlocked).map((achievement) => achievement.code));
+    draftFeaturedCodes = catalog.normalizeFeaturedCodes(draftFeaturedCodes, unlockedCodes);
+    $('#featuredAchievementCount').textContent = `${draftFeaturedCodes.length} de ${catalog.MAX_FEATURED}`;
+    const changed = JSON.stringify(draftFeaturedCodes) !== JSON.stringify(persistedFeaturedCodes);
+    const saveButton = $('#saveFeaturedAchievements');
+    saveButton.disabled = savePending || !changed;
+    saveButton.textContent = savePending ? 'Guardando…' : 'Guardar destacados';
+  }
+
+  function renderAchievements(player, achievements) {
+    const earnedCount = achievements.filter((achievement) => achievement.unlocked).length;
+    const lockedCount = achievements.filter((achievement) => !achievement.unlocked).length;
+    $('#achievementTotal').textContent = `${Number(player.achievements?.total || earnedCount)} desbloqueados · ${lockedCount} pendientes · ${Number(player.achievements?.points || 0)} pt`;
+    updateEditorState(achievements);
+    const editable = context.availability === 'owned';
+    $('#playerAchievements').innerHTML = achievements.map((achievement) => achievementCard(achievement, { editable })).join('');
+    $('#playerAchievements').querySelectorAll('[data-featured-code]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const code = String(button.dataset.featuredCode || '');
+        if (!code) return;
+        if (draftFeaturedCodes.includes(code)) {
+          draftFeaturedCodes = draftFeaturedCodes.filter((item) => item !== code);
+        } else if (draftFeaturedCodes.length < catalog.MAX_FEATURED) {
+          draftFeaturedCodes = [...draftFeaturedCodes, code];
+        }
+        renderAchievements(player, catalog.buildAchievementCatalog({
+          ...player,
+          achievements: {
+            ...player.achievements,
+            featured: draftFeaturedCodes.map((featuredCode, index) => ({ code: featuredCode, position: index + 1 })),
+          },
+        }));
+      });
+    });
+  }
+
+  function trophyCollectionCard(trophy) {
+    const classes = ['honours-card', trophy.unlocked ? 'is-unlocked' : 'is-locked'].join(' ');
+    const count = trophy.count > 0
+      ? `<span>${trophy.count.toLocaleString('es-ES')} ${trophy.count === 1 ? 'conseguido' : 'conseguidos'}</span>`
+      : '<span>Pendiente</span>';
+    return `<li class="${classes}" data-trophy-type="${escape(trophy.type)}" data-unlocked="${trophy.unlocked}"><span class="honours-card__icon" aria-hidden="true">${trophy.unlocked ? '🏆' : '◇'}</span><span class="honours-card__content"><strong>${escape(trophy.title)}</strong><small>${escape(trophy.description)}</small>${progressMarkup(trophy.progress)}<span class="honours-card__meta"><span class="honours-card__badge">${trophy.unlocked ? 'Conseguido' : 'Bloqueado'}</span>${count}</span></span></li>`;
   }
 
   function renderTrophies(player) {
     const trophies = player.trophies || {};
     const history = Array.isArray(trophies.history) ? trophies.history : [];
+    const trophyCollection = catalog.buildTrophyCatalog(player);
     $('#trophyTotal').textContent = `${Number(trophies.total || 0)} trofeos · ${Number(trophies.days || 0)} días · ${Number(trophies.leagueChampion || 0)} ligas`;
+    $('#playerTrophyCollection').innerHTML = trophyCollection.map(trophyCollectionCard).join('');
     $('#playerTrophies').innerHTML = history.length
-      ? history.map((trophy) => `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${trophy.leagueName ? `<small>${escape(trophy.leagueName)} · ${escape(trophy.leagueCode)}</small>` : ''}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`).join('')
-      : '<li class="player-empty">Todavía no tiene trofeos.</li>';
+      ? history.map((trophy) => {
+        const publicId = String(trophy.leaguePublicId || trophy.leagueCode || '');
+        const league = trophy.leagueName && publicId
+          ? `<small><a href="${escape(leagueUrl(publicId))}">${escape(trophy.leagueName)}</a> · ${escape(publicId)}</small>`
+          : trophy.leagueName ? `<small>${escape(trophy.leagueName)}</small>` : '';
+        return `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${league}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`;
+      }).join('')
+      : '<li class="player-empty">Todavía no tiene trofeos en el historial.</li>';
   }
 
   function renderShareActions(player) {
@@ -147,7 +250,7 @@
     const card = ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision);
     $('#playerCardPreview').src = card;
     $('#downloadPlayerCard').href = card;
-    $('#sharePlayer').addEventListener('click', () => {
+    $('#sharePlayer').onclick = () => {
       const trophies = Number(player.trophies?.total || 0);
       const achievements = Number(player.achievements?.total || 0);
       window.Minuto106UI?.share({
@@ -155,8 +258,8 @@
         text: `${player.nick} suma ${trophies} ${trophies === 1 ? 'trofeo' : 'trofeos'}, ${achievements} ${achievements === 1 ? 'logro' : 'logros'} y ${Number(player.achievements?.points || 0)} puntos.`,
         url: share,
       });
-    });
-    $('#downloadPlayerCard').addEventListener('click', async (event) => {
+    };
+    $('#downloadPlayerCard').onclick = async (event) => {
       event.preventDefault();
       try {
         const response = await fetch(card);
@@ -170,19 +273,61 @@
       } catch (error) {
         window.Minuto106UI?.error({ title: 'No se pudo descargar', message: error instanceof Error ? error.message : 'No se pudo descargar la imagen.' });
       }
-    });
+    };
   }
 
-  function render(player) {
+  async function saveFeaturedAchievements() {
+    if (context.availability !== 'owned' || savePending) return;
+    savePending = true;
+    renderContext();
+    try {
+      context = Object.freeze(await requestPlayerContext('set-featured-achievements', {
+        achievementCodes: draftFeaturedCodes,
+      }));
+      persistedFeaturedCodes = featuredCodes(context.profile);
+      draftFeaturedCodes = [...persistedFeaturedCodes];
+      renderContext();
+      await window.Minuto106UI?.success({
+        title: 'Vitrina actualizada',
+        message: persistedFeaturedCodes.length
+          ? 'Tus logros destacados ya aparecen en el perfil y en la imagen generada.'
+          : 'Has limpiado los logros destacados del perfil.',
+      });
+    } catch (error) {
+      renderContext();
+      await window.Minuto106UI?.error({
+        title: 'No se pudo guardar',
+        message: error instanceof Error ? error.message : 'No se pudieron actualizar los logros destacados.',
+      });
+    } finally {
+      savePending = false;
+      renderContext();
+    }
+  }
+
+  function featuredCodes(player) {
+    const featured = Array.isArray(player?.achievements?.featured) ? player.achievements.featured : [];
+    return featured
+      .slice()
+      .sort((left, right) => Number(left.position || 99) - Number(right.position || 99))
+      .map((item) => String(item.code || ''))
+      .filter(Boolean);
+  }
+
+  function renderContext() {
+    const player = context.profile;
+    if (!player?.nick) return;
     setMetadata(player);
     $('#playerNick').textContent = player.nick;
     $('#playerTeam').innerHTML = ui.teamHtml(player.team, player, 'player-team--hero');
     renderTabs(player);
-    renderOverview(player);
-    renderAchievements(player);
+    const achievements = catalog.buildAchievementCatalog(player);
+    renderOverview(player, achievements);
+    renderAchievements(player, achievements);
     renderTrophies(player);
     window.Minuto106PlayerStats?.renderPlayerRadar($('#playerRadar'), [{ profile: player, label: player.nick }]);
     renderShareActions(player);
+    $('#saveFeaturedAchievements').onclick = () => saveFeaturedAchievements();
     $('#playerLoading').hidden = true;
     $('#playerContent').hidden = false;
   }
@@ -193,10 +338,15 @@
     $('#playerErrorMessage').textContent = error instanceof Error ? error.message : 'No se pudo cargar el jugador.';
   }
 
-  if (!ui || route.nick.length < 2) {
+  if (!ui || !catalog || route.nick.length < 2) {
     showError(new Error('La ruta del jugador no es válida.'));
     return;
   }
 
-  requestProfile(route.nick).then(render).catch(showError);
+  requestPlayerContext('player-context').then((loadedContext) => {
+    context = Object.freeze(loadedContext);
+    persistedFeaturedCodes = featuredCodes(context.profile);
+    draftFeaturedCodes = [...persistedFeaturedCodes];
+    renderContext();
+  }).catch(showError);
 })();

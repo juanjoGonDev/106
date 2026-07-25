@@ -93,6 +93,7 @@ async function linkLegacyNicks() {
   for (const nick of legacyNicks) {
     try {
       await accountRequest('link-account-player', { nick });
+      access.forgetLegacyPlayerKey(nick);
     } catch {
       // A legacy nick can belong to a different imported account. It remains untouched.
     }

@@ -12,7 +12,12 @@ const protectedActions = new Set([
   'league-status',
   'link-account-player',
 ]);
-const accountActions = new Set([...protectedActions, 'account-players']);
+const accountActions = new Set([
+  ...protectedActions,
+  'account-players',
+  'player-context',
+  'set-featured-achievements',
+]);
 
 function normalizeAccessNick(value) {
   return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
@@ -73,6 +78,16 @@ function getLegacyLocalNicks() {
   return Object.keys(readLegacyAccessMap());
 }
 
+function forgetLegacyPlayerKey(nick) {
+  const key = normalizeAccessNick(nick);
+  if (!key) return;
+  const map = readLegacyAccessMap();
+  if (!(key in map)) return;
+  delete map[key];
+  if (Object.keys(map).length > 0) localStorage.setItem(LEGACY_ACCESS_STORAGE_KEY, JSON.stringify(map));
+  else localStorage.removeItem(LEGACY_ACCESS_STORAGE_KEY);
+}
+
 function rememberAccountNick(nick) {
   const normalized = String(nick ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
   const key = normalizeAccessNick(normalized);
@@ -90,6 +105,7 @@ function getRememberedNicks() {
 
 window.Minuto106Access = {
   clearAccountToken,
+  forgetLegacyPlayerKey,
   generatePrivateKey,
   getAccountToken,
   getLegacyLocalNicks,
@@ -116,15 +132,17 @@ window.fetch = async (input, init = {}) => {
     const headers = new Headers(init.headers || {});
     if (accountToken) headers.set('x-account-token', accountToken);
 
-    const nick = String(
-      body.nick
-      || document.querySelector('#nick')?.value
-      || document.querySelector('#leagueNick')?.value
-      || localStorage.getItem('minuto106:nick')
-      || '',
-    ).trim();
-    const legacyToken = getLegacyPlayerKey(nick);
-    if (legacyToken) headers.set('x-player-token', legacyToken);
+    if (protectedActions.has(action)) {
+      const nick = String(
+        body.nick
+        || document.querySelector('#nick')?.value
+        || document.querySelector('#leagueNick')?.value
+        || localStorage.getItem('minuto106:nick')
+        || '',
+      ).trim();
+      const legacyToken = getLegacyPlayerKey(nick);
+      if (legacyToken) headers.set('x-player-token', legacyToken);
+    }
     init = { ...init, headers };
   }
 

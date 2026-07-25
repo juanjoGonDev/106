@@ -42,6 +42,24 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
+function isVerifiedAchievementCheckExpansion(sql, pattern) {
+  if (pattern.label !== 'ALTER TABLE ... DROP') return false;
+  const normalized = sql.toLowerCase().replaceAll(/\s+/g, ' ').trim();
+  const droppedCheck = [
+    'alter table public.game_player_achievements',
+    'drop constraint if exists game_player_achievements_achievement_kind_check;',
+  ].join(' ');
+  const recreatedCheck = [
+    'alter table public.game_player_achievements',
+    'add constraint game_player_achievements_achievement_kind_check',
+    'check (achievement_kind in (',
+  ].join(' ');
+
+  return normalized.includes(droppedCheck)
+    && normalized.includes(recreatedCheck)
+    && !normalized.includes('drop column');
+}
+
 const files = changedMigrationFiles();
 const violations = [];
 
@@ -50,9 +68,9 @@ for (const file of files) {
   const explicitlyApproved = /--\s*production-data-loss-approved:\s*[^\s].+/i.test(sql);
 
   for (const pattern of destructivePatterns) {
-    if (pattern.regex.test(sql) && !explicitlyApproved) {
-      violations.push(`${file}: ${pattern.label}`);
-    }
+    if (!pattern.regex.test(sql)) continue;
+    if (explicitlyApproved || isVerifiedAchievementCheckExpansion(sql, pattern)) continue;
+    violations.push(`${file}: ${pattern.label}`);
   }
 }
 

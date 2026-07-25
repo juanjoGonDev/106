@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="./v7.css">
   <link rel="stylesheet" href="./v9.css">
   <link rel="stylesheet" href="./v11.css">
+  <link rel="stylesheet" href="./v15.css">
 </head>
 <body>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -33,13 +34,32 @@
           <div class="player-actions"><button id="sharePlayer" class="primary" type="button">Compartir perfil</button><a id="downloadPlayerCard" class="secondary" download>Descargar PNG</a></div>
         </div>
         <nav id="playerTabs" class="player-tabs" aria-label="Secciones del jugador"></nav>
-        <p class="player-social-note">La vista compartida utiliza una imagen PNG dinámica con el palmarés y las estadísticas actuales.</p>
+        <p class="player-social-note">La vista compartida utiliza una imagen PNG dinámica con el palmarés, los logros destacados y las estadísticas actuales.</p>
       </section>
       <div class="player-content-grid">
         <div>
-          <section id="overviewSection" class="player-panel player-section" data-player-section="overview"><div class="player-section-heading"><div><p class="eyebrow">RESUMEN</p><h2>Rendimiento global</h2></div></div><div id="playerStats" class="player-stat-grid"></div><h3>Últimos intentos</h3><ol id="playerHistory" class="player-list"></ol></section>
-          <section id="achievementsSection" class="player-panel player-section" data-player-section="achievements" hidden><div class="player-section-heading"><div><p class="eyebrow">LOGROS</p><h2>Logros desbloqueados</h2></div><p id="achievementTotal"></p></div><ol id="playerAchievements" class="player-list"></ol></section>
-          <section id="trophiesSection" class="player-panel player-section" data-player-section="trophies" hidden><div class="player-section-heading"><div><p class="eyebrow">TROFEOS</p><h2>Trofeos conseguidos</h2></div><p id="trophyTotal"></p></div><ol id="playerTrophies" class="player-list"></ol></section>
+          <section id="overviewSection" class="player-panel player-section" data-player-section="overview">
+            <div class="player-section-heading"><div><p class="eyebrow">RESUMEN</p><h2>Rendimiento global</h2></div></div>
+            <div id="playerStats" class="player-stat-grid"></div>
+            <section id="playerFeaturedSection" class="player-featured-section" hidden>
+              <div class="player-section-heading"><div><p class="eyebrow">VITRINA</p><h3>Logros destacados</h3></div><p>Elegidos por el jugador</p></div>
+              <ol id="playerFeatured" class="honours-featured-list"></ol>
+            </section>
+            <h3>Últimos intentos</h3><ol id="playerHistory" class="player-list"></ol>
+          </section>
+          <section id="achievementsSection" class="player-panel player-section" data-player-section="achievements" hidden>
+            <div class="player-section-heading"><div><p class="eyebrow">LOGROS</p><h2>Colección y progreso</h2></div><p id="achievementTotal"></p></div>
+            <section id="featuredAchievementsEditor" class="featured-editor" hidden aria-labelledby="featuredEditorTitle">
+              <div><h3 id="featuredEditorTitle">Elige tus logros destacados</h3><p>Marca hasta tres logros desbloqueados. El orden de selección será el orden de la vitrina y de la imagen.</p></div>
+              <div class="featured-editor__actions"><span id="featuredAchievementCount" aria-live="polite">0 de 3</span><button id="saveFeaturedAchievements" class="primary compact" type="button" disabled>Guardar destacados</button></div>
+            </section>
+            <ol id="playerAchievements" class="honours-collection" aria-label="Colección completa de logros"></ol>
+          </section>
+          <section id="trophiesSection" class="player-panel player-section" data-player-section="trophies" hidden>
+            <div class="player-section-heading"><div><p class="eyebrow">TROFEOS</p><h2>Vitrina y objetivos diarios</h2></div><p id="trophyTotal"></p></div>
+            <ol id="playerTrophyCollection" class="honours-collection honours-collection--trophies" aria-label="Trofeos conseguidos y pendientes"></ol>
+            <h3>Historial conseguido</h3><ol id="playerTrophies" class="player-list"></ol>
+          </section>
         </div>
         <aside class="player-panel"><p class="eyebrow">PENTÁGONO DE ESTADÍSTICAS</p><h2>Perfil de juego</h2><div id="playerRadar"></div><img id="playerCardPreview" class="player-card-preview" width="1200" height="630" decoding="async" alt="Vista previa completa de la tarjeta social dinámica"></aside>
       </div>
@@ -48,8 +68,11 @@
   <footer class="site-footer"></footer>
   <script src="./config.js"></script>
   <script src="./layout.js"></script>
+  <script src="./access.js"></script>
   <script src="./player-ui.js"></script>
   <script src="./player-stats.js"></script>
+  <script src="./honours-catalog.js"></script>
+  <script src="./profile-card-highlights.js"></script>
   <script src="./player.js"></script>
 </body>
 </html>
