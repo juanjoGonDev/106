@@ -1,1 +1,31 @@
-<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#2b0d28"><title>Abriendo jugador — Minuto 106</title><style>html,body{min-height:100%;margin:0;background:#08090c;color:#fff;font-family:system-ui,sans-serif;touch-action:pan-x pan-y}body{display:grid;min-height:100vh;min-height:100dvh;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);box-sizing:border-box;place-items:center}p{color:#b8bdc8}</style><script>(()=>{const path=location.pathname;const match=path.match(/^(.*\/)(?:player)\/([^/]+)(?:\/(achievements|trophies))?\/?$/i);if(!match)return;let nick=match[2];try{nick=decodeURIComponent(nick)}catch{}const url=new URL(`${match[1]}player.html`,location.origin);url.searchParams.set('nick',nick);if(match[3])url.searchParams.set('section',match[3].toLowerCase());location.replace(url)})();</script></head><body><main><h1>Minuto 106</h1><p>Abriendo perfil público…</p><a href="./">Volver al juego</a></main></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#2b0d28">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <title>Abriendo Minuto 106</title>
+  <meta name="description" content="Abriendo una página pública de jugador o liga de Minuto 106.">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Minuto 106">
+  <meta property="og:title" content="Minuto 106 — perfiles y ligas públicas">
+  <meta property="og:description" content="Consulta una clasificación pública y demuestra quién se acerca más al 10.600.">
+  <meta property="og:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:secure_url" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Minuto 106, el reto de precisión del 10.600">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Minuto 106 — perfiles y ligas públicas">
+  <meta name="twitter:description" content="Consulta una clasificación pública y demuestra quién se acerca más al 10.600.">
+  <meta name="twitter:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:src" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:alt" content="Minuto 106, el reto de precisión del 10.600">
+  <style>html,body{min-height:100%;margin:0;background:#08090c;color:#fff;font-family:system-ui,sans-serif;touch-action:pan-x pan-y}body{display:grid;min-height:100vh;min-height:100dvh;padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);box-sizing:border-box;place-items:center}main{padding:24px;text-align:center}p{color:#b8bdc8}a{color:#f4c95d}</style>
+  <script>(()=>{const path=location.pathname;const league=path.match(/^(.*\/)ligas\/([A-Z0-9]{6})\/?$/i);if(league){const url=new URL(`${league[1]}ligas.html`,location.origin);url.searchParams.set('league',league[2].toUpperCase());location.replace(url);return}const player=path.match(/^(.*\/)(?:player)\/([^/]+)(?:\/(achievements|trophies))?\/?$/i);if(!player)return;let nick=player[2];try{nick=decodeURIComponent(nick)}catch{}const url=new URL(`${player[1]}player.html`,location.origin);url.searchParams.set('nick',nick);if(player[3])url.searchParams.set('section',player[3].toLowerCase());location.replace(url)})();</script>
+</head>
+<body><main><h1>Minuto 106</h1><p>Abriendo la página pública…</p><a href="./">Volver al juego</a></main></body>
+</html>

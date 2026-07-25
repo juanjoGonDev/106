@@ -113,24 +113,31 @@ assertSocialHtml(profileHtml, {
 });
 assert.match(profileHtml, new RegExp(`/functions/v1/social-share/player/${nick}/achievements\\?v=${profileRevision}`));
 
-const leagues = await json('/rest/v1/game_leagues?select=code&order=created_at.desc&limit=1');
-const leagueCode = leagues?.[0]?.code;
-if (leagueCode) {
-  assert.match(String(leagueCode), /^[A-Z0-9]{6}$/);
+const leagues = await json('/rest/v1/game_leagues?select=public_id,join_code&order=created_at.desc&limit=1');
+const leaguePublicId = leagues?.[0]?.public_id;
+const leagueJoinCode = leagues?.[0]?.join_code;
+if (leaguePublicId) {
+  assert.match(String(leaguePublicId), /^[A-Z0-9]{6}$/);
+  assert.match(String(leagueJoinCode), /^[A-Z0-9]{6}$/);
+  assert.notEqual(leaguePublicId, leagueJoinCode);
   const league = await json('/rest/v1/rpc/get_game_league', {
     method: 'POST',
-    body: { p_code: leagueCode },
+    body: { p_code: leaguePublicId },
   });
+  assert.equal(league.publicId, leaguePublicId);
+  assert.equal(league.code, leaguePublicId);
+  assert.equal('joinCode' in league, false);
   assert.ok(Number(league.revision) > 0);
   const leagueRevision = String(league.revision);
-  const leagueHtml = await socialHtml(`/functions/v1/social-share/league/${leagueCode}?v=${leagueRevision}`);
+  const leagueHtml = await socialHtml(`/functions/v1/social-share/league/${leaguePublicId}?v=${leagueRevision}`);
   assertSocialHtml(leagueHtml, {
-    canonicalPattern: new RegExp(`ligas\\.html\\?league=${leagueCode}`),
-    imagePattern: new RegExp(`/functions/v1/social-share/league/${leagueCode}/card\\.png\\?v=${leagueRevision}`),
+    canonicalPattern: new RegExp(`/ligas/${leaguePublicId}`),
+    imagePattern: new RegExp(`/functions/v1/social-share/league/${leaguePublicId}/card\\.png\\?v=${leagueRevision}`),
     titlePattern: new RegExp(String(league.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
   });
+  assert.doesNotMatch(leagueHtml, new RegExp(String(leagueJoinCode)));
   await socialPng(
-    `/functions/v1/social-share/league/${leagueCode}/card.png?v=${leagueRevision}`,
+    `/functions/v1/social-share/league/${leaguePublicId}/card.png?v=${leagueRevision}`,
     'league-card.png',
     'League social card',
   );

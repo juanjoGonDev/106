@@ -1,0 +1,228 @@
+.player-featured-section {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.honours-featured-list,
+.honours-collection {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.honours-featured-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.honours-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  min-height: 9.5rem;
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(24, 29, 39, 0.96), rgba(11, 14, 20, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.honours-card::after {
+  position: absolute;
+  inset: auto -2rem -3.2rem auto;
+  width: 8rem;
+  height: 8rem;
+  border: 1px solid rgba(244, 201, 93, 0.14);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.honours-card.is-featured {
+  border-color: rgba(244, 201, 93, 0.72);
+  background: linear-gradient(145deg, rgba(54, 43, 18, 0.98), rgba(15, 17, 22, 0.98));
+  box-shadow: 0 0 0 1px rgba(244, 201, 93, 0.14), 0 0.8rem 2.4rem rgba(0, 0, 0, 0.2);
+}
+
+.honours-card.is-locked {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: linear-gradient(145deg, rgba(17, 19, 24, 0.92), rgba(7, 8, 11, 0.98));
+  filter: grayscale(1);
+}
+
+.honours-card.is-locked .honours-card__content {
+  opacity: 0.67;
+}
+
+.honours-card__icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgba(244, 201, 93, 0.32);
+  border-radius: 50%;
+  background: rgba(244, 201, 93, 0.08);
+  color: #f4c95d;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.is-locked .honours-card__icon {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: #7f838b;
+  text-shadow: 0 0 0.35rem rgba(255, 255, 255, 0.12);
+}
+
+.honours-card__content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.honours-card__content strong {
+  color: #fff;
+  font-size: 1rem;
+}
+
+.honours-card__content small,
+.honours-card__content time,
+.honours-card__progress-label {
+  color: #aeb3bd;
+  line-height: 1.4;
+}
+
+.honours-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  margin-top: auto;
+  color: #f4c95d;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.honours-card__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid rgba(244, 201, 93, 0.35);
+  border-radius: 999px;
+  background: rgba(244, 201, 93, 0.09);
+  color: #f4c95d;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.honours-progress {
+  width: 100%;
+  height: 0.42rem;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.honours-progress > span {
+  display: block;
+  width: var(--honours-progress, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6d727d, #b9bec7);
+}
+
+.is-featured .honours-progress > span,
+.is-unlocked .honours-progress > span {
+  background: linear-gradient(90deg, #d5a930, #f4c95d);
+}
+
+.honours-card__toggle {
+  align-self: flex-start;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dfe2e8;
+  cursor: pointer;
+}
+
+.honours-card__toggle[aria-pressed="true"] {
+  border-color: rgba(244, 201, 93, 0.68);
+  background: rgba(244, 201, 93, 0.14);
+  color: #f4c95d;
+}
+
+.honours-card__toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.featured-editor {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(244, 201, 93, 0.28);
+  border-radius: 1rem;
+  background: rgba(244, 201, 93, 0.055);
+}
+
+.featured-editor h3,
+.featured-editor p {
+  margin: 0;
+}
+
+.featured-editor p {
+  margin-top: 0.3rem;
+  color: #aeb3bd;
+  line-height: 1.45;
+}
+
+.featured-editor__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+#featuredAchievementCount {
+  color: #f4c95d;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.honours-collection--trophies .honours-card {
+  min-height: 10.2rem;
+}
+
+@media (max-width: 900px) {
+  .honours-featured-list,
+  .honours-collection {
+    grid-template-columns: 1fr;
+  }
+
+  .featured-editor {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .featured-editor__actions {
+    justify-content: space-between;
+  }
+}

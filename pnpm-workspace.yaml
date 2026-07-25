@@ -27,9 +27,11 @@ blockExoticSubdeps: true
 
 sideEffectsCache: false
 
-# Security exception for GHSA-r28c-9q8g-f849. Remove after the normal maturity window.
+# Security exceptions for newly released patched versions. Remove each entry after the normal maturity window.
 minimumReleaseAgeExclude:
-  - postcss@8.5.19
+  - postcss@8.5.19 # GHSA-r28c-9q8g-f849
+  - brace-expansion@5.0.8 # GHSA-mh99-v99m-4gvg
 
 overrides:
   postcss: 8.5.19
+  brace-expansion: 5.0.8

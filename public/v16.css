@@ -1,0 +1,13 @@
+.player-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .player-error__actions > * {
+    width: 100%;
+  }
+}

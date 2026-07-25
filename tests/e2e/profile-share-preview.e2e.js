@@ -17,12 +17,35 @@ const profile = {
     total: 2,
     days: 2,
     leagueChampion: 0,
+    goldenBoot: 1,
+    goldenGlove: 1,
+    goldenBall: 0,
     history: [],
   },
   achievements: {
     total: 1,
     points: 10,
+    featured: [],
     items: [],
+  },
+  honoursProgress: {
+    perfectAttempts: 0,
+    verifiedAttempts: 5,
+    completedReferrals: 0,
+    duelsCreated: 0,
+    duelsWon: 0,
+    completedLeagues: 0,
+    longestTrophyStreak: 1,
+    trophyCategoryCount: 2,
+    maxDailyTrophyCategories: 1,
+    today: {
+      attempts: 1,
+      bestDifferenceMs: 6,
+      averageDifferenceMs: 240,
+      goldenBoot: { targetDifferenceMs: 6, leading: true },
+      goldenGlove: { requiredAttempts: 3, targetAverageDifferenceMs: 240, leading: false },
+      goldenBall: { targetAttempts: 5, leading: false },
+    },
   },
   history: [],
 };
@@ -50,6 +73,13 @@ async function installNativeShare(page, supportsFiles) {
 }
 
 async function installProfileApi(page) {
+  await page.route('**/functions/v1/player-context', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ availability: 'occupied', profile, leagues: [] }),
+    });
+  });
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = route.request().postDataJSON() || {};
     if (body.action === 'public-profile') {
@@ -60,7 +90,7 @@ async function installProfileApi(page) {
   });
 }
 
-test('shares the current profile PNG with text and the unchanged public URL', async ({ page }) => {
+test('shares the current section PNG with text and the unchanged public URL', async ({ page }) => {
   let releaseCard;
   const cardAllowed = new Promise((resolve) => { releaseCard = resolve; });
 
@@ -71,13 +101,13 @@ test('shares the current profile PNG with text and the unchanged public URL', as
     await route.fulfill({ status: 200, contentType: 'image/png', body: png });
   });
 
-  await page.goto('/player.html?nick=Yisucrist', { waitUntil: 'domcontentloaded' });
+  await page.goto('/player.html?nick=Yisucrist&section=trophies', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { level: 1, name: 'Yisucrist' })).toBeVisible();
-  await expect(page).toHaveURL(/\/player\/Yisucrist$/);
-  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Yisucrist\/card\.png\?v=321$/);
+  await expect(page).toHaveURL(/\/player\/Yisucrist\/trophies$/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Yisucrist\/trophies\.png\?v=321$/);
 
-  const shareButton = page.getByRole('button', { name: 'Preparando...' });
-  await expect(shareButton).toBeDisabled();
+  const preparingButton = page.getByRole('button', { name: 'Preparando...' });
+  await expect(preparingButton).toBeDisabled();
   releaseCard();
   await expect(page.getByRole('button', { name: 'Compartir perfil' })).toBeEnabled();
 
@@ -87,11 +117,11 @@ test('shares the current profile PNG with text and the unchanged public URL', as
 
   expect(payload.url).toBeUndefined();
   expect(payload.text).toContain('Yisucrist suma 2 trofeos, 1 logro y 10 puntos.');
-  expect(payload.text).toContain('http://127.0.0.1:3000/player/Yisucrist');
+  expect(payload.text).toContain('http://127.0.0.1:3000/player/Yisucrist/trophies');
   expect(payload.text).not.toContain('supabase.co');
   expect(payload.text).not.toContain('/functions/');
   expect(payload.files).toEqual([{
-    name: 'minuto-106-yisucrist-overview.png',
+    name: 'minuto-106-yisucrist-trophies.png',
     type: 'image/png',
     size: png.length,
   }]);

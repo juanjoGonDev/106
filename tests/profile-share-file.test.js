@@ -10,16 +10,18 @@ function loadProfileShare(overrides = {}) {
     Date,
     Error,
     File,
+    Map,
     Object,
     Promise,
     String,
+    URL,
     globalThis: null,
     location: { href: 'https://example.test/106/player/Juan' },
     ...overrides,
   };
   context.globalThis = context;
   vm.runInNewContext(source, context, { filename: 'public/profile-share.js' });
-  return context.Minuto106ProfileShare;
+  return { api: context.Minuto106ProfileShare, context };
 }
 
 function pngResponse({ ok = true, type = 'image/png; charset=binary', bytes = [1, 2, 3] } = {}) {
@@ -30,15 +32,19 @@ function pngResponse({ ok = true, type = 'image/png; charset=binary', bytes = [1
   };
 }
 
+function fakeButton() {
+  return { dataset: {}, disabled: false, textContent: 'Compartir perfil' };
+}
+
 describe('profile image file sharing', () => {
   it('builds safe deterministic PNG filenames', () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     expect(api.fileName('  Júán Pérez  ', 'TROPHIES')).toBe('minuto-106-juan-perez-trophies.png');
     expect(api.fileName('', '')).toBe('minuto-106-jugador-overview.png');
   });
 
   it('downloads the generated PNG as a shareable File', async () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     const fetchImpl = vi.fn(async () => pngResponse());
     const file = await api.prepareFile({
       url: 'https://api.example/player-share/Juan/card.png?v=7',
@@ -63,12 +69,12 @@ describe('profile image file sharing', () => {
     [{ url: 'https://api.example/card.png', fetchImpl: async () => pngResponse({ type: 'image/jpeg' }) }, 'No se ha podido generar'],
     [{ url: 'https://api.example/card.png', fetchImpl: async () => pngResponse({ bytes: [] }) }, 'está vacía'],
   ])('rejects invalid image preparation %#', async (options, message) => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     await expect(api.prepareFile(options)).rejects.toThrow(message);
   });
 
   it('shares the current PNG with text containing the public URL', async () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     const file = new File([new Uint8Array([1])], 'profile.png', { type: 'image/png' });
     const nativeShare = vi.fn(async () => {});
     const navigatorLike = {
@@ -93,7 +99,7 @@ describe('profile image file sharing', () => {
   });
 
   it('treats cancellation as a completed non-share without opening a fallback', async () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     const file = new File([new Uint8Array([1])], 'profile.png', { type: 'image/png' });
     const fallback = vi.fn();
     const navigatorLike = {
@@ -106,7 +112,7 @@ describe('profile image file sharing', () => {
   });
 
   it('falls back to the existing text and URL share flow when files are unsupported or fail', async () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     const file = new File([new Uint8Array([1])], 'profile.png', { type: 'image/png' });
     const fallback = vi.fn(async () => true);
 
@@ -128,8 +134,88 @@ describe('profile image file sharing', () => {
     expect(fallback).toHaveBeenCalledTimes(2);
   });
 
+  it('prepares once, updates the button state and bridges the existing UI share call', async () => {
+    let release;
+    const responseReady = new Promise((resolve) => { release = resolve; });
+    const fetchImpl = vi.fn(async () => {
+      await responseReady;
+      return pngResponse();
+    });
+    const nativeShare = vi.fn(async () => {});
+    const fallback = vi.fn(async () => true);
+    const ui = { share: fallback };
+    const navigator = { canShare: () => true, share: nativeShare };
+    const { api, context } = loadProfileShare({ Minuto106UI: ui, navigator });
+    const button = fakeButton();
+    const shareUrl = 'https://example.test/106/player/Juan/trophies';
+
+    const preparation = api.bindButton({
+      button,
+      url: shareUrl,
+      cardUrl: 'https://api.example/player-share/Juan/trophies.png?v=19',
+      nick: 'Juan',
+      section: 'trophies',
+      readyLabel: 'Compartir perfil',
+      fetchImpl,
+    });
+
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe('Preparando...');
+    release();
+    const file = await preparation;
+    expect(file.name).toBe('minuto-106-juan-trophies.png');
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe('Compartir perfil');
+
+    await context.Minuto106UI.share({
+      title: 'Juan · Minuto 106',
+      text: 'Palmarés actualizado.',
+      url: shareUrl,
+    });
+
+    expect(nativeShare).toHaveBeenCalledWith({
+      title: 'Juan · Minuto 106',
+      text: `Palmarés actualizado.\n${shareUrl}`,
+      files: [file],
+    });
+    expect(fallback).not.toHaveBeenCalled();
+
+    await api.bindButton({
+      button,
+      url: shareUrl,
+      cardUrl: 'https://api.example/player-share/Juan/trophies.png?v=19',
+      nick: 'Juan',
+      section: 'trophies',
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the button and retains text sharing when image preparation fails', async () => {
+    const fallback = vi.fn(async () => true);
+    const ui = { share: fallback };
+    const navigator = { canShare: () => true, share: vi.fn() };
+    const { api, context } = loadProfileShare({ Minuto106UI: ui, navigator });
+    const button = fakeButton();
+    const shareUrl = 'https://example.test/106/player/Juan';
+
+    await expect(api.bindButton({
+      button,
+      url: shareUrl,
+      cardUrl: 'https://api.example/player-share/Juan/card.png?v=20',
+      nick: 'Juan',
+      fetchImpl: async () => pngResponse({ ok: false }),
+    })).resolves.toBeNull();
+
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe('Compartir perfil');
+    await context.Minuto106UI.share({ title: 'Juan', text: 'Perfil', url: shareUrl });
+    expect(fallback).toHaveBeenCalledWith({ title: 'Juan', text: 'Perfil', url: shareUrl });
+    expect(navigator.share).not.toHaveBeenCalled();
+  });
+
   it('rejects unsafe canShare implementations and returns false without any available fallback', async () => {
-    const api = loadProfileShare();
+    const { api } = loadProfileShare();
     const file = new File([new Uint8Array([1])], 'profile.png', { type: 'image/png' });
     expect(api.canShareFile(file, { canShare: () => { throw new Error('unsupported'); }, share() {} })).toBe(false);
     expect(api.canShareFile(null, {})).toBe(false);

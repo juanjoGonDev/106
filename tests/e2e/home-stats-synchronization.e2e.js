@@ -108,7 +108,7 @@ test('sequential delayed loads use one Supabase stats request and commit a compl
     await expect(page.locator('#spainScore')).toHaveText('1.4K');
     await expect(page.locator('#spainScore')).toHaveAttribute('title', '1.404');
     await expect(page.locator('#argentinaScore')).toHaveText('996');
-    await expect(page.locator('#totalAttempts')).toHaveText('1.987 intentos');
+    await expect(page.locator('#totalAttempts')).toHaveCount(0);
 
     await page.waitForTimeout(testCase.delayMs + 250);
     await expect(leaderboard).toHaveAttribute('data-render-state', 'ready');

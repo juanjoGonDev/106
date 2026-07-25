@@ -5,8 +5,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <title>Rankings y palmarés — Minuto 106</title>
-  <meta name="description" content="Clasificaciones globales de precisión, trofeos y logros de Minuto 106.">
+  <meta name="description" content="Clasificaciones globales de precisión, trofeos y logros de Minuto 106, con criterios de desempate transparentes.">
+  <link rel="canonical" href="https://juanjogondev.github.io/106/ranking.html">
+  <link rel="image_src" href="./assets/minuto-106-social-preview.jpg">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Minuto 106">
+  <meta property="og:url" content="https://juanjogondev.github.io/106/ranking.html">
+  <meta property="og:title" content="Ranking global y palmarés — Minuto 106">
+  <meta property="og:description" content="Compara precisión, logros y trofeos. Los empates exactos se resuelven con progresión competitiva verificable.">
+  <meta property="og:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:secure_url" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Ranking global de Minuto 106">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Ranking global y palmarés — Minuto 106">
+  <meta name="twitter:description" content="Compara precisión, logros y trofeos con desempates transparentes.">
+  <meta name="twitter:image" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:src" content="https://juanjogondev.github.io/106/assets/minuto-106-social-preview.jpg?v=20260723-3">
+  <meta name="twitter:image:alt" content="Ranking global de Minuto 106">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./site.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -17,6 +38,7 @@
   <link rel="stylesheet" href="./v7.css">
   <link rel="stylesheet" href="./v9.css">
   <link rel="stylesheet" href="./v11.css">
+  <link rel="stylesheet" href="./v14.css">
 </head>
 <body>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -25,7 +47,20 @@
     <section class="page-card">
       <p class="eyebrow">CLASIFICACIONES GLOBALES</p>
       <h1>Precisión, trofeos y logros</h1>
-      <p>Consulta la mejor marca verificada de cada jugador y abre su página pública. Los trofeos se cierran al terminar cada día en horario de Madrid.</p>
+      <p>Consulta la mejor marca verificada de cada jugador y abre su página pública. Los trofeos diarios se cierran al terminar el día en horario de Madrid.</p>
+      <aside class="ranking-order" aria-labelledby="rankingOrderTitle">
+        <h2 id="rankingOrderTitle">Cómo se ordena la precisión</h2>
+        <p>Primero manda la menor diferencia respecto a 10.600. Cuando dos o más jugadores tienen exactamente el mismo tiempo, se comparan en este orden:</p>
+        <ol>
+          <li>puntos de logros;</li>
+          <li>trofeos diarios;</li>
+          <li>ligas ganadas, con menor peso;</li>
+          <li>intentos globales verificados;</li>
+          <li>mejor media global;</li>
+          <li>antigüedad de la mejor marca y nick, solo para garantizar un orden estable.</li>
+        </ol>
+        <p>Las filas empatadas muestran los valores concretos utilizados para el desempate. La portada mantiene una vista compacta.</p>
+      </aside>
       <div class="inline-form"><input id="rankingSearch" maxlength="24" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="Buscar jugador" aria-label="Buscar jugador"><button id="rankingSearchButton" class="secondary compact" type="button">Buscar</button></div>
       <div class="ranking-tabs" role="tablist" aria-label="Tipo de clasificación"><button class="ghost compact" type="button" role="tab" aria-selected="true" aria-controls="precisionRanking" data-ranking-tab="precision">Precisión</button><button class="ghost compact" type="button" role="tab" aria-selected="false" aria-controls="trophyRanking" data-ranking-tab="trophies">Trofeos</button><button class="ghost compact" type="button" role="tab" aria-selected="false" aria-controls="achievementRanking" data-ranking-tab="achievements">Logros</button></div>
       <section id="precisionRanking" class="honours-ranking" data-ranking-panel="precision"><h2>Los más precisos</h2><ol id="fullRanking" class="leaderboard"><li class="empty">Cargando clasificación…</li></ol></section>
@@ -37,6 +72,6 @@
   <script src="./config.js"></script>
   <script src="./layout.js"></script>
   <script src="./player-ui.js"></script>
-  <script src="./ranking.js"></script>
+  <script src="./ranking.js?v=20260724"></script>
 </body>
 </html>

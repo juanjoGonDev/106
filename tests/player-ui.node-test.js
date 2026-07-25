@@ -70,7 +70,7 @@ test('parses query, clean, malformed and unrelated locations', () => {
   assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/ranking.html') }, { nick: '', section: 'overview' });
 });
 
-test('builds unchanged public profile URLs and versioned png endpoints without leaking API paths', () => {
+test('builds public share routes and versioned png endpoints without leaking API paths', () => {
   const { api } = loadPlayerUi();
   assert.equal(api.edgeFunctionBaseUrl('', 'player-share'), null);
   assert.equal(api.edgeFunctionBaseUrl('https://project.supabase.co/functions/v1/game-api?x=1#hash', 'player-share').toString(), 'https://project.supabase.co/functions/v1/player-share');

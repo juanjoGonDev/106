@@ -2,83 +2,82 @@
 
 ## Request
 
-Make profile sharing reliably include the current generated player card together with the text and unchanged public profile URL. While the card is being prepared, the visible button copy must be exactly `Preparando...`. Remove obsolete preview workarounds and update real browser tests.
+Make profile sharing reliably include the current generated player card together with the text and unchanged public profile URL. While the card is being prepared, the visible button copy must be exactly `Preparando...`. Reconcile the implementation with the competitive progression, featured-achievement and player-context changes already merged into `main`, and audit the newer result, referral, duel and public-league links for regressions.
 
 ## Evidence
 
 - The generated profile PNG already exists at the versioned `player-share` endpoint and reflects `profileRevision`.
-- GitHub Pages serves clean `/player/<nick>` navigation through its static fallback, so a crawler cannot receive player-specific Open Graph metadata from that route.
-- Adding a generic static `og:image` to `player.html` only produced a generic game preview, not the current player card.
-- The Web Share API can pass a `File` alongside title and text. File support must be checked with `navigator.canShare({ files })`, and the native share call must happen directly from the user gesture.
-- The existing application share surface already provides text-and-URL fallbacks for browsers or targets that cannot accept files.
-- During the original investigation, the dependency audit also identified `GHSA-r28c-9q8g-f849`; the branch already pins the patched `postcss@8.5.19` graph and preserves failed audit JSON.
+- GitHub Pages serves clean `/player/<nick>` navigation through its static fallback, so crawlers cannot receive player-specific Open Graph HTML from that route.
+- A generic static `og:image` can only show a generic game image, not the current player card.
+- The Web Share API can pass a `File` alongside title and text. Support must be checked with `navigator.canShare({ files })`.
+- `main` now includes featured achievements, locked honour progress, public league URLs, resilient `player-context` loading and a silent public-profile fallback.
+- `share-actions.js` owns canonical result, referral, direct-challenge and selected-league URLs. Those URLs must remain untouched by the profile-file enhancement.
 
 ## Decision
 
-1. Keep the canonical public URL `/106/player/<nick>` in profile share copy.
-2. Preload the current versioned player PNG as a browser `File` before enabling the share button.
-3. Show `Preparando...` and disable the button until preparation succeeds or fails.
-4. On supported devices, invoke native sharing with the PNG file and a text field containing both the profile copy and public URL.
-5. On unsupported devices or preparation failure, reuse the existing text-and-URL share flow.
-6. Treat user cancellation as a normal non-share and do not open an additional fallback dialog.
-7. Apply the same behavior to the dedicated player page and the authenticated player's honours surface.
-8. Remove the generic static player Open Graph workaround from `player.html`; runtime metadata and the internal PNG renderer remain available.
-9. Keep the local server's GitHub Pages-compatible clean-route status behavior because it documents the static-hosting boundary accurately.
-10. Keep the PostCSS remediation and dependency-audit diagnostics because they are independent security corrections.
+1. Keep canonical public profile URLs such as `/106/player/<nick>` and `/106/player/<nick>/trophies` in share copy.
+2. Preload the exact section-specific, `profileRevision`-versioned player PNG before enabling profile or honours sharing.
+3. Show `Preparando...` and disable the relevant button until image preparation succeeds or fails.
+4. Install a small progressive-enhancement bridge around the existing `Minuto106UI.share` surface instead of duplicating or replacing the current player-page controller.
+5. Attach the prepared PNG only when the payload URL matches a prepared public profile URL.
+6. Keep result, referral, duel and public-league URLs on their existing text-and-URL flows.
+7. On unsupported devices or image preparation failure, call the original share surface with title, text and canonical URL.
+8. Treat native share cancellation as a normal cancellation without opening a secondary dialog.
+9. Preserve the latest `main` implementation of `player.js`, `share-actions.js`, the public league routes, featured achievements and CORS-safe profile context.
+10. Keep runtime Open Graph metadata as browser metadata only; do not reintroduce a generic static player image.
 
 ## Scope
 
 - `public/profile-share.js`
 - `public/player.html`
-- `public/player-ui.js`
-- `public/player.js`
 - `public/honours.js`
 - package and Knip entrypoint registration
 - focused unit and contract tests
-- desktop/mobile Playwright sharing journeys
-- existing security remediation in this pull request
+- desktop/mobile Playwright profile-sharing journeys
+- merge reconciliation with current `main`
 
 ## Acceptance
 
-- The profile share button displays `Preparando...` and is disabled while the PNG is loading.
-- The honours share button follows the same state contract.
-- A supported native share receives exactly one `image/png` file generated from the current `profileRevision` URL.
-- The native file share text includes the public clean profile URL and does not expose Supabase or `/functions/` URLs.
-- The public profile URL remains `/player/<nick>` rather than `player.html?nick=...`.
-- Unsupported file sharing falls back to the existing title, text and URL path.
-- Failed PNG preparation does not strand the button in a disabled state.
-- Cancelling the native share does not produce an error or secondary dialog.
-- The generic static profile Open Graph image is removed.
-- Unit, contract, desktop and mobile browser tests cover the real file payload and fallback.
-- Package policy, syntax, ESLint, Knip, Vitest, dependency audit and Supabase integration remain green.
+- [x] The public player share button starts disabled with `Preparando...`.
+- [x] The authenticated honours button follows the same state contract.
+- [x] A supported native share receives exactly one `image/png` file generated from the current section and `profileRevision` URL.
+- [x] Native file-share text includes the clean public profile URL and excludes Supabase and `/functions/` URLs.
+- [x] Overview, achievements and trophies profile sections retain their canonical clean routes.
+- [x] Unsupported file sharing falls back to the existing title, text and URL path.
+- [x] Failed PNG preparation does not leave a button disabled.
+- [x] Cancelling native sharing does not produce an error or secondary dialog.
+- [x] Featured-achievement changes trigger a new card preparation through `profileRevision`.
+- [x] Result, referral, direct-challenge and public-league URLs remain unchanged.
+- [x] The current CORS-safe `player-context` and silent public fallback remain intact.
+- [ ] Final package policy, syntax, ESLint, Knip, Vitest, dependency audit, Supabase integration and desktop/mobile browser workflows are green.
 
 ## Risks
 
-- Some share targets may choose how to present or combine the supplied fields. The URL is therefore included in the text for the file-sharing path.
-- Desktop browsers commonly lack file sharing support; they intentionally retain the existing text-and-URL dialog.
-- A failed or unavailable PNG request degrades to text and URL rather than blocking profile sharing.
-- The player image endpoint remains internal infrastructure and is never placed in user-visible share text.
-- Pull request `#30` overlaps player and honours files and will require rebasing after this pull request if both remain open.
+- Share targets decide how to present supplied text and files. The clean URL is therefore included directly in the text of file shares.
+- Desktop browsers commonly lack file-sharing support and intentionally retain the existing share dialog.
+- The generated image request can fail or be blocked. The flow degrades to text and URL instead of blocking sharing.
+- A global share wrapper could accidentally affect unrelated links. Mitigation: files are stored and selected only by exact normalized public profile URL; other routes have no prepared file.
+- Re-rendered honours must invalidate stale files. Mitigation: the render signature includes `profileRevision`, performance aggregates and featured achievements.
 
 ## Tests
 
-- Vitest executes the file preparation, filename normalization, `canShare`, native payload, cancellation, native failure and fallback contracts.
-- Node coverage continues to validate canonical player URL and versioned card URL construction.
-- Contract tests verify the generic static player preview has been removed and both profile surfaces use the attachment helper.
-- Playwright delays the real PNG response, verifies `Preparando...` and disabled state, releases the response, then inspects the serialized native file payload on desktop and mobile projects.
-- A second Playwright journey verifies the no-file-support fallback sends the original text and clean URL.
+- Vitest covers filename normalization, PNG validation, native payloads, cancellation, native failure, unsupported file sharing, button lifecycle, exact-URL bridging, cache reuse and preparation failure.
+- Contract tests verify the latest player sections, current `player.js` metadata, the progressive-enhancement bridge, public league support and canonical share routes.
+- Playwright delays a real PNG response, verifies the disabled `Preparando...` state, shares the trophies-section file, and inspects the native payload on desktop and mobile projects.
+- A second browser journey verifies the text-and-URL fallback when file sharing is unsupported.
+- Existing player-context browser tests remain authoritative for account headers, owner controls and silent public fallback.
 
 ## Rollback
 
-Revert this branch. No schema, migration, persisted data, production secret or permission change is introduced by the attachment flow.
+Revert the merge reconciliation commit. No schema, migration, persisted data, production secret or permission change is introduced by the attachment flow.
 
 ## Delivery
 
 - Branch: `agent/fix-profile-share-preview`
 - Pull request: `#29`
-- Base: `main`
+- Base: current `main`
 - Normal pull request; no merge or deployment without explicit authorization.
 
 ## Status
 
-Implementation complete. Final CI is authoritative for merge readiness.
+Implementation reconciled with current `main`. Final CI is pending and remains authoritative for merge readiness.

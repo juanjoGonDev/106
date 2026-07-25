@@ -1,0 +1,132 @@
+.competition-picker {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid rgba(244, 201, 93, 0.28);
+  border-radius: 14px;
+  background: rgba(244, 201, 93, 0.06);
+}
+
+.competition-picker[hidden] {
+  display: none;
+}
+
+.competition-picker label {
+  font-weight: 800;
+}
+
+.competition-picker select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 42px 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: #11131a;
+  color: #fff;
+  font: inherit;
+}
+
+.competition-picker select:focus-visible {
+  outline: 3px solid rgba(244, 201, 93, 0.38);
+  outline-offset: 2px;
+}
+
+.competition-picker select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.ranking-order {
+  margin: 22px 0;
+  padding: 18px 20px;
+  border: 1px solid rgba(244, 201, 93, 0.24);
+  border-radius: 16px;
+  background: rgba(244, 201, 93, 0.055);
+}
+
+.ranking-order h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.ranking-order p {
+  margin: 8px 0;
+}
+
+.ranking-order ol {
+  margin: 10px 0;
+  padding-left: 22px;
+  color: var(--muted, #b8bdc8);
+}
+
+.ranking-order li + li {
+  margin-top: 5px;
+}
+
+.ranking-time-tie {
+  border-color: rgba(244, 201, 93, 0.46);
+  background: linear-gradient(90deg, rgba(244, 201, 93, 0.08), transparent 65%);
+}
+
+.ranking-tiebreak {
+  display: block;
+  margin-top: 4px;
+  color: #f4c95d;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.league-public-detail .section-heading > div {
+  min-width: 0;
+}
+
+#leagueLookupPublicId,
+.my-league-card header small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, #b8bdc8);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+}
+
+.my-league-card header code {
+  display: none;
+}
+
+.league-card-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.league-card-actions > * {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .ranking-order {
+    padding: 14px;
+  }
+
+  .ranking-time-tie .leaderboard-row-link {
+    align-items: flex-start;
+  }
+
+  .ranking-time-tie .ranking-player {
+    min-width: 0;
+  }
+
+  .ranking-tiebreak {
+    max-width: 100%;
+  }
+
+  .league-detail-actions,
+  .league-card-actions {
+    grid-template-columns: 1fr;
+  }
+}

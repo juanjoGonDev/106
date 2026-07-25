@@ -8,7 +8,6 @@ const ranking = readFileSync('public/ranking.js', 'utf8');
 const honours = readFileSync('public/honours.js', 'utf8');
 const leagues = readFileSync('public/ligas.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
-const playerHtml = readFileSync('public/player.html', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const profileShare = readFileSync('public/profile-share.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
@@ -32,23 +31,25 @@ describe('share-first social actions', () => {
     expect(source).not.toContain('writeText(');
   });
 
-  it('intercepts every visible challenge, result, referral and league share control', () => {
+  it('intercepts home challenge, result and referral controls while league management owns its private invitations', () => {
     for (const selector of [
       '#shareButton',
       '#copyReferralButton',
       '#createDuelButton',
       '#quickDuelButton',
-      '#shareLeagueButton',
-      '[data-share-league]',
     ]) expect(actions).toContain(selector);
+    expect(actions).not.toContain('#shareLeagueButton');
+    expect(actions).not.toContain('[data-share-league]');
+    expect(actions).not.toContain('#createLeagueForm');
     expect(actions).toContain('event.stopImmediatePropagation()');
+    expect(leagues).toContain("document.querySelector('#shareLeagueButton')");
+    expect(leagues).toContain("document.querySelector('#createLeagueForm')");
   });
 
   it('creates direct challenges and shares the exact persisted target through the public game URL', () => {
     expect(actions.indexOf("request('create-duel'"))
       .toBeLessThan(actions.indexOf("title: `${nick} te reta · Minuto 106`"));
-    expect(actions).toContain('url: duelShareUrl(duel)');
-    expect(actions).toContain('return duelCanonicalUrl(duel.code)');
+    expect(actions).toContain('url: duelCanonicalUrl(duel.code)');
     expect(actions).toContain("url.searchParams.set('duel', code)");
     expect(actions).toContain('duel.targetElapsedMs');
     expect(actions).toContain('duel.targetDifferenceMs');
@@ -56,31 +57,41 @@ describe('share-first social actions', () => {
     expect(duelContext).toContain('formatElapsed(duel.targetElapsedMs)');
   });
 
-  it('shares profiles with the generated PNG while keeping the original public profile URL', () => {
+  it('shares persisted attempts, referrals, profiles and leagues through canonical website routes', () => {
     expect(ranking).toContain('playerUi.playerUrl(nick, section)');
     expect(honours).toContain('url: profileUrl(profile)');
-    expect(honours).toContain('disabled>Preparando...</button>');
-    expect(honours).toContain('Minuto106ProfileShare?.share(payload)');
-    expect(actions).toContain("Minuto106PlayerUI.shareUrl('', profile.nick)");
-    expect(player).toContain("const shareUrl = ui.shareUrl('', player.nick, route.section)");
-    expect(player).toContain("button.textContent = 'Preparando...'");
-    expect(player).toContain('file: getShareFile()');
-    expect(player).toContain("upsertMeta('property', 'og:url', shareUrl)");
+    expect(player).toContain('const share = ui.playerUrl(player.nick, route.section)');
+    expect(player).toContain("upsertMeta('property', 'og:url', canonicalUrl)");
     expect(player).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
-    expect(playerUi).toContain('return playerUrl(nick, section, publicBaseUrl)');
-    expect(profileShare).toContain('navigatorLike.canShare({ files: [file] })');
-    expect(profileShare).toContain('files: [file]');
-    expect(profileShare).toContain('text: `${payload.text}');
-    expect(profileShare).toContain('${payload.url}`.trim()');
-    expect(playerHtml).toContain('./profile-share.js');
-    expect(playerHtml).not.toContain('/assets/minuto-106-social-preview.jpg');
+    expect(playerUi).not.toContain("edgeFunctionBaseUrl(apiBaseUrl, 'social-share')");
+    expect(playerUi).toContain("edgeFunctionBaseUrl(apiBaseUrl, 'player-share')");
     expect(actions).toContain("url.searchParams.set('sharedResult', attempt.id)");
     expect(actions).toContain("url.searchParams.set('ref', profile.referralCode)");
-    expect(actions).toContain('return leagueCanonicalUrl(league.code)');
-    expect(leagues).toContain('return new URL(`./ligas.html?league=${encodeURIComponent(league.code)}`');
+    expect(actions).toContain('new URL(`./ligas/${encodeURIComponent(publicId)}`');
+    expect(leagues).toContain('new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl)');
     expect(actions).not.toContain("'/social-share'");
-    expect(leagues).not.toContain('/social-share');
+    expect(actions).not.toContain('league.code');
+    expect(leagues).toContain('Código privado: ${league.joinCode}');
     expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
+  });
+
+  it('attaches files only to prepared profile URLs and leaves new result, referral, duel and league URLs unchanged', () => {
+    expect(profileShare).toContain('shareStates.get(shareUrl)?.file');
+    expect(profileShare).toContain('text: `${payload.text}\\n${payload.url}`.trim()');
+    expect(profileShare).toContain('files: [file]');
+    expect(honours).toContain('cardUrl: profileCardUrl(profile)');
+    expect(actions).toContain('url: referral ? referralShareUrl(profile) : profileCanonicalUrl(profile)');
+    expect(actions).toContain('url: resultShareUrl(latestAttempt)');
+    expect(actions).toContain('url: duelCanonicalUrl(duel.code)');
+    expect(actions).toContain('url: leagueCanonicalUrl(league.publicId)');
+    expect(actions).not.toContain('supabase.co');
+  });
+
+  it('reuses the loaded player context before requesting a profile for a manual share', () => {
+    expect(actions).toContain('window.Minuto106Competition?.context');
+    expect(actions).toContain("context?.availability === 'owned'");
+    expect(actions.indexOf('const cached = cachedOwnedProfile()'))
+      .toBeLessThan(actions.indexOf("return request('profile', { nick })"));
   });
 
   it('keeps dynamic metadata and PNG renderers as internal infrastructure', () => {
