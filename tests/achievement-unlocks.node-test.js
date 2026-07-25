@@ -278,3 +278,41 @@ test('tracks profile baselines and announces attempt deltas after rank celebrati
   assert.equal(harness.api.notificationDelay({ enteredTop10: true }), 2_200);
   assert.equal(harness.api.notificationDelay({}), 350);
 });
+
+test('uses the request-scoped profile when refreshed context arrives before completion', () => {
+  const previous = profile([{ code: 'old' }]);
+  const next = profile([
+    { code: 'old' },
+    { code: 'new', title: 'Nuevo', description: 'Desbloqueado', points: 12 },
+  ]);
+  const harness = load({ contextProfile: { availability: 'owned', profile: previous } });
+  const root = harness.document.body.children[0];
+
+  harness.document.dispatch('minuto106:player-context', {
+    availability: 'owned',
+    profile: next,
+    source: 'finish:global',
+  });
+  harness.document.dispatch('minuto106:attempt-finished', {
+    previousProfile: previous,
+    profile: next,
+    achievement: {},
+  });
+
+  assert.equal(harness.clock.jobs[0].delay, 350);
+  harness.clock.runNext();
+  assert.equal(root.hidden, false);
+  assert.equal(root.children[1].children[1].textContent, 'Nuevo');
+
+  const newPlayer = load();
+  newPlayer.document.dispatch('minuto106:player-context', {
+    availability: 'owned',
+    profile: next,
+    source: 'finish:global',
+  });
+  newPlayer.document.dispatch('minuto106:attempt-finished', {
+    previousProfile: null,
+    profile: next,
+  });
+  assert.equal(newPlayer.clock.jobs[0].delay, 350);
+});
