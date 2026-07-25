@@ -23,13 +23,13 @@ Remove the visible read-only recovery banner from public player profiles and fix
 
 ## Acceptance
 
-- [ ] `player-context` requests do not send `x-device-id`.
-- [ ] An existing account token is still sent as `x-account-token`.
-- [ ] A successful `player-context` response does not invoke `game-api/public-profile`.
-- [ ] The owner-only featured-achievement editor remains available for owned profiles.
-- [ ] When `player-context` is unavailable, the public profile remains readable through `public-profile` without any recovery banner or `Reintentar conexión` control.
-- [ ] No recovery-specific markup, styles or dead state remain.
-- [ ] Syntax, lint, dead-code, unit, security, asset, desktop/mobile Playwright and CI quality checks pass.
+- [x] `player-context` requests do not send `x-device-id`.
+- [x] An existing account token is still sent as `x-account-token`.
+- [x] A successful `player-context` response does not invoke `game-api/public-profile`.
+- [x] The owner-only featured-achievement editor remains available for owned profiles.
+- [x] When `player-context` is unavailable, the public profile remains readable through `public-profile` without any recovery banner or `Reintentar conexión` control.
+- [x] No recovery-specific markup, styles or dead state remain.
+- [x] Syntax, lint, dead-code, unit, security, asset, desktop/mobile Playwright and CI quality checks pass.
 
 ## Risks
 
@@ -39,10 +39,17 @@ Remove the visible read-only recovery banner from public player profiles and fix
 
 ## Tests
 
-- Update the profile recovery Playwright suite with one owned-context journey that asserts request headers and no fallback.
-- Add a silent fallback journey that aborts `player-context`, serves `public-profile`, verifies the profile is usable and asserts the recovery UI is absent.
-- Update Vitest source contracts to reject `x-device-id`, recovery markup and recovery retry wiring while preserving the public fallback and owner-only controls.
-- Run existing responsive profile, social-card, security and full CI suites.
+- Updated the profile recovery Playwright suite with an owned-context journey that asserts `x-account-token`, rejects `x-device-id`, verifies no public fallback and requires the owner editor.
+- Added a silent fallback journey that aborts `player-context`, serves `public-profile`, verifies the profile is usable and asserts the recovery UI is absent.
+- Updated Vitest source contracts to reject `x-device-id`, recovery markup and recovery retry wiring while preserving the public fallback and owner-only controls.
+- Existing responsive profile, social-card, security, asset and Supabase integration suites remained active.
+
+## Validation
+
+- Pull Request Quality Pipeline `30154318779`: build, syntax, Vitest, ESLint, Knip, dependency and security policy, Supabase integration and Quality Gate succeeded.
+- Player Pages and Social Cards `30154318781`: strict frontend coverage and desktop/mobile Playwright journeys succeeded.
+- Public Asset Audit `30154318780`: succeeded.
+- Pull Request Visual Evidence `30154318773`: succeeded.
 
 ## Rollback
 
@@ -52,9 +59,9 @@ Revert the frontend commit. Do not change database data or migrations; this fix 
 
 - Branch: `agent/fix-player-profile-context-cors`.
 - Base: `main`.
-- Pull request: pending.
-- No merge or production deployment without explicit authorization.
+- Pull request: `#32`.
+- No merge or production deployment performed.
 
 ## Status
 
-Implementation in progress.
+Implementation complete. Pull request open, non-draft and awaiting merge authorization.
