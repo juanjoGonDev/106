@@ -1,12 +1,13 @@
 const FRONTEND_EXTENSIONS = new Set(['.css', '.gif', '.html', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const FRONTEND_PREFIXES = ['public/', 'supabase/functions/player-share/'];
 const FRONTEND_ROOT_FILES = new Set(['index.html', 'playwright.config.js']);
-const DEVICE_SUFFIXES = Object.freeze([
-  { label: 'desktop', device: 'desktop' },
-  { label: 'escritorio', device: 'desktop' },
-  { label: 'mobile', device: 'mobile' },
-  { label: 'móvil', device: 'mobile' },
-  { label: 'movil', device: 'mobile' },
+const EVIDENCE_SUFFIXES = Object.freeze([
+  { label: 'desktop', type: 'desktop' },
+  { label: 'escritorio', type: 'desktop' },
+  { label: 'mobile', type: 'mobile' },
+  { label: 'móvil', type: 'mobile' },
+  { label: 'movil', type: 'mobile' },
+  { label: 'gif', type: 'gif' },
 ]);
 const SUMMARY_SEPARATORS = new Set(['·', '—', '-']);
 const START_MARKER = '<!-- visual-evidence:start -->';
@@ -40,14 +41,14 @@ function normalizeSummary(value) {
 function parseSummary(summary) {
   const normalized = normalizeSummary(summary);
   const lower = normalized.toLocaleLowerCase('es');
-  for (const suffix of DEVICE_SUFFIXES) {
+  for (const suffix of EVIDENCE_SUFFIXES) {
     if (!lower.endsWith(suffix.label)) continue;
     const prefix = normalized.slice(0, normalized.length - suffix.label.length).trimEnd();
     const separator = prefix.at(-1);
     if (!SUMMARY_SEPARATORS.has(separator)) continue;
     const area = prefix.slice(0, -1).trim();
     if (!area) return null;
-    return { area, device: suffix.device };
+    return { area, type: suffix.type };
   }
   return null;
 }
@@ -124,7 +125,7 @@ export function validateVisualEvidence(body, changedFiles) {
     return { required: true, frontendFiles, errors };
   }
   if (!parsed.entries.length) {
-    errors.push('Add at least one paired Desktop/Mobile visual evidence area.');
+    errors.push('Add at least one complete Desktop/Mobile/GIF visual evidence area.');
     return { required: true, frontendFiles, errors };
   }
 
@@ -133,10 +134,10 @@ export function validateVisualEvidence(body, changedFiles) {
     const key = entry.area.toLocaleLowerCase('es');
     let area = areas.get(key);
     if (!area) {
-      area = { label: entry.area, desktop: [], mobile: [] };
+      area = { label: entry.area, desktop: [], mobile: [], gif: [] };
       areas.set(key, area);
     }
-    area[entry.device].push(entry);
+    area[entry.type].push(entry);
     if (!entry.image) errors.push(`${entry.summary}: missing Markdown image.`);
     else if (PLACEHOLDER_PATTERN.test(entry.image)) errors.push(`${entry.summary}: replace the placeholder image URL.`);
   }
@@ -144,8 +145,10 @@ export function validateVisualEvidence(body, changedFiles) {
   for (const area of areas.values()) {
     if (!area.desktop.length) errors.push(`${area.label}: missing Desktop evidence.`);
     if (!area.mobile.length) errors.push(`${area.label}: missing Mobile evidence.`);
+    if (!area.gif.length) errors.push(`${area.label}: missing GIF evidence.`);
     if (area.desktop.length > 1) errors.push(`${area.label}: duplicate Desktop evidence.`);
     if (area.mobile.length > 1) errors.push(`${area.label}: duplicate Mobile evidence.`);
+    if (area.gif.length > 1) errors.push(`${area.label}: duplicate GIF evidence.`);
   }
 
   return { required: true, frontendFiles, errors: [...new Set(errors)] };
