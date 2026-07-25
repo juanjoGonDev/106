@@ -9,12 +9,13 @@ const honours = readFileSync('public/honours.js', 'utf8');
 const leagues = readFileSync('public/ligas.js', 'utf8');
 const player = readFileSync('public/player.js', 'utf8');
 const playerUi = readFileSync('public/player-ui.js', 'utf8');
+const profileShare = readFileSync('public/profile-share.js', 'utf8');
 const edgeShare = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
 const socialShare = readFileSync('supabase/functions/social-share/index.ts', 'utf8');
 const rootIndex = readFileSync('index.html', 'utf8');
 const publicIndex = readFileSync('public/index.html', 'utf8');
 
-const visibleShareFlows = [layout, actions, duelContext, ranking, honours, leagues, player, playerUi, edgeShare, socialShare];
+const visibleShareFlows = [layout, actions, duelContext, ranking, honours, leagues, player, playerUi, profileShare, edgeShare, socialShare];
 
 describe('share-first social actions', () => {
   it('provides native sharing plus explicit desktop destinations', () => {
@@ -72,6 +73,18 @@ describe('share-first social actions', () => {
     expect(actions).not.toContain('league.code');
     expect(leagues).toContain('Código privado: ${league.joinCode}');
     expect(actions).toContain("document.addEventListener('minuto106:attempt-finished'");
+  });
+
+  it('attaches files only to prepared profile URLs and leaves new result, referral, duel and league URLs unchanged', () => {
+    expect(profileShare).toContain('shareStates.get(shareUrl)?.file');
+    expect(profileShare).toContain('text: `${payload.text}\\n${payload.url}`.trim()');
+    expect(profileShare).toContain('files: [file]');
+    expect(honours).toContain('cardUrl: profileCardUrl(profile)');
+    expect(actions).toContain('url: referral ? referralShareUrl(profile) : profileCanonicalUrl(profile)');
+    expect(actions).toContain('url: resultShareUrl(latestAttempt)');
+    expect(actions).toContain('url: duelCanonicalUrl(duel.code)');
+    expect(actions).toContain('url: leagueCanonicalUrl(league.publicId)');
+    expect(actions).not.toContain('supabase.co');
   });
 
   it('reuses the loaded player context before requesting a profile for a manual share', () => {

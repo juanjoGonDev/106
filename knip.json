@@ -17,6 +17,7 @@
     "public/honours.js",
     "public/honours-catalog.js",
     "public/profile-card-highlights.js",
+    "public/profile-share.js",
     "public/share-actions.js",
     "public/layout.js",
     "public/player-stats.js",

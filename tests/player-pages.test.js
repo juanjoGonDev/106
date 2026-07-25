@@ -29,28 +29,43 @@ describe('player pages and ranking links', () => {
     const home = read('public/home-stats.js');
     const fallback = read('public/v4.js');
     expect(home).toContain('window.Minuto106PlayerUI?.playerUrl(nick)');
-    expect(home).toContain('anchor.className = \'leaderboard-row-link\'');
+    expect(home).toContain("anchor.className = 'leaderboard-row-link'");
     expect(home).toContain('anchor.dataset.playerNick = nick');
     expect(home).toContain('identity.append(createFlag(team), nickElement)');
     expect(fallback).not.toContain('renderFallbackRanking');
     expect(fallback).not.toContain('ensureInitialRanking');
   });
 
-  it('provides clean overview, achievements and trophies player sections', () => {
+  it('keeps current player sections and attaches the generated PNG through a separate progressive enhancement', () => {
     const html = read('public/player.html');
     const script = read('public/player.js');
+    const share = read('public/profile-share.js');
+    const honours = read('public/honours.js');
     const fallback = read('public/404.html');
+    const server = read('scripts/serve.mjs');
     expect(html).toContain('data-player-section="overview"');
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
+    expect(html).toContain('<script src="./profile-share.js" data-minuto106-profile-share></script>');
+    expect(html).toContain('id="sharePlayer" class="primary" type="button" disabled>Preparando...</button>');
+    expect(html).not.toContain('property="og:image"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
-    expect(script).toContain('history.replaceState');
+    expect(script).toContain('const share = ui.playerUrl(player.nick, route.section)');
+    expect(script).toContain("history.replaceState(null, '', canonicalUrl)");
     expect(script).toContain('ui.cardUrl(apiUrl, player.nick, route.section, player.profileRevision)');
     expect(script).toContain("upsertMeta('property', 'og:image', cardUrl)");
     expect(script).toContain("upsertMeta('name', 'twitter:image', cardUrl)");
+    expect(share).toContain("const PREPARING_LABEL = 'Preparando...'");
+    expect(share).toContain('async function bindButton');
+    expect(share).toContain('files: [file]');
+    expect(share).toContain('shareStates.get(shareUrl)?.file');
+    expect(honours).toContain('profile.profileRevision');
+    expect(honours).toContain('cardUrl: profileCardUrl(profile)');
+    expect(honours).toContain("readyLabel: 'Compartir palmarés'");
     expect(fallback).toContain('(?:player)\\/([^/]+)');
     expect(fallback).toContain('player.html');
+    expect(server).toContain('/ligas\\/[A-Z0-9]{6}');
   });
 
   it('separates achievement descriptions and dates into semantic elements', () => {
