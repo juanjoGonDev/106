@@ -73,7 +73,6 @@ execute(databaseUrl, `
       select 1
       from public.game_player_featured_achievements current_selection
       where current_selection.nick_key = achievement.nick_key
-        and current_selection.active = true
     )
     group by achievement.nick_key
     having count(*) >= 3
@@ -164,11 +163,8 @@ const migratedAgain = JSON.parse(query(databaseUrl, `
 assert.deepEqual(migratedAgain, migrated);
 
 execute(databaseUrl, `
-  update public.game_player_featured_achievements
-  set active = false,
-      updated_at = clock_timestamp()
-  where nick_key = '${fixture.nickKey.replaceAll("'", "''")}'
-    and active = true;
+  delete from public.game_player_featured_achievements
+  where nick_key = '${fixture.nickKey.replaceAll("'", "''")}';
   drop table public.player_achievement_highlights;
 `);
 
