@@ -127,7 +127,7 @@ test('dispatches and retains one completed attempt payload after a successful fi
   assert.equal(returned.ok, true);
   assert.equal(harness.requests.length, 1);
   assert.equal(attemptEvents(harness).length, 1);
-  assert.deepEqual(event.detail, { ...detail, previousProfile: null });
+  assert.deepEqual(structuredClone(event.detail), { ...detail, previousProfile: null });
   assert.equal(Object.isFrozen(event.detail), true);
   assert.deepEqual(harness.window.__MINUTO106_LATEST_ATTEMPT__, attempt);
 });
