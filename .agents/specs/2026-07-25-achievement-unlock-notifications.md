@@ -21,27 +21,30 @@ Add animations and a video-game-style notification whenever a player unlocks an 
 5. Delay the first notification while an existing world-record or top-10 celebration is active.
 6. Use motion for slide-in, badge impact and shine, while fully respecting `prefers-reduced-motion`.
 7. Persist the most recent player context in the attempt bridge so late module loading does not treat previously earned achievements as new.
+8. Keep previous versioned styles immutable and load the new `v17.css` relative to the notification script URL.
 
 ## Scope
 
 - `public/achievement-unlocks.js`
 - `public/attempt-refresh.js`
-- `public/v14.css`
+- `public/v17.css`
 - focused strict-coverage Node tests
+- desktop/mobile Playwright journeys and preview captures
 - package syntax/coverage commands and Knip registration
 
 ## Acceptance
 
-- [ ] A successful finish that adds one achievement displays exactly one notification.
-- [ ] Multiple achievements unlocked by the same finish display sequentially without overlap.
-- [ ] Existing achievement codes are never notified again.
-- [ ] Invalid, duplicate or missing achievement records are ignored safely.
-- [ ] The notification contains the title, description and positive points when available.
-- [ ] World-record and top-10 animations complete before the achievement notification starts.
-- [ ] The surface is responsive, does not block interaction and remains inside safe-area insets.
-- [ ] Screen readers receive one polite atomic status announcement per achievement.
-- [ ] Reduced-motion users receive the same information without movement or shine animations.
-- [ ] New and modified event modules maintain 100% line, function and branch coverage.
+- [x] A successful finish that adds one achievement displays exactly one notification.
+- [x] Multiple achievements unlocked by the same finish display sequentially without overlap.
+- [x] Existing achievement codes are never notified again.
+- [x] Invalid, duplicate or missing achievement records are ignored safely.
+- [x] The notification contains the title, description and positive points when available.
+- [x] World-record and top-10 animations complete before the achievement notification starts.
+- [x] The surface is responsive, does not block interaction and remains inside safe-area insets.
+- [x] Screen readers receive one polite atomic status announcement per achievement.
+- [x] Reduced-motion users receive the same information without movement or shine animations.
+- [ ] New and modified event modules maintain 100% line, function and branch coverage on the final head.
+- [ ] Required repository and browser CI workflows are green on the final head.
 
 ## Risks
 
@@ -49,12 +52,14 @@ Add animations and a video-game-style notification whenever a player unlocks an 
 - Several thresholds can unlock at once and create a long sequence. Mitigation: use a deterministic queue with a bounded display duration and no modal interaction.
 - Existing rank celebrations can overlap. Mitigation: apply explicit delays based on the server-provided world-record and top-10 flags.
 - Dynamically loading the asset could duplicate listeners. Mitigation: guard both the loader element and the notifier boot state.
+- A modified historical stylesheet could remain cached. Mitigation: keep `v14.css` unchanged and load the new immutable `v17.css` from the script's absolute URL.
 
 ## Tests
 
 - Strict Node coverage for achievement normalization, delta detection, duplicate suppression and empty inputs.
-- Strict Node coverage for immediate and delayed display, sequential queues, point/no-point rendering, exit lifecycle and destruction.
+- Strict Node coverage for immediate and delayed display, sequential queues, point/no-point rendering, exit lifecycle, destruction and versioned stylesheet loading.
 - Event integration coverage for retained player context, successful finish publication, world-record/top-10 delays and invalid profile payloads.
+- Playwright coverage for desktop/mobile layout, visible copy, point rendering, viewport containment and reduced-motion behavior.
 - Syntax, ESLint, Knip, Vitest, public-asset checks and browser workflows remain authoritative in CI.
 
 ## Rollback
@@ -69,4 +74,4 @@ Revert the notification module, loader/event baseline changes, styles, tests and
 
 ## Status
 
-Implementation in progress.
+Implementation complete. Final-head repository and browser CI validation is pending.
