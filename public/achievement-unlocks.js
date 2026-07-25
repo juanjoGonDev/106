@@ -1,6 +1,8 @@
 (() => {
   const DEFAULT_DISPLAY_MS = 3_200;
   const DEFAULT_EXIT_MS = 420;
+  const STYLESHEET_ID = 'minuto106AchievementUnlockStyles';
+  const STYLESHEET_NAME = 'v17.css';
 
   function achievementItems(profile) {
     const items = profile?.achievements?.items;
@@ -37,6 +39,22 @@
       unlocked.push(achievement);
     }
     return unlocked;
+  }
+
+  function achievementStylesheetUrl(documentRef) {
+    const scriptUrl = String(documentRef.currentScript?.src || '');
+    return scriptUrl ? new URL(STYLESHEET_NAME, scriptUrl).toString() : STYLESHEET_NAME;
+  }
+
+  function ensureAchievementUnlockStyles(documentRef) {
+    const existing = documentRef.getElementById(STYLESHEET_ID);
+    if (existing) return existing;
+    const stylesheet = documentRef.createElement('link');
+    stylesheet.id = STYLESHEET_ID;
+    stylesheet.rel = 'stylesheet';
+    stylesheet.href = achievementStylesheetUrl(documentRef);
+    documentRef.head.append(stylesheet);
+    return stylesheet;
   }
 
   function element(documentRef, tagName, className, text = '') {
@@ -161,6 +179,7 @@
       return windowRef.Minuto106AchievementUnlockNotifier;
     }
     windowRef.__MINUTO106_ACHIEVEMENT_UNLOCKS_BOOTED__ = true;
+    ensureAchievementUnlockStyles(documentRef);
 
     const notifier = createAchievementUnlockNotifier({
       view: createAchievementUnlockView(documentRef),
@@ -187,6 +206,8 @@
 
   window.Minuto106AchievementUnlocks = Object.freeze({
     findNewAchievements,
+    achievementStylesheetUrl,
+    ensureAchievementUnlockStyles,
     createAchievementUnlockView,
     createAchievementUnlockNotifier,
     notificationDelay,
