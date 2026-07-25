@@ -49,7 +49,7 @@ Make profile sharing reliably include the current generated player card together
 - [x] Featured-achievement changes trigger a new card preparation through `profileRevision`.
 - [x] Result, referral, direct-challenge and public-league URLs remain unchanged.
 - [x] The current CORS-safe `player-context` and silent public fallback remain intact.
-- [ ] Final package policy, syntax, ESLint, Knip, Vitest, dependency audit, Supabase integration and desktop/mobile browser workflows are green.
+- [x] Final package policy, syntax, ESLint, Knip, Vitest, dependency audit, Supabase integration and desktop/mobile browser workflows are green.
 
 ## Risks
 
@@ -58,18 +58,30 @@ Make profile sharing reliably include the current generated player card together
 - The generated image request can fail or be blocked. The flow degrades to text and URL instead of blocking sharing.
 - A global share wrapper could accidentally affect unrelated links. Mitigation: files are stored and selected only by exact normalized public profile URL; other routes have no prepared file.
 - Re-rendered honours must invalidate stale files. Mitigation: the render signature includes `profileRevision`, performance aggregates and featured achievements.
+- Repeated DOM observations could restart image preparation. Mitigation: exact URL/card signatures share one pending promise, cache one completed file and retain a failed state until the card signature changes.
 
 ## Tests
 
-- Vitest covers filename normalization, PNG validation, native payloads, cancellation, native failure, unsupported file sharing, button lifecycle, exact-URL bridging, cache reuse and preparation failure.
+- Vitest covers filename normalization, PNG validation, native payloads, cancellation, native failure, unsupported file sharing, button lifecycle, exact-URL bridging, cache reuse, duplicate observer binding and preparation failure.
 - Contract tests verify the latest player sections, current `player.js` metadata, the progressive-enhancement bridge, public league support and canonical share routes.
 - Playwright delays a real PNG response, verifies the disabled `Preparando...` state, shares the trophies-section file, and inspects the native payload on desktop and mobile projects.
 - A second browser journey verifies the text-and-URL fallback when file sharing is unsupported.
 - Existing player-context browser tests remain authoritative for account headers, owner controls and silent public fallback.
 
+## Validation
+
+Final implementation head before this documentation-only closure was `63e352d8d8ec1663ab28c79ca9f6b918be842e0e`:
+
+- Pull Request Quality Pipeline `30157461137`: build, frozen install, syntax, Vitest, ESLint, Knip, dependency audit, package/security policy, local Supabase integration and Quality Gate succeeded.
+- Player Pages and Social Cards `30157461198`: strict frontend coverage and all desktop/mobile browser journeys succeeded.
+- Public Asset Audit `30157461090`: succeeded.
+- Pull Request Visual Evidence `30157461153`: succeeded.
+
+The documentation-only closure commit must pass the same required PR checks before merge readiness is final.
+
 ## Rollback
 
-Revert the merge reconciliation commit. No schema, migration, persisted data, production secret or permission change is introduced by the attachment flow.
+Revert the merge reconciliation and follow-up sharing commits. No schema, migration, persisted data, production secret or permission change is introduced by the attachment flow.
 
 ## Delivery
 
@@ -80,4 +92,4 @@ Revert the merge reconciliation commit. No schema, migration, persisted data, pr
 
 ## Status
 
-Implementation reconciled with current `main`. Final CI is pending and remains authoritative for merge readiness.
+Implementation complete and reconciled with current `main`. The implementation head is fully green; final documentation-head CI confirmation is pending.
