@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 
 const PLAYWRIGHT_VERSION = '1.60.0';
 const PLAYWRIGHT_PACKAGE = `@playwright/test@${PLAYWRIGHT_VERSION}`;
+const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
 
 function runCommand(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
@@ -42,7 +43,7 @@ function commandOutput(command, arguments_) {
 function hasGifCapableFfmpeg() {
   const formats = commandOutput('ffmpeg', ['-hide_banner', '-formats']);
   const filters = commandOutput('ffmpeg', ['-hide_banner', '-filters']);
-  return /\bE\s+gif\b/i.test(formats)
+  return GIF_MUXER_PATTERN.test(formats)
     && /\bpalettegen\b/i.test(filters)
     && /\bpaletteuse\b/i.test(filters);
 }
