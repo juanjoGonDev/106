@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const migrationPath = 'supabase/migrations/20260724213350_adopt_legacy_player_achievement_highlights.sql';
+const backupTable = 'public.__migration_compatibility_featured_backup';
 
 function readLocalEnvironment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], {
@@ -56,6 +57,8 @@ const databaseUrl = readLocalEnvironment();
 
 execute(databaseUrl, `
   drop table if exists public.player_achievement_highlights;
+  drop table if exists ${backupTable};
+
   create table public.player_achievement_highlights (
     player_nick_key text not null references public.game_players(nick_key) on delete cascade,
     achievement_code text not null,
@@ -66,6 +69,17 @@ execute(databaseUrl, `
     constraint player_achievement_highlights_position_check check (position >= 1 and position <= 3)
   );
 
+  create table ${backupTable} as
+  select
+    nick_key,
+    achievement_code,
+    position,
+    active,
+    selected_at,
+    updated_at
+  from public.game_player_featured_achievements
+  with no data;
+
   with candidate as (
     select achievement.nick_key
     from public.game_player_achievements achievement
@@ -73,6 +87,7 @@ execute(databaseUrl, `
       select 1
       from public.game_player_featured_achievements current_selection
       where current_selection.nick_key = achievement.nick_key
+        and current_selection.active = true
     )
     group by achievement.nick_key
     having count(*) >= 3
@@ -106,6 +121,27 @@ execute(databaseUrl, `
     clock_timestamp() - ranked.source_order * interval '1 minute'
   from ranked
   where ranked.source_order <= 4;
+
+  insert into ${backupTable} (
+    nick_key,
+    achievement_code,
+    position,
+    active,
+    selected_at,
+    updated_at
+  )
+  select
+    current_selection.nick_key,
+    current_selection.achievement_code,
+    current_selection.position,
+    current_selection.active,
+    current_selection.selected_at,
+    current_selection.updated_at
+  from public.game_player_featured_achievements current_selection
+  join (
+    select distinct legacy.player_nick_key
+    from public.player_achievement_highlights legacy
+  ) fixture on fixture.player_nick_key = current_selection.nick_key;
 `);
 
 const fixture = JSON.parse(query(databaseUrl, `
@@ -116,9 +152,10 @@ const fixture = JSON.parse(query(databaseUrl, `
   )
   from public.player_achievement_highlights legacy;
 `));
-assert.ok(fixture.nickKey, 'The full API journey must create achievements before the compatibility test.');
+assert.ok(fixture.nickKey, 'The full API journey must create a player with at least three unlocked achievements and no active featured selection.');
 assert.ok(fixture.count >= 3, `Expected at least three legacy achievements, received ${fixture.count}.`);
 
+const escapedNickKey = fixture.nickKey.replaceAll("'", "''");
 applyCompatibilityMigration(databaseUrl);
 
 const migrated = JSON.parse(query(databaseUrl, `
@@ -127,7 +164,7 @@ const migrated = JSON.parse(query(databaseUrl, `
     'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
   )
   from public.game_player_featured_achievements selection
-  where selection.nick_key = '${fixture.nickKey.replaceAll("'", "''")}'
+  where selection.nick_key = '${escapedNickKey}'
     and selection.active = true;
 `));
 assert.deepEqual(migrated.codes, fixture.expectedCodes.slice(0, 3));
@@ -157,15 +194,34 @@ const migratedAgain = JSON.parse(query(databaseUrl, `
     'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
   )
   from public.game_player_featured_achievements selection
-  where selection.nick_key = '${fixture.nickKey.replaceAll("'", "''")}'
+  where selection.nick_key = '${escapedNickKey}'
     and selection.active = true;
 `));
 assert.deepEqual(migratedAgain, migrated);
 
 execute(databaseUrl, `
   delete from public.game_player_featured_achievements
-  where nick_key = '${fixture.nickKey.replaceAll("'", "''")}';
+  where nick_key = '${escapedNickKey}';
+
+  insert into public.game_player_featured_achievements (
+    nick_key,
+    achievement_code,
+    position,
+    active,
+    selected_at,
+    updated_at
+  )
+  select
+    backup.nick_key,
+    backup.achievement_code,
+    backup.position,
+    backup.active,
+    backup.selected_at,
+    backup.updated_at
+  from ${backupTable} backup;
+
   drop table public.player_achievement_highlights;
+  drop table ${backupTable};
 `);
 
 process.stdout.write('✓ Legacy player achievement highlights upgrade is data-preserving, restricted and idempotent\n');
