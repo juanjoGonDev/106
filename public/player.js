@@ -98,14 +98,14 @@
   async function loadPublicContext() {
     try {
       return await requestPlayerContext('player-context');
-    } catch (contextError) {
+    } catch {
       try {
         return await requestPublicProfile();
       } catch (fallbackError) {
         if (fallbackError instanceof Error && fallbackError.message === 'No se encontró el jugador.') {
           throw fallbackError;
         }
-        throw new Error('No se pudo conectar con el servidor de perfiles. Reinténtalo en unos segundos.', { cause: contextError });
+        throw new Error('No se pudo conectar con el servidor de perfiles. Reinténtalo en unos segundos.', { cause: fallbackError });
       }
     }
   }
