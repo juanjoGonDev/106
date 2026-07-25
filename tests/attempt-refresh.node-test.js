@@ -26,11 +26,12 @@ function response({ ok = true, detail = {}, jsonError = null } = {}) {
   };
 }
 
-function load(responses) {
+function load(responses, { existingUnlockScript = false } = {}) {
   const requests = [];
   const events = [];
   const listeners = new Map();
   const queue = [...responses];
+  const scripts = existingUnlockScript ? [{ id: 'minuto106AchievementUnlocksScript' }] : [];
   const window = {
     fetch: async (input, init) => {
       requests.push({ input, init });
@@ -38,6 +39,17 @@ function load(responses) {
     },
   };
   const document = {
+    head: {
+      append(script) {
+        scripts.push(script);
+      },
+    },
+    createElement(tagName) {
+      return { tagName, id: '', src: '', async: true };
+    },
+    getElementById(id) {
+      return scripts.find((script) => script.id === id) ?? null;
+    },
     addEventListener(type, listener) {
       const registered = listeners.get(type) ?? [];
       registered.push(listener);
@@ -56,13 +68,34 @@ function load(responses) {
     window,
   };
   vm.runInNewContext(source, context, { filename: 'public/attempt-refresh.js' });
-  return { context, document, events, requests, window };
+  return { context, document, events, requests, scripts, window };
 }
 
 async function settle() {
   await Promise.resolve();
   await Promise.resolve();
 }
+
+test('loads the achievement notification asset once', () => {
+  const harness = load([]);
+  assert.equal(harness.scripts.length, 1);
+  assert.equal(harness.scripts[0].tagName, 'script');
+  assert.equal(harness.scripts[0].id, 'minuto106AchievementUnlocksScript');
+  assert.equal(harness.scripts[0].src, './achievement-unlocks.js');
+  assert.equal(harness.scripts[0].async, false);
+
+  const existing = load([], { existingUnlockScript: true });
+  assert.equal(existing.scripts.length, 1);
+});
+
+test('retains and clears player context baselines', () => {
+  const harness = load([]);
+  const detail = { availability: 'owned', profile: { nick: 'Ana' } };
+  harness.document.dispatchEvent(new TestCustomEvent('minuto106:player-context', { detail }));
+  assert.deepEqual(harness.window.__MINUTO106_PLAYER_CONTEXT__, detail);
+  harness.document.dispatchEvent(new TestCustomEvent('minuto106:player-context', { detail: {} }));
+  assert.equal(harness.window.__MINUTO106_PLAYER_CONTEXT__, null);
+});
 
 test('dispatches and retains the completed attempt payload after a successful finish', async () => {
   const attempt = { id: 'attempt-one', elapsedMs: 10_604 };
@@ -129,6 +162,7 @@ test('installs the wrapper only once', async () => {
   const wrapped = harness.window.fetch;
   vm.runInNewContext(source, harness.context, { filename: 'public/attempt-refresh.js' });
   assert.equal(harness.window.fetch, wrapped);
+  assert.equal(harness.scripts.length, 1);
   await harness.window.fetch('/game-api', { body: JSON.stringify({ action: 'finish' }) });
   await settle();
   assert.equal(harness.events.length, 1);
