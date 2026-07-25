@@ -174,15 +174,19 @@ describe('public profile honours experience', () => {
     expect(player).toContain('data-featured-code');
   });
 
-  it('falls back to the existing public profile endpoint without enabling owner controls', () => {
-    expect(playerHtml).toContain('id="playerRecoveryNotice"');
+  it('uses a CORS-safe context request and keeps the public fallback silent', () => {
     expect(playerHtml).toContain('id="retryPlayerProfile"');
-    expect(playerHtml).toContain('id="retryPlayerContext"');
+    expect(playerHtml).not.toContain('id="playerRecoveryNotice"');
+    expect(playerHtml).not.toContain('id="retryPlayerContext"');
     expect(player).toContain("action: 'public-profile'");
     expect(player).toContain("availability: 'unknown'");
-    expect(player).toContain('degraded: true');
     expect(player).toContain('return await requestPublicProfile()');
-    expect(player).toContain("loadProfile({ keepCurrent: true })");
+    expect(player).not.toContain('x-device-id');
+    expect(player).not.toContain('minuto106:device-id');
+    expect(player).not.toContain('degraded');
+    expect(access).toContain("'player-context'");
+    expect(access).toContain("headers.set('x-account-token', accountToken)");
+    expect(playerContext).toContain("'Access-Control-Allow-Headers': 'content-type, x-account-token'");
   });
 
   it('uses the highlighted achievement card for profile sharing and generated previews', () => {
