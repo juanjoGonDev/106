@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const migrationPath = 'supabase/migrations/20260724213350_adopt_legacy_player_achievement_highlights.sql';
-const backupTable = 'public.__migration_compatibility_featured_backup';
+const copyNickKey = 'migration-copy';
+const preserveNickKey = 'migration-preserve';
 
 function readLocalEnvironment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], {
@@ -57,7 +58,59 @@ const databaseUrl = readLocalEnvironment();
 
 execute(databaseUrl, `
   drop table if exists public.player_achievement_highlights;
-  drop table if exists ${backupTable};
+  delete from public.game_players where nick_key in ('${copyNickKey}', '${preserveNickKey}');
+
+  insert into public.game_players (
+    nick_key,
+    nick,
+    first_device_hash,
+    first_ip_hash
+  ) values
+    ('${copyNickKey}', 'Migration Copy', 'migration-copy-device', 'migration-copy-ip'),
+    ('${preserveNickKey}', 'Migration Preserve', 'migration-preserve-device', 'migration-preserve-ip');
+
+  insert into public.game_player_achievements (
+    nick_key,
+    achievement_code,
+    achievement_kind,
+    title,
+    description,
+    points,
+    achieved_on,
+    metadata
+  )
+  select
+    fixture.nick_key,
+    achievement.code,
+    'first_trophy',
+    achievement.title,
+    achievement.description,
+    achievement.points,
+    current_date,
+    jsonb_build_object('fixture', true)
+  from (values ('${copyNickKey}'), ('${preserveNickKey}')) as fixture(nick_key)
+  cross join (values
+    ('legacy_alpha', 'Legacy Alpha', 'First legacy achievement.', 10),
+    ('legacy_beta', 'Legacy Beta', 'Second legacy achievement.', 20),
+    ('legacy_gamma', 'Legacy Gamma', 'Third legacy achievement.', 30),
+    ('legacy_delta', 'Legacy Delta', 'Fourth legacy achievement.', 40)
+  ) as achievement(code, title, description, points);
+
+  insert into public.game_player_featured_achievements (
+    nick_key,
+    achievement_code,
+    position,
+    active,
+    selected_at,
+    updated_at
+  ) values (
+    '${preserveNickKey}',
+    'legacy_delta',
+    1,
+    true,
+    clock_timestamp() - interval '1 day',
+    clock_timestamp() - interval '1 day'
+  );
 
   create table public.player_achievement_highlights (
     player_nick_key text not null references public.game_players(nick_key) on delete cascade,
@@ -69,106 +122,47 @@ execute(databaseUrl, `
     constraint player_achievement_highlights_position_check check (position >= 1 and position <= 3)
   );
 
-  create table ${backupTable} as
-  select
-    nick_key,
-    achievement_code,
-    position,
-    active,
-    selected_at,
-    updated_at
-  from public.game_player_featured_achievements
-  with no data;
-
-  with candidate as (
-    select achievement.nick_key
-    from public.game_player_achievements achievement
-    where not exists (
-      select 1
-      from public.game_player_featured_achievements current_selection
-      where current_selection.nick_key = achievement.nick_key
-        and current_selection.active = true
-    )
-    group by achievement.nick_key
-    having count(*) >= 3
-    order by count(*) desc, achievement.nick_key
-    limit 1
-  ), ranked as (
-    select
-      achievement.nick_key,
-      achievement.achievement_code,
-      row_number() over (order by achievement.achievement_code desc) as source_order
-    from public.game_player_achievements achievement
-    join candidate using (nick_key)
-  )
   insert into public.player_achievement_highlights (
     player_nick_key,
     achievement_code,
     position,
     created_at,
     updated_at
-  )
-  select
-    ranked.nick_key,
-    ranked.achievement_code,
-    case ranked.source_order
-      when 1 then 3
-      when 2 then 1
-      when 3 then 1
-      else 2
-    end::smallint,
-    clock_timestamp() - ranked.source_order * interval '1 minute',
-    clock_timestamp() - ranked.source_order * interval '1 minute'
-  from ranked
-  where ranked.source_order <= 4;
-
-  insert into ${backupTable} (
-    nick_key,
-    achievement_code,
-    position,
-    active,
-    selected_at,
-    updated_at
-  )
-  select
-    current_selection.nick_key,
-    current_selection.achievement_code,
-    current_selection.position,
-    current_selection.active,
-    current_selection.selected_at,
-    current_selection.updated_at
-  from public.game_player_featured_achievements current_selection
-  join (
-    select distinct legacy.player_nick_key
-    from public.player_achievement_highlights legacy
-  ) fixture on fixture.player_nick_key = current_selection.nick_key;
+  ) values
+    ('${copyNickKey}', 'legacy_alpha', 3, clock_timestamp() - interval '4 minutes', clock_timestamp() - interval '4 minutes'),
+    ('${copyNickKey}', 'legacy_beta', 1, clock_timestamp() - interval '3 minutes', clock_timestamp() - interval '3 minutes'),
+    ('${copyNickKey}', 'legacy_gamma', 1, clock_timestamp() - interval '2 minutes', clock_timestamp() - interval '2 minutes'),
+    ('${copyNickKey}', 'legacy_delta', 2, clock_timestamp() - interval '1 minute', clock_timestamp() - interval '1 minute'),
+    ('${preserveNickKey}', 'legacy_alpha', 1, clock_timestamp() - interval '3 minutes', clock_timestamp() - interval '3 minutes'),
+    ('${preserveNickKey}', 'legacy_beta', 2, clock_timestamp() - interval '2 minutes', clock_timestamp() - interval '2 minutes'),
+    ('${preserveNickKey}', 'legacy_gamma', 3, clock_timestamp() - interval '1 minute', clock_timestamp() - interval '1 minute');
 `);
 
-const fixture = JSON.parse(query(databaseUrl, `
-  select json_build_object(
-    'nickKey', min(legacy.player_nick_key),
-    'count', count(*)::integer,
-    'expectedCodes', json_agg(legacy.achievement_code order by legacy.position, legacy.achievement_code)
-  )
-  from public.player_achievement_highlights legacy;
-`));
-assert.ok(fixture.nickKey, 'The full API journey must create a player with at least three unlocked achievements and no active featured selection.');
-assert.ok(fixture.count >= 3, `Expected at least three legacy achievements, received ${fixture.count}.`);
-
-const escapedNickKey = fixture.nickKey.replaceAll("'", "''");
 applyCompatibilityMigration(databaseUrl);
 
-const migrated = JSON.parse(query(databaseUrl, `
+const copied = JSON.parse(query(databaseUrl, `
   select json_build_object(
     'codes', coalesce(json_agg(selection.achievement_code order by selection.position), '[]'::json),
     'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
   )
   from public.game_player_featured_achievements selection
-  where selection.nick_key = '${escapedNickKey}'
+  where selection.nick_key = '${copyNickKey}'
     and selection.active = true;
 `));
-assert.deepEqual(migrated.codes, fixture.expectedCodes.slice(0, 3));
-assert.deepEqual(migrated.positions, [1, 2, 3]);
+assert.deepEqual(copied.codes, ['legacy_beta', 'legacy_gamma', 'legacy_delta']);
+assert.deepEqual(copied.positions, [1, 2, 3]);
+
+const preserved = JSON.parse(query(databaseUrl, `
+  select json_build_object(
+    'codes', coalesce(json_agg(selection.achievement_code order by selection.position), '[]'::json),
+    'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
+  )
+  from public.game_player_featured_achievements selection
+  where selection.nick_key = '${preserveNickKey}'
+    and selection.active = true;
+`));
+assert.deepEqual(preserved.codes, ['legacy_delta']);
+assert.deepEqual(preserved.positions, [1]);
 
 const permissions = JSON.parse(query(databaseUrl, `
   select json_build_object(
@@ -188,40 +182,32 @@ assert.equal(permissions.authenticatedSelect, false);
 assert.equal(permissions.serviceSelect, true);
 
 applyCompatibilityMigration(databaseUrl);
-const migratedAgain = JSON.parse(query(databaseUrl, `
+
+const copiedAgain = JSON.parse(query(databaseUrl, `
   select json_build_object(
     'codes', coalesce(json_agg(selection.achievement_code order by selection.position), '[]'::json),
     'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
   )
   from public.game_player_featured_achievements selection
-  where selection.nick_key = '${escapedNickKey}'
+  where selection.nick_key = '${copyNickKey}'
     and selection.active = true;
 `));
-assert.deepEqual(migratedAgain, migrated);
+assert.deepEqual(copiedAgain, copied);
+
+const preservedAgain = JSON.parse(query(databaseUrl, `
+  select json_build_object(
+    'codes', coalesce(json_agg(selection.achievement_code order by selection.position), '[]'::json),
+    'positions', coalesce(json_agg(selection.position order by selection.position), '[]'::json)
+  )
+  from public.game_player_featured_achievements selection
+  where selection.nick_key = '${preserveNickKey}'
+    and selection.active = true;
+`));
+assert.deepEqual(preservedAgain, preserved);
 
 execute(databaseUrl, `
-  delete from public.game_player_featured_achievements
-  where nick_key = '${escapedNickKey}';
-
-  insert into public.game_player_featured_achievements (
-    nick_key,
-    achievement_code,
-    position,
-    active,
-    selected_at,
-    updated_at
-  )
-  select
-    backup.nick_key,
-    backup.achievement_code,
-    backup.position,
-    backup.active,
-    backup.selected_at,
-    backup.updated_at
-  from ${backupTable} backup;
-
   drop table public.player_achievement_highlights;
-  drop table ${backupTable};
+  delete from public.game_players where nick_key in ('${copyNickKey}', '${preserveNickKey}');
 `);
 
 process.stdout.write('✓ Legacy player achievement highlights upgrade is data-preserving, restricted and idempotent\n');
