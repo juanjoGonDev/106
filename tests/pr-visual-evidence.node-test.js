@@ -35,11 +35,11 @@ test('detects frontend paths across canonical directories and media extensions',
   }
 });
 
-test('parses only paired-device summaries inside a valid marker block', () => {
+test('parses desktop, mobile and gif summaries inside a valid marker block', () => {
   const body = block([
     details('<strong>Player overview</strong> · Desktop', 'https://images.example/player-desktop.png'),
     details('Player overview - móvil', 'https://images.example/player-mobile.png "Mobile"'),
-    details('Animation · GIF', 'https://images.example/animation.gif'),
+    details('Player overview · GIF', 'https://images.example/player-animation.gif'),
     details('Player overview / Desktop', 'https://images.example/invalid-separator.png'),
     details(' · Desktop', 'https://images.example/empty-area.png'),
     '<details><summary>Broken</summary>![x](https://images.example/x.png)</details>',
@@ -47,8 +47,9 @@ test('parses only paired-device summaries inside a valid marker block', () => {
   assert.deepEqual(parseVisualEvidence(body), {
     hasMarkers: true,
     entries: [
-      { area: 'Player overview', device: 'desktop', image: 'https://images.example/player-desktop.png', summary: 'Player overview · Desktop' },
-      { area: 'Player overview', device: 'mobile', image: 'https://images.example/player-mobile.png', summary: 'Player overview - móvil' },
+      { area: 'Player overview', type: 'desktop', image: 'https://images.example/player-desktop.png', summary: 'Player overview · Desktop' },
+      { area: 'Player overview', type: 'mobile', image: 'https://images.example/player-mobile.png', summary: 'Player overview - móvil' },
+      { area: 'Player overview', type: 'gif', image: 'https://images.example/player-animation.gif', summary: 'Player overview · GIF' },
     ],
   });
 });
@@ -56,17 +57,17 @@ test('parses only paired-device summaries inside a valid marker block', () => {
 test('returns empty image destinations for every malformed Markdown boundary', () => {
   const body = block([
     rawDetails('Missing opener · Desktop', 'No image'),
-    rawDetails('Missing destination · Desktop', '![broken'),
-    rawDetails('Missing closing parenthesis · Desktop', '![broken](https://images.invalid/no-close.png'),
+    rawDetails('Missing destination · Mobile', '![broken'),
+    rawDetails('Missing closing parenthesis · GIF', '![broken](https://images.invalid/no-close.gif'),
     rawDetails('Empty destination · Desktop', '![]()'),
   ].join('\n'));
   assert.deepEqual(parseVisualEvidence(body), {
     hasMarkers: true,
     entries: [
-      { area: 'Missing opener', device: 'desktop', image: '', summary: 'Missing opener · Desktop' },
-      { area: 'Missing destination', device: 'desktop', image: '', summary: 'Missing destination · Desktop' },
-      { area: 'Missing closing parenthesis', device: 'desktop', image: '', summary: 'Missing closing parenthesis · Desktop' },
-      { area: 'Empty destination', device: 'desktop', image: '', summary: 'Empty destination · Desktop' },
+      { area: 'Missing opener', type: 'desktop', image: '', summary: 'Missing opener · Desktop' },
+      { area: 'Missing destination', type: 'mobile', image: '', summary: 'Missing destination · Mobile' },
+      { area: 'Missing closing parenthesis', type: 'gif', image: '', summary: 'Missing closing parenthesis · GIF' },
+      { area: 'Empty destination', type: 'desktop', image: '', summary: 'Empty destination · Desktop' },
     ],
   });
 });
@@ -101,23 +102,24 @@ test('does not require evidence for backend-only or absent changed files', () =>
   }
 });
 
-test('requires the repository marker block and at least one evidence pair', () => {
+test('requires the repository marker block and at least one complete evidence area', () => {
   assert.deepEqual(validateVisualEvidence('plain body', ['public/app.js']), {
     required: true,
     frontendFiles: ['public/app.js'],
     errors: ['Missing visual evidence marker block. Use the repository pull request template.'],
   });
-  assert.deepEqual(validateVisualEvidence(block(details('Animation · GIF')), ['public/app.js']), {
+  assert.deepEqual(validateVisualEvidence(block('<details><summary>Broken</summary></details>'), ['public/app.js']), {
     required: true,
     frontendFiles: ['public/app.js'],
-    errors: ['Add at least one paired Desktop/Mobile visual evidence area.'],
+    errors: ['Add at least one complete Desktop/Mobile/GIF visual evidence area.'],
   });
 });
 
-test('accepts complete desktop and mobile evidence with case-insensitive area matching', () => {
+test('accepts complete desktop, mobile and gif evidence with case-insensitive area matching', () => {
   const body = block([
     details('Ranking · Desktop', 'https://github.com/user-attachments/assets/desktop'),
     details('ranking — Mobile', 'https://github.com/user-attachments/assets/mobile'),
+    details('RANKING - GIF', 'https://github.com/user-attachments/assets/animation'),
   ].join('\n'));
   assert.deepEqual(validateVisualEvidence(body, ['public/ranking.html', 'public/ranking.html']), {
     required: true,
@@ -126,14 +128,17 @@ test('accepts complete desktop and mobile evidence with case-insensitive area ma
   });
 });
 
-test('reports missing images, placeholders, missing counterparts and duplicates once', () => {
+test('reports missing images, placeholders, counterparts and duplicates once', () => {
   const body = block([
     details('Home · Desktop', null),
     details('Home · Desktop', 'PASTE_DESKTOP_URL'),
+    details('Home · GIF', 'https://images.invalid/home.gif'),
     details('Profile · Mobile', 'https://example.com/mobile.png'),
     details('Ranking - Escritorio', 'https://images.invalid/ranking.png'),
     details('Ranking - Móvil', 'https://images.invalid/ranking-mobile.png'),
     details('Ranking - Mobile', 'https://images.invalid/ranking-mobile-2.png'),
+    details('Ranking - GIF', 'https://images.invalid/ranking.gif'),
+    details('Ranking - GIF', 'https://images.invalid/ranking-2.gif'),
   ].join('\n'));
   const result = validateVisualEvidence(body, ['public/index.html']);
   assert.deepEqual(result.frontendFiles, ['public/index.html']);
@@ -145,6 +150,8 @@ test('reports missing images, placeholders, missing counterparts and duplicates 
     'Home: missing Mobile evidence.',
     'Home: duplicate Desktop evidence.',
     'Profile: missing Desktop evidence.',
+    'Profile: missing GIF evidence.',
     'Ranking: duplicate Mobile evidence.',
+    'Ranking: duplicate GIF evidence.',
   ]);
 });
