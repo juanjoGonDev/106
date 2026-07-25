@@ -161,8 +161,19 @@ describe('profile image file sharing', () => {
 
     expect(button.disabled).toBe(true);
     expect(button.textContent).toBe('Preparando...');
+    const repeatedPreparation = api.bindButton({
+      button,
+      url: shareUrl,
+      cardUrl: 'https://api.example/player-share/Juan/trophies.png?v=19',
+      nick: 'Juan',
+      section: 'trophies',
+      readyLabel: 'Compartir perfil',
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     release();
-    const file = await preparation;
+    const [file, repeatedFile] = await Promise.all([preparation, repeatedPreparation]);
+    expect(repeatedFile).toBe(file);
     expect(file.name).toBe('minuto-106-juan-trophies.png');
     expect(button.disabled).toBe(false);
     expect(button.textContent).toBe('Compartir perfil');
