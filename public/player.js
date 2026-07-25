@@ -8,10 +8,11 @@
   const deviceKey = 'minuto106:device-id';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const absoluteSchemePattern = /^[a-z][a-z0-9+.-]*:/i;
-  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [], degraded: false });
   let persistedFeaturedCodes = [];
   let draftFeaturedCodes = [];
   let savePending = false;
+  let retryPending = false;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -57,6 +58,10 @@
     meta.setAttribute('content', content);
   }
 
+  async function responseBody(response) {
+    return response.json().catch(() => ({}));
+  }
+
   async function requestPlayerContext(action, payload = {}) {
     if (!playerContextUrl || playerContextUrl === apiUrl) {
       throw new Error('No se ha configurado el servidor de perfiles.');
@@ -66,10 +71,43 @@
       headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
       body: JSON.stringify({ action, nick: route.nick, ...payload }),
     });
-    const body = await response.json().catch(() => ({}));
+    const body = await responseBody(response);
     if (!response.ok) throw new Error(body.error || 'No se pudo cargar el jugador.');
     if (!body?.profile?.nick) throw new Error('No se encontró el jugador.');
     return body;
+  }
+
+  async function requestPublicProfile() {
+    if (!apiUrl) throw new Error('No se ha configurado el servidor público.');
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'public-profile', nick: route.nick }),
+    });
+    const profile = await responseBody(response);
+    if (!response.ok) throw new Error(profile.error || 'No se pudo cargar el jugador.');
+    if (!profile?.nick) throw new Error('No se encontró el jugador.');
+    return {
+      availability: 'unknown',
+      profile,
+      leagues: [],
+      degraded: true,
+    };
+  }
+
+  async function loadPublicContext() {
+    try {
+      return await requestPlayerContext('player-context');
+    } catch {
+      try {
+        return await requestPublicProfile();
+      } catch (fallbackError) {
+        if (fallbackError instanceof Error && fallbackError.message === 'No se encontró el jugador.') {
+          throw fallbackError;
+        }
+        throw new Error('No se pudo conectar con el servidor de perfiles. Reinténtalo en unos segundos.', { cause: fallbackError });
+      }
+    }
   }
 
   function setMetadata(player) {
@@ -314,6 +352,16 @@
       .filter(Boolean);
   }
 
+  function renderRecoveryNotice() {
+    const notice = $('#playerRecoveryNotice');
+    if (!notice) return;
+    notice.hidden = context.degraded !== true;
+    const button = $('#retryPlayerContext');
+    if (!button) return;
+    button.disabled = retryPending;
+    button.textContent = retryPending ? 'Conectando…' : 'Reintentar conexión';
+  }
+
   function renderContext() {
     const player = context.profile;
     if (!player?.nick) return;
@@ -328,14 +376,49 @@
     window.Minuto106PlayerStats?.renderPlayerRadar($('#playerRadar'), [{ profile: player, label: player.nick }]);
     renderShareActions(player);
     $('#saveFeaturedAchievements').onclick = () => saveFeaturedAchievements();
+    $('#playerError').hidden = true;
     $('#playerLoading').hidden = true;
     $('#playerContent').hidden = false;
+    renderRecoveryNotice();
   }
 
   function showError(error) {
+    const message = error instanceof Error && error.message !== 'Failed to fetch'
+      ? error.message
+      : 'No se pudo conectar con el servidor de perfiles. Reinténtalo en unos segundos.';
+    $('#playerContent').hidden = true;
     $('#playerLoading').hidden = true;
     $('#playerError').hidden = false;
-    $('#playerErrorMessage').textContent = error instanceof Error ? error.message : 'No se pudo cargar el jugador.';
+    $('#playerErrorMessage').textContent = message;
+  }
+
+  async function loadProfile({ keepCurrent = false } = {}) {
+    if (retryPending) return;
+    retryPending = true;
+    if (!keepCurrent) {
+      $('#playerContent').hidden = true;
+      $('#playerError').hidden = true;
+      $('#playerLoading').hidden = false;
+    }
+    renderRecoveryNotice();
+
+    try {
+      context = Object.freeze(await loadPublicContext());
+      persistedFeaturedCodes = featuredCodes(context.profile);
+      draftFeaturedCodes = [...persistedFeaturedCodes];
+      renderContext();
+    } catch (error) {
+      if (keepCurrent && context.profile?.nick) {
+        context = Object.freeze({ ...context, degraded: true });
+        const message = $('#playerRecoveryMessage');
+        if (message) message.textContent = 'El perfil sigue disponible en modo lectura. La conexión completa aún no se ha recuperado.';
+      } else {
+        showError(error);
+      }
+    } finally {
+      retryPending = false;
+      renderRecoveryNotice();
+    }
   }
 
   if (!ui || !catalog || route.nick.length < 2) {
@@ -343,10 +426,7 @@
     return;
   }
 
-  requestPlayerContext('player-context').then((loadedContext) => {
-    context = Object.freeze(loadedContext);
-    persistedFeaturedCodes = featuredCodes(context.profile);
-    draftFeaturedCodes = [...persistedFeaturedCodes];
-    renderContext();
-  }).catch(showError);
+  $('#retryPlayerProfile').onclick = () => loadProfile();
+  $('#retryPlayerContext').onclick = () => loadProfile({ keepCurrent: true });
+  loadProfile();
 })();
