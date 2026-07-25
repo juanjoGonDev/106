@@ -21,6 +21,16 @@ function runPnpm(arguments_, options = {}) {
   return result;
 }
 
+function runNodeScript(path) {
+  const result = spawnSync(process.execPath, [path], {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+}
+
 function cacheRoots() {
   const roots = [
     process.env.XDG_CACHE_HOME ? join(process.env.XDG_CACHE_HOME, 'pnpm', 'dlx') : '',
@@ -68,3 +78,5 @@ runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test'], {
     PLAYWRIGHT_TEST_PATH: dirname(packageJsonPath),
   },
 });
+
+if (process.env.PR_VISUAL_CAPTURE === '1') runNodeScript('scripts/create-preview-gif.mjs');
