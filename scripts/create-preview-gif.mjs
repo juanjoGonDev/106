@@ -8,6 +8,7 @@ const outputDirectory = resolve('.tmp/pr-previews');
 const FRAME_RATE = 12;
 const DESKTOP_WIDTH = 1280;
 const MOBILE_WIDTH = 720;
+const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
 
 function cacheRoots() {
   return [
@@ -54,7 +55,7 @@ function commandOutput(command, arguments_) {
 function supportsGifEncoding(command) {
   const formats = commandOutput(command, ['-hide_banner', '-formats']);
   const filters = commandOutput(command, ['-hide_banner', '-filters']);
-  return /\bE\s+gif\b/i.test(formats)
+  return GIF_MUXER_PATTERN.test(formats)
     && /\bpalettegen\b/i.test(filters)
     && /\bpaletteuse\b/i.test(filters);
 }
