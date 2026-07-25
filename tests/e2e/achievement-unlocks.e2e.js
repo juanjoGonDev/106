@@ -120,6 +120,15 @@ function recordingContextOptions(isMobile) {
   };
 }
 
+async function expectInsideViewport(page, locator) {
+  await expect.poll(async () => {
+    const box = await locator.boundingBox();
+    const viewport = page.viewportSize();
+    if (!box || !viewport) return false;
+    return box.x >= 0 && box.x + box.width <= viewport.width;
+  }, { timeout: 2_000 }).toBe(true);
+}
+
 test('shows one responsive video-game notification for the newly unlocked achievement', async ({ page, isMobile }) => {
   await installApiMock(page);
   await page.goto('/');
@@ -133,11 +142,7 @@ test('shows one responsive video-game notification for the newly unlocked achiev
   await expect(notification.locator('.achievement-unlock__description')).toContainText('250 ms o menos');
   await expect(notification.locator('.achievement-unlock__points')).toHaveText('+10 PUNTOS');
   await expect(notification).toHaveClass(/is-visible/);
-
-  const box = await notification.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize().width);
+  await expectInsideViewport(page, notification);
 
   if (captureEvidence) {
     await page.screenshot({
