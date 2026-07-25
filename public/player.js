@@ -5,16 +5,12 @@
   const ui = window.Minuto106PlayerUI;
   const catalog = window.Minuto106HonoursCatalog;
   const route = ui?.parsePlayerLocation(location) ?? { nick: '', section: 'overview' };
-  const deviceKey = 'minuto106:device-id';
-  const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
   const absoluteSchemePattern = /^[a-z][a-z0-9+.-]*:/i;
-  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [], degraded: false });
+  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
   let persistedFeaturedCodes = [];
   let draftFeaturedCodes = [];
   let savePending = false;
-  let retryPending = false;
-
-  localStorage.setItem(deviceKey, deviceId);
+  let loadPending = false;
 
   const $ = (selector) => document.querySelector(selector);
   const hasValue = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
@@ -68,7 +64,7 @@
     }
     const response = await fetch(playerContextUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-device-id': deviceId },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action, nick: route.nick, ...payload }),
     });
     const body = await responseBody(response);
@@ -91,7 +87,6 @@
       availability: 'unknown',
       profile,
       leagues: [],
-      degraded: true,
     };
   }
 
@@ -352,16 +347,6 @@
       .filter(Boolean);
   }
 
-  function renderRecoveryNotice() {
-    const notice = $('#playerRecoveryNotice');
-    if (!notice) return;
-    notice.hidden = context.degraded !== true;
-    const button = $('#retryPlayerContext');
-    if (!button) return;
-    button.disabled = retryPending;
-    button.textContent = retryPending ? 'Conectando…' : 'Reintentar conexión';
-  }
-
   function renderContext() {
     const player = context.profile;
     if (!player?.nick) return;
@@ -379,7 +364,6 @@
     $('#playerError').hidden = true;
     $('#playerLoading').hidden = true;
     $('#playerContent').hidden = false;
-    renderRecoveryNotice();
   }
 
   function showError(error) {
@@ -392,15 +376,12 @@
     $('#playerErrorMessage').textContent = message;
   }
 
-  async function loadProfile({ keepCurrent = false } = {}) {
-    if (retryPending) return;
-    retryPending = true;
-    if (!keepCurrent) {
-      $('#playerContent').hidden = true;
-      $('#playerError').hidden = true;
-      $('#playerLoading').hidden = false;
-    }
-    renderRecoveryNotice();
+  async function loadProfile() {
+    if (loadPending) return;
+    loadPending = true;
+    $('#playerContent').hidden = true;
+    $('#playerError').hidden = true;
+    $('#playerLoading').hidden = false;
 
     try {
       context = Object.freeze(await loadPublicContext());
@@ -408,16 +389,9 @@
       draftFeaturedCodes = [...persistedFeaturedCodes];
       renderContext();
     } catch (error) {
-      if (keepCurrent && context.profile?.nick) {
-        context = Object.freeze({ ...context, degraded: true });
-        const message = $('#playerRecoveryMessage');
-        if (message) message.textContent = 'El perfil sigue disponible en modo lectura. La conexión completa aún no se ha recuperado.';
-      } else {
-        showError(error);
-      }
+      showError(error);
     } finally {
-      retryPending = false;
-      renderRecoveryNotice();
+      loadPending = false;
     }
   }
 
@@ -427,6 +401,5 @@
   }
 
   $('#retryPlayerProfile').onclick = () => loadProfile();
-  $('#retryPlayerContext').onclick = () => loadProfile({ keepCurrent: true });
   loadProfile();
 })();

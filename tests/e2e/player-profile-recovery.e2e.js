@@ -10,6 +10,7 @@ const { expect, test } = require(runtimePath);
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
 const previewRoot = resolve('.tmp/pr-previews');
 const cardSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"><rect width="1200" height="630" fill="#08090c"/></svg>';
+const accountStorageKey = 'minuto106:account-access-v1';
 
 function profile() {
   return {
@@ -77,36 +78,70 @@ function requestBody(request) {
   }
 }
 
-async function capture(page, testInfo) {
+async function capture(page, testInfo, name) {
   if (!visualCapture) return;
   const device = testInfo.project.name.includes('mobile') ? 'mobile' : 'desktop';
   mkdirSync(previewRoot, { recursive: true });
   await page.screenshot({
-    path: resolve(previewRoot, `player-profile-recovery-${device}.png`),
+    path: resolve(previewRoot, `${name}-${device}.png`),
     animations: 'disabled',
     fullPage: true,
   });
 }
 
-test('public player profile falls back to read-only data and retries full context', async ({ page }, testInfo) => {
-  let contextAvailable = false;
-  let contextRequests = 0;
-  let fallbackRequests = 0;
-
+async function mockPlayerCard(page) {
   await page.route('**/functions/v1/player-share/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: cardSvg });
   });
+}
+
+test('owned player context uses only the supported account header', async ({ page }, testInfo) => {
+  const accountToken = 'a'.repeat(64);
+  let contextRequests = 0;
+  let fallbackRequests = 0;
+  let contextHeaders = {};
+
+  await page.addInitScript(({ key, token }) => {
+    localStorage.setItem(key, token);
+  }, { key: accountStorageKey, token: accountToken });
+  await mockPlayerCard(page);
   await page.route('**/functions/v1/player-context', async (route) => {
     contextRequests += 1;
-    if (!contextAvailable) {
-      await route.abort('failed');
-      return;
-    }
+    contextHeaders = route.request().headers();
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ availability: 'owned', profile: profile(), leagues: [] }),
     });
+  });
+  await page.route('**/functions/v1/game-api', async (route) => {
+    const body = requestBody(route.request());
+    if (body.action === 'public-profile') fallbackRequests += 1;
+    await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Acción desconocida.' }) });
+  });
+
+  await page.goto('/player/Recovery/achievements');
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Recovery' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
+  await expect(page.locator('#featuredAchievementsEditor')).toBeVisible();
+  await expect(page.locator('#playerRecoveryNotice')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reintentar conexión' })).toHaveCount(0);
+  expect(contextRequests).toBe(1);
+  expect(fallbackRequests).toBe(0);
+  expect(contextHeaders['x-account-token']).toBe(accountToken);
+  expect(contextHeaders['x-device-id']).toBeUndefined();
+  await capture(page, testInfo, 'player-profile-context');
+});
+
+test('public fallback remains usable and silent when player context is unavailable', async ({ page }, testInfo) => {
+  let contextRequests = 0;
+  let fallbackRequests = 0;
+
+  await mockPlayerCard(page);
+  await page.route('**/functions/v1/player-context', async (route) => {
+    contextRequests += 1;
+    await route.abort('failed');
   });
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = requestBody(route.request());
@@ -122,20 +157,12 @@ test('public player profile falls back to read-only data and retries full contex
 
   await expect(page.getByRole('heading', { level: 1, name: 'Recovery' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Colección y progreso' })).toBeVisible();
-  await expect(page.locator('#playerRecoveryNotice')).toBeVisible();
-  await expect(page.locator('#playerRecoveryNotice')).toContainText('modo lectura');
   await expect(page.locator('#featuredAchievementsEditor')).toBeHidden();
+  await expect(page.locator('#playerRecoveryNotice')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reintentar conexión' })).toHaveCount(0);
   expect(contextRequests).toBe(1);
   expect(fallbackRequests).toBe(1);
-  await capture(page, testInfo);
-
-  contextAvailable = true;
-  await page.getByRole('button', { name: 'Reintentar conexión' }).click();
-
-  await expect(page.locator('#playerRecoveryNotice')).toBeHidden();
-  await expect(page.locator('#featuredAchievementsEditor')).toBeVisible();
-  expect(contextRequests).toBe(2);
-  expect(fallbackRequests).toBe(1);
+  await capture(page, testInfo, 'player-profile-fallback');
 
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
