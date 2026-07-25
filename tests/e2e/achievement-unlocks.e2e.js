@@ -5,9 +5,11 @@ import { join } from 'node:path';
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
-const { expect, test } = require(runtimePath);
+const { devices, expect, test } = require(runtimePath);
 const previewDirectory = '.tmp/pr-previews';
 const captureEvidence = process.env.PR_VISUAL_CAPTURE === '1';
+const applicationUrl = 'http://127.0.0.1:3000';
+const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: '2026-07-25T00:00:00.000Z' });
 mkdirSync(previewDirectory, { recursive: true });
 
 function bodyOf(request) {
@@ -97,48 +99,32 @@ function evidenceName(isMobile) {
   return `achievement-unlock-${isMobile ? 'mobile' : 'desktop'}`;
 }
 
-async function captureFrame(page, frameDirectory, index) {
-  await page.screenshot({
-    path: join(frameDirectory, `${String(index).padStart(3, '0')}.png`),
-    animations: 'allow',
-  });
-}
-
-async function beginUnlockEvidence(page, isMobile) {
-  if (!captureEvidence) {
-    await dispatchUnlock(page);
-    return null;
-  }
-
-  const frameDirectory = join(previewDirectory, 'frames', evidenceName(isMobile));
-  mkdirSync(frameDirectory, { recursive: true });
-  let frame = 0;
-  await captureFrame(page, frameDirectory, frame);
-  frame += 1;
-  await dispatchUnlock(page);
-
-  for (const delayMs of [100, 120, 140, 180, 250]) {
-    await page.waitForTimeout(delayMs);
-    await captureFrame(page, frameDirectory, frame);
-    frame += 1;
-  }
-  return { frame, frameDirectory };
-}
-
-async function completeUnlockEvidence(page, evidence) {
-  if (!evidence) return;
-  for (const delayMs of [300, 450, 600, 700, 700, 700, 500]) {
-    await page.waitForTimeout(delayMs);
-    await captureFrame(page, evidence.frameDirectory, evidence.frame);
-    evidence.frame += 1;
-  }
+function recordingContextOptions(isMobile) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    recordVideo: {
+      dir: join(previewDirectory, 'recordings'),
+      size: isMobile ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+    },
+    storageState: {
+      cookies: [],
+      origins: [{
+        origin: applicationUrl,
+        localStorage: [{ name: 'minuto106:consent-v1', value: storedConsent }],
+      }],
+    },
+  };
 }
 
 test('shows one responsive video-game notification for the newly unlocked achievement', async ({ page, isMobile }) => {
   await installApiMock(page);
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.Minuto106AchievementUnlockNotifier));
-  const evidence = await beginUnlockEvidence(page, isMobile);
+  await dispatchUnlock(page);
 
   const notification = page.locator('.achievement-unlock');
   await expect(notification).toBeVisible();
@@ -159,7 +145,27 @@ test('shows one responsive video-game notification for the newly unlocked achiev
       animations: 'disabled',
     });
   }
-  await completeUnlockEvidence(page, evidence);
+});
+
+test('records the complete unlock lifecycle in the whole viewport', async ({ browser, isMobile }) => {
+  test.skip(!captureEvidence, 'Visual recording is generated only by the PR evidence workflow.');
+  const context = await browser.newContext(recordingContextOptions(isMobile));
+  const page = await context.newPage();
+  await installApiMock(page);
+  await page.goto('/');
+  await page.waitForFunction(() => Boolean(window.Minuto106AchievementUnlockNotifier));
+  await page.waitForTimeout(700);
+  await dispatchUnlock(page);
+
+  const notification = page.locator('.achievement-unlock');
+  await expect(notification).toBeVisible();
+  await page.waitForTimeout(3_800);
+  await expect(notification).toBeHidden();
+
+  const video = page.video();
+  if (!video) throw new Error('Playwright did not create the requested unlock recording.');
+  await context.close();
+  await video.saveAs(join(previewDirectory, `${evidenceName(isMobile)}.webm`));
 });
 
 test('keeps the same information without motion when reduced motion is enabled', async ({ page }) => {
