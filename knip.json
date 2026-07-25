@@ -6,6 +6,7 @@
     "public/access.js",
     "public/account.js",
     "public/attempt-refresh.js",
+    "public/achievement-unlocks.js",
     "public/compliance.js",
     "public/competition.js",
     "public/duel-context.js",
