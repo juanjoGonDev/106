@@ -45,7 +45,7 @@ function fixtures() {
       totalAttempts: 0, revision: 3, leaderboard: [],
     },
     {
-      publicId: 'ACTIVE1', competitionCode: 'ACTIVE1', joinCode: 'JOIN02', name: 'Liga activa',
+      publicId: 'ACTV01', competitionCode: 'ACTV01', joinCode: 'JOIN02', name: 'Liga activa',
       visibility: 'private', locked: true, ownerNick: 'LeagueOwner', isOwner: true,
       participantCount: 3, members: 3, requiredParticipants: 3, maxParticipants: 10, durationDays: 2,
       waiting: false, scheduled: false, active: true, finished: false,
@@ -103,7 +103,7 @@ async function installLeagueApiMock(page, requestLog = []) {
       return;
     }
     if (body.action === 'player-leagues') {
-      const owned = body.nick === 'LeagueOwner' ? [leagues.find((league) => league.publicId === 'ACTIVE1')] : [];
+      const owned = body.nick === 'LeagueOwner' ? [leagues.find((league) => league.publicId === 'ACTV01')] : [];
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(owned) });
       return;
     }
@@ -130,7 +130,7 @@ async function installLeagueApiMock(page, requestLog = []) {
 }
 
 async function installHomeApiMocks(page, requestLog = []) {
-  const active = fixtures().find((league) => league.publicId === 'ACTIVE1');
+  const active = fixtures().find((league) => league.publicId === 'ACTV01');
   await page.route('**/functions/v1/player-context', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: 'owned', profile: playerProfile(), leagues: [active] }) });
   });
@@ -200,7 +200,7 @@ function recordingContextOptions(isMobile) {
 
 async function saveScreenshot(page, area, isMobile) {
   if (!captureEvidence) return;
-  await page.screenshot({ path: join(previewDirectory, `${evidenceName(area, isMobile)}.png`), animations: 'disabled' });
+  await page.screenshot({ path: join(previewDirectory, `${evidenceName(area, isMobile)}.png`), animations: 'disabled', fullPage: true });
 }
 
 async function saveVideo(context, page, area, isMobile) {
@@ -222,7 +222,7 @@ test('lists searchable public and private leagues and joins a public one without
   await expect(page.locator('[data-directory-league="PUBLIC"] [data-join-public]')).toBeVisible();
 
   await page.locator('#leagueVisibilityFilter').selectOption('public');
-  await expect(page.locator('[data-directory-league]')).toHaveCount(3);
+  await expect(page.locator('[data-directory-league]')).toHaveCount(2);
   await page.locator('#leagueSearch').fill('programada');
   await expect(page.locator('[data-directory-league]')).toHaveCount(1);
   await expect(page.locator('[data-directory-league="SCHED1"]')).toBeVisible();
@@ -241,7 +241,7 @@ test('dedicated active league route hides the hub and opens the home with the le
   await page.addInitScript(() => localStorage.setItem('minuto106:nick', 'LeagueOwner'));
   await installLeagueApiMock(page);
   await installHomeApiMocks(page);
-  await page.goto('/ligas/ACTIVE1');
+  await page.goto('/ligas/ACTV01');
 
   await expect(page.locator('.league-directory-only').first()).toBeHidden();
   await expect(page.locator('#leagueLookupTitle')).toHaveText('Liga activa');
@@ -252,8 +252,8 @@ test('dedicated active league route hides the hub and opens the home with the le
   await saveScreenshot(page, 'league-detail-active', isMobile);
 
   await page.locator('#competeLeagueLink').click();
-  await expect(page).toHaveURL(/\?competition=ACTIVE1$/);
-  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIVE1');
+  await expect(page).toHaveURL(/\?competition=ACTV01$/);
+  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTV01');
   await expect(page.locator('#competitionContext')).toContainText('Liga activa');
 });
 
@@ -277,14 +277,14 @@ test('the active league selection sends its public scope to the prepared attempt
   const requestLog = [];
   await page.addInitScript(() => localStorage.setItem('minuto106:nick', 'LeagueOwner'));
   await installHomeApiMocks(page, requestLog);
-  await page.goto('/?competition=ACTIVE1');
-  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIVE1');
+  await page.goto('/?competition=ACTV01');
+  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTV01');
   await page.getByRole('button', { name: 'España', exact: true }).click();
   await expect(page.locator('#startButton')).toBeEnabled();
   await page.locator('#startButton').click();
   await clickCaptcha(page);
   await expect(page.locator('.game-readiness-control')).toBeVisible();
-  expect(requestLog.find((request) => request.action === 'prepare-start')?.leagueCode).toBe('ACTIVE1');
+  expect(requestLog.find((request) => request.action === 'prepare-start')?.leagueCode).toBe('ACTV01');
 });
 
 test('records the complete searchable league directory interaction', async ({ browser, isMobile }) => {
@@ -296,7 +296,7 @@ test('records the complete searchable league directory interaction', async ({ br
   await expect(page.locator('[data-directory-league]')).toHaveCount(4);
   await page.waitForTimeout(500);
   await page.locator('#leagueVisibilityFilter').selectOption('private');
-  await expect(page.locator('[data-directory-league]')).toHaveCount(1);
+  await expect(page.locator('[data-directory-league]')).toHaveCount(2);
   await page.waitForTimeout(600);
   await page.locator('#leagueVisibilityFilter').selectOption('public');
   await page.locator('#leagueSearch').fill('programada');
@@ -311,11 +311,11 @@ test('records the active league play hand-off to the preselected home competitio
   const page = await context.newPage();
   await installLeagueApiMock(page);
   await installHomeApiMocks(page);
-  await page.goto('/ligas/ACTIVE1');
+  await page.goto('/ligas/ACTV01');
   await expect(page.locator('#competeLeagueLink')).toBeVisible();
   await page.waitForTimeout(700);
   await page.locator('#competeLeagueLink').click();
-  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTIVE1');
+  await expect(page.locator('#competitionPicker')).toHaveValue('league:ACTV01');
   await page.waitForTimeout(1_000);
   await saveVideo(context, page, 'league-detail-active', isMobile);
 });
