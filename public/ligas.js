@@ -1,18 +1,18 @@
 const leagueConfig = window.__MINUTO106_CONFIG__ ?? {};
-const leagueApi = String(leagueConfig.apiBaseUrl ?? '').replace(/\/$/, '');
-const leagueSocialApi = leagueApi.replace(/\/game-api$/, '/social-share');
+const gameApi = String(leagueConfig.apiBaseUrl ?? '').replace(/\/$/, '');
+const leagueApi = gameApi.replace(/\/game-api$/, '/league-api');
+const leagueSocialApi = gameApi.replace(/\/game-api$/, '/social-share');
 const leagueDevice = localStorage.getItem('minuto106:device-id') || crypto.randomUUID();
 const cleanRouteMatch = location.pathname.match(/^(.*\/)ligas\/([A-Z0-9]{6})\/?$/i);
-const leagueBaseUrl = cleanRouteMatch
-  ? new URL(cleanRouteMatch[1], location.origin)
-  : new URL('./', location.href);
-const initialPublicId = String(
-  cleanRouteMatch?.[2]
-  || new URLSearchParams(location.search).get('league')
-  || '',
-).trim().toUpperCase();
+const leagueBaseUrl = cleanRouteMatch ? new URL(cleanRouteMatch[1], location.origin) : new URL('./', location.href);
+const directory = window.Minuto106LeagueDirectory;
+const initialPublicId = directory.normalizeLeagueId(cleanRouteMatch?.[2] || new URLSearchParams(location.search).get('league'));
 let selectedLeague = null;
 let myLeagues = [];
+let directoryLeagues = [];
+let directorySequence = 0;
+let directoryTimer = 0;
+let statusTimer = 0;
 
 localStorage.setItem('minuto106:device-id', leagueDevice);
 
@@ -29,7 +29,7 @@ function installStableBaseUrl() {
 installStableBaseUrl();
 
 async function leagueRequest(action, payload = {}) {
-  if (!leagueApi) throw new Error('Supabase aún no está configurado.');
+  if (!leagueApi || leagueApi === gameApi) throw new Error('Supabase aún no está configurado para miniligas.');
   const response = await fetch(leagueApi, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-device-id': leagueDevice },
@@ -48,22 +48,18 @@ function showLeagueError(error, title = 'No se pudo completar la operación') {
 }
 
 function escapeLeague(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({
+  return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
   })[character]);
 }
 
-function hasValue(value) {
-  return value !== null && value !== undefined;
-}
-
-function normalizeLeagueId(value) {
-  const publicId = String(value || '').trim().toUpperCase();
-  return /^[A-Z0-9]{6}$/.test(publicId) ? publicId : '';
-}
-
 function currentNick() {
-  return String(document.querySelector('#leagueNick')?.value || '').trim();
+  return String(
+    document.querySelector('#leagueDetailNick')?.value
+    || document.querySelector('#leagueNick')?.value
+    || localStorage.getItem('minuto106:nick')
+    || '',
+  ).trim();
 }
 
 function persistNick() {
@@ -77,20 +73,12 @@ function compact(value) {
 }
 
 function formatDifference(value) {
-  return hasValue(value) ? `±${Number(value).toLocaleString('es-ES')} ms` : 'Sin marca';
+  return value === null || value === undefined ? 'Sin marca' : `±${Number(value).toLocaleString('es-ES')} ms`;
 }
 
-function remainingLabel(league) {
-  if (league?.waiting === true) return 'En espera de participantes';
-  const remaining = Math.max(0, new Date(league?.endsAt).getTime() - Date.now());
-  if (!remaining) return 'Finalizada';
-  const hours = Math.ceil(remaining / 3_600_000);
-  if (hours <= 24) return `Termina en ${hours} h`;
-  return `Termina en ${Math.ceil(hours / 24)} días`;
-}
-
-function eligibilityLabel(league) {
-  return `${Number(league?.eligibleOwners || 0)}/3 cuentas · ${Number(league?.eligibleDevices || 0)}/3 dispositivos`;
+function formatDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function leaguePublicUrl(publicId) {
@@ -103,7 +91,7 @@ function competitionUrl(publicId) {
   return url.toString();
 }
 
-function privateLeague(publicId) {
+function membershipFor(publicId) {
   return myLeagues.find((league) => league.publicId === publicId) ?? null;
 }
 
@@ -120,9 +108,7 @@ function upsertMeta(attribute, key, value) {
 function updateLeagueMetadata(league) {
   const canonicalUrl = leaguePublicUrl(league.publicId);
   const imageUrl = `${leagueSocialApi}/league/${encodeURIComponent(league.publicId)}/card.png?v=${Math.max(0, Number(league.revision || 0))}`;
-  const description = league.waiting === true
-    ? `${league.name} espera tres cuentas y tres dispositivos únicos para comenzar.`
-    : `${league.name}: ${Number(league.members || 0)} participantes y ${Number(league.totalAttempts || 0)} intentos.`;
+  const description = `${league.name}: ${directory.leagueStatusLabel(league).toLocaleLowerCase('es')}, ${Number(league.participantCount ?? league.members ?? 0)} participantes.`;
   document.title = `${league.name} · Minuto 106`;
   let canonical = document.head.querySelector('link[rel="canonical"]');
   if (!canonical) {
@@ -145,42 +131,79 @@ function updateLeagueMetadata(league) {
 async function shareLeaguePage(league) {
   await window.Minuto106UI?.share({
     title: `${league.name} · Minuto 106`,
-    text: league.waiting === true
-      ? `Consulta “${league.name}”. La competición empieza al alcanzar tres cuentas y tres dispositivos únicos.`
-      : `Consulta la clasificación pública de “${league.name}” en Minuto 106.`,
+    text: `Consulta “${league.name}”. ${directory.leagueStatusLabel(league)}.`,
     url: leaguePublicUrl(league.publicId),
   });
 }
 
 async function shareLeagueInvitation(league) {
   if (!league.joinCode) return shareLeaguePage(league);
-  const text = league.waiting === true
-    ? `Únete a mi liga “${league.name}” de Minuto 106. Empezará con 3 cuentas y 3 dispositivos únicos. Código privado: ${league.joinCode}.`
-    : `Únete a mi liga “${league.name}” de Minuto 106. Tendrás 5 intentos propios. Código privado: ${league.joinCode}.`;
   await window.Minuto106UI?.share({
     title: `Invitación a ${league.name}`,
-    text,
+    text: `Únete a mi liga privada “${league.name}” de Minuto 106. Código privado: ${league.joinCode}.`,
     url: leaguePublicUrl(league.publicId),
   });
 }
 
+function accessLabel(league) {
+  return league.visibility === 'public' ? 'Pública' : '🔒 Privada';
+}
+
+function configMarkup(league) {
+  const participants = Number(league.participantCount ?? league.members ?? 0);
+  const maximum = Number(league.maxParticipants ?? 10);
+  const duration = Number(league.durationDays ?? 3);
+  return [
+    `<span class="league-config-chip">${participants}/${maximum} participantes</span>`,
+    `<span class="league-config-chip">${duration} ${duration === 1 ? 'día' : 'días'}</span>`,
+    '<span class="league-config-chip">5 intentos por persona</span>',
+  ].join('');
+}
+
+function renderDirectoryCard(league) {
+  const membership = membershipFor(league.publicId);
+  const canJoin = !membership && directory.canJoinLeague(league);
+  return `<article class="league-directory-card" data-directory-league="${escapeLeague(league.publicId)}">
+    <header><div><h3>${escapeLeague(league.name)}</h3><small>${escapeLeague(league.publicId)}</small></div><span class="league-access-badge" data-visibility="${escapeLeague(league.visibility)}">${accessLabel(league)}</span></header>
+    <p class="league-card-summary">${escapeLeague(directory.leagueStatusLabel(league))}</p>
+    <div class="league-config-list">${configMarkup(league)}</div>
+    <div class="league-card-actions"><a class="ghost compact" href="${escapeLeague(leaguePublicUrl(league.publicId))}">Ver liga</a>${canJoin ? `<button class="primary compact" type="button" data-join-public="${escapeLeague(league.publicId)}">Unirme</button>` : ''}</div>
+  </article>`;
+}
+
+function renderDirectory() {
+  const container = document.querySelector('#leagueDirectoryList');
+  const count = document.querySelector('#leagueDirectoryCount');
+  if (!container || !count) return;
+  count.textContent = `${compact(directoryLeagues.length)} ${directoryLeagues.length === 1 ? 'liga' : 'ligas'}`;
+  container.innerHTML = directoryLeagues.length
+    ? directoryLeagues.map(renderDirectoryCard).join('')
+    : '<p class="empty">No hay ligas que coincidan con la búsqueda.</p>';
+}
+
+async function loadDirectory() {
+  const sequence = ++directorySequence;
+  const search = document.querySelector('#leagueSearch')?.value;
+  const visibility = document.querySelector('#leagueVisibilityFilter')?.value;
+  const container = document.querySelector('#leagueDirectoryList');
+  if (container) container.innerHTML = '<p class="empty">Cargando ligas…</p>';
+  const leagues = await leagueRequest('list-leagues', directory.buildDirectoryPayload(search, visibility));
+  if (sequence !== directorySequence) return;
+  directoryLeagues = Array.isArray(leagues) ? leagues : [];
+  renderDirectory();
+}
+
 function renderMyLeagueCard(league) {
-  const active = league.active === true;
-  const waiting = league.waiting === true;
   const rank = league.rank ? `#${league.rank}` : '—';
-  const status = waiting ? `${remainingLabel(league)} · ${eligibilityLabel(league)}` : remainingLabel(league);
-  const shareLabel = league.joinCode ? 'Compartir invitación' : 'Compartir liga';
-  const publicUrl = leaguePublicUrl(league.publicId);
-  return `
-    <article class="my-league-card${selectedLeague?.publicId === league.publicId ? ' active' : ''}" data-league-card="${escapeLeague(league.publicId)}">
-      <header><div><h3>${escapeLeague(league.name)}</h3><small>Vista pública ${escapeLeague(league.publicId)}</small></div><span class="league-status">${escapeLeague(status)}</span></header>
-      <div class="league-card-stats">
-        <div><span>Puesto</span><strong>${rank}</strong></div>
-        <div><span>Intentos</span><strong>${league.attemptsUsed ?? 0}/${league.maxAttempts ?? 5}</strong></div>
-        <div><span>Mejor</span><strong>${formatDifference(league.bestDifferenceMs)}</strong></div>
-      </div>
-      <div class="league-card-actions"><a class="ghost compact" href="${escapeLeague(publicUrl)}" data-view-league="${escapeLeague(league.publicId)}">Ver clasificación</a>${active && Number(league.attemptsLeft ?? 0) > 0 ? `<a class="primary compact" href="${escapeLeague(competitionUrl(league.publicId))}">Competir</a>` : ''}<button class="secondary compact" type="button" data-share-league="${escapeLeague(league.publicId)}">${shareLabel}</button></div>
-    </article>`;
+  const play = directory.canPlayLeague(league, league)
+    ? `<a class="primary compact" href="${escapeLeague(competitionUrl(league.publicId))}">Jugar</a>`
+    : '';
+  return `<article class="my-league-card" data-league-card="${escapeLeague(league.publicId)}">
+    <header><div><h3>${escapeLeague(league.name)}</h3><small>${escapeLeague(league.publicId)}</small></div><span class="league-access-badge" data-visibility="${escapeLeague(league.visibility)}">${accessLabel(league)}</span></header>
+    <p class="league-card-summary">${escapeLeague(directory.leagueStatusLabel(league))}</p>
+    <div class="league-config-list">${configMarkup(league)}<span class="league-config-chip">Puesto ${rank}</span><span class="league-config-chip">${league.attemptsUsed ?? 0}/${league.maxAttempts ?? 5} intentos</span></div>
+    <div class="league-card-actions"><a class="ghost compact" href="${escapeLeague(leaguePublicUrl(league.publicId))}">Ver liga</a>${play}<button class="secondary compact" type="button" data-share-league="${escapeLeague(league.publicId)}">${league.joinCode ? 'Compartir invitación' : 'Compartir liga'}</button></div>
+  </article>`;
 }
 
 async function loadMyLeagues() {
@@ -189,18 +212,19 @@ async function loadMyLeagues() {
   const nick = persistNick();
   if (nick.length < 2) {
     myLeagues = [];
-    container.innerHTML = '<p class="empty">Escribe tu nick para cargar tus ligas.</p>';
-    count.textContent = '0 ligas';
+    if (container) container.innerHTML = '<p class="empty">Escribe tu nick para cargar tus ligas.</p>';
+    if (count) count.textContent = '0 ligas';
     return myLeagues;
   }
-
-  container.innerHTML = '<p class="empty">Cargando tus ligas…</p>';
-  const leagues = await leagueRequest('player-leagues', { nick });
-  myLeagues = Array.isArray(leagues) ? leagues : [];
-  count.textContent = `${compact(myLeagues.length)} ${myLeagues.length === 1 ? 'liga' : 'ligas'}`;
-  container.innerHTML = myLeagues.length
-    ? myLeagues.map(renderMyLeagueCard).join('')
-    : '<p class="empty">Aún no participas en ninguna liga. Crea una o introduce una clave de invitación.</p>';
+  if (container) container.innerHTML = '<p class="empty">Cargando tus ligas…</p>';
+  try {
+    const leagues = await leagueRequest('player-leagues', { nick });
+    myLeagues = Array.isArray(leagues) ? leagues : [];
+  } catch {
+    myLeagues = [];
+  }
+  if (count) count.textContent = `${compact(myLeagues.length)} ${myLeagues.length === 1 ? 'liga' : 'ligas'}`;
+  if (container) container.innerHTML = myLeagues.length ? myLeagues.map(renderMyLeagueCard).join('') : '<p class="empty">Aún no participas en ninguna liga.</p>';
   return myLeagues;
 }
 
@@ -212,139 +236,174 @@ function renderLeagueAttempts(status) {
     list.replaceChildren();
     return;
   }
-
   section.hidden = false;
   list.innerHTML = status.history?.length
     ? status.history.map((attempt, index) => `<li><span class="history-number">${status.attemptsUsed - index}</span><span>${(Number(attempt.elapsedMs) / 1000).toFixed(3)} s</span><strong>${formatDifference(attempt.differenceMs)}</strong><small class="${attempt.verified ? 'valid' : 'invalid'}">${attempt.verified ? 'Válido' : 'Excluido'}</small></li>`).join('')
     : '<li class="empty">Todavía no has realizado intentos en esta liga.</li>';
 }
 
+function updateSelectedStatus() {
+  if (!selectedLeague) return;
+  document.querySelector('#leagueLookupEnds').textContent = directory.leagueStatusLabel(selectedLeague);
+  const phase = directory.leaguePhase(selectedLeague);
+  const start = formatDate(selectedLeague.startsAt);
+  const end = formatDate(selectedLeague.endsAt);
+  document.querySelector('#leagueMembershipMessage').textContent = phase === 'waiting'
+    ? 'La cuenta atrás de 23 horas se programará al alcanzar el mínimo de identidades válidas.'
+    : phase === 'scheduled'
+      ? `Inicio programado: ${start}.`
+      : phase === 'active'
+        ? `En juego hasta ${end}.`
+        : `Finalizó el ${end}.`;
+}
+
 function renderLeague(league, status = null) {
-  const membership = privateLeague(league.publicId);
-  selectedLeague = { ...league, ...membership };
-  const waiting = league.waiting === true;
+  const membership = membershipFor(league.publicId);
+  selectedLeague = { ...league, ...membership, ...status };
   const section = document.querySelector('#leagueLookupResult');
   section.hidden = false;
+  document.querySelector('#leagueLookupEyebrow').textContent = accessLabel(league).toUpperCase();
   document.querySelector('#leagueLookupTitle').textContent = league.name;
-  document.querySelector('#leagueLookupPublicId').textContent = `Liga pública ${league.publicId}`;
-  document.querySelector('#leagueLookupEnds').textContent = waiting ? 'La cuenta atrás aún no ha empezado' : remainingLabel(league);
-  document.querySelector('#leagueLookupMeta').textContent = waiting
-    ? `${compact(league.members ?? 0)} participantes · ${eligibilityLabel(league)} · empieza al alcanzar tres identidades válidas`
-    : `${compact(league.members ?? 0)} participantes · ${compact(league.totalAttempts ?? 0)} intentos exclusivos de esta liga`;
+  document.querySelector('#leagueLookupPublicId').textContent = `Liga ${league.publicId}`;
+  document.querySelector('#leagueLookupMeta').textContent = `${compact(league.participantCount ?? league.members ?? 0)} participantes · ${compact(league.totalAttempts ?? 0)} intentos registrados`;
+  document.querySelector('#leagueLookupConfig').innerHTML = configMarkup(league);
 
   const competeLink = document.querySelector('#competeLeagueLink');
   competeLink.href = competitionUrl(league.publicId);
-  competeLink.hidden = league.active !== true || !membership || Number(membership.attemptsLeft ?? 0) <= 0;
-  document.querySelector('#shareLeagueButton').textContent = membership?.joinCode ? 'Compartir invitación privada' : 'Compartir liga';
+  competeLink.hidden = !directory.canPlayLeague(league, status || membership);
 
+  const publicJoin = document.querySelector('#joinPublicLeagueButton');
+  publicJoin.hidden = Boolean(membership) || !directory.canJoinLeague(league);
+  publicJoin.dataset.publicId = league.publicId;
+  document.querySelector('#leagueDetailNickRow').hidden = publicJoin.hidden || currentNick().length >= 2;
+
+  document.querySelector('#shareLeagueButton').textContent = membership?.joinCode ? 'Compartir invitación privada' : 'Compartir liga';
   const nickKey = currentNick().normalize('NFKC').trim().toLocaleLowerCase('es');
   document.querySelector('#leagueLookupList').innerHTML = league.leaderboard?.length
     ? league.leaderboard.map((entry) => `<li data-current="${String(entry.nick || '').normalize('NFKC').trim().toLocaleLowerCase('es') === nickKey}"><span class="rank">${entry.rank ? `#${entry.rank}` : '—'}</span><span class="player">${escapeLeague(entry.nick)}<small>${entry.attemptsUsed ?? 0}/5 intentos · ${entry.verifiedAttempts ?? 0} válidos</small></span><span class="difference">${formatDifference(entry.bestDifferenceMs)}</span></li>`).join('')
-    : `<li class="empty">${waiting ? 'La clasificación se abrirá cuando empiece la liga.' : 'Todavía no hay participantes con marca.'}</li>`;
+    : `<li class="empty">${directory.leaguePhase(league) === 'active' ? 'Todavía no hay participantes con marca.' : 'La clasificación se abrirá cuando empiece la liga.'}</li>`;
 
   renderLeagueAttempts(status);
-  document.querySelectorAll('[data-league-card]').forEach((card) => {
-    card.classList.toggle('active', card.dataset.leagueCard === league.publicId);
-  });
+  updateSelectedStatus();
   updateLeagueMetadata(league);
+  window.clearInterval(statusTimer);
+  statusTimer = window.setInterval(updateSelectedStatus, 1_000);
 }
 
 async function loadLeague(publicId) {
-  const normalized = normalizeLeagueId(publicId);
+  const normalized = directory.normalizeLeagueId(publicId);
   if (!normalized) throw new Error('El identificador público de la liga no es válido.');
-  const league = await leagueRequest('league', { code: normalized });
-  const resolvedPublicId = normalizeLeagueId(league.publicId || league.code);
+  const league = await leagueRequest('league', { publicId: normalized });
+  const resolvedPublicId = directory.normalizeLeagueId(league.publicId);
   if (!resolvedPublicId) throw new Error('La liga no existe.');
   league.publicId = resolvedPublicId;
 
   let status = null;
+  const membership = membershipFor(resolvedPublicId);
   const nick = persistNick();
-  const membership = privateLeague(resolvedPublicId);
-  if (nick.length >= 2 && membership?.competitionCode) {
+  if (membership && nick.length >= 2) {
     try {
-      status = await leagueRequest('league-status', { nick, code: membership.competitionCode });
-      status.member = true;
+      status = await leagueRequest('league-status', { nick, publicId: resolvedPublicId });
     } catch {
-      status = { member: false };
+      status = null;
     }
   }
-
   renderLeague(league, status);
   history.replaceState(null, '', leaguePublicUrl(resolvedPublicId));
   return selectedLeague;
 }
 
-async function createLeague() {
+async function joinLeague(payload) {
   const nick = persistNick();
-  const name = String(document.querySelector('#newLeagueName').value || '').trim();
-  if (nick.length < 2) throw new Error('Escribe el nick con el que crearás la liga.');
-  if (name.length < 3) throw new Error('El nombre debe tener al menos 3 caracteres.');
-  const created = await leagueRequest('create-league', { nick, name });
-  document.querySelector('#newLeagueName').value = '';
-  await loadMyLeagues();
-  const league = await loadLeague(created.publicId);
-  await shareLeagueInvitation({ ...league, joinCode: created.joinCode });
+  if (nick.length < 2) throw new Error('Escribe el nick con el que competirás.');
+  const result = await leagueRequest('join-league', { nick, ...payload });
+  const publicId = directory.normalizeLeagueId(result.publicId);
+  if (!publicId) throw new Error('La liga no devolvió un identificador válido.');
+  location.assign(leaguePublicUrl(publicId));
 }
 
-async function joinLeague() {
-  const nick = persistNick();
-  const code = String(document.querySelector('#leagueJoinCode').value || '').trim().toUpperCase();
-  if (nick.length < 2) throw new Error('Escribe el nick con el que te unirás.');
-  if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('Introduce una clave privada válida de seis caracteres.');
-  const joined = await leagueRequest('join-league', { nick, code });
-  document.querySelector('#leagueJoinCode').value = '';
-  await loadMyLeagues();
-  const league = await loadLeague(joined.publicId);
-  const message = league.active === true
-    ? `La liga “${league.name}” ya está activa. Dispones de 5 intentos propios.`
-    : `Ya formas parte de “${league.name}”. ${eligibilityLabel(league)} para comenzar.`;
-  await window.Minuto106UI?.success({ title: league.active === true ? 'Liga activada' : 'Ya estás dentro', message });
+function scheduleDirectoryLoad() {
+  window.clearTimeout(directoryTimer);
+  directoryTimer = window.setTimeout(() => loadDirectory().catch(showLeagueError), 250);
 }
 
-async function initializeLeagues() {
-  const nickInput = document.querySelector('#leagueNick');
-  nickInput.value = localStorage.getItem('minuto106:nick') || '';
+function bindEvents() {
+  document.querySelector('#leagueNick')?.addEventListener('change', async () => {
+    await loadMyLeagues();
+    if (selectedLeague) await loadLeague(selectedLeague.publicId);
+    else if (!initialPublicId) renderDirectory();
+  });
+  document.querySelector('#leagueDetailNick')?.addEventListener('change', async (event) => {
+    const nick = String(event.target.value || '').trim();
+    const directoryInput = document.querySelector('#leagueNick');
+    if (directoryInput) directoryInput.value = nick;
+    persistNick();
+    await loadMyLeagues();
+    if (selectedLeague) await loadLeague(selectedLeague.publicId);
+  });
+  document.querySelector('#leagueSearch')?.addEventListener('input', scheduleDirectoryLoad);
+  document.querySelector('#leagueVisibilityFilter')?.addEventListener('change', () => loadDirectory().catch(showLeagueError));
 
-  await loadMyLeagues().catch((error) => showLeagueError(error, 'No se pudieron cargar tus ligas'));
-  if (initialPublicId) await loadLeague(initialPublicId).catch((error) => showLeagueError(error, 'No se pudo consultar la liga'));
+  document.querySelector('#createLeagueForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      const payload = directory.buildCreatePayload({
+        nick: persistNick(),
+        name: document.querySelector('#newLeagueName')?.value,
+        visibility: document.querySelector('#newLeagueVisibility')?.value,
+        durationDays: document.querySelector('#newLeagueDuration')?.value,
+        maxParticipants: document.querySelector('#newLeagueMaxParticipants')?.value,
+      });
+      if (payload.nick.length < 2) throw new Error('Escribe el nick con el que competirás.');
+      if (payload.name.length < 3) throw new Error('El nombre debe tener entre 3 y 40 caracteres.');
+      const league = await leagueRequest('create-league', payload);
+      location.assign(leaguePublicUrl(league.publicId));
+    } catch (error) {
+      await showLeagueError(error, 'No se pudo crear la liga');
+    }
+  });
 
-  let nickDebounce;
-  nickInput.addEventListener('input', () => {
-    window.clearTimeout(nickDebounce);
-    nickDebounce = window.setTimeout(async () => {
-      await loadMyLeagues().catch((error) => showLeagueError(error, 'No se pudieron cargar tus ligas'));
-      if (selectedLeague?.publicId) await loadLeague(selectedLeague.publicId).catch(() => {});
-    }, 400);
+  document.querySelector('#joinLeagueForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      await joinLeague({ code: document.querySelector('#leagueJoinCode')?.value });
+    } catch (error) {
+      await showLeagueError(error, 'No se pudo entrar en la liga');
+    }
+  });
+
+  document.addEventListener('click', async (event) => {
+    const joinButton = event.target.closest('[data-join-public], #joinPublicLeagueButton');
+    if (joinButton) {
+      try {
+        await joinLeague({ publicId: joinButton.dataset.publicId || joinButton.dataset.joinPublic });
+      } catch (error) {
+        await showLeagueError(error, 'No se pudo entrar en la liga pública');
+      }
+      return;
+    }
+    const shareButton = event.target.closest('[data-share-league], #shareLeagueButton');
+    if (!shareButton) return;
+    const publicId = shareButton.dataset.shareLeague || selectedLeague?.publicId;
+    const league = membershipFor(publicId) || selectedLeague || directoryLeagues.find((entry) => entry.publicId === publicId);
+    if (league) await shareLeagueInvitation(league);
   });
 }
 
-document.querySelector('#createLeagueForm')?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  createLeague().catch((error) => showLeagueError(error, 'No se pudo crear la liga'));
-});
-document.querySelector('#joinLeagueForm')?.addEventListener('submit', (event) => {
-  event.preventDefault();
-  joinLeague().catch((error) => showLeagueError(error, 'No se pudo entrar en la liga'));
-});
-document.querySelector('#shareLeagueButton')?.addEventListener('click', () => {
-  if (!selectedLeague) return;
-  const share = selectedLeague.joinCode ? shareLeagueInvitation : shareLeaguePage;
-  share(selectedLeague).catch((error) => showLeagueError(error, 'No se pudo compartir la liga'));
-});
-document.querySelector('#myLeaguesList')?.addEventListener('click', async (event) => {
-  const viewLink = event.target.closest('[data-view-league]');
-  const shareButton = event.target.closest('[data-share-league]');
-  if (viewLink) {
-    event.preventDefault();
-    await loadLeague(viewLink.dataset.viewLeague).catch((error) => showLeagueError(error, 'No se pudo consultar la liga'));
+async function bootLeagues() {
+  const storedNick = localStorage.getItem('minuto106:nick') || '';
+  const input = document.querySelector('#leagueNick');
+  const detailInput = document.querySelector('#leagueDetailNick');
+  if (input) input.value = storedNick;
+  if (detailInput) detailInput.value = storedNick;
+  bindEvents();
+  await loadMyLeagues();
+  if (initialPublicId) {
+    document.documentElement.dataset.leagueMode = 'detail';
+    await loadLeague(initialPublicId);
     return;
   }
-  if (shareButton) {
-    const league = privateLeague(shareButton.dataset.shareLeague);
-    if (!league) return;
-    const share = league.joinCode ? shareLeagueInvitation : shareLeaguePage;
-    share(league).catch((error) => showLeagueError(error, 'No se pudo compartir la liga'));
-  }
-});
+  await loadDirectory();
+}
 
-initializeLeagues().catch((error) => showLeagueError(error));
+bootLeagues().catch((error) => showLeagueError(error, 'No se pudieron cargar las ligas'));
