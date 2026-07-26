@@ -54,6 +54,12 @@ jobs:
       - name: Enforce completed-attempt refresh coverage
         run: pnpm test:attempt-refresh:coverage
 
+      - name: Enforce achievement notification coverage
+        run: pnpm test:achievement-unlocks:coverage
+
+      - name: Enforce league directory coverage
+        run: pnpm test:league-directory:coverage
+
       - name: Enforce public asset audit coverage
         run: pnpm test:public-assets:coverage
 
