@@ -96,9 +96,11 @@ Revert the frontend, Edge Function, tests and RPC definitions with a forward mig
 
 - Branch: `agent/feat-league-directory-scheduling`
 - Base: `main` at `689038e6f43f301cecd0b68e88a1fd87ac39558e`
-- Pull request: pending creation
-- Merge/deployment: not authorized
+- Pull request: `#37`
+- Visual evidence: Actions artifact `frontend-previews-30217350042` with PNG, GIF and WebM files for three desktop/mobile journeys.
+- Temporary evidence branch: removed.
+- Merge/deployment: not authorized.
 
 ## Status
 
-Implementation prepared. Local syntax and isolated coverage validation passed; remote CI, browser artifacts and PR publication remain pending.
+Implementation complete. Quality, lint, dead-code, security, local Supabase integration, 100% isolated module coverage, desktop browser and mobile browser pipelines passed on the implementation commit. The pull request contains the remote evidence download and is ready for the final head CI verification.
