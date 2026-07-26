@@ -120,3 +120,44 @@ test('sequential delayed loads use one Supabase stats request and commit a compl
     await page.waitForTimeout(80);
   }
 });
+
+test('partial finish snapshots cannot clear valid daily awards', async ({ page }) => {
+  const initial = statsFor('initial');
+  await page.route('**/functions/v1/game-api', async (route) => {
+    const body = bodyOf(route.request());
+    if (body.action === 'stats') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(initial) });
+      return;
+    }
+    if (body.action === 'access-status') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exists: false }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto('/?finish-awards=partial', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#goldenBoot')).toContainText('Winnerinitial');
+  await expect(page.locator('#goldenGlove')).toContainText('Runnerinitial');
+  await expect(page.locator('#goldenBall')).toContainText('Thirdinitial');
+
+  const partial = statsFor('partial');
+  delete partial.awards;
+  await page.evaluate((stats) => {
+    window.Minuto106HomeStats.commit(stats, 'finish');
+  }, partial);
+
+  await expect(page.locator('#leaderboard .player-link__nick').first()).toHaveText('Winnerpartial');
+  await expect(page.locator('#goldenBoot')).toContainText('Winnerinitial');
+  await expect(page.locator('#goldenGlove')).toContainText('Runnerinitial');
+  await expect(page.locator('#goldenBall')).toContainText('Thirdinitial');
+  await expect(page.locator('#goldenBoot')).not.toContainText('Aún sin dueño');
+
+  const complete = statsFor('complete');
+  await page.evaluate((stats) => {
+    window.Minuto106HomeStats.commit(stats, 'finish');
+  }, complete);
+  await expect(page.locator('#goldenBoot')).toContainText('Winnercomplete');
+  await expect(page.locator('#goldenGlove')).toContainText('Runnercomplete');
+  await expect(page.locator('#goldenBall')).toContainText('Thirdcomplete');
+});
