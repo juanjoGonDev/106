@@ -103,7 +103,10 @@ begin
   v_max_attempts := 5 + v_bonus_attempts;
 
   if v_completed_attempts + v_active_challenges > v_max_attempts then
-    delete from public.game_challenges where id = v_challenge.id;
+    update public.game_challenges
+    set consumed_at = clock_timestamp()
+    where id = v_challenge.id;
+
     v_attempts_left := greatest(
       0,
       v_max_attempts - v_completed_attempts - (v_active_challenges - 1)
