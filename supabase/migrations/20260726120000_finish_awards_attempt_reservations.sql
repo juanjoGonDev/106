@@ -115,15 +115,7 @@ begin
     );
   end if;
 
-  v_attempts_left := greatest(
-    0,
-    v_max_attempts - v_completed_attempts - v_active_challenges
-  );
-
-  return v_result || jsonb_build_object(
-    'attemptsLeft', v_attempts_left,
-    'maxAttempts', v_max_attempts
-  );
+  return v_result;
 end;
 $$;
 
