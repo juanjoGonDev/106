@@ -25,7 +25,8 @@
   }
 
   function renderAwards(stats) {
-    const awards = stats?.awards || {};
+    if (!stats || !Object.hasOwn(stats, 'awards')) return;
+    const awards = stats.awards || {};
     const views = [
       resolveAward(awards.goldenBoot, ' ms'),
       resolveAward(awards.goldenGlove, ' ms'),
