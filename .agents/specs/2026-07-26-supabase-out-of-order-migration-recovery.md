@@ -52,9 +52,10 @@
 
 ## Validation
 
-- Static syntax registration added for the migration planner.
-- Unit and workflow-contract tests added in `tests/production-migration-planner.test.js`.
-- Pull-request workflow results will be recorded after the branch is published.
+- Node syntax checks and direct deterministic assertions passed for both migration scripts.
+- Production-shaped local assertion selected `--include-all` for pending `20260724213350` behind remote tip `20260724213500`, while retaining pending `20260726120000`.
+- Unit and workflow-contract tests are registered in `tests/production-migration-planner.test.js`.
+- Pull-request workflows are running on PR #36.
 
 ## Rollback
 
@@ -63,10 +64,10 @@ Revert the workflow, planner, tests and specification. No production data or mig
 ## Delivery
 
 - Branch: `agent/fix-supabase-out-of-order-migrations`
-- Pull request: pending
+- Pull request: `#36`
 - Merge: not authorized
 - Production deployment: not authorized
 
 ## Status
 
-Implementation prepared; awaiting pull-request validation.
+Implementation complete; PR #36 is open and under CI validation.
