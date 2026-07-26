@@ -12,7 +12,7 @@
 Before this change:
 
 - The repository had no root `AGENTS.md`.
-- `.github/pull_request_template.md` documented Desktop/Mobile/GIF evidence but still permitted `pr-evidence/<number>` branches.
+- `.github/pull_request_template.md` documented Desktop/Mobile/GIF evidence but still permitted auxiliary evidence branches.
 - `.github/workflows/pr-visual-evidence.yml` duplicated validation in inline Python and only enforced Desktop/Mobile pairs, while `scripts/pr-visual-evidence.mjs` also required GIF evidence.
 - `.github/workflows/player-browser.yml` generated `.tmp/pr-previews` and uploaded it as an Actions artifact, but the artifact had no executable platform inventory or integrity manifest.
 - Legal, privacy, cookies and privacy-settings surfaces were user-facing screens outside the visual evidence inventory.
@@ -32,7 +32,7 @@ Before this change:
 8. Require frontend PR descriptions to include:
    - the canonical platform artifact URL;
    - inline Desktop/Mobile/GIF evidence for each changed visual area;
-   - no `pr-evidence/*` branch URLs.
+   - no auxiliary evidence-branch URLs.
 9. Keep the pull-request metadata validator non-executing and read-only for untrusted PR code while aligning its checks with the tested JavaScript contract.
 10. Render the cookies table as responsive cards below 700 px so the new full-platform evidence remains readable without horizontal overflow.
 
@@ -79,13 +79,13 @@ Validated implementation head: `184aaf7b822296a46e49a9bbc4da2cbf0504effd`.
 - Cookies evidence includes `cookies-page-{desktop,mobile}.{png,webm,gif}`.
 - Mobile cookies screenshot inspected after the responsive table fix: complete content, readable cards and no horizontal overflow.
 
-The final documentation-only head must pass the same workflows and publish its own head-bound artifact before the PR is reported ready.
+The PR body is populated with the canonical artifact link and matching cookies Desktop/Mobile/GIF evidence before the final synchronization run. The final documentation head must pass the same workflows and publish its own head-bound artifact before the PR is reported ready.
 
 ## Risks
 
 - The full platform ZIP is large. Retention is bounded to 14 days and raw evidence remains outside Git.
 - The executable inventory is intentionally strict. Adding or removing a platform screen or animated event requires updating its Playwright capture and inventory in the same PR.
-- Metadata validation cannot reference an artifact before the browser workflow creates it. The agent updates the same PR body with the artifact URL after the run; it must not create another branch or PR.
+- Metadata validation cannot reference an artifact before the browser workflow creates it. The agent updates the same PR body after the run; it must not create another branch or PR.
 - A full-platform run costs more CI time than changed-area-only capture. The stronger regression coverage and remote review contract justify the cost for frontend PRs.
 
 ## Rollback
@@ -103,4 +103,4 @@ Revert the documentation, scripts, tests, workflows and responsive legal-table s
 
 ## Status
 
-Implemented and validated on the implementation head. The final documentation-only head and canonical artifact are tracked in PR #38; merge and deployment remain explicitly out of scope.
+Implemented and validated on the implementation head. The PR metadata is populated before the final synchronization run; final-head CI and the head-bound artifact are the remaining delivery checks. Merge and deployment remain explicitly out of scope.
