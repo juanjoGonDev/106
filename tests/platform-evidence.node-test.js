@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   createPlatformEvidenceManifest,
@@ -128,4 +129,11 @@ test('builds a deterministic manifest with sorted file metadata', () => {
   const defaults = createPlatformEvidenceManifest({ paths: [] });
   assert.equal(defaults.generatedAt, '');
   assert.equal(defaults.commitSha, '');
+});
+
+test('passes the pull request head sha to the evidence manifest', () => {
+  const packager = readFileSync('scripts/package-platform-evidence.mjs', 'utf8');
+  const workflow = readFileSync('.github/workflows/player-browser.yml', 'utf8');
+  assert.match(packager, /process\.env\.COMMIT_SHA \|\| process\.env\.GITHUB_SHA/);
+  assert.match(workflow, /COMMIT_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
 });
