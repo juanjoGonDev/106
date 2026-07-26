@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <script src="./privacy-bootstrap.js"></script>
-  <script>if (/\/ligas\/[A-Z0-9]{6}\/?$/i.test(location.pathname)) document.documentElement.dataset.leagueMode = 'detail';</script>
+  <script>if (/\/ligas\/[A-Z0-9]{6}\/?$/i.test(location.pathname) || /^[A-Z0-9]{6}$/i.test(new URLSearchParams(location.search).get('league') || '')) document.documentElement.dataset.leagueMode = 'detail';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
