@@ -20,19 +20,20 @@
 2. Fail closed when remote history contains any version that is absent from the repository.
 3. Enable `--include-all` only when a pending local migration predates the newest remote migration; keep the normal incremental mode otherwise.
 4. Use the same planned mode for dry-run and real application so preview and deployment cannot diverge.
-5. Re-run the production migration safety guard across the complete local migration chain before any include-all push.
+5. Pass the exact pending-version set into the production migration safety guard before any dry-run or push.
 6. Publish the remote tip, pending versions and out-of-order recovery mode in the GitHub Actions summary.
 
 ## Scope
 
 - GitHub Actions production Supabase workflow.
 - Pure Node.js migration-list parser and planner.
-- Vitest coverage for aligned, out-of-order, ANSI/ASCII and remote-only histories.
+- Exact-version support in the existing production migration safety guard.
+- Vitest coverage for aligned, out-of-order, ANSI/ASCII, remote-only and invalid selection histories.
 - No migration SQL, database object, Edge Function or frontend change.
 
 ## Risks
 
-- `--include-all` can apply any local migration missing from remote history. The workflow therefore enables it only after explicit history classification and a full-chain destructive-migration scan.
+- `--include-all` can apply any local migration missing from remote history. The workflow therefore enables it only after explicit history classification and safety-checks every exact pending migration.
 - A remote-only version indicates repository/history divergence that cannot be safely inferred. The planner blocks instead of using `migration repair` automatically.
 - The production run after merge remains the authoritative validation of the remote migration history and compatibility migration.
 
@@ -43,7 +44,8 @@
 - [x] Pending `20260724213350` behind remote `20260724213500` selects `--include-all`.
 - [x] Dry-run and apply receive the same mode.
 - [x] Remote-only migration versions fail closed.
-- [x] The complete local migration chain is safety-scanned before recovery.
+- [x] Every exact pending migration is safety-scanned before preview and application.
+- [x] Invalid, missing or duplicate local migration selections fail closed.
 - [x] Workflow summary exposes the migration plan without credentials.
 - [ ] Pull-request CI is green on the final head.
 - [ ] Production deployment succeeds after an authorized merge.
