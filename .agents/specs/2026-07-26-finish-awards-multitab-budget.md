@@ -19,8 +19,8 @@
 1. Make `get_game_stats()` itself include `get_game_daily_awards()`. Every stats consumer, including the `finish` response, receives one complete snapshot.
 2. Keep the frontend resilient during rolling deployments: when a committed snapshot omits `awards`, retain the last authoritative awards instead of replacing them with empty placeholders.
 3. Wrap `start_game_challenge_pointer_only` with a reservation check after the existing challenge creation logic has acquired the competition advisory lock. Count persisted attempts plus unconsumed, unexpired challenges in the same competition.
-4. If the new challenge would exceed the budget, delete that unexposed challenge in the same transaction and return the existing `nick_limit` contract.
-5. Preserve the finalization-side limit check as a second authoritative guard.
+4. If the new challenge would exceed the budget, mark that unexposed challenge as consumed in the same transaction and return the existing `nick_limit` contract. This releases capacity without deleting its audit row.
+5. Preserve the successful start response contract and the finalization-side limit check as a second authoritative guard.
 
 ## Scope
 
@@ -40,9 +40,10 @@
 - [ ] A successful `finish` response contains `stats.awards`.
 - [ ] Committing a partial finish snapshot cannot render valid daily awards as `Aún sin dueño`.
 - [ ] Five available attempts allow at most five simultaneous active challenges in the same competition.
-- [ ] A sixth concurrent challenge returns the existing attempt-limit error.
+- [ ] A sixth concurrent challenge returns the existing attempt-limit error and retains only a consumed audit row.
 - [ ] Global and league reservations remain isolated.
 - [ ] Expired or consumed challenges do not reserve capacity.
+- [ ] Successful start responses remain backward compatible.
 - [ ] Finalization still prevents more persisted attempts than the configured budget.
 - [ ] Unit, browser, security, migration and local Supabase checks pass.
 
