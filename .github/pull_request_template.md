@@ -16,13 +16,20 @@
 ## Validation
 
 - [ ] Formatting / syntax
-- [ ] Lint
-- [ ] Unit and integration tests
-- [ ] Coverage for changed behavior
-- [ ] Desktop browser journey
-- [ ] Mobile browser journey
-- [ ] Accessibility and keyboard checks
-- [ ] No console or network errors
+- [ ] Lint and dead-code analysis
+- [ ] Unit, contract and security tests
+- [ ] Bug regression reproduces the verified failure or root cause
+- [ ] Relevant boundary, invalid, authorization, timeout, stale-data, retry and idempotency cases
+- [ ] Relevant concurrency, multi-tab or reordered-response cases
+- [ ] New isolated decision logic has 100% line/function/branch coverage, or the specification documents the justified exception and alternative proof
+- [ ] Real local backend/database integration for critical repository-owned flows
+- [ ] Clean database setup and production-shaped upgrade validation when migrations change
+- [ ] Complete Desktop Playwright journey
+- [ ] Complete Mobile Playwright journey
+- [ ] Persistence, reload, navigation or route restoration verified when relevant
+- [ ] Accessibility, keyboard and reduced-motion checks when relevant
+- [ ] No unexpected page errors, console errors, failed requests or horizontal overflow
+- [ ] No `.skip`, `.only`, retry-as-fix, weakened threshold or fixed sleep used as synchronization
 
 ## Full-platform visual evidence ZIP
 
