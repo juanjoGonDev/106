@@ -47,15 +47,19 @@
 - [x] Every exact pending migration is safety-scanned before preview and application.
 - [x] Invalid, missing or duplicate local migration selections fail closed.
 - [x] Workflow summary exposes the migration plan without credentials.
-- [ ] Pull-request CI is green on the final head.
+- [x] Pull-request CI is green on the implementation head.
 - [ ] Production deployment succeeds after an authorized merge.
 
 ## Validation
 
-- Node syntax checks and direct deterministic assertions passed for both migration scripts.
-- Production-shaped local assertion selected `--include-all` for pending `20260724213350` behind remote tip `20260724213500`, while retaining pending `20260726120000`.
-- Unit and workflow-contract tests are registered in `tests/production-migration-planner.test.js`.
-- Pull-request workflows are running on PR #36.
+Validated on implementation head `e819faedeeb47920315e0843e1d96e6da70fa9c4`:
+
+- Pull Request Quality Pipeline `30206801630`: passed build, syntax, Vitest, ESLint, Knip, dependency and security policy, local Supabase integration and Quality Gate.
+- Player Pages and Social Cards `30206801624`: passed strict frontend coverage and responsive browser journeys.
+- Public Asset Audit `30206801628`: passed.
+- Pull Request Visual Evidence `30206801635`: passed.
+- Direct deterministic assertions selected `--include-all` for pending `20260724213350` behind remote tip `20260724213500`, while retaining pending `20260726120000`.
+- The initial lint failure identified a control-character regular expression; ANSI stripping was rewritten without suppressing or weakening ESLint, and the final ESLint job passed.
 
 ## Rollback
 
@@ -70,4 +74,4 @@ Revert the workflow, planner, tests and specification. No production data or mig
 
 ## Status
 
-Implementation complete; PR #36 is open and under CI validation.
+Complete and ready for review. PR #36 remains open, unmerged and undeployed; production validation requires an authorized merge.
