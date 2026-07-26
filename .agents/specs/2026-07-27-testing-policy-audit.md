@@ -19,7 +19,7 @@ Recurring patterns were already implemented repeatedly but were not consolidated
 - User-facing PRs repeatedly require Desktop and Mobile Playwright journeys, accessibility/keyboard behavior, responsive overflow checks and absence of console or network errors.
 - Critical backend work repeatedly validates real PostgreSQL permissions, Edge Functions, HTTP contracts, migrations and persisted state through the local Supabase stack.
 
-The current root `AGENTS.md` required deterministic tests and relevant checks, but did not define when 100% coverage applies, what constitutes a real end-to-end journey, when mocks are acceptable, or which edge/race/database cases must be considered.
+The previous root `AGENTS.md` required deterministic tests and relevant checks, but did not define when 100% coverage applies, what constitutes a real end-to-end journey, when mocks are acceptable, or which edge/race/database cases must be considered.
 
 ## Decision
 
@@ -59,21 +59,19 @@ The current root `AGENTS.md` required deterministic tests and relevant checks, b
 - [x] Database changes require clean setup, incremental/production-shaped upgrade, permissions, idempotency and concurrency validation when relevant.
 - [x] The PR template exposes the same validation matrix.
 - [x] A test prevents accidental removal of the policy contract.
-- [ ] Final-head CI, evidence contract and canonical platform artifact are green and linked from PR #38.
+- [x] CI, evidence contract and a head-bound canonical platform artifact passed on the policy implementation head.
 
 ## Validation
 
-Planned final-head validation:
+Validated policy implementation head: `798d53eb68ecc684b0500f6cb21bfa87ae44c974`.
 
-- `pnpm check`
-- `pnpm test:e2e`
-- `pnpm test:supabase`
-- `pnpm preview:platform`
-- Pull Request Quality Pipeline
-- Player Pages and Social Cards
-- Pull Request Visual Evidence
-- Public Asset Audit
-- Inspection of the final `platform-evidence-<run-id>` artifact and manifest SHA binding.
+- Pull Request Quality Pipeline `30223946193`: success, including build, syntax, Vitest, the new policy contract, ESLint, Knip, security/dependency policy, real local Supabase integration and Quality Gate.
+- Player Pages and Social Cards `30223946160`: success, including every strict frontend coverage gate plus Desktop and Mobile Playwright journeys.
+- Pull Request Visual Evidence `30223946177`: success.
+- Public Asset Audit `30223946166`: success.
+- Generated artifact `platform-evidence-30223946160`, artifact ID `8638069154`, contains the complete platform PNG/WebM/GIF inventory and a manifest bound to implementation head `798d53eb68ecc684b0500f6cb21bfa87ae44c974`.
+
+The final specification-only head must pass the same workflows and publish its own head-bound artifact before PR #38 is reported ready. The canonical final artifact is linked from the PR metadata rather than hard-coded in this specification.
 
 ## Risks
 
@@ -94,4 +92,4 @@ Revert the documentation, template and policy-contract test. No application, sch
 
 ## Status
 
-Implementation complete. Final-head CI and the regenerated head-bound platform artifact are pending.
+Policy audit and implementation are complete. Final PR-head CI, artifact binding and PR metadata remain the authoritative delivery gate; merge and deployment are not authorized.
