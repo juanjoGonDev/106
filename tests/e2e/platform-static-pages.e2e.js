@@ -5,9 +5,10 @@ import { join } from 'node:path';
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
-const { expect, test } = require(runtimePath);
+const { devices, expect, test } = require(runtimePath);
 const previewDirectory = '.tmp/pr-previews';
 const captureEvidence = process.env.PR_VISUAL_CAPTURE === '1';
+const applicationUrl = 'http://127.0.0.1:3000';
 mkdirSync(previewDirectory, { recursive: true });
 
 const staticPages = Object.freeze([
@@ -18,6 +19,22 @@ const staticPages = Object.freeze([
 
 function deviceName(testInfo) {
   return testInfo.project.name.includes('mobile') ? 'mobile' : 'desktop';
+}
+
+function evidenceName(area, isMobile) {
+  return `${area}-${isMobile ? 'mobile' : 'desktop'}`;
+}
+
+function recordingContextOptions(isMobile) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  const videoSize = isMobile ? { ...device.viewport } : { width: 1280, height: 800 };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize },
+  };
 }
 
 async function expectResponsivePage(page) {
@@ -40,6 +57,13 @@ async function capture(page, id, testInfo) {
   });
 }
 
+async function saveVideo(context, page, area, isMobile) {
+  const video = page.video();
+  if (!video) throw new Error(`Playwright did not create the ${area} recording.`);
+  await context.close();
+  await video.saveAs(join(previewDirectory, `${evidenceName(area, isMobile)}.webm`));
+}
+
 for (const pageDefinition of staticPages) {
   test(`captures the complete ${pageDefinition.id} surface`, async ({ page }, testInfo) => {
     await page.goto(pageDefinition.path);
@@ -58,4 +82,19 @@ test('captures the privacy settings dialog from the real application shell', asy
   await page.locator('#openCookieSettings').click();
   await expect(page.locator('#cookieDialog')).toBeVisible();
   await capture(page, 'privacy-settings', testInfo);
+});
+
+test('records the complete responsive cookies page journey', async ({ browser, isMobile }) => {
+  test.skip(!captureEvidence, 'Visual recording is generated only by the PR evidence workflow.');
+  const context = await browser.newContext(recordingContextOptions(isMobile));
+  const page = await context.newPage();
+  await page.goto('/cookies.html');
+  await expectResponsivePage(page);
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }));
+  await page.waitForTimeout(1_200);
+  await expect(page.locator('.site-footer')).toBeInViewport();
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  await page.waitForTimeout(900);
+  await saveVideo(context, page, 'cookies-page', isMobile);
 });
