@@ -37,19 +37,27 @@
 
 ## Acceptance
 
-- [ ] A successful `finish` response contains `stats.awards`.
-- [ ] Committing a partial finish snapshot cannot render valid daily awards as `Aún sin dueño`.
-- [ ] Five available attempts allow at most five simultaneous active challenges in the same competition.
-- [ ] A sixth concurrent challenge returns the existing attempt-limit error and retains only a consumed audit row.
-- [ ] Global and league reservations remain isolated.
-- [ ] Expired or consumed challenges do not reserve capacity.
-- [ ] Successful start responses remain backward compatible.
-- [ ] Finalization still prevents more persisted attempts than the configured budget.
-- [ ] Unit, browser, security, migration and local Supabase checks pass.
+- [x] A successful `finish` response contains `stats.awards`.
+- [x] Committing a partial finish snapshot cannot render valid daily awards as `Aún sin dueño`.
+- [x] Five available attempts allow at most five simultaneous active challenges in the same competition.
+- [x] A sixth concurrent challenge returns the existing attempt-limit error and retains only a consumed audit row.
+- [x] Global and league reservations remain isolated.
+- [x] Expired or consumed challenges do not reserve capacity.
+- [x] Successful start responses remain backward compatible.
+- [x] Finalization still prevents more persisted attempts than the configured budget.
+- [x] Unit, browser, security, migration and local Supabase checks pass.
 
 ## Validation
 
-Pending implementation and CI execution.
+Validated on implementation head `e856053640cb50182da5a1f5abf82cf230ae8961`:
+
+- Pull Request Quality Pipeline run `30198820052`: passed, including syntax, ESLint, Knip, Vitest, security and dependency policy checks, migration validation, and the complete local Supabase API journey.
+- The new local Supabase concurrency journey created five active challenges for one player, rejected the sixth with `nick_limit`, finalized one attempt, verified the complete `stats.awards` snapshot, and confirmed that the persisted attempt plus the four remaining active challenges still exhausted the budget.
+- Player Pages and Social Cards run `30198820044`: passed, including strict frontend coverage, responsive desktop/mobile Playwright journeys, the partial-finish awards regression, and lifecycle recording.
+- Public Asset Audit run `30198820046`: passed.
+- Pull Request Visual Evidence run `30199509978`: passed after validating the immutable desktop, mobile, and GIF evidence embedded in PR #35 without executing pull-request code.
+- Current-head full-resolution browser evidence is retained in artifact `frontend-previews-30198820044`, artifact ID `8631010818`, digest `sha256:9b9d0ccc8c4ac81c47e3e66acfccc245068a3d76e9050af6b720e83953343d72`.
+- Immutable inline previews are published outside the feature branch at evidence commit `9b794b029df298d6a0e13ca87e2ec555d83026b6`.
 
 ## Rollback
 
@@ -59,9 +67,11 @@ Pending implementation and CI execution.
 ## Delivery
 
 - Branch: `agent/fix-finish-awards-multitab-budget`
-- Pull request: pending
-- Merge/deploy: not authorized
+- Pull request: `#35`
+- Evidence branch: `pr-evidence/35`
+- Merge: not authorized
+- Deployment: not authorized
 
 ## Status
 
-In progress.
+Complete and ready for review. PR #35 remains open, unmerged, and undeployed.
