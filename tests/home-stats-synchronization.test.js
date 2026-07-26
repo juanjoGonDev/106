@@ -63,9 +63,13 @@ describe('home statistics synchronization', () => {
     expect(competition).not.toContain('originalFetch');
   });
 
-  it('renders awards only from the shared snapshot without profile lookups', () => {
+  it('renders awards only from complete shared snapshots without profile lookups', () => {
+    const store = read('public/home-stats.js');
     const awards = read('public/ranking-enhancements.js');
     const legacy = read('public/v3.js');
+    expect(store).toContain("if (hasOwn(stats, 'awards') || !hasOwn(latestStats, 'awards')) return stats;");
+    expect(store).toContain('return { ...stats, awards: latestStats.awards };');
+    expect(awards).toContain("if (!stats || !Object.hasOwn(stats, 'awards')) return;");
     expect(awards).toContain('homeStats.subscribe(renderAwards)');
     expect(awards).not.toContain("request('stats')");
     expect(awards).not.toContain("request('public-profile'");
