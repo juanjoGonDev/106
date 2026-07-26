@@ -47,7 +47,7 @@ const fileMetadata = absoluteFiles.map((path) => ({
 const manifest = createPlatformEvidenceManifest({
   paths: relativePaths,
   generatedAt: new Date().toISOString(),
-  commitSha: process.env.GITHUB_SHA || process.env.COMMIT_SHA || '',
+  commitSha: process.env.COMMIT_SHA || process.env.GITHUB_SHA || '',
   files: fileMetadata,
 });
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
