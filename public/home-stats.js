@@ -158,6 +158,15 @@
     list.dataset.renderState = 'error';
   }
 
+  function hasOwn(value, key) {
+    return value && typeof value === 'object' && Object.hasOwn(value, key);
+  }
+
+  function preserveAwards(stats) {
+    if (hasOwn(stats, 'awards') || !hasOwn(latestStats, 'awards')) return stats;
+    return { ...stats, awards: latestStats.awards };
+  }
+
   function notify(stats, source) {
     for (const listener of listeners) listener(stats, source);
     document.dispatchEvent(new CustomEvent('minuto106:home-stats-ready', {
@@ -167,9 +176,10 @@
 
   function commit(stats, source = 'manual') {
     if (!stats || typeof stats !== 'object') return false;
-    latestStats = stats;
-    renderStats(stats);
-    notify(stats, source);
+    const committedStats = preserveAwards(stats);
+    latestStats = committedStats;
+    renderStats(committedStats);
+    notify(committedStats, source);
     return true;
   }
 
