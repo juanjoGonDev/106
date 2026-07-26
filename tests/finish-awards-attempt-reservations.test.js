@@ -27,10 +27,12 @@ describe('finish awards and attempt reservations', () => {
     expect(migration).toContain('v_completed_attempts + v_active_challenges > v_max_attempts');
   });
 
-  it('removes an unexposed over-budget challenge and returns the existing API error', () => {
+  it('consumes an unexposed over-budget challenge and returns the existing API error', () => {
     const migration = read(migrationPath);
 
-    expect(migration).toContain('delete from public.game_challenges where id = v_challenge.id;');
+    expect(migration).toContain('update public.game_challenges');
+    expect(migration).toContain('set consumed_at = clock_timestamp()');
+    expect(migration).not.toMatch(/^\s*delete\s+from\b/im);
     expect(migration).toContain("'error', 'nick_limit'");
     expect(migration).toContain("'attemptsLeft', v_attempts_left");
     expect(migration).toContain("'maxAttempts', v_max_attempts");
