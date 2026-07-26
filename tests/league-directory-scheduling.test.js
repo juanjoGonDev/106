@@ -104,7 +104,7 @@ describe('dedicated league UX and directory', () => {
     expect(directory).toContain('Number(membership?.attemptsLeft ?? 0) > 0');
     expect(frontend).toContain("url.searchParams.set('competition', publicId)");
     expect(frontend).toContain('competeLink.hidden = !directory.canPlayLeague');
-    expect(e2e).toContain("toHaveValue('league:ACTIVE1')");
+    expect(e2e).toContain("toHaveValue('league:ACTV01')");
     expect(e2e).toContain("request.action === 'prepare-start'");
   });
 });
