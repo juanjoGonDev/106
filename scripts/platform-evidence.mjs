@@ -37,6 +37,7 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
 
 export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'achievement-unlock',
+  'cookies-page',
   'daily-awards-after-finish',
   'league-detail-active',
   'league-detail-scheduled',
