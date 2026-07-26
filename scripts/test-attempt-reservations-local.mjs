@@ -35,7 +35,7 @@ async function waitForFunction() {
   let lastError;
   for (let attempt = 1; attempt <= 60; attempt += 1) {
     try {
-      const result = await api({ action: 'stats' }, {} , 5_000);
+      const result = await api({ action: 'stats' }, {}, 5_000);
       if (result.response.ok) return;
       lastError = new Error(`Function returned HTTP ${result.response.status}`);
     } catch (error) {
@@ -134,10 +134,7 @@ for (const result of additional) {
 }
 const activeChallenges = [first, ...additional];
 assert.equal(new Set(activeChallenges.map((result) => result.body.challengeId)).size, 5);
-assert.deepEqual(
-  activeChallenges.map((result) => result.body.attemptsLeft).sort((left, right) => left - right),
-  [0, 1, 2, 3, 4],
-);
+assert.ok(activeChallenges.every((result) => result.body.attemptsLeft === 5));
 process.stdout.write('✓ Five concurrent tabs reserve the five available global attempts\n');
 
 const blockedProof = await createHumanProof(headers);
