@@ -19,7 +19,7 @@ const e2e = read('tests/e2e/league-management.e2e.js');
 const packageJson = read('package.json');
 const browserWorkflow = read('.github/workflows/player-browser.yml');
 
-describe('league configuration and lifecycle', () => {
+ describe('league configuration and lifecycle', () => {
   it('stores bounded visibility, duration and capacity settings', () => {
     expect(migration).toContain("add column if not exists visibility text not null default 'private'");
     expect(migration).toContain('add column if not exists duration_days smallint not null default 3');
@@ -125,7 +125,8 @@ describe('coverage and remote visual evidence', () => {
     }
     expect(e2e).toContain('recordVideo:');
     expect(e2e).toContain('video.saveAs(join(previewDirectory');
-    expect(browserWorkflow).toContain('Upload desktop and mobile PR previews');
+    expect(browserWorkflow).toContain('Upload downloadable platform evidence ZIP');
+    expect(browserWorkflow).toContain('name: platform-evidence-${{ github.run_id }}');
     expect(browserWorkflow).toContain('path: .tmp/pr-previews');
   });
 });
