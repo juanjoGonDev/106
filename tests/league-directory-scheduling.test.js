@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const read = (path) => readFileSync(path, 'utf8');
-const migration = read('supabase/migrations/20260726235959_league_directory_scheduling.sql');
+const migration = [
+  'supabase/migrations/20260726235950_league_settings.sql',
+  'supabase/migrations/20260726235951_league_membership.sql',
+  'supabase/migrations/20260726235952_league_directory.sql',
+  'supabase/migrations/20260726235953_league_player_views.sql',
+  'supabase/migrations/20260726235954_league_start_gate.sql',
+].map(read).join('\n');
 const api = read('supabase/functions/league-api/index.ts');
 const config = read('supabase/config.toml');
 const html = read('public/ligas.html');
