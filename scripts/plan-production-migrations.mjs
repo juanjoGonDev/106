@@ -1,16 +1,52 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const ANSI_ESCAPE_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+const ANSI_ESCAPE = String.fromCodePoint(27);
+const ANSI_CONTROL_SEQUENCE_INTRODUCER = '[';
+const ANSI_FINAL_BYTE_MIN = 0x40;
+const ANSI_FINAL_BYTE_MAX = 0x7e;
 const MIGRATION_VERSION_PATTERN = /\b(\d{14})\b/;
 
 function migrationVersion(cell) {
   return String(cell).match(MIGRATION_VERSION_PATTERN)?.[1] ?? null;
 }
 
+function ansiSequenceEnd(text, start) {
+  for (let index = start; index < text.length; index += 1) {
+    const codePoint = text.codePointAt(index);
+    if (codePoint >= ANSI_FINAL_BYTE_MIN && codePoint <= ANSI_FINAL_BYTE_MAX) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+export function stripAnsi(value) {
+  const text = String(value ?? '');
+  let normalized = '';
+
+  for (let index = 0; index < text.length; index += 1) {
+    const isControlSequence = text[index] === ANSI_ESCAPE
+      && text[index + 1] === ANSI_CONTROL_SEQUENCE_INTRODUCER;
+    if (!isControlSequence) {
+      normalized += text[index];
+      continue;
+    }
+
+    const end = ansiSequenceEnd(text, index + 2);
+    if (end < 0) {
+      normalized += text[index];
+      continue;
+    }
+    index = end;
+  }
+
+  return normalized;
+}
+
 export function parseMigrationList(output) {
   const rows = [];
-  const normalized = String(output ?? '').replaceAll(ANSI_ESCAPE_PATTERN, '');
+  const normalized = stripAnsi(output);
 
   for (const line of normalized.split(/\r?\n/)) {
     const delimiter = line.includes('│') ? '│' : line.includes('|') ? '|' : null;
