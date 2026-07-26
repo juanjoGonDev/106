@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const endpoint = process.env.SUPABASE_FUNCTION_URL
   ?? 'http://127.0.0.1:54321/functions/v1/game-api';
+const leagueEndpoint = endpoint.replace(/\/game-api$/, '/league-api');
 const playerContextEndpoint = endpoint.replace(/\/game-api$/, '/player-context');
 const origin = 'http://127.0.0.1:3000';
 const smokeOnly = process.env.SUPABASE_SMOKE_ONLY === 'true';
@@ -17,13 +18,13 @@ async function readJson(response) {
   }
 }
 
-async function api(body, options = {}) {
+async function requestApi(url, body, options = {}) {
   const headers = {
     'content-type': 'application/json',
     origin,
     ...options.headers,
   };
-  const response = await fetch(endpoint, {
+  const response = await fetch(url, {
     method: options.method ?? 'POST',
     headers,
     body: options.method === 'GET' ? undefined : JSON.stringify(body),
@@ -32,33 +33,34 @@ async function api(body, options = {}) {
   return { response, body: await readJson(response) };
 }
 
-async function playerContext(nick, options = {}) {
-  const response = await fetch(playerContextEndpoint, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      origin,
-      ...options.headers,
-    },
-    body: JSON.stringify({ action: 'player-context', nick }),
-    signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-  });
-  return { response, body: await readJson(response) };
+function api(body, options = {}) {
+  return requestApi(endpoint, body, options);
 }
 
-async function waitForFunction() {
+function leagueApi(body, options = {}) {
+  return requestApi(leagueEndpoint, body, options);
+}
+
+async function playerContext(nick, options = {}) {
+  return requestApi(playerContextEndpoint, { action: 'player-context', nick }, options);
+}
+
+async function waitForFunctions() {
   let lastError;
   for (let attempt = 1; attempt <= 60; attempt += 1) {
     try {
-      const result = await api({ action: 'stats' }, { timeoutMs: 5_000 });
-      if (result.response.ok) return result;
-      lastError = new Error(`Function returned HTTP ${result.response.status}`);
+      const [game, leagues] = await Promise.all([
+        api({ action: 'stats' }, { timeoutMs: 5_000 }),
+        leagueApi({ action: 'list-leagues', visibility: 'all', search: '' }, { timeoutMs: 5_000 }),
+      ]);
+      if (game.response.ok && leagues.response.ok) return game;
+      lastError = new Error(`Functions returned HTTP ${game.response.status}/${leagues.response.status}`);
     } catch (error) {
       lastError = error;
     }
     await delay(2_000);
   }
-  throw new Error(`Local Edge Function did not become ready: ${lastError?.message ?? 'unknown error'}`);
+  throw new Error(`Local Edge Functions did not become ready: ${lastError?.message ?? 'unknown error'}`);
 }
 
 function logStep(message) {
@@ -143,36 +145,35 @@ function accountHeaders(accountToken, deviceId) {
   };
 }
 
-async function joinLeague({ accountToken, code, deviceId, nick }) {
-  return api({ action: 'join-league', nick, code }, {
+async function joinLeague({ accountToken, code, deviceId, nick, publicId }) {
+  return leagueApi({ action: 'join-league', nick, code, publicId }, {
     headers: accountHeaders(accountToken, deviceId),
   });
 }
 
 async function runSmokeChecks() {
-  const stats = await waitForFunction();
+  const stats = await waitForFunctions();
   assert.equal(stats.response.status, 200);
   assertGatewayAllowsOrigin(stats.response);
   assert.equal(stats.body.targetMs, 10_600);
   assert.ok(Array.isArray(stats.body.leaderboard));
-  logStep('Edge Function is reachable from a configured browser origin');
+  logStep('Game and league Edge Functions are reachable from a configured browser origin');
 
-  const preflight = await fetch(endpoint, {
-    method: 'OPTIONS',
-    headers: {
-      origin,
-      'access-control-request-method': 'POST',
-      'access-control-request-headers': 'content-type,x-device-id,x-account-token',
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
-  assert.ok(preflight.status >= 200 && preflight.status < 300, `Unexpected preflight status ${preflight.status}`);
-  assertGatewayAllowsOrigin(preflight);
-  assert.match(
-    preflight.headers.get('access-control-allow-headers') ?? '',
-    /x-account-token/i,
-  );
-  logStep('Supabase gateway returns a successful browser preflight');
+  for (const url of [endpoint, leagueEndpoint]) {
+    const preflight = await fetch(url, {
+      method: 'OPTIONS',
+      headers: {
+        origin,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type,x-device-id,x-account-token',
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    assert.ok(preflight.status >= 200 && preflight.status < 300, `Unexpected preflight status ${preflight.status}`);
+    assertGatewayAllowsOrigin(preflight);
+    assert.match(preflight.headers.get('access-control-allow-headers') ?? '', /x-account-token/i);
+  }
+  logStep('Supabase gateway returns successful browser preflights for both domain endpoints');
 
   const methodResponse = await fetch(endpoint, {
     method: 'GET',
@@ -219,11 +220,7 @@ async function runGameJourney() {
   assert.equal(missingToken.response.status, 400);
   logStep('Private account endpoints require the account token');
 
-  const missingHumanProof = await api({
-    action: 'start',
-    nick,
-    team: 'spain',
-  }, { headers: privateHeaders });
+  const missingHumanProof = await api({ action: 'start', nick, team: 'spain' }, { headers: privateHeaders });
   assert.equal(missingHumanProof.response.status, 400);
   assert.match(String(missingHumanProof.body.error), /verificación visual/i);
   logStep('Starting an attempt requires a completed one-time visual verification');
@@ -265,20 +262,25 @@ async function runGameJourney() {
   assert.match(String(duel.body.code), /^[0-9a-f-]{36}$/i);
   logStep('A verified global player can create a direct challenge');
 
-  const league = await api({
+  const league = await leagueApi({
     action: 'create-league',
     nick,
     name: `CI League ${suffix}`,
+    visibility: 'public',
+    durationDays: 1,
+    maxParticipants: 10,
   }, { headers: privateHeaders });
   assert.equal(league.response.status, 201, JSON.stringify(league.body));
   assert.match(String(league.body.publicId), /^[A-Z0-9]{6}$/);
   assert.match(String(league.body.joinCode), /^[A-Z0-9]{6}$/);
   assert.notEqual(league.body.publicId, league.body.joinCode);
-  assert.equal('code' in league.body, false);
+  assert.equal(league.body.visibility, 'public');
+  assert.equal(league.body.durationDays, 1);
+  assert.equal(league.body.maxParticipants, 10);
   assert.equal(league.body.waiting, true);
   assert.equal(league.body.active, false);
 
-  const joinedLeaguesBefore = await api({ action: 'player-leagues', nick }, { headers: privateHeaders });
+  const joinedLeaguesBefore = await leagueApi({ action: 'player-leagues', nick }, { headers: privateHeaders });
   assert.equal(joinedLeaguesBefore.response.status, 200, JSON.stringify(joinedLeaguesBefore.body));
   assert.equal(joinedLeaguesBefore.body[0]?.publicId, league.body.publicId);
   assert.equal(joinedLeaguesBefore.body[0]?.competitionCode, league.body.publicId);
@@ -286,119 +288,107 @@ async function runGameJourney() {
   assert.equal(joinedLeaguesBefore.body[0]?.attemptsUsed, 0);
   assert.equal(joinedLeaguesBefore.body[0]?.attemptsLeft, 5);
   assert.equal(joinedLeaguesBefore.body[0]?.waiting, true);
-  logStep('A new league exposes a public competition identifier and an owner-only private join key');
+  logStep('A new public league exposes bounded settings and an owner-only private invitation key');
 
-  const blockedStart = await startAttempt({
-    nick,
-    team: 'argentina',
-    leagueCode: league.body.publicId,
-  }, privateHeaders);
-  assert.notEqual(blockedStart.response.status, 201, JSON.stringify(blockedStart.body));
-  assert.equal(blockedStart.body.challengeId, undefined);
+  const directory = await leagueApi({ action: 'list-leagues', search: suffix, visibility: 'public' });
+  assert.equal(directory.response.status, 200, JSON.stringify(directory.body));
+  assert.equal(directory.body[0]?.publicId, league.body.publicId);
+  assert.equal(directory.body[0]?.locked, false);
+  assert.equal('joinCode' in (directory.body[0] ?? {}), false);
+  assert.doesNotMatch(JSON.stringify(directory.body), new RegExp(league.body.joinCode));
+  logStep('The public directory lists joinable metadata without exposing private credentials');
+
+  const blockedWaitingStart = await startAttempt({ nick, team: 'argentina', leagueCode: league.body.publicId }, privateHeaders);
+  assert.notEqual(blockedWaitingStart.response.status, 201, JSON.stringify(blockedWaitingStart.body));
+  assert.equal(blockedWaitingStart.body.challengeId, undefined);
+  assert.equal(blockedWaitingStart.body.waiting, true);
   logStep('A waiting league cannot create a challenge');
 
-  const publicJoinAttempt = await joinLeague({
-    accountToken: randomBytes(32).toString('hex'),
-    code: league.body.publicId,
-    deviceId: `ci-device-${randomUUID()}`,
-    nick: `CIPublic${suffix}`.slice(0, 24),
-  });
-  assert.equal(publicJoinAttempt.response.status, 404, JSON.stringify(publicJoinAttempt.body));
-  logStep('Knowing the public league identifier never grants membership');
-
-  const aliasNick = `CIAlias${suffix}`.slice(0, 24);
-  const aliasDevice = `ci-device-${randomUUID()}`;
   const aliasJoin = await joinLeague({
     accountToken,
-    code: league.body.joinCode,
-    deviceId: aliasDevice,
-    nick: aliasNick,
+    publicId: league.body.publicId,
+    deviceId: `ci-device-${randomUUID()}`,
+    nick: `CIAlias${suffix}`.slice(0, 24),
   });
-  assert.equal(aliasJoin.response.status, 200, JSON.stringify(aliasJoin.body));
-  assert.equal(aliasJoin.body.publicId, league.body.publicId);
-  assert.equal('joinCode' in aliasJoin.body, false);
-  assert.equal(aliasJoin.body.waiting, true);
-  assert.equal(aliasJoin.body.eligibleOwners, 1);
-  logStep('A second nickname owned by the same account does not increase eligible owners');
+  assert.equal(aliasJoin.response.status, 409, JSON.stringify(aliasJoin.body));
+  assert.equal(aliasJoin.body.code, 'league_identity_limit');
+  logStep('A second nickname from the same account cannot occupy another place in the league');
 
-  const sameDeviceNick = `CISameDev${suffix}`.slice(0, 24);
   const sameDeviceJoin = await joinLeague({
     accountToken: randomBytes(32).toString('hex'),
-    code: league.body.joinCode,
+    publicId: league.body.publicId,
     deviceId,
-    nick: sameDeviceNick,
+    nick: `CISameDev${suffix}`.slice(0, 24),
   });
-  assert.equal(sameDeviceJoin.response.status, 200, JSON.stringify(sameDeviceJoin.body));
-  assert.equal('joinCode' in sameDeviceJoin.body, false);
-  assert.equal(sameDeviceJoin.body.waiting, true);
-  assert.equal(sameDeviceJoin.body.eligibleOwners, 2);
-  assert.equal(sameDeviceJoin.body.eligibleDevices, 2);
-  logStep('A different account on an already represented device does not activate the league');
+  assert.equal(sameDeviceJoin.response.status, 409, JSON.stringify(sameDeviceJoin.body));
+  assert.equal(sameDeviceJoin.body.code, 'league_identity_limit');
+  logStep('A different account on an already represented device cannot occupy another place');
 
-  const eligibleNick = `CIEligible${suffix}`.slice(0, 24);
+  const secondJoin = await joinLeague({
+    accountToken: randomBytes(32).toString('hex'),
+    publicId: league.body.publicId,
+    deviceId: `ci-device-${randomUUID()}`,
+    nick: `CISecond${suffix}`.slice(0, 24),
+  });
+  assert.equal(secondJoin.response.status, 200, JSON.stringify(secondJoin.body));
+  assert.equal(secondJoin.body.waiting, true);
+  assert.equal(secondJoin.body.eligibleOwners, 2);
+  assert.equal(secondJoin.body.eligibleDevices, 2);
+
   const eligibleJoin = await joinLeague({
     accountToken: randomBytes(32).toString('hex'),
-    code: league.body.joinCode,
+    publicId: league.body.publicId,
     deviceId: `ci-device-${randomUUID()}`,
-    nick: eligibleNick,
+    nick: `CIEligible${suffix}`.slice(0, 24),
   });
   assert.equal(eligibleJoin.response.status, 200, JSON.stringify(eligibleJoin.body));
-  assert.equal('joinCode' in eligibleJoin.body, false);
-  assert.equal(eligibleJoin.body.active, true);
+  assert.equal(eligibleJoin.body.active, false);
   assert.equal(eligibleJoin.body.waiting, false);
-  assert.ok(eligibleJoin.body.startsAt);
-  assert.ok(eligibleJoin.body.endsAt);
-  assert.ok(new Date(eligibleJoin.body.endsAt).getTime() > new Date(eligibleJoin.body.startsAt).getTime());
-  logStep('The third pairwise-distinct owner and device activates the three-day league exactly once');
+  assert.equal(eligibleJoin.body.scheduled, true);
+  const startsAt = new Date(eligibleJoin.body.startsAt).getTime();
+  const endsAt = new Date(eligibleJoin.body.endsAt).getTime();
+  const scheduleDelay = startsAt - Date.now();
+  assert.ok(scheduleDelay > 22.9 * 3_600_000 && scheduleDelay <= 23 * 3_600_000);
+  assert.equal(endsAt - startsAt, 86_400_000);
+  logStep('The third distinct account/device schedules the selected one-day league exactly 23 hours ahead');
 
-  const leagueStarted = await startAttempt({
-    nick,
-    team: 'argentina',
-    leagueCode: league.body.publicId,
-  }, privateHeaders);
-  assert.equal(leagueStarted.response.status, 201, JSON.stringify(leagueStarted.body));
-  assert.equal(leagueStarted.body.competition?.type, 'league');
-  assert.equal(leagueStarted.body.competition?.code, league.body.publicId);
-  assert.equal(leagueStarted.body.interaction?.mode, 'press');
+  const blockedScheduledStart = await startAttempt({ nick, team: 'argentina', leagueCode: league.body.publicId }, privateHeaders);
+  assert.notEqual(blockedScheduledStart.response.status, 201, JSON.stringify(blockedScheduledStart.body));
+  assert.equal(blockedScheduledStart.body.challengeId, undefined);
+  assert.equal(blockedScheduledStart.body.scheduled, true);
+  assert.ok(blockedScheduledStart.body.countdownSeconds > 82_000);
+  logStep('A scheduled league rejects attempt reservations until its server start time');
 
-  const leagueFinished = await completeAttempt(leagueStarted, privateHeaders);
-  assert.equal(leagueFinished.response.status, 201, JSON.stringify(leagueFinished.body));
-  assert.equal(leagueFinished.body.attempt?.verified, true, JSON.stringify(leagueFinished.body));
-  assert.equal(leagueFinished.body.attempt?.competitionType, 'league');
-  assert.equal(leagueFinished.body.attempt?.leagueCode, league.body.publicId);
-  assert.doesNotMatch(JSON.stringify(leagueFinished.body), new RegExp(league.body.joinCode));
-  logStep('An activated league persists attempts with an explicit public league scope');
-
-  const publicLeague = await api({ action: 'league', code: league.body.publicId });
+  const publicLeague = await leagueApi({ action: 'league', publicId: league.body.publicId });
   assert.equal(publicLeague.response.status, 200, JSON.stringify(publicLeague.body));
   assert.equal(publicLeague.body.publicId, league.body.publicId);
-  assert.equal(publicLeague.body.code, league.body.publicId);
-  assert.equal(publicLeague.body.active, true);
-  assert.equal(publicLeague.body.totalAttempts, 1);
-  assert.ok(Number(publicLeague.body.revision) > 0);
+  assert.equal(publicLeague.body.scheduled, true);
+  assert.equal(publicLeague.body.totalAttempts, 0);
+  assert.equal(publicLeague.body.durationDays, 1);
+  assert.equal(publicLeague.body.maxParticipants, 10);
   assert.equal('joinCode' in publicLeague.body, false);
   assert.doesNotMatch(JSON.stringify(publicLeague.body), new RegExp(league.body.joinCode));
-  assert.match(JSON.stringify(publicLeague.body.leaderboard), new RegExp(nick, 'i'));
 
-  const leagueStatus = await api({
+  const leagueStatus = await leagueApi({
     action: 'league-status',
     nick,
-    code: league.body.publicId,
+    publicId: league.body.publicId,
   }, { headers: privateHeaders });
   assert.equal(leagueStatus.response.status, 200, JSON.stringify(leagueStatus.body));
   assert.equal(leagueStatus.body.publicId, league.body.publicId);
-  assert.equal(leagueStatus.body.attemptsUsed, 1);
-  assert.equal(leagueStatus.body.attemptsLeft, 4);
-  assert.equal(leagueStatus.body.history?.[0]?.differenceMs, 0);
+  assert.equal(leagueStatus.body.scheduled, true);
+  assert.equal(leagueStatus.body.attemptsUsed, 0);
+  assert.equal(leagueStatus.body.attemptsLeft, 5);
   assert.doesNotMatch(JSON.stringify(leagueStatus.body), new RegExp(league.body.joinCode));
-  logStep('League membership exposes its own attempt budget without leaking the join credential');
+  logStep('Protected membership status exposes its isolated budget without leaking the invitation key');
 
   const contextAfterLeague = await playerContext(nick, { headers: privateHeaders });
   assert.equal(contextAfterLeague.body.availability, 'owned');
   assert.equal(contextAfterLeague.body.leagues?.[0]?.publicId, league.body.publicId);
   assert.equal(contextAfterLeague.body.leagues?.[0]?.competitionCode, league.body.publicId);
   assert.equal(contextAfterLeague.body.leagues?.[0]?.joinCode, league.body.joinCode);
-  logStep('One player-context request returns profile, availability and all joined competitions');
+  assert.equal(contextAfterLeague.body.leagues?.[0]?.scheduled, true);
+  logStep('One player-context request returns profile, availability and the scheduled competition');
 
   const finalStats = await api({ action: 'stats' });
   assert.equal(finalStats.response.status, 200);
@@ -411,7 +401,7 @@ async function runGameJourney() {
   assert.equal(globalProfile.body.verifiedAttempts, 1);
   assert.equal(globalProfile.body.history?.length, 1);
   assert.ok(Number(globalProfile.body.profileRevision) > 0);
-  logStep('League attempts never consume global attempts or enter global statistics and profiles');
+  logStep('Scheduled leagues never consume global attempts or enter global statistics and profiles');
 }
 
 await runSmokeChecks();
