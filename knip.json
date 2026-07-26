@@ -27,6 +27,7 @@
     "public/profile-enhancements.js",
     "public/ranking-enhancements.js",
     "public/ranking.js",
+    "public/league-directory.js",
     "public/ligas.js",
     "public/stop-control.js",
     "public/v3.js",
