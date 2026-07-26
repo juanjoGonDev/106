@@ -16,9 +16,19 @@ This file applies to the entire repository. A more specific `AGENTS.md` may refi
 - Use Conventional Commits and stage only task files.
 - Do not merge, deploy, publish or run remote migrations unless the user explicitly authorizes it.
 
+## Testing and runtime proof
+
+Read `.agents/testing.md` before changing application behavior, APIs, database logic, deployment workflows or browser journeys.
+
+- Derive tests from the specification and relevant success, boundary, failure, authorization, race, concurrency, expiry and compatibility cases.
+- Bugs require a deterministic regression test when practical.
+- New isolated decision logic, state machines, parsers, validators, security gates and controllers require 100% line, function and branch coverage.
+- Critical repository-owned browser-to-backend behavior requires at least one real local integration journey; mocks may supplement rare failures and races but must not be the only end-to-end proof.
+- Playwright acceptance tests must exercise complete user flows in Desktop and Mobile projects and verify final UI, accessibility, persistence or route restoration, console/page errors, failed requests and responsive overflow when relevant.
+- Do not weaken thresholds, lint or security rules, and do not use skips, retries, fixed sleeps or snapshot replacement to conceal a failure.
+
 ## Quality
 
-- Cover changed behavior with deterministic tests. Bugs require a regression test when practical.
 - Run the relevant syntax, format, lint, dead-code, security, unit, integration, coverage and browser checks.
 - Do not claim success from expectation. Report only checks and runtime behavior that were actually verified.
 
