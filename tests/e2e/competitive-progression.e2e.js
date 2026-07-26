@@ -253,7 +253,7 @@ test('the dedicated ranking explains and displays exact time tie-break evidence'
 
 test('a clean public league route renders without a nickname or private join key', async ({ page, isMobile }) => {
   const privateJoinCode = 'JOIN99';
-  await page.route('**/functions/v1/game-api', async (route) => {
+  await page.route('**/functions/v1/league-api', async (route) => {
     const body = bodyOf(route.request());
     if (body.action === 'league') {
       await route.fulfill({
