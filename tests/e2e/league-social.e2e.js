@@ -16,7 +16,13 @@ const league = Object.freeze({
   competitionCode: 'ABC123',
   name: 'Final del barrio',
   revision: 456,
+  visibility: 'private',
+  locked: true,
+  durationDays: 3,
+  maxParticipants: 10,
+  requiredParticipants: 3,
   waiting: true,
+  scheduled: false,
   active: false,
   finished: false,
   members: 2,
@@ -58,7 +64,7 @@ async function installMocks(page) {
     });
   });
 
-  await page.route('**/functions/v1/game-api', async (route) => {
+  await page.route('**/functions/v1/league-api', async (route) => {
     const body = requestBody(route.request());
     if (body.action === 'player-leagues') {
       await route.fulfill({
@@ -101,9 +107,9 @@ test('waiting league blocks competition and shares the clean public website URL'
 
   await expect(page.locator('#leagueLookupTitle')).toHaveText('Final del barrio');
   await expect(page.locator('#leagueLookupPublicId')).toContainText('ABC123');
-  await expect(page.locator('#leagueLookupEnds')).toHaveText('La cuenta atrás aún no ha empezado');
-  await expect(page.locator('#leagueLookupMeta')).toContainText('2/3 cuentas');
-  await expect(page.locator('#leagueLookupMeta')).toContainText('2/3 dispositivos');
+  await expect(page.locator('#leagueLookupEnds')).toHaveText('Esperando 1 participante');
+  await expect(page.locator('#leagueLookupMeta')).toContainText('2 participantes');
+  await expect(page.locator('#leagueMembershipMessage')).toContainText('cuenta atrás de 23 horas');
   await expect(page.locator('#competeLeagueLink')).toBeHidden();
   await expect(page.locator('#leagueLookupList')).toContainText('La clasificación se abrirá cuando empiece la liga.');
 
@@ -116,7 +122,7 @@ test('waiting league blocks competition and shares the clean public website URL'
   expect(sharedUrl.pathname).toBe('/ligas/ABC123');
   expect(sharedUrl.search).toBe('');
   expect(payload.url).not.toContain('supabase.co');
-  expect(payload.text).toContain('tres cuentas y tres dispositivos únicos');
+  expect(payload.text).toContain('Esperando 1 participante');
 
   const overflow = await page.evaluate(() => ({
     content: globalThis.document.documentElement.scrollWidth,

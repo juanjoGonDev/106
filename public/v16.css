@@ -11,3 +11,210 @@
     width: 100%;
   }
 }
+
+html[data-league-mode="detail"] .league-directory-only {
+  display: none !important;
+}
+
+html[data-league-mode="detail"] .league-page-shell {
+  width: min(920px, calc(100% - 32px));
+  min-height: calc(100vh - 180px);
+  align-content: start;
+}
+
+.league-directory-toolbar,
+.league-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.league-directory-toolbar {
+  margin: 16px 0;
+  align-items: end;
+}
+
+.league-directory-toolbar label,
+.league-form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 800;
+}
+
+.league-directory-toolbar input,
+.league-directory-toolbar select,
+.league-form-grid select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: #0c0e13;
+  color: #fff;
+  font: inherit;
+}
+
+.league-directory-grid,
+.my-leagues-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 12px;
+}
+
+.league-directory-card,
+.my-league-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.league-directory-card header,
+.my-league-card header,
+.league-detail-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.league-directory-card h3,
+.my-league-card h3,
+.league-detail-heading h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.league-access-badge,
+.league-phase-badge,
+.league-config-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.league-access-badge,
+.league-phase-badge {
+  padding: 7px 10px;
+  border: 1px solid rgba(244, 201, 93, 0.28);
+  background: rgba(244, 201, 93, 0.08);
+  color: #f4c95d;
+  text-align: right;
+}
+
+.league-access-badge[data-visibility="public"] {
+  border-color: rgba(123, 224, 162, 0.3);
+  background: rgba(123, 224, 162, 0.08);
+  color: #9ce6b9;
+}
+
+.league-card-summary,
+.league-membership-message {
+  margin: 0;
+  color: var(--muted, #b8bdc8);
+}
+
+.league-config-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.league-config-chip {
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.065);
+  color: #f3f4f7;
+}
+
+.league-card-actions,
+.league-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.league-card-actions > *,
+.league-detail-actions > * {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+}
+
+.league-public-detail {
+  overflow: hidden;
+}
+
+.league-public-detail .leaderboard {
+  margin-top: 16px;
+}
+
+.league-public-detail .leaderboard li {
+  min-width: 0;
+}
+
+.league-public-detail .player {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.league-public-detail [hidden] {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  html[data-league-mode="detail"] .league-page-shell {
+    width: min(100% - 20px, 920px);
+    min-height: calc(100vh - 140px);
+  }
+
+  .league-detail-heading,
+  .league-directory-card header,
+  .my-league-card header {
+    display: grid;
+  }
+
+  .league-phase-badge,
+  .league-access-badge {
+    text-align: left;
+  }
+
+  .league-detail-actions,
+  .league-card-actions,
+  .league-directory-toolbar,
+  .league-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.league-detail-nick {
+  max-width: 360px;
+  margin: 14px 0;
+}
+
+.league-detail-nick label {
+  display: grid;
+  gap: 6px;
+  font-weight: 800;
+}
+
+.league-detail-nick input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: #0c0e13;
+  color: #fff;
+  font: inherit;
+}

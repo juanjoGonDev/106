@@ -135,7 +135,8 @@ describe('versioned profile and league social previews', () => {
     const fallback = read('public/404.html');
     expect(leagues).toContain('new URL(`ligas/${encodeURIComponent(publicId)}`, leagueBaseUrl)');
     expect(leagues).toContain('league.joinCode');
-    expect(leagues).toContain('membership?.competitionCode');
+    expect(leagues).toContain("leagueRequest('league-status', { nick, publicId: resolvedPublicId })");
+    expect(leagues).toContain("url.searchParams.set('competition', publicId)");
     expect(leagues).not.toContain('leagueLookupCode');
     expect(fallback).toContain('ligas\\/([A-Z0-9]{6})');
     expect(fallback).toContain("url.searchParams.set('league',league[2].toUpperCase())");
