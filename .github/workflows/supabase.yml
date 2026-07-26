@@ -113,13 +113,13 @@ jobs:
           supabase migration list --linked | tee "$status_file"
           node scripts/plan-production-migrations.mjs "$status_file" >> "$GITHUB_OUTPUT"
 
-      - name: Guard complete local migration chain
+      - name: Guard every pending production migration
         shell: bash
+        env:
+          MIGRATION_VERSIONS: ${{ steps.migration_plan.outputs.pending_versions }}
         run: |
           set -euo pipefail
-          MIGRATION_DIFF_BASE="0000000000000000000000000000000000000000" \
-            MIGRATION_DIFF_HEAD="HEAD" \
-            node scripts/check-production-migrations.mjs
+          node scripts/check-production-migrations.mjs
 
       - name: Report production migration plan
         shell: bash
