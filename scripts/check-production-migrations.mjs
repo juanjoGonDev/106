@@ -1,24 +1,29 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const migrationsDirectory = 'supabase/migrations';
-const base = process.env.MIGRATION_DIFF_BASE?.trim();
-const head = process.env.MIGRATION_DIFF_HEAD?.trim() || 'HEAD';
 const zeroSha = /^0+$/;
+const migrationVersionPattern = /^(\d{14})_/;
 
-function allMigrationFiles() {
+export function allMigrationFiles() {
   if (!existsSync(migrationsDirectory)) return [];
   return readdirSync(migrationsDirectory)
     .filter((file) => file.endsWith('.sql'))
     .map((file) => join(migrationsDirectory, file));
 }
 
-function changedMigrationFiles() {
+export function changedMigrationFiles({
+  base = process.env.MIGRATION_DIFF_BASE?.trim(),
+  head = process.env.MIGRATION_DIFF_HEAD?.trim() || 'HEAD',
+  execute = execFileSync,
+  logger = console,
+} = {}) {
   if (!base || zeroSha.test(base)) return allMigrationFiles();
 
   try {
-    return execFileSync(
+    return execute(
       'git',
       ['diff', '--name-only', '--diff-filter=AM', base, head, '--', `${migrationsDirectory}/*.sql`],
       { encoding: 'utf8' },
@@ -27,9 +32,47 @@ function changedMigrationFiles() {
       .map((file) => file.trim())
       .filter(Boolean);
   } catch (error) {
-    console.warn('Could not determine changed migrations; scanning all migrations instead.', error.message);
+    logger.warn('Could not determine changed migrations; scanning all migrations instead.', error.message);
     return allMigrationFiles();
   }
+}
+
+export function explicitMigrationFiles(selection, availableFiles = allMigrationFiles()) {
+  const versions = String(selection ?? '')
+    .split(',')
+    .map((version) => version.trim())
+    .filter(Boolean);
+
+  const invalidVersions = versions.filter((version) => !/^\d{14}$/.test(version));
+  if (invalidVersions.length) {
+    throw new Error(`Invalid migration version selection: ${invalidVersions.join(', ')}`);
+  }
+
+  const filesByVersion = new Map();
+  for (const file of availableFiles) {
+    const version = basename(file).match(migrationVersionPattern)?.[1];
+    if (!version) continue;
+    const matches = filesByVersion.get(version) ?? [];
+    matches.push(file);
+    filesByVersion.set(version, matches);
+  }
+
+  return versions.map((version) => {
+    const matches = filesByVersion.get(version) ?? [];
+    if (matches.length !== 1) {
+      throw new Error(
+        `Expected exactly one local migration for ${version}; found ${matches.length}.`,
+      );
+    }
+    return matches[0];
+  });
+}
+
+export function selectedMigrationFiles() {
+  if (Object.hasOwn(process.env, 'MIGRATION_VERSIONS')) {
+    return explicitMigrationFiles(process.env.MIGRATION_VERSIONS);
+  }
+  return changedMigrationFiles();
 }
 
 const destructivePatterns = [
@@ -60,26 +103,48 @@ function isVerifiedAchievementCheckExpansion(sql, pattern) {
     && !normalized.includes('drop column');
 }
 
-const files = changedMigrationFiles();
-const violations = [];
+export function migrationViolations(files) {
+  const violations = [];
 
-for (const file of files) {
-  const sql = readFileSync(file, 'utf8');
-  const explicitlyApproved = /--\s*production-data-loss-approved:\s*[^\s].+/i.test(sql);
+  for (const file of files) {
+    const sql = readFileSync(file, 'utf8');
+    const explicitlyApproved = /--\s*production-data-loss-approved:\s*[^\s].+/i.test(sql);
 
-  for (const pattern of destructivePatterns) {
-    if (!pattern.regex.test(sql)) continue;
-    if (explicitlyApproved || isVerifiedAchievementCheckExpansion(sql, pattern)) continue;
-    violations.push(`${file}: ${pattern.label}`);
+    for (const pattern of destructivePatterns) {
+      if (!pattern.regex.test(sql)) continue;
+      if (explicitlyApproved || isVerifiedAchievementCheckExpansion(sql, pattern)) continue;
+      violations.push(`${file}: ${pattern.label}`);
+    }
+  }
+
+  return violations;
+}
+
+export function runProductionMigrationCheck({
+  files = selectedMigrationFiles(),
+  logger = console,
+} = {}) {
+  const violations = migrationViolations(files);
+  if (violations.length > 0) {
+    logger.error('Potentially destructive production migration detected:');
+    for (const violation of violations) logger.error(`- ${violation}`);
+    logger.error('\nUse an additive migration instead. For an intentional reviewed operation, add:');
+    logger.error('-- production-data-loss-approved: <ticket/reason>');
+    return false;
+  }
+
+  logger.log(`Migration safety check passed for ${files.length} migration file(s).`);
+  return true;
+}
+
+const isMain = process.argv[1]
+  && pathToFileURL(process.argv[1]).href === import.meta.url;
+
+if (isMain) {
+  try {
+    if (!runProductionMigrationCheck()) process.exitCode = 1;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
   }
 }
-
-if (violations.length > 0) {
-  console.error('Potentially destructive production migration detected:');
-  for (const violation of violations) console.error(`- ${violation}`);
-  console.error('\nUse an additive migration instead. For an intentional reviewed operation, add:');
-  console.error('-- production-data-loss-approved: <ticket/reason>');
-  process.exit(1);
-}
-
-console.log(`Migration safety check passed for ${files.length} migration file(s).`);
