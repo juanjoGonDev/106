@@ -27,17 +27,18 @@ describe('authentication reward migrations', () => {
   });
 
   it('grants exactly one mutually exclusive email or social reward', () => {
-    const sql = normalized(providerMigrationPath);
+    const baseSql = normalized(baseMigrationPath);
+    const providerSql = normalized(providerMigrationPath);
 
-    expect(sql).toContain("v_origin_provider = 'email' and v_origin.email_verified_at is null");
-    expect(sql).toContain("v_source := 'email_confirmation'");
-    expect(sql).toContain("v_origin_provider in ('google', 'facebook')");
-    expect(sql).toContain("v_source := 'social_link'");
-    expect(sql).toContain("'email_verified', 'email_verified', 'cuenta confirmada'");
-    expect(sql).toContain("entitlement.metadata->>'source' = 'email_confirmation'");
-    expect(sql).toContain('on conflict (nick_key, achievement_code) do nothing');
-    expect(sql).toContain('after insert or update of account_id on public.game_account_players');
-    expect(sql).toContain('origin_provider = coalesce(identity.origin_provider, p_provider)');
+    expect(providerSql).toContain("v_origin_provider = 'email' and v_origin.email_verified_at is null");
+    expect(providerSql).toContain("v_source := 'email_confirmation'");
+    expect(providerSql).toContain("v_origin_provider in ('google', 'facebook')");
+    expect(providerSql).toContain("v_source := 'social_link'");
+    expect(providerSql).toContain("'email_verified', 'email_verified', 'cuenta confirmada'");
+    expect(providerSql).toContain("entitlement.metadata->>'source' = 'email_confirmation'");
+    expect(providerSql).toContain('on conflict (nick_key, achievement_code) do nothing');
+    expect(baseSql).toContain('after insert or update of account_id on public.game_account_players');
+    expect(providerSql).toContain('origin_provider = coalesce(identity.origin_provider, p_provider)');
   });
 
   it('pins local activation links to one hour and highlights the reward in the email', () => {
