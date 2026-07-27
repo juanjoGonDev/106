@@ -1,5 +1,6 @@
 const DEFAULT_SUPABASE_PROJECT_ID = 'imtitjwgiemlaabpioed';
-const DEFAULT_API_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/game-api`;
+const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
+const DEFAULT_API_URL = `${DEFAULT_SUPABASE_URL}/functions/v1/game-api`;
 
 function normalizedUrl(value) {
   return String(value ?? '').trim().replace(/\/$/, '');
@@ -8,6 +9,11 @@ function normalizedUrl(value) {
 function normalizedProjectRef(value) {
   const projectRef = String(value ?? '').trim().toLowerCase();
   return /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(projectRef) ? projectRef : '';
+}
+
+function normalizedPublishableKey(value) {
+  const key = String(value ?? '').trim();
+  return /^sb_publishable_[a-zA-Z0-9_-]{20,}$/.test(key) ? key : '';
 }
 
 function repositoryPagesUrl(repository, owner) {
@@ -32,6 +38,18 @@ function validHttpsUrl(value, expectedPath = null) {
   }
 }
 
+function supabaseUrlFromApi(apiBaseUrl, projectRef) {
+  try {
+    const url = new URL(apiBaseUrl);
+    if (url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')) {
+      return `${url.protocol}//${url.host}`;
+    }
+  } catch {
+    // Fall back to the validated project reference.
+  }
+  return `https://${projectRef}.supabase.co`;
+}
+
 export function buildRuntimeConfig(environment = process.env) {
   const explicitApiUrl = normalizedUrl(environment.SUPABASE_FUNCTIONS_URL);
   const configuredProjectRef = normalizedProjectRef(
@@ -40,6 +58,7 @@ export function buildRuntimeConfig(environment = process.env) {
   const projectRef = configuredProjectRef || DEFAULT_SUPABASE_PROJECT_ID;
   const apiBaseUrl = explicitApiUrl
     || `https://${projectRef}.supabase.co/functions/v1/game-api`;
+  const supabaseUrl = supabaseUrlFromApi(apiBaseUrl, projectRef);
 
   const publicSiteUrl = normalizedUrl(environment.PUBLIC_SITE_URL)
     || normalizedUrl(environment.GITHUB_PAGES_URL)
@@ -48,6 +67,9 @@ export function buildRuntimeConfig(environment = process.env) {
 
   return {
     apiBaseUrl,
+    accountAuthApiUrl: `${supabaseUrl}/functions/v1/account-auth`,
+    supabaseUrl,
+    supabasePublishableKey: normalizedPublishableKey(environment.SUPABASE_PUBLISHABLE_KEY),
     turnstileSiteKey: String(environment.TURNSTILE_SITE_KEY ?? '').trim(),
     googleAnalyticsId: String(environment.GOOGLE_ANALYTICS_ID ?? '').trim(),
     adSenseClient: String(environment.ADSENSE_CLIENT ?? '').trim(),
@@ -55,15 +77,28 @@ export function buildRuntimeConfig(environment = process.env) {
   };
 }
 
-export function validateRuntimeConfig(config) {
+export function validateRuntimeConfig(config, options = {}) {
   const errors = [];
   if (!validHttpsUrl(config.apiBaseUrl, '/functions/v1/game-api')) {
     errors.push('The generated Supabase Edge Function URL is invalid.');
   }
+  if (!validHttpsUrl(config.accountAuthApiUrl, '/functions/v1/account-auth')) {
+    errors.push('The generated account-auth Edge Function URL is invalid.');
+  }
+  if (!validHttpsUrl(config.supabaseUrl)) {
+    errors.push('The generated Supabase project URL is invalid.');
+  }
   if (!validHttpsUrl(config.publicSiteUrl)) {
     errors.push('The public GitHub Pages URL could not be derived.');
+  }
+  if (options.requireAuth === true && !config.supabasePublishableKey) {
+    errors.push('SUPABASE_PUBLISHABLE_KEY is required for the production authentication UI.');
   }
   return errors;
 }
 
-export { DEFAULT_API_URL, DEFAULT_SUPABASE_PROJECT_ID };
+export {
+  DEFAULT_API_URL,
+  DEFAULT_SUPABASE_PROJECT_ID,
+  DEFAULT_SUPABASE_URL,
+};
