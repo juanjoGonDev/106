@@ -64,7 +64,7 @@ const tablePrivileges = parseJson(databaseUrl, `
     join pg_namespace namespace on namespace.oid = relation.relnamespace and namespace.nspname = information.table_schema
     where table_schema = 'public'
       and table_type = 'BASE TABLE'
-      and table_name like 'game\_%' escape '\'
+      and left(table_name, 5) = 'game_'
   ) audit;
 `);
 
@@ -91,8 +91,8 @@ const functionPrivileges = parseJson(databaseUrl, `
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
       and (
-        procedure.proname like 'game\_%' escape '\'
-        or procedure.proname like '%\_game\_%' escape '\'
+        left(procedure.proname, 5) = 'game_'
+        or position('_game_' in procedure.proname) > 0
         or procedure.proname in (
           'ensure_game_account_player',
           'prepare_game_auth_link',
@@ -126,7 +126,7 @@ const sequencePrivileges = parseJson(databaseUrl, `
       has_sequence_privilege('authenticated', format('%I.%I', sequence_schema, sequence_name), 'USAGE,SELECT,UPDATE') as authenticated_access
     from information_schema.sequences
     where sequence_schema = 'public'
-      and sequence_name like 'game\_%' escape '\'
+      and left(sequence_name, 5) = 'game_'
   ) audit;
 `);
 for (const sequence of sequencePrivileges) {
