@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation complete. Final-head CI and evidence validation are pending.
+Implementation complete. Delivery requires the final-head CI and evidence checks recorded in PR #39 to remain green.
 
 ## Request
 
@@ -60,15 +60,13 @@ A canonical game account may link Google and Facebook simultaneously. A social-o
 19. Desktop and Mobile Playwright cover progressive password feedback, activation resend, one-hour copy and second-provider availability without overflow or page errors.
 20. The final PR head has green CI and a new complete platform evidence artifact.
 
-## Validation plan
+## Validation
 
-- `pnpm check`
-- `pnpm test:auth-state:coverage`
-- `pnpm test:supabase-auth-client:coverage`
-- `bash scripts/run-supabase-ci.sh`
-- `PR_VISUAL_CAPTURE=1 pnpm test:e2e`
-- `pnpm preview:platform`
-- GitHub Actions quality, browser/evidence, public asset and PR evidence workflows
+- `pnpm check` includes strict 100% line/function/branch gates for auth state, pending-activation hydration, the Supabase Auth client and the Edge Function boundary.
+- Local Supabase integration creates real users/JWTs and exercises email confirmation reward, replay, future nick propagation, pending email, Google then Facebook, email-origin exclusion, merge lifecycle and role isolation.
+- Browser journeys validate signup confirmation, resend after reload, one-hour copy, cooldown, password matching, both social provider buttons, the one social reward and responsive behavior.
+- Database-permission tests enumerate private tables, sequences and privileged functions and probe them using both `anon` and authenticated JWTs.
+- The final workflow run IDs, artifact digest and downloadable Desktop/Mobile PNG, WebM, GIF and manifest ZIP are maintained in PR #39 without changing this specification.
 
 ## Rollout
 
