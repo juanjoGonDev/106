@@ -206,6 +206,20 @@ export class SupabaseAuthClient {
     return payload;
   }
 
+  async resendSignupConfirmation(email, options = {}) {
+    const normalized = normalizeEmail(email);
+    if (!normalized) throw new Error('Introduce un email válido.');
+    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl);
+    const query = new URLSearchParams({ redirect_to: redirectTo });
+    return this.request(`/resend?${query}`, {
+      body: {
+        email: normalized,
+        type: 'signup',
+        gotrue_meta_security: options.captchaToken ? { captcha_token: options.captchaToken } : undefined,
+      },
+    });
+  }
+
   async signInWithPassword(email, password, options = {}) {
     const normalized = normalizeEmail(email);
     if (!normalized) throw new Error('Introduce un email válido.');
