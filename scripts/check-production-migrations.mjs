@@ -86,7 +86,22 @@ const destructivePatterns = [
 ];
 
 function isIdentifierCharacter(character) {
-  return Boolean(character) && /[a-zA-Z0-9_]/.test(character);
+  if (!character) return false;
+  const code = character.codePointAt(0);
+  return (code >= 48 && code <= 57)
+    || (code >= 65 && code <= 90)
+    || code === 95
+    || (code >= 97 && code <= 122);
+}
+
+function isWhitespaceCharacter(character) {
+  if (!character) return false;
+  return character === ' '
+    || character === '\t'
+    || character === '\n'
+    || character === '\r'
+    || character === '\f'
+    || character === '\v';
 }
 
 function isKeywordAt(source, lowerSource, index, keyword) {
@@ -97,7 +112,7 @@ function isKeywordAt(source, lowerSource, index, keyword) {
 
 function skipWhitespace(source, index) {
   let cursor = index;
-  while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+  while (cursor < source.length && isWhitespaceCharacter(source[cursor])) cursor += 1;
   return cursor;
 }
 
