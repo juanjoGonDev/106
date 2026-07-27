@@ -46,6 +46,7 @@
             Continuar con Facebook
           </button>
         </div>
+        <p class="social-reward-note"><strong>+1 intento diario:</strong> al vincular por primera vez Google o Facebook. Puedes vincular ambos a la misma cuenta, pero la bonificación social se concede una sola vez y no se suma si la cuenta se creó primero con email.</p>
 
         <div class="auth-divider"><span>o con email</span></div>
         <div class="auth-fields">
@@ -64,8 +65,17 @@
           <button id="emailSignUp" class="primary" type="button">Crear cuenta</button>
           <button id="emailRecovery" class="ghost" type="button">He olvidado la contraseña</button>
         </div>
+
+        <section id="emailConfirmationPanel" class="email-confirmation-panel" aria-labelledby="emailConfirmationTitle">
+          <p class="eyebrow">ACTIVACIÓN CON PREMIO</p>
+          <h3 id="emailConfirmationTitle">Confirma tu email y gana +1 intento diario</h3>
+          <p>El enlace de activación es de un solo uso y caduca en 1 hora. Al abrirlo también desbloqueas el logro <strong>Cuenta confirmada</strong>.</p>
+          <p id="pendingConfirmationEmail" class="pending-confirmation-email" hidden></p>
+          <button id="emailConfirmationResend" class="secondary" type="button" disabled>Reenviar enlace de activación</button>
+          <p id="emailConfirmationResendStatus" class="confirmation-resend-status" role="status" aria-live="polite">Escribe un email válido para poder reenviar la activación.</p>
+        </section>
+
         <button id="cloudSignOut" class="ghost cloud-sign-out" type="button" hidden>Cerrar sesión en la nube</button>
-        <p class="verification-reward-note"><strong>+1 intento diario y logro:</strong> al crear la cuenta, abre el enlace de un solo uso enviado a tu email. La bonificación cuenta dentro del máximo diario absoluto de 10.</p>
         <p class="hint">El email se guarda de forma privada y no aparece en perfiles, rankings ni imágenes compartidas.</p>
       </section>
 
