@@ -55,7 +55,7 @@ const tablePrivileges = parseJson(databaseUrl, `
   from (
     select
       table_name,
-      row_security,
+      relation.relrowsecurity as row_security,
       has_table_privilege('anon', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as anon_access,
       has_table_privilege('authenticated', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as authenticated_access,
       has_table_privilege('service_role', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as service_access
@@ -64,7 +64,7 @@ const tablePrivileges = parseJson(databaseUrl, `
     join pg_namespace namespace on namespace.oid = relation.relnamespace and namespace.nspname = information.table_schema
     where table_schema = 'public'
       and table_type = 'BASE TABLE'
-      and table_name like 'game\\_%' escape '\\'
+      and table_name like 'game\_%' escape '\'
   ) audit;
 `);
 
@@ -91,8 +91,8 @@ const functionPrivileges = parseJson(databaseUrl, `
     join pg_namespace namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
       and (
-        procedure.proname like 'game\\_%' escape '\\'
-        or procedure.proname like '%\\_game\\_%' escape '\\'
+        procedure.proname like 'game\_%' escape '\'
+        or procedure.proname like '%\_game\_%' escape '\'
         or procedure.proname in (
           'ensure_game_account_player',
           'prepare_game_auth_link',
@@ -126,7 +126,7 @@ const sequencePrivileges = parseJson(databaseUrl, `
       has_sequence_privilege('authenticated', format('%I.%I', sequence_schema, sequence_name), 'USAGE,SELECT,UPDATE') as authenticated_access
     from information_schema.sequences
     where sequence_schema = 'public'
-      and sequence_name like 'game\\_%' escape '\\'
+      and sequence_name like 'game\_%' escape '\'
   ) audit;
 `);
 for (const sequence of sequencePrivileges) {
