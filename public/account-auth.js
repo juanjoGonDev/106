@@ -1,5 +1,4 @@
 import {
-  accountRedirectUrl,
   mergeItemText,
   neutralAuthMessage,
   normalizeAuthConfig,
