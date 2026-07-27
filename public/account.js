@@ -158,7 +158,7 @@ document.querySelector('#showAccountKey')?.addEventListener('click', () => {
 document.querySelector('#logoutAccount')?.addEventListener('click', async () => {
   const accepted = await window.Minuto106UI?.ask({
     title: 'Cerrar cuenta en este dispositivo',
-    message: 'Se eliminará la clave privada de este navegador. Tus nicks y estadísticas seguirán guardados, pero necesitarás la clave para recuperarlos.',
+    message: 'Se eliminará la clave privada de este navegador. Tus nicks y estadísticas seguirán guardados, pero necesitarás la clave o una cuenta en la nube para recuperarlos.',
     acceptLabel: 'Cerrar cuenta',
     cancelLabel: 'Cancelar',
   });
@@ -185,6 +185,10 @@ document.querySelector('#importAccountButton')?.addEventListener('click', async 
   }
 });
 document.addEventListener('minuto106:account-updated', refreshAccountKey);
+document.addEventListener('minuto106:cloud-account-synced', () => {
+  refreshAccountKey();
+  loadPlayers().catch((error) => showAccountError(error, 'No se pudo sincronizar la cuenta'));
+});
 refreshAccountKey();
 loadPlayers().catch((error) => {
   document.querySelector('#accountPlayersStatus').textContent = error.message;
