@@ -56,16 +56,17 @@ function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
 const { databaseUrl } = environment();
 const suffix = Date.now().toString(36);
 const tokenHash = randomBytes(32).toString('hex');
-const deviceHash = `email-device-${suffix}-${'d'.repeat(40)}`;
-const ipHash = `email-ip-${suffix}-${'i'.repeat(44)}`;
-const firstNick = `EmailBonusA${suffix}`.slice(0, 24);
-const secondNick = `EmailBonusB${suffix}`.slice(0, 24);
+const deviceHash = `auth-device-${suffix}-${'d'.repeat(40)}`;
+const ipHash = `auth-ip-${suffix}-${'i'.repeat(44)}`;
+const firstNick = `AuthBonusA${suffix}`.slice(0, 24);
+const secondNick = `AuthBonusB${suffix}`.slice(0, 24);
 const firstKey = createPlayer(databaseUrl, firstNick, tokenHash, deviceHash, ipHash);
 const secondKey = createPlayer(databaseUrl, secondNick, tokenHash, deviceHash, ipHash);
 const accountId = psql(databaseUrl, `select public.game_account_id_for_nick(${literal(firstKey)})::text;`);
 
 let firstState = json(databaseUrl, `public.get_game_daily_attempt_state(${literal(firstKey)}, clock_timestamp())`);
 assert.equal(firstState.maxAttempts, 5, JSON.stringify(firstState));
+assert.equal(firstState.authRewardBonus, 0, JSON.stringify(firstState));
 assert.equal(firstState.emailVerificationBonus, 0, JSON.stringify(firstState));
 
 psql(databaseUrl, `
@@ -73,32 +74,33 @@ psql(databaseUrl, `
     account_id, entitlement_code, auth_user_id, metadata
   ) values (
     ${literal(accountId)}::uuid,
-    'verified_email_daily_attempt',
+    'auth_identity_daily_attempt',
     gen_random_uuid(),
-    jsonb_build_object('dailyAttemptBonus', 1)
+    jsonb_build_object('dailyAttemptBonus', 1, 'source', 'social_link', 'provider', 'google')
   ) on conflict (account_id, entitlement_code) do nothing;
 `);
 
 for (const nickKey of [firstKey, secondKey]) {
   const state = json(databaseUrl, `public.get_game_daily_attempt_state(${literal(nickKey)}, clock_timestamp())`);
+  assert.equal(state.authRewardBonus, 1, JSON.stringify(state));
   assert.equal(state.emailVerificationBonus, 1, JSON.stringify(state));
   assert.equal(state.bonusAttempts, 1, JSON.stringify(state));
   assert.equal(state.maxAttempts, 6, JSON.stringify(state));
 }
-process.stdout.write('✓ verified email entitlement adds one daily attempt to every nick on the account\n');
+process.stdout.write('✓ one authentication entitlement adds one daily attempt to every nick on the account\n');
 
 psql(databaseUrl, `
   insert into public.game_account_entitlements(account_id, entitlement_code, auth_user_id)
-  values (${literal(accountId)}::uuid, 'verified_email_daily_attempt', gen_random_uuid())
+  values (${literal(accountId)}::uuid, 'auth_identity_daily_attempt', gen_random_uuid())
   on conflict (account_id, entitlement_code) do nothing;
 `);
 assert.equal(psql(databaseUrl, `
   select count(*)
   from public.game_account_entitlements
   where account_id = ${literal(accountId)}::uuid
-    and entitlement_code = 'verified_email_daily_attempt';
+    and entitlement_code = 'auth_identity_daily_attempt';
 `), '1');
-process.stdout.write('✓ repeated confirmation cannot stack the account entitlement\n');
+process.stdout.write('✓ repeated Google/Facebook/email reward processing cannot stack the entitlement\n');
 
 psql(databaseUrl, `
   update public.game_player_bonus
@@ -107,7 +109,22 @@ psql(databaseUrl, `
   where nick_key = ${literal(firstKey)};
 `);
 firstState = json(databaseUrl, `public.get_game_daily_attempt_state(${literal(firstKey)}, clock_timestamp())`);
-assert.equal(firstState.emailVerificationBonus, 1, JSON.stringify(firstState));
+assert.equal(firstState.authRewardBonus, 1, JSON.stringify(firstState));
 assert.equal(firstState.bonusAttempts, 5, JSON.stringify(firstState));
 assert.equal(firstState.maxAttempts, 10, JSON.stringify(firstState));
-process.stdout.write('✓ email confirmation contributes inside the existing absolute maximum of ten\n');
+process.stdout.write('✓ authentication reward contributes inside the existing absolute maximum of ten\n');
+
+psql(databaseUrl, `
+  delete from public.game_account_entitlements
+  where account_id = ${literal(accountId)}::uuid
+    and entitlement_code = 'auth_identity_daily_attempt';
+  insert into public.game_account_entitlements(account_id, entitlement_code, auth_user_id, metadata)
+  values (
+    ${literal(accountId)}::uuid,
+    'verified_email_daily_attempt',
+    gen_random_uuid(),
+    jsonb_build_object('source', 'email_confirmation')
+  );
+`);
+assert.equal(psql(databaseUrl, `select public.game_account_auth_daily_bonus(${literal(accountId)}::uuid);`), '1');
+process.stdout.write('✓ legacy verified-email entitlement remains compatible during rolling deployment\n');
