@@ -64,6 +64,9 @@ jobs:
       - name: Enforce account auth state coverage
         run: pnpm test:auth-state:coverage
 
+      - name: Enforce pending activation bootstrap coverage
+        run: pnpm test:auth-bootstrap:coverage
+
       - name: Enforce Supabase Auth client coverage
         run: pnpm test:supabase-auth-client:coverage
 
