@@ -103,6 +103,24 @@ async function createAnonymousPlayer(environment, token, nick) {
   assert.equal(result.body.authorized, true);
 }
 
+function seedCompetitiveImpact(databaseUrl, sourceNick, targetNick, suffix) {
+  psql(databaseUrl, `
+    insert into public.game_referrals(
+      referral_code, referrer_nick_key, referred_nick_key,
+      referred_device_hash, referred_ip_hash, completed_at
+    ) values (
+      gen_random_uuid(), ${sqlLiteral(sourceNick)}, ${sqlLiteral(targetNick)},
+      ${sqlLiteral(`concurrency-referral-device-${suffix}`)},
+      ${sqlLiteral(`concurrency-referral-ip-${suffix}`)},
+      clock_timestamp()
+    );
+    update public.game_player_bonus
+    set bonus_attempts = bonus_attempts + 1,
+        updated_at = clock_timestamp()
+    where nick_key = ${sqlLiteral(sourceNick)};
+  `);
+}
+
 async function accountAuth(environment, jwt, action, body = {}, accountToken = '') {
   const headers = {
     apikey: environment.anonKey,
@@ -120,16 +138,10 @@ async function prepareMerge(environment, suffix, caseName) {
   const password = 'MergeConcurrencyPassword123!';
   const targetToken = randomBytes(32).toString('hex');
   const sourceToken = randomBytes(32).toString('hex');
-  await createAnonymousPlayer(
-    environment,
-    targetToken,
-    `${caseName}T${suffix}`.slice(0, 24),
-  );
-  await createAnonymousPlayer(
-    environment,
-    sourceToken,
-    `${caseName}S${suffix}`.slice(0, 24),
-  );
+  const targetNick = `${caseName}T${suffix}`.slice(0, 24);
+  const sourceNick = `${caseName}S${suffix}`.slice(0, 24);
+  await createAnonymousPlayer(environment, targetToken, targetNick);
+  await createAnonymousPlayer(environment, sourceToken, sourceNick);
 
   const email = `${caseName.toLowerCase()}-${suffix}@example.com`;
   await createAuthUser(environment, email, password);
@@ -139,9 +151,11 @@ async function prepareMerge(environment, suffix, caseName) {
   assert.equal(linked.response.status, 200, JSON.stringify(linked.body));
   assert.equal(linked.body.linked, true);
 
+  seedCompetitiveImpact(environment.databaseUrl, sourceNick, targetNick, `${caseName}-${suffix}`);
   const proposal = await accountAuth(environment, jwt, 'sync-account', {}, sourceToken);
   assert.equal(proposal.response.status, 200, JSON.stringify(proposal.body));
   assert.equal(proposal.body.mergeRequired, true);
+  assert.equal(proposal.body.impact.referrals.length, 1);
   assert.match(proposal.body.proposalId, /^[0-9a-f-]{36}$/);
   assert.match(proposal.body.fingerprint, /^[a-f0-9]{64}$/);
 
