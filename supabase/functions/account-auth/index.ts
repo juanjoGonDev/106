@@ -114,6 +114,19 @@ function safeResult(origin: string | null, result: JsonObject, status = 200) {
   }, errorStatus(code));
 }
 
+function pendingAuthReward(identity: ReturnType<typeof authIdentity>) {
+  if (identity?.provider !== 'email') return null;
+  return {
+    eligible: true,
+    active: false,
+    granted: false,
+    pendingConfirmation: !identity.emailVerified,
+    dailyAttemptBonus: 0,
+    source: 'email_confirmation',
+    provider: 'email',
+  };
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
   if (request.method === 'OPTIONS') {
@@ -159,12 +172,20 @@ Deno.serve(async (request) => {
         p_account_token_hash: currentTokenHash || null,
         p_new_token_hash: newTokenHash,
       });
-      const verificationReward = await rpc('grant_game_verified_email_reward', {
+      if (result?.error) return safeResult(origin, result);
+
+      const originState = await rpc('record_game_auth_origin', {
         p_auth_user_id: identity.id,
+        p_provider: identity.provider,
       });
+      if (originState?.error) return safeResult(origin, originState);
+
+      const authReward = result.mergeRequired === true
+        ? pendingAuthReward(identity)
+        : await rpc('grant_game_auth_link_reward', { p_auth_user_id: identity.id });
       return safeResult(origin, successfulSync({
         ...result,
-        verificationReward,
+        authReward,
       }, newToken, identity));
     }
 
@@ -185,9 +206,14 @@ Deno.serve(async (request) => {
       p_proposal_id: proposalId,
       p_impact_fingerprint: fingerprint,
     });
+    if (result?.error) return safeResult(origin, result);
+    const authReward = await rpc('grant_game_auth_link_reward', {
+      p_auth_user_id: identity.id,
+    });
     return safeResult(origin, {
       ...result,
       auth: publicAuth(identity),
+      authReward,
     });
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Unknown account-auth error');
