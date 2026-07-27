@@ -104,12 +104,14 @@ async function createAnonymousPlayer(environment, token, nick) {
 }
 
 function seedCompetitiveImpact(databaseUrl, sourceNick, targetNick, suffix) {
+  const sourceNickKey = sourceNick.toLocaleLowerCase('es');
+  const targetNickKey = targetNick.toLocaleLowerCase('es');
   psql(databaseUrl, `
     insert into public.game_referrals(
       referral_code, referrer_nick_key, referred_nick_key,
       referred_device_hash, referred_ip_hash, completed_at
     ) values (
-      gen_random_uuid(), ${sqlLiteral(sourceNick)}, ${sqlLiteral(targetNick)},
+      gen_random_uuid(), ${sqlLiteral(sourceNickKey)}, ${sqlLiteral(targetNickKey)},
       ${sqlLiteral(`concurrency-referral-device-${suffix}`)},
       ${sqlLiteral(`concurrency-referral-ip-${suffix}`)},
       clock_timestamp()
@@ -117,7 +119,7 @@ function seedCompetitiveImpact(databaseUrl, sourceNick, targetNick, suffix) {
     update public.game_player_bonus
     set bonus_attempts = bonus_attempts + 1,
         updated_at = clock_timestamp()
-    where nick_key = ${sqlLiteral(sourceNick)};
+    where nick_key = ${sqlLiteral(sourceNickKey)};
   `);
 }
 
