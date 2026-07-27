@@ -1,4 +1,9 @@
 import {
+  AUTH_PENDING_CONFIRMATION_STORAGE_KEY,
+  AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY,
+  AUTH_RESEND_COOLDOWN_SECONDS,
+  authRewardMessage,
+  confirmationResendDelaySeconds,
   mergeItemText,
   neutralAuthMessage,
   normalizeAuthConfig,
@@ -30,6 +35,10 @@ const elements = {
   signIn: document.querySelector('#emailSignIn'),
   signUp: document.querySelector('#emailSignUp'),
   recovery: document.querySelector('#emailRecovery'),
+  resend: document.querySelector('#emailConfirmationResend'),
+  confirmationPanel: document.querySelector('#emailConfirmationPanel'),
+  pendingConfirmationEmail: document.querySelector('#pendingConfirmationEmail'),
+  resendStatus: document.querySelector('#emailConfirmationResendStatus'),
   signOut: document.querySelector('#cloudSignOut'),
   captcha: document.querySelector('#authCaptcha'),
   mergeDialog: document.querySelector('#accountMergeDialog'),
@@ -45,12 +54,20 @@ let confirmingMerge = false;
 let captchaWidgetId = null;
 let captchaWaiter = null;
 let turnstileLoader = null;
+let resendTimer = null;
 let busy = false;
+let currentSession = null;
 
 function setStatus(message, tone = 'neutral') {
   if (!elements.status) return;
   elements.status.textContent = message;
   elements.status.dataset.tone = tone;
+}
+
+function setResendStatus(message, tone = 'neutral') {
+  if (!elements.resendStatus) return;
+  elements.resendStatus.textContent = message;
+  elements.resendStatus.dataset.tone = tone;
 }
 
 function registrationState() {
@@ -59,6 +76,72 @@ function registrationState() {
     elements.password?.value,
     elements.passwordConfirmation?.value,
   );
+}
+
+function storedPendingEmail() {
+  return normalizeEmail(localStorage.getItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY));
+}
+
+function setPendingConfirmation(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return;
+  localStorage.setItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY, normalized);
+  if (elements.email && !normalizeEmail(elements.email.value)) elements.email.value = normalized;
+}
+
+function clearPendingConfirmation() {
+  localStorage.removeItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY);
+  localStorage.removeItem(AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY);
+}
+
+function resendAvailableAt() {
+  return Number(localStorage.getItem(AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY) || 0);
+}
+
+function startResendCooldown() {
+  const availableAt = Date.now() + AUTH_RESEND_COOLDOWN_SECONDS * 1000;
+  localStorage.setItem(AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY, String(availableAt));
+}
+
+function refreshResendTimer(delaySeconds) {
+  if (delaySeconds > 0 && resendTimer === null) {
+    resendTimer = window.setInterval(refreshControls, 1000);
+    return;
+  }
+  if (delaySeconds === 0 && resendTimer !== null) {
+    window.clearInterval(resendTimer);
+    resendTimer = null;
+  }
+}
+
+function renderConfirmationPanel() {
+  if (!elements.confirmationPanel || !elements.resend) return;
+  const summary = sessionSummary(currentSession);
+  const confirmedEmailSession = summary?.provider === 'email' && summary.emailVerified;
+  elements.confirmationPanel.hidden = Boolean(confirmedEmailSession);
+  if (confirmedEmailSession) {
+    clearPendingConfirmation();
+    refreshResendTimer(0);
+    return;
+  }
+
+  const pendingEmail = storedPendingEmail();
+  const email = pendingEmail || normalizeEmail(elements.email?.value);
+  if (elements.pendingConfirmationEmail) {
+    elements.pendingConfirmationEmail.hidden = !pendingEmail;
+    elements.pendingConfirmationEmail.textContent = pendingEmail ? `Activación pendiente para ${pendingEmail}` : '';
+  }
+
+  const delaySeconds = confirmationResendDelaySeconds(resendAvailableAt());
+  elements.resend.disabled = busy || !config.available || !email || delaySeconds > 0;
+  if (delaySeconds > 0) {
+    setResendStatus(`Podrás solicitar otro enlace en ${delaySeconds} s.`, 'warning');
+  } else if (email) {
+    setResendStatus('El nuevo enlace sustituirá al anterior y será válido durante 1 hora.');
+  } else {
+    setResendStatus('Escribe un email válido para poder reenviar la activación.');
+  }
+  refreshResendTimer(delaySeconds);
 }
 
 function refreshControls() {
@@ -73,6 +156,7 @@ function refreshControls() {
   if (elements.recovery) elements.recovery.disabled = busy || unavailable || !email;
   if (elements.signOut) elements.signOut.disabled = busy || unavailable;
   if (elements.panel) elements.panel.dataset.busy = String(busy);
+  renderConfirmationPanel();
 }
 
 function setBusy(value) {
@@ -81,16 +165,20 @@ function setBusy(value) {
 }
 
 function renderSession(session) {
+  currentSession = session;
   const summary = sessionSummary(session);
   if (!elements.identity || !elements.signOut) return;
   elements.identity.hidden = !summary;
   elements.signOut.hidden = !summary;
   if (!summary) {
     elements.identity.textContent = '';
+    refreshControls();
     return;
   }
   const provider = summary.provider === 'google' ? 'Google' : summary.provider === 'facebook' ? 'Facebook' : 'email';
   elements.identity.textContent = `${summary.email || 'Cuenta verificada'} · ${provider}`;
+  if (summary.provider === 'email' && summary.emailVerified) clearPendingConfirmation();
+  refreshControls();
 }
 
 function authHeaders(session) {
@@ -173,17 +261,6 @@ async function cancelPendingMerge() {
   await accountAuthRequest('cancel-merge', { proposalId: proposal.proposalId }).catch(() => {});
 }
 
-function successfulSyncMessage(result) {
-  const reward = result.verificationReward;
-  if (reward?.granted) {
-    return 'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.';
-  }
-  if (reward?.eligible && reward?.active) {
-    return 'Cuenta vinculada. Tu bonificación de +1 intento diario por email confirmado sigue activa.';
-  }
-  return 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.';
-}
-
 async function synchronizeAccount() {
   const session = await client.currentSession();
   renderSession(session);
@@ -197,7 +274,7 @@ async function synchronizeAccount() {
     return result;
   }
   document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
-  setStatus(successfulSyncMessage(result), 'success');
+  setStatus(authRewardMessage(result.authReward || result.verificationReward), 'success');
   return result;
 }
 
@@ -280,15 +357,27 @@ async function runEmailOperation(operation) {
   const email = normalizeEmail(elements.email.value);
   if (!email) throw new Error('Introduce un email válido.');
 
-  if (operation === 'recovery') {
+  if (operation === 'recovery' || operation === 'resend') {
     const token = await captchaToken();
     try {
-      await client.requestPasswordRecovery(email, { captchaToken: token });
+      if (operation === 'recovery') {
+        await client.requestPasswordRecovery(email, { captchaToken: token });
+        setStatus(neutralAuthMessage('recovery'), 'success');
+        return;
+      }
+      if (confirmationResendDelaySeconds(resendAvailableAt()) > 0) {
+        throw new Error('Espera antes de solicitar otro enlace de activación.');
+      }
+      await client.resendSignupConfirmation(email, { captchaToken: token });
+      setPendingConfirmation(email);
+      startResendCooldown();
+      setStatus(neutralAuthMessage('resend'), 'success');
+      setResendStatus('Enlace solicitado. Revisa también la carpeta de spam.', 'success');
+      return;
     } finally {
       resetCaptcha();
+      refreshControls();
     }
-    setStatus(neutralAuthMessage('recovery'), 'success');
-    return;
   }
 
   const password = elements.password.value;
@@ -304,7 +393,10 @@ async function runEmailOperation(operation) {
   try {
     if (operation === 'signup') {
       await client.signUp(email, password, { captchaToken: token });
+      setPendingConfirmation(email);
+      startResendCooldown();
       setStatus(neutralAuthMessage('signup'), 'success');
+      refreshControls();
       return;
     }
     const session = await client.signInWithPassword(email, password, { captchaToken: token });
@@ -320,7 +412,11 @@ async function handle(operation, action) {
   try {
     await action();
   } catch (error) {
-    const message = operation === 'signup' || operation === 'recovery'
+    const code = String(error.code || error.message || '').toLowerCase();
+    if (operation === 'signin' && code.includes('email not confirmed')) {
+      setPendingConfirmation(elements.email?.value);
+    }
+    const message = ['signup', 'recovery', 'resend'].includes(operation)
       ? neutralAuthMessage(operation, error.code || error.message)
       : error.message || neutralAuthMessage(operation, error.code);
     setStatus(message, 'error');
@@ -374,7 +470,7 @@ async function initialize() {
   const session = await client.exchangeCallback();
   renderSession(session);
   if (session) await synchronizeAccount();
-  else setStatus('Vincula Google, Facebook o email para recuperar tu progreso sin depender únicamente de la clave privada.');
+  else setStatus('Vincula Google, Facebook o email para recuperar tu progreso sin depender únicamente de la clave privada. Puedes asociar ambos proveedores sociales a la misma cuenta.');
   refreshControls();
 }
 
@@ -383,6 +479,7 @@ elements.facebook?.addEventListener('click', () => handle('oauth', () => client.
 elements.signIn?.addEventListener('click', () => handle('signin', () => runEmailOperation('signin')));
 elements.signUp?.addEventListener('click', () => handle('signup', () => runEmailOperation('signup')));
 elements.recovery?.addEventListener('click', () => handle('recovery', () => runEmailOperation('recovery')));
+elements.resend?.addEventListener('click', () => handle('resend', () => runEmailOperation('resend')));
 elements.email?.addEventListener('input', refreshControls);
 elements.password?.addEventListener('input', refreshPasswordFeedback);
 elements.passwordConfirmation?.addEventListener('input', refreshPasswordFeedback);
@@ -400,7 +497,9 @@ elements.mergeConfirm?.addEventListener('click', () => handle('merge', async () 
     pendingMerge = null;
     elements.mergeDialog.close();
     document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
-    setStatus(`Cuentas vinculadas. Se aplicaron ${normalizeMergeImpact(result.impact).totalLosses} correcciones competitivas.`, 'success');
+    const corrections = normalizeMergeImpact(result.impact).totalLosses;
+    const rewardMessage = authRewardMessage(result.authReward || result.verificationReward);
+    setStatus(`Cuentas vinculadas. Se aplicaron ${corrections} correcciones competitivas. ${rewardMessage}`, 'success');
   } finally {
     confirmingMerge = false;
   }
