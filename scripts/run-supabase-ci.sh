@@ -64,6 +64,12 @@ wait_for_auth_database() {
   return 1
 }
 
+run_auth_integration() {
+  node scripts/test-account-auth-local.mjs
+  node scripts/test-verified-email-reward-local.mjs
+  node scripts/test-account-auth-concurrency-local.mjs
+}
+
 run_live_auth_playwright() {
   load_local_supabase_environment
   export SUPABASE_AUTH_LIVE=1
@@ -71,7 +77,7 @@ run_live_auth_playwright() {
   export SUPABASE_TEST_ANON_KEY="$ANON_KEY"
   export SUPABASE_TEST_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
   export SUPABASE_TEST_DB_URL="${DB_URL:-$POSTGRES_URL}"
-  pnpm test:auth-live:e2e
+  node scripts/run-playwright.mjs --grep @live-auth --project=desktop-chrome
 }
 
 cat > supabase/functions/.env <<'EOF'
@@ -96,6 +102,7 @@ echo '::endgroup::'
 
 echo '::group::Run complete API and persistence journey'
 pnpm test:supabase
+run_auth_integration
 echo '::endgroup::'
 
 echo '::group::Run real browser authentication journeys'
@@ -117,6 +124,7 @@ echo '::endgroup::'
 
 echo '::group::Re-run API smoke checks after database rebuild'
 SUPABASE_SMOKE_ONLY=true pnpm test:supabase
+node scripts/test-account-auth-local.mjs
 echo '::endgroup::'
 
 echo 'Local Supabase stack, Edge Functions, migrations, browser authentication and integration journey passed.'
