@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const migrationDirectory = 'supabase/migrations';
 const dailyMigrationFiles = readdirSync(migrationDirectory)
-  .filter((file) => /^20260727150[0-5]00_.*\.sql$/.test(file))
+  .filter((file) => /^20260727150\d{3}_.*\.sql$/.test(file))
   .sort();
 const migration = dailyMigrationFiles
   .map((file) => readFileSync(join(migrationDirectory, file), 'utf8'))
@@ -17,6 +17,7 @@ describe('daily attempt and account referral limits', () => {
   it('keeps the migration split into cohesive ordered stages', () => {
     expect(dailyMigrationFiles).toEqual([
       '20260727150000_daily_attempt_schema.sql',
+      '20260727150050_daily_quota_defaults.sql',
       '20260727150100_daily_referral_limits.sql',
       '20260727150200_daily_challenge_start.sql',
       '20260727150300_daily_challenge_reservations.sql',
@@ -28,6 +29,7 @@ describe('daily attempt and account referral limits', () => {
   it('pins global challenges and attempts to a UTC quota day', () => {
     expect(migration).toContain("(p_at at time zone 'UTC')::date");
     expect(migration).toContain('add column if not exists quota_day date');
+    expect(migration).toContain("alter column quota_day set default ((clock_timestamp() at time zone 'UTC')::date)");
     expect(migration).toContain('game_challenges_global_quota_day_check');
     expect(migration).toContain('game_attempts_global_quota_day_check');
     expect(migration).toContain('attempt.quota_day = v_challenge.quota_day');
