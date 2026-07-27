@@ -64,13 +64,13 @@ async function request(url, options = {}) {
   return { response, body };
 }
 
-async function createConfirmedUser(environment, email, password) {
+async function createAuthUser(environment, email, password, confirmed) {
   const result = await request(`${environment.apiUrl}/auth/v1/admin/users`, {
     headers: {
       apikey: environment.serviceRoleKey,
       authorization: `Bearer ${environment.serviceRoleKey}`,
     },
-    body: { email, password, email_confirm: true },
+    body: { email, password, email_confirm: confirmed },
   });
   assert.equal(result.response.status, 200, JSON.stringify(result.body));
   return result.body;
@@ -118,7 +118,7 @@ const firstNick = `verified${suffix}`.slice(0, 24);
 const secondNick = `secured${suffix}`.slice(0, 24);
 
 await linkNick(environment, token, firstNick);
-const user = await createConfirmedUser(environment, email, password);
+const user = await createAuthUser(environment, email, password, true);
 const accessToken = await signIn(environment, email, password);
 
 const firstSync = await syncAccount(environment, accessToken, token);
@@ -167,16 +167,26 @@ assert.equal(psql(environment.databaseUrl, `
 `), '1');
 process.stdout.write('✓ confirmed email grants one account entitlement and the achievement to current and future nicks\n');
 
-const unverifiedIdentity = randomUUID();
-const googleIdentity = randomUUID();
+const unverifiedUser = await createAuthUser(
+  environment,
+  `pending-${suffix}@example.com`,
+  password,
+  false,
+);
+const googleUser = await createAuthUser(
+  environment,
+  `google-${suffix}@example.com`,
+  password,
+  true,
+);
 psql(environment.databaseUrl, `
   insert into public.game_auth_identities(
     auth_user_id, account_id, provider, email, email_normalized, email_verified_at
   ) values
-    (${sqlLiteral(unverifiedIdentity)}::uuid, ${sqlLiteral(accountId)}::uuid, 'email', 'pending@example.com', 'pending@example.com', null),
-    (${sqlLiteral(googleIdentity)}::uuid, ${sqlLiteral(accountId)}::uuid, 'google', 'google@example.com', 'google@example.com', clock_timestamp());
+    (${sqlLiteral(unverifiedUser.id)}::uuid, ${sqlLiteral(accountId)}::uuid, 'email', 'pending-${suffix}@example.com', 'pending-${suffix}@example.com', null),
+    (${sqlLiteral(googleUser.id)}::uuid, ${sqlLiteral(accountId)}::uuid, 'google', 'google-${suffix}@example.com', 'google-${suffix}@example.com', clock_timestamp());
 `);
-assert.equal(psql(environment.databaseUrl, `select public.grant_game_verified_email_reward(${sqlLiteral(unverifiedIdentity)}::uuid)->>'eligible';`), 'false');
-assert.equal(psql(environment.databaseUrl, `select public.grant_game_verified_email_reward(${sqlLiteral(googleIdentity)}::uuid)->>'eligible';`), 'false');
+assert.equal(psql(environment.databaseUrl, `select public.grant_game_verified_email_reward(${sqlLiteral(unverifiedUser.id)}::uuid)->>'eligible';`), 'false');
+assert.equal(psql(environment.databaseUrl, `select public.grant_game_verified_email_reward(${sqlLiteral(googleUser.id)}::uuid)->>'eligible';`), 'false');
 assert.equal(psql(environment.databaseUrl, `select public.grant_game_verified_email_reward(${sqlLiteral(randomUUID())}::uuid)->>'eligible';`), 'false');
 process.stdout.write('✓ unconfirmed email and social providers cannot claim the email-confirmation reward\n');
