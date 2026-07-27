@@ -122,7 +122,7 @@ export function neutralAuthMessage(operation, errorCode = '') {
 
 export function authRewardMessage(reward) {
   const input = reward && typeof reward === 'object' ? reward : {};
-  const source = String(input.source ?? '');
+  const source = String(input.source || (input.eligible === true && input.active === true ? 'email_confirmation' : ''));
   const provider = String(input.provider ?? '');
   if (input.granted === true && source === 'email_confirmation') {
     return 'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.';
