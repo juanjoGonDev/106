@@ -1,0 +1,313 @@
+import {
+  accountRedirectUrl,
+  mergeItemText,
+  neutralAuthMessage,
+  normalizeAuthConfig,
+  normalizeEmail,
+  normalizeMergeImpact,
+  passwordProblems,
+  sessionSummary,
+} from './auth-account-state.js';
+import { SupabaseAuthClient } from './supabase-auth-client.js';
+
+const config = normalizeAuthConfig(window.__MINUTO106_CONFIG__);
+const deviceStorageKey = 'minuto106:device-id';
+const deviceId = localStorage.getItem(deviceStorageKey) || crypto.randomUUID();
+localStorage.setItem(deviceStorageKey, deviceId);
+
+const elements = {
+  panel: document.querySelector('#cloudAccountPanel'),
+  status: document.querySelector('#cloudAccountStatus'),
+  identity: document.querySelector('#cloudAccountIdentity'),
+  google: document.querySelector('#googleSignIn'),
+  facebook: document.querySelector('#facebookSignIn'),
+  email: document.querySelector('#authEmail'),
+  password: document.querySelector('#authPassword'),
+  passwordHint: document.querySelector('#authPasswordHint'),
+  signIn: document.querySelector('#emailSignIn'),
+  signUp: document.querySelector('#emailSignUp'),
+  recovery: document.querySelector('#emailRecovery'),
+  signOut: document.querySelector('#cloudSignOut'),
+  captcha: document.querySelector('#authCaptcha'),
+  mergeDialog: document.querySelector('#accountMergeDialog'),
+  mergeSummary: document.querySelector('#accountMergeSummary'),
+  mergeSections: document.querySelector('#accountMergeSections'),
+  mergeConfirm: document.querySelector('#confirmAccountMerge'),
+  mergeCancel: document.querySelector('#cancelAccountMerge'),
+};
+
+let client = null;
+let pendingMerge = null;
+let confirmingMerge = false;
+let captchaWidgetId = null;
+let captchaWaiter = null;
+
+function setStatus(message, tone = 'neutral') {
+  if (!elements.status) return;
+  elements.status.textContent = message;
+  elements.status.dataset.tone = tone;
+}
+
+function setBusy(busy) {
+  for (const button of [elements.google, elements.facebook, elements.signIn, elements.signUp, elements.recovery, elements.signOut]) {
+    if (button) button.disabled = busy;
+  }
+  if (elements.panel) elements.panel.dataset.busy = String(busy);
+}
+
+function renderSession(session) {
+  const summary = sessionSummary(session);
+  if (!elements.identity || !elements.signOut) return;
+  elements.identity.hidden = !summary;
+  elements.signOut.hidden = !summary;
+  if (!summary) {
+    elements.identity.textContent = '';
+    return;
+  }
+  const provider = summary.provider === 'google' ? 'Google' : summary.provider === 'facebook' ? 'Facebook' : 'email';
+  elements.identity.textContent = `${summary.email || 'Cuenta verificada'} · ${provider}`;
+}
+
+function authHeaders(session) {
+  const headers = {
+    apikey: config.publishableKey,
+    authorization: `Bearer ${session.access_token}`,
+    'content-type': 'application/json',
+    'x-device-id': deviceId,
+  };
+  const accountToken = window.Minuto106Access?.getAccountToken(false) || '';
+  if (accountToken) headers['x-account-token'] = accountToken;
+  return headers;
+}
+
+async function accountAuthRequest(action, body = {}) {
+  const session = await client.currentSession();
+  if (!session) throw new Error('Inicia sesión para continuar.');
+  const response = await fetch(config.accountAuthApiUrl, {
+    method: 'POST',
+    headers: authHeaders(session),
+    body: JSON.stringify({ action, ...body }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(String(payload.error || 'No se pudo vincular la cuenta.'));
+    error.code = String(payload.code || 'account_auth_error');
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function impactHeading(item) {
+  if (item.title) return item.title;
+  if (item.name) return item.name;
+  if (item.challenger && item.opponent) return 'Duelo entre cuentas vinculadas';
+  if (item.referrer && item.referred) return 'Referido entre cuentas vinculadas';
+  return 'Corrección competitiva';
+}
+
+function renderMergeImpact(impact) {
+  const normalized = normalizeMergeImpact(impact);
+  elements.mergeSections.replaceChildren();
+  for (const section of normalized.sections) {
+    if (!section.items.length) continue;
+    const group = document.createElement('section');
+    group.className = 'merge-impact-group';
+    const title = document.createElement('h3');
+    title.textContent = section.title;
+    const list = document.createElement('ul');
+    for (const item of section.items) {
+      const row = document.createElement('li');
+      const strong = document.createElement('strong');
+      strong.textContent = impactHeading(item);
+      const detail = document.createElement('span');
+      detail.textContent = mergeItemText(item);
+      row.append(strong, detail);
+      list.append(row);
+    }
+    group.append(title, list);
+    elements.mergeSections.append(group);
+  }
+  elements.mergeSummary.textContent = `${normalized.totalLosses} ${normalized.totalLosses === 1 ? 'consecuencia competitiva' : 'consecuencias competitivas'} antes de unificar las cuentas.`;
+}
+
+function showMerge(payload) {
+  pendingMerge = {
+    proposalId: payload.proposalId,
+    fingerprint: payload.fingerprint,
+  };
+  renderMergeImpact(payload.impact);
+  elements.mergeDialog.showModal();
+  elements.mergeConfirm.focus();
+}
+
+async function cancelPendingMerge() {
+  if (!pendingMerge || confirmingMerge) return;
+  const proposal = pendingMerge;
+  pendingMerge = null;
+  await accountAuthRequest('cancel-merge', { proposalId: proposal.proposalId }).catch(() => {});
+}
+
+async function synchronizeAccount() {
+  const session = await client.currentSession();
+  renderSession(session);
+  if (!session) return null;
+  setStatus('Sincronizando tu progreso con la cuenta…');
+  const result = await accountAuthRequest('sync-account');
+  if (result.accountToken) window.Minuto106Access.setAccountToken(result.accountToken);
+  if (result.mergeRequired) {
+    showMerge(result);
+    setStatus('Revisa las consecuencias antes de vincular las cuentas.', 'warning');
+    return result;
+  }
+  document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
+  setStatus('Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.', 'success');
+  return result;
+}
+
+function waitForTurnstile() {
+  if (!config.turnstileSiteKey) return Promise.resolve('');
+  if (captchaWaiter) return captchaWaiter;
+  captchaWaiter = new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const poll = () => {
+      if (window.turnstile?.render) {
+        captchaWidgetId = window.turnstile.render(elements.captcha, {
+          sitekey: config.turnstileSiteKey,
+          theme: 'dark',
+          callback: (token) => resolve(token),
+          'error-callback': () => reject(new Error('No se pudo completar la verificación anti-bots.')),
+          'expired-callback': () => reject(new Error('La verificación anti-bots ha caducado.')),
+        });
+        return;
+      }
+      if (Date.now() - startedAt > 10_000) {
+        reject(new Error('No se pudo cargar la verificación anti-bots.'));
+        return;
+      }
+      setTimeout(poll, 100);
+    };
+    poll();
+  }).finally(() => {
+    captchaWaiter = null;
+  });
+  return captchaWaiter;
+}
+
+function resetCaptcha() {
+  if (captchaWidgetId !== null && window.turnstile?.reset) window.turnstile.reset(captchaWidgetId);
+  captchaWidgetId = null;
+}
+
+async function captchaToken() {
+  if (!config.turnstileSiteKey) return '';
+  if (elements.captcha) elements.captcha.hidden = false;
+  try {
+    return await waitForTurnstile();
+  } finally {
+    if (elements.captcha) elements.captcha.hidden = true;
+  }
+}
+
+async function runEmailOperation(operation) {
+  const email = normalizeEmail(elements.email.value);
+  if (!email) throw new Error('Introduce un email válido.');
+
+  if (operation === 'recovery') {
+    const token = await captchaToken();
+    try {
+      await client.requestPasswordRecovery(email, { captchaToken: token });
+    } finally {
+      resetCaptcha();
+    }
+    setStatus(neutralAuthMessage('recovery'), 'success');
+    return;
+  }
+
+  const password = elements.password.value;
+  const problems = passwordProblems(password);
+  if (operation === 'signup' && problems.length) throw new Error(problems.join(' '));
+  const token = await captchaToken();
+  try {
+    if (operation === 'signup') {
+      await client.signUp(email, password, { captchaToken: token });
+      setStatus(neutralAuthMessage('signup'), 'success');
+      return;
+    }
+    const session = await client.signInWithPassword(email, password, { captchaToken: token });
+    renderSession(session);
+    await synchronizeAccount();
+  } finally {
+    resetCaptcha();
+  }
+}
+
+async function handle(operation, action) {
+  setBusy(true);
+  try {
+    await action();
+  } catch (error) {
+    const message = operation === 'signup' || operation === 'recovery'
+      ? neutralAuthMessage(operation, error.code || error.message)
+      : error.message || neutralAuthMessage(operation, error.code);
+    setStatus(message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+function refreshPasswordHint() {
+  if (!elements.passwordHint) return;
+  const problems = passwordProblems(elements.password.value);
+  elements.passwordHint.textContent = problems.length
+    ? problems.join(' ')
+    : 'La contraseña cumple los requisitos de seguridad.';
+  elements.passwordHint.dataset.valid = String(problems.length === 0);
+}
+
+async function initialize() {
+  if (!config.available) {
+    setStatus('El acceso con Google, Facebook y email todavía no está disponible en este despliegue.', 'warning');
+    setBusy(true);
+    return;
+  }
+  client = new SupabaseAuthClient(config);
+  const session = await client.exchangeCallback();
+  renderSession(session);
+  if (session) await synchronizeAccount();
+  else setStatus('Vincula Google, Facebook o email para recuperar tu progreso sin depender únicamente de la clave privada.');
+}
+
+elements.google?.addEventListener('click', () => handle('oauth', () => client.signInWithOAuth('google')));
+elements.facebook?.addEventListener('click', () => handle('oauth', () => client.signInWithOAuth('facebook')));
+elements.signIn?.addEventListener('click', () => handle('signin', () => runEmailOperation('signin')));
+elements.signUp?.addEventListener('click', () => handle('signup', () => runEmailOperation('signup')));
+elements.recovery?.addEventListener('click', () => handle('recovery', () => runEmailOperation('recovery')));
+elements.password?.addEventListener('input', refreshPasswordHint);
+elements.signOut?.addEventListener('click', () => handle('signout', async () => {
+  await client.signOut();
+  renderSession(null);
+  setStatus('Sesión en la nube cerrada. La clave privada de este dispositivo sigue activa.', 'success');
+}));
+elements.mergeConfirm?.addEventListener('click', () => handle('merge', async () => {
+  if (!pendingMerge) return;
+  confirmingMerge = true;
+  const proposal = pendingMerge;
+  const result = await accountAuthRequest('confirm-merge', proposal);
+  pendingMerge = null;
+  elements.mergeDialog.close();
+  confirmingMerge = false;
+  document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
+  setStatus(`Cuentas vinculadas. Se aplicaron ${normalizeMergeImpact(result.impact).totalLosses} correcciones competitivas.`, 'success');
+}));
+elements.mergeCancel?.addEventListener('click', () => {
+  elements.mergeDialog.close();
+});
+elements.mergeDialog?.addEventListener('close', () => {
+  cancelPendingMerge().catch(() => {});
+});
+
+refreshPasswordHint();
+initialize().catch((error) => {
+  setStatus(error.message || 'No se pudo iniciar la autenticación.', 'error');
+});
