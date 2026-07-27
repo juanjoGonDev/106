@@ -17,10 +17,10 @@ function readLocalEnvironment() {
 
   const databaseUrl = values.DB_URL || values.POSTGRES_URL;
   if (!databaseUrl) throw new Error('Local Supabase DB_URL is missing.');
-  return databaseUrl;
+  return { databaseUrl, values };
 }
 
-function query(databaseUrl, sql) {
+function runPsql(databaseUrl, sql, expectSuccess = true) {
   const result = spawnSync('psql', [
     databaseUrl,
     '--no-psqlrc',
@@ -35,26 +35,109 @@ function query(databaseUrl, sql) {
     encoding: 'utf8',
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`psql failed: ${result.stderr || result.stdout}`);
+  if (expectSuccess && result.status !== 0) throw new Error(`psql failed: ${result.stderr || result.stdout}`);
+  if (!expectSuccess && result.status === 0) throw new Error(`Expected psql to reject the statement: ${sql}`);
   return result.stdout.trim();
 }
 
-const databaseUrl = readLocalEnvironment();
-const privileges = JSON.parse(query(databaseUrl, `
-  select json_build_object(
-    'securityDefiner', procedure.prosecdef,
-    'anonExecute', has_function_privilege('anon', procedure.oid, 'EXECUTE'),
-    'authenticatedExecute', has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
-  )
-  from pg_proc procedure
-  join pg_namespace namespace on namespace.oid = procedure.pronamespace
-  where namespace.nspname = 'public'
-    and procedure.proname = 'reward_referred_player'
-    and pg_get_function_identity_arguments(procedure.oid) = '';
-`));
+function query(databaseUrl, sql) {
+  return runPsql(databaseUrl, sql, true);
+}
 
-assert.equal(privileges.securityDefiner, true);
-assert.equal(privileges.anonExecute, false);
-assert.equal(privileges.authenticatedExecute, false);
+function parseJson(databaseUrl, sql) {
+  const value = query(databaseUrl, sql);
+  return value ? JSON.parse(value) : null;
+}
 
-process.stdout.write('✓ reward_referred_player remains a trigger-only SECURITY DEFINER function with no Data API execution grants\n');
+const { databaseUrl } = readLocalEnvironment();
+const tablePrivileges = parseJson(databaseUrl, `
+  select coalesce(json_agg(row_to_json(audit) order by audit.table_name), '[]'::json)
+  from (
+    select
+      table_name,
+      row_security,
+      has_table_privilege('anon', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as anon_access,
+      has_table_privilege('authenticated', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as authenticated_access,
+      has_table_privilege('service_role', format('%I.%I', table_schema, table_name), 'SELECT,INSERT,UPDATE,DELETE') as service_access
+    from information_schema.tables information
+    join pg_class relation on relation.relname = information.table_name
+    join pg_namespace namespace on namespace.oid = relation.relnamespace and namespace.nspname = information.table_schema
+    where table_schema = 'public'
+      and table_type = 'BASE TABLE'
+      and table_name like 'game\\_%' escape '\\'
+  ) audit;
+`);
+
+assert.ok(tablePrivileges.length >= 20, 'Expected the complete game schema to be installed.');
+for (const table of tablePrivileges) {
+  assert.equal(table.row_security, true, `${table.table_name} must keep RLS enabled.`);
+  assert.equal(table.anon_access, false, `${table.table_name} must deny anon table access.`);
+  assert.equal(table.authenticated_access, false, `${table.table_name} must deny authenticated table access.`);
+  assert.equal(table.service_access, true, `${table.table_name} must remain available to service_role.`);
+}
+process.stdout.write(`✓ ${tablePrivileges.length} server-owned tables enforce RLS and deny anon/authenticated DML\n`);
+
+const functionPrivileges = parseJson(databaseUrl, `
+  select coalesce(json_agg(row_to_json(audit) order by audit.signature), '[]'::json)
+  from (
+    select
+      format('%I.%I(%s)', namespace.nspname, procedure.proname, pg_get_function_identity_arguments(procedure.oid)) as signature,
+      procedure.prosecdef as security_definer,
+      has_function_privilege('PUBLIC', procedure.oid, 'EXECUTE') as public_execute,
+      has_function_privilege('anon', procedure.oid, 'EXECUTE') as anon_execute,
+      has_function_privilege('authenticated', procedure.oid, 'EXECUTE') as authenticated_execute,
+      has_function_privilege('service_role', procedure.oid, 'EXECUTE') as service_execute
+    from pg_proc procedure
+    join pg_namespace namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and (
+        procedure.proname like 'game\\_%' escape '\\'
+        or procedure.proname like '%\\_game\\_%' escape '\\'
+        or procedure.proname in (
+          'ensure_game_account_player',
+          'prepare_game_auth_link',
+          'confirm_game_auth_merge',
+          'cancel_game_auth_merge',
+          'merge_game_accounts_internal',
+          'resolve_game_account_id',
+          'resolve_game_account_token',
+          'reward_referred_player'
+        )
+      )
+  ) audit;
+`);
+
+assert.ok(functionPrivileges.length >= 25, 'Expected privileged game functions to be installed.');
+for (const procedure of functionPrivileges) {
+  assert.equal(procedure.security_definer, true, `${procedure.signature} must remain SECURITY DEFINER.`);
+  assert.equal(procedure.public_execute, false, `${procedure.signature} must revoke PUBLIC execution.`);
+  assert.equal(procedure.anon_execute, false, `${procedure.signature} must deny anon execution.`);
+  assert.equal(procedure.authenticated_execute, false, `${procedure.signature} must deny authenticated execution.`);
+  assert.equal(procedure.service_execute, true, `${procedure.signature} must remain executable by service_role.`);
+}
+process.stdout.write(`✓ ${functionPrivileges.length} privileged functions deny direct public, anon and authenticated execution\n`);
+
+const sequencePrivileges = parseJson(databaseUrl, `
+  select coalesce(json_agg(row_to_json(audit) order by audit.sequence_name), '[]'::json)
+  from (
+    select
+      sequence_name,
+      has_sequence_privilege('anon', format('%I.%I', sequence_schema, sequence_name), 'USAGE,SELECT,UPDATE') as anon_access,
+      has_sequence_privilege('authenticated', format('%I.%I', sequence_schema, sequence_name), 'USAGE,SELECT,UPDATE') as authenticated_access
+    from information_schema.sequences
+    where sequence_schema = 'public'
+      and sequence_name like 'game\\_%' escape '\\'
+  ) audit;
+`);
+for (const sequence of sequencePrivileges) {
+  assert.equal(sequence.anon_access, false, `${sequence.sequence_name} must deny anon sequence access.`);
+  assert.equal(sequence.authenticated_access, false, `${sequence.sequence_name} must deny authenticated sequence access.`);
+}
+process.stdout.write(`✓ ${sequencePrivileges.length} game sequences deny anon/authenticated access\n`);
+
+for (const role of ['anon', 'authenticated']) {
+  runPsql(databaseUrl, `begin; set local role ${role}; select * from public.game_accounts limit 1; rollback;`, false);
+  runPsql(databaseUrl, `begin; set local role ${role}; select public.get_game_account_players('${'a'.repeat(64)}'); rollback;`, false);
+  runPsql(databaseUrl, `begin; set local role ${role}; select public.prepare_game_auth_link(gen_random_uuid(), 'email', null, false, null, '${'b'.repeat(64)}'); rollback;`, false);
+}
+process.stdout.write('✓ runtime role probes confirm anon/authenticated cannot bypass the service boundary\n');
