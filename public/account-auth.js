@@ -41,6 +41,7 @@ let pendingMerge = null;
 let confirmingMerge = false;
 let captchaWidgetId = null;
 let captchaWaiter = null;
+let turnstileLoader = null;
 
 function setStatus(message, tone = 'neutral') {
   if (!elements.status) return;
@@ -165,8 +166,36 @@ async function synchronizeAccount() {
   return result;
 }
 
-function waitForTurnstile() {
-  if (!config.turnstileSiteKey) return Promise.resolve('');
+function loadTurnstile() {
+  if (!config.turnstileSiteKey || window.turnstile?.render) return Promise.resolve();
+  if (turnstileLoader) return turnstileLoader;
+
+  turnstileLoader = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-minuto106-turnstile]');
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', () => reject(new Error('No se pudo cargar la verificación anti-bots.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.dataset.minuto106Turnstile = 'true';
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', () => reject(new Error('No se pudo cargar la verificación anti-bots.')), { once: true });
+    document.head.append(script);
+  }).catch((error) => {
+    turnstileLoader = null;
+    throw error;
+  });
+  return turnstileLoader;
+}
+
+async function waitForTurnstile() {
+  if (!config.turnstileSiteKey) return '';
+  await loadTurnstile();
   if (captchaWaiter) return captchaWaiter;
   captchaWaiter = new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -175,7 +204,7 @@ function waitForTurnstile() {
         captchaWidgetId = window.turnstile.render(elements.captcha, {
           sitekey: config.turnstileSiteKey,
           theme: 'dark',
-          callback: (token) => resolve(token),
+          callback: resolve,
           'error-callback': () => reject(new Error('No se pudo completar la verificación anti-bots.')),
           'expired-callback': () => reject(new Error('La verificación anti-bots ha caducado.')),
         });
@@ -195,8 +224,11 @@ function waitForTurnstile() {
 }
 
 function resetCaptcha() {
-  if (captchaWidgetId !== null && window.turnstile?.reset) window.turnstile.reset(captchaWidgetId);
+  if (captchaWidgetId !== null && window.turnstile?.remove) {
+    window.turnstile.remove(captchaWidgetId);
+  }
   captchaWidgetId = null;
+  if (elements.captcha) elements.captcha.replaceChildren();
 }
 
 async function captchaToken() {
@@ -292,13 +324,16 @@ elements.signOut?.addEventListener('click', () => handle('signout', async () => 
 elements.mergeConfirm?.addEventListener('click', () => handle('merge', async () => {
   if (!pendingMerge) return;
   confirmingMerge = true;
-  const proposal = pendingMerge;
-  const result = await accountAuthRequest('confirm-merge', proposal);
-  pendingMerge = null;
-  elements.mergeDialog.close();
-  confirmingMerge = false;
-  document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
-  setStatus(`Cuentas vinculadas. Se aplicaron ${normalizeMergeImpact(result.impact).totalLosses} correcciones competitivas.`, 'success');
+  try {
+    const proposal = pendingMerge;
+    const result = await accountAuthRequest('confirm-merge', proposal);
+    pendingMerge = null;
+    elements.mergeDialog.close();
+    document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
+    setStatus(`Cuentas vinculadas. Se aplicaron ${normalizeMergeImpact(result.impact).totalLosses} correcciones competitivas.`, 'success');
+  } finally {
+    confirmingMerge = false;
+  }
 }));
 elements.mergeCancel?.addEventListener('click', () => {
   elements.mergeDialog.close();
