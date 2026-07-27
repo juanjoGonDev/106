@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  PASSWORD_MIN_LENGTH,
   accountRedirectUrl,
   mergeItemText,
   neutralAuthMessage,
@@ -9,7 +10,10 @@ import {
   normalizeEmail,
   normalizeMergeImpact,
   normalizeProvider,
+  passwordConfirmationProblem,
   passwordProblems,
+  passwordRequirements,
+  registrationReadiness,
   sessionSummary,
 } from '../public/auth-account-state.js';
 
@@ -42,7 +46,7 @@ test('normalizes complete, local and unavailable auth configuration', () => {
   assert.equal(normalizeAuthConfig({ supabaseUrl: 'http://localhost:54321', supabasePublishableKey: publishableKey }).available, false);
 });
 
-test('validates providers, email and password policy exhaustively', () => {
+test('validates providers and normalized email exhaustively', () => {
   assert.equal(normalizeProvider(' GOOGLE '), 'google');
   assert.equal(normalizeProvider('facebook'), 'facebook');
   assert.equal(normalizeProvider('x'), '');
@@ -52,31 +56,58 @@ test('validates providers, email and password policy exhaustively', () => {
   assert.equal(normalizeEmail('invalid'), '');
   assert.equal(normalizeEmail(`${'a'.repeat(310)}@example.com`), '');
   assert.equal(normalizeEmail(null), '');
+});
 
+test('reports each password requirement progressively at the Supabase minimum', () => {
+  assert.equal(PASSWORD_MIN_LENGTH, 10);
+  assert.deepEqual(passwordRequirements(''), [
+    { code: 'length', label: 'Al menos 10 caracteres', met: false },
+    { code: 'lowercase', label: 'Una letra minúscula', met: false },
+    { code: 'uppercase', label: 'Una letra mayúscula', met: false },
+    { code: 'number', label: 'Un número', met: false },
+    { code: 'symbol', label: 'Un símbolo', met: false },
+  ]);
+  assert.deepEqual(passwordRequirements('Abcdefgh1!').map((item) => item.met), [true, true, true, true, true]);
   assert.deepEqual(passwordProblems(''), [
-    'Usa al menos 12 caracteres.',
+    'Usa al menos 10 caracteres.',
     'Añade una letra minúscula.',
     'Añade una letra mayúscula.',
     'Añade un número.',
     'Añade un símbolo.',
   ]);
-  assert.deepEqual(passwordProblems('abcdefghijkl'), [
+  assert.deepEqual(passwordProblems('abcdefghij'), [
     'Añade una letra mayúscula.',
     'Añade un número.',
     'Añade un símbolo.',
   ]);
-  assert.deepEqual(passwordProblems('ABCDEFGHIJKL'), [
+  assert.deepEqual(passwordProblems('ABCDEFGHIJ'), [
     'Añade una letra minúscula.',
     'Añade un número.',
     'Añade un símbolo.',
   ]);
-  assert.deepEqual(passwordProblems('Abcdefghijkl'), [
+  assert.deepEqual(passwordProblems('Abcdefghij'), [
     'Añade un número.',
     'Añade un símbolo.',
   ]);
-  assert.deepEqual(passwordProblems('Abcdefghijk1'), ['Añade un símbolo.']);
-  assert.deepEqual(passwordProblems('Abcdefghij1!'), []);
+  assert.deepEqual(passwordProblems('Abcdefghi1'), ['Añade un símbolo.']);
+  assert.deepEqual(passwordProblems('Abcdefgh1!'), []);
   assert.deepEqual(passwordProblems(null), passwordProblems(''));
+});
+
+test('requires an exact password confirmation only for account creation and reset', () => {
+  assert.equal(passwordConfirmationProblem('Abcdefgh1!', ''), 'Repite la contraseña para confirmar que está bien escrita.');
+  assert.equal(passwordConfirmationProblem('Abcdefgh1!', 'Different1!'), 'Las contraseñas no coinciden.');
+  assert.equal(passwordConfirmationProblem('Abcdefgh1!', 'Abcdefgh1!'), '');
+  assert.equal(passwordConfirmationProblem(null, null), 'Repite la contraseña para confirmar que está bien escrita.');
+
+  assert.deepEqual(registrationReadiness(' User@Example.com ', 'Abcdefgh1!', 'Abcdefgh1!'), {
+    ready: true,
+    email: 'user@example.com',
+    problems: [],
+    confirmationProblem: '',
+  });
+  assert.equal(registrationReadiness('invalid', 'short', 'different').ready, false);
+  assert.equal(registrationReadiness('a@example.com', 'Abcdefgh1!', '').ready, false);
 });
 
 test('builds callback URLs and neutral auth responses without account enumeration', () => {
@@ -84,11 +115,11 @@ test('builds callback URLs and neutral auth responses without account enumeratio
   assert.equal(accountRedirectUrl('https://example.com/app/', 'cuenta.html'), 'https://example.com/app/cuenta.html');
   assert.equal(accountRedirectUrl('https://example.com/app', '/restablecer-clave.html'), 'https://example.com/app/restablecer-clave.html');
   assert.equal(accountRedirectUrl(null), '/cuenta.html');
-  assert.equal(neutralAuthMessage('signup'), 'Revisa tu correo para confirmar la cuenta. Si la dirección ya estaba registrada, no se realizará ningún cambio.');
+  assert.equal(neutralAuthMessage('signup'), 'Revisa tu correo y abre el enlace de un solo uso para confirmar la cuenta. Al verificarlo recibirás +1 intento diario y el logro Cuenta confirmada. Si la dirección ya estaba registrada, no se realizará ningún cambio.');
   assert.equal(neutralAuthMessage('recovery'), 'Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.');
   assert.equal(neutralAuthMessage('signin', 'invalid login credentials'), 'El email o la contraseña no son correctos.');
   assert.equal(neutralAuthMessage('signin', 'invalid_credentials'), 'El email o la contraseña no son correctos.');
-  assert.equal(neutralAuthMessage('signin', 'Email not confirmed'), 'Confirma tu correo antes de iniciar sesión.');
+  assert.equal(neutralAuthMessage('signin', 'Email not confirmed'), 'Confirma tu correo desde el enlace de un solo uso antes de iniciar sesión.');
   assert.equal(neutralAuthMessage('signin', 'captcha_failed'), 'No se pudo completar la verificación anti-bots. Inténtalo de nuevo.');
   assert.equal(neutralAuthMessage('signin', 'rate limit'), 'Demasiados intentos seguidos. Espera un momento.');
   assert.equal(neutralAuthMessage('signin', 'too many requests'), 'Demasiados intentos seguidos. Espera un momento.');
