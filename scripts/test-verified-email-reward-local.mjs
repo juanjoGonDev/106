@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const origin = 'http://127.0.0.1:3000';
+const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 
 function localEnvironment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], {
@@ -134,11 +135,14 @@ function accountIdForUser(databaseUrl, userId) {
 }
 
 function createGameAccount(databaseUrl) {
-  return psql(databaseUrl, `
+  const output = psql(databaseUrl, `
     insert into public.game_accounts(token_hash)
     values (${sqlLiteral(randomBytes(32).toString('hex'))})
     returning id;
   `);
+  const accountId = output.match(uuidPattern)?.[0] || '';
+  assert.match(accountId, uuidPattern, output);
+  return accountId;
 }
 
 const environment = localEnvironment();
@@ -169,7 +173,7 @@ assert.deepEqual(firstEmailSync.body.authReward, {
 });
 
 const emailAccountId = accountIdForUser(environment.databaseUrl, emailUser.id);
-assert.match(emailAccountId, /^[0-9a-f-]{36}$/);
+assert.match(emailAccountId, uuidPattern);
 assert.equal(psql(environment.databaseUrl, `
   select count(*)
   from public.game_account_entitlements entitlement
