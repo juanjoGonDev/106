@@ -241,7 +241,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     await page.locator('#authPasswordConfirmation').fill(password);
     await expect(page.locator('#emailSignUp')).toBeEnabled();
     await page.locator('#emailSignUp').click();
-    await expect(page.locator('#cloudAccountStatus')).toContainText('válido durante 1 hora');
+    await expect(page.locator('#cloudAccountStatus')).toContainText('durante la próxima hora');
     await expect(page.locator('#pendingConfirmationEmail')).toContainText(email);
 
     await expect.poll(() => confirmationToken(email)).not.toBe('');
