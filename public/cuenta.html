@@ -1,1 +1,118 @@
-<!doctype html><html lang="es"><head><script src="./privacy-bootstrap.js"></script><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08090c"><title>Mi cuenta — Minuto 106</title><meta name="description" content="Gestiona tu clave privada y todos los nicks vinculados en Minuto 106."><link rel="icon" href="./assets/favicon.svg" type="image/svg+xml"><link rel="manifest" href="./site.webmanifest"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./v2.css"><link rel="stylesheet" href="./v3.css"><link rel="stylesheet" href="./v4.css"></head><body><!-- Google Tag Manager (noscript) --><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><!-- End Google Tag Manager (noscript) --><header class="site-header"></header><main class="page-shell"><div class="account-grid"><section class="page-card"><p class="eyebrow">TU CUENTA ANÓNIMA</p><h1>Una clave. Todos tus nicks.</h1><p>La clave privada permite recuperar en otro dispositivo todos los nicks que hayas vinculado. No se almacena en texto legible en el servidor y no puede recuperarse si la pierdes.</p><div id="accountSession"><p id="accountKeyStatus" class="hint"></p><code id="accountKeyPreview" class="account-key"></code><div class="account-actions"><button id="createAccountKey" class="primary" type="button">Crear clave</button><button id="copyAccountKey" class="secondary" type="button">Copiar clave</button><button id="showAccountKey" class="ghost" type="button">Mostrar</button><button id="logoutAccount" class="ghost" type="button">Cerrar sesión local</button></div></div><div class="profile-compare"><input id="importAccountKey" maxlength="64" autocomplete="off" placeholder="Pega una clave de cuenta existente"><button id="importAccountButton" class="secondary compact" type="button">Importar</button></div><p class="hint">Quien tenga esta clave podrá usar todos los nicks vinculados. Guárdala en un gestor de contraseñas y no la compartas.</p></section><section class="page-card"><p class="eyebrow">ACCESO RÁPIDO</p><h2>Mis nicks</h2><p id="accountPlayersStatus" class="hint">Cargando…</p><ul id="accountPlayers" class="account-player-list"></ul></section></div></main><footer class="site-footer"></footer><script src="./config.js"></script><script src="./layout.js"></script><script src="./access.js"></script><script src="./account.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <title>Mi cuenta — Minuto 106</title>
+  <meta name="description" content="Recupera tu progreso con Google, Facebook, email o una clave privada en Minuto 106.">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./v17.css">
+</head>
+<body>
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
+  <header class="site-header"></header>
+  <main class="page-shell account-page">
+    <header class="account-page-heading">
+      <p class="eyebrow">TU PROGRESO, SIEMPRE CONTIGO</p>
+      <h1>Mi cuenta</h1>
+      <p>Juega sin registrarte o vincula una cuenta para recuperar todos tus nicks en cualquier dispositivo.</p>
+    </header>
+
+    <div class="account-grid">
+      <section id="cloudAccountPanel" class="page-card cloud-account-card" aria-labelledby="cloudAccountTitle">
+        <p class="eyebrow">CUENTA EN LA NUBE</p>
+        <h2 id="cloudAccountTitle">Google, Facebook o email</h2>
+        <p>El acceso es opcional. Al vincularlo conservas tu clave privada y todo el progreso existente.</p>
+        <p id="cloudAccountStatus" class="cloud-account-status" role="status" aria-live="polite"></p>
+        <p id="cloudAccountIdentity" class="cloud-account-identity" hidden></p>
+
+        <div class="oauth-actions" aria-label="Acceso con proveedor social">
+          <button id="googleSignIn" class="oauth-button" type="button">
+            <span aria-hidden="true">G</span>
+            Continuar con Google
+          </button>
+          <button id="facebookSignIn" class="oauth-button" type="button">
+            <span aria-hidden="true">f</span>
+            Continuar con Facebook
+          </button>
+        </div>
+
+        <div class="auth-divider"><span>o con email</span></div>
+        <div class="auth-fields">
+          <label for="authEmail">Email</label>
+          <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="tu@email.com">
+          <label for="authPassword">Contraseña</label>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="12" maxlength="128" placeholder="Mínimo 12 caracteres">
+          <p id="authPasswordHint" class="auth-password-hint"></p>
+        </div>
+        <div id="authCaptcha" class="auth-captcha" hidden></div>
+        <div class="email-auth-actions">
+          <button id="emailSignIn" class="secondary" type="button">Iniciar sesión</button>
+          <button id="emailSignUp" class="primary" type="button">Crear cuenta</button>
+          <button id="emailRecovery" class="ghost" type="button">He olvidado la contraseña</button>
+        </div>
+        <button id="cloudSignOut" class="ghost cloud-sign-out" type="button" hidden>Cerrar sesión en la nube</button>
+        <p class="hint">El email se guarda de forma privada y no aparece en perfiles, rankings ni imágenes compartidas.</p>
+      </section>
+
+      <section class="page-card" aria-labelledby="privateKeyTitle">
+        <p class="eyebrow">RECUPERACIÓN PRIVADA</p>
+        <h2 id="privateKeyTitle">Tu clave anónima</h2>
+        <p>También puedes seguir usando una clave privada. El servidor almacena solo su hash y no puede recuperar el texto original.</p>
+        <div id="accountSession">
+          <p id="accountKeyStatus" class="hint"></p>
+          <code id="accountKeyPreview" class="account-key"></code>
+          <div class="account-actions">
+            <button id="createAccountKey" class="primary" type="button">Crear clave</button>
+            <button id="copyAccountKey" class="secondary" type="button">Copiar clave</button>
+            <button id="showAccountKey" class="ghost" type="button">Mostrar</button>
+            <button id="logoutAccount" class="ghost" type="button">Cerrar sesión local</button>
+          </div>
+        </div>
+        <div class="profile-compare account-import">
+          <label class="sr-only" for="importAccountKey">Clave privada existente</label>
+          <input id="importAccountKey" maxlength="64" autocomplete="off" spellcheck="false" placeholder="Pega una clave de cuenta existente">
+          <button id="importAccountButton" class="secondary compact" type="button">Importar</button>
+        </div>
+        <p class="hint">Quien tenga esta clave podrá usar todos tus nicks. Guárdala en un gestor de contraseñas y no la compartas.</p>
+      </section>
+
+      <section class="page-card account-players-card" aria-labelledby="accountPlayersTitle">
+        <p class="eyebrow">ACCESO RÁPIDO</p>
+        <h2 id="accountPlayersTitle">Mis nicks</h2>
+        <p id="accountPlayersStatus" class="hint">Cargando…</p>
+        <ul id="accountPlayers" class="account-player-list"></ul>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="accountMergeDialog" class="account-merge-dialog" aria-labelledby="accountMergeTitle" aria-describedby="accountMergeSummary">
+    <p class="eyebrow">ANÁLISIS DE INTEGRIDAD</p>
+    <h2 id="accountMergeTitle">Estas cuentas tienen progreso independiente</h2>
+    <p>Al vincularlas dejarán de contar como personas diferentes. El sistema retirará exclusivamente las ventajas que dependían de esa independencia.</p>
+    <p id="accountMergeSummary" class="merge-impact-summary"></p>
+    <div id="accountMergeSections" class="merge-impact-sections"></div>
+    <div class="merge-dialog-actions">
+      <button id="cancelAccountMerge" class="ghost" type="button">Cancelar</button>
+      <button id="confirmAccountMerge" class="primary" type="button">Vincular y aceptar pérdidas</button>
+    </div>
+  </dialog>
+
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./access.js"></script>
+  <script src="./account.js"></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script type="module" src="./account-auth.js"></script>
+</body>
+</html>
