@@ -80,6 +80,7 @@ test('validates providers, email and password policy exhaustively', () => {
 });
 
 test('builds callback URLs and neutral auth responses without account enumeration', () => {
+  assert.equal(accountRedirectUrl('https://example.com/app/'), 'https://example.com/app/cuenta.html');
   assert.equal(accountRedirectUrl('https://example.com/app/', 'cuenta.html'), 'https://example.com/app/cuenta.html');
   assert.equal(accountRedirectUrl('https://example.com/app', '/restablecer-clave.html'), 'https://example.com/app/restablecer-clave.html');
   assert.equal(neutralAuthMessage('signup'), 'Revisa tu correo para confirmar la cuenta. Si la dirección ya estaba registrada, no se realizará ningún cambio.');
@@ -95,7 +96,7 @@ test('builds callback URLs and neutral auth responses without account enumeratio
 
 test('normalizes and formats every merge-impact category', () => {
   const impact = normalizeMergeImpact({
-    leagues: [{ name: 'Liga A', publicId: 'ABC123' }, null],
+    leagues: [{ name: 'Liga A', publicId: 'ABC123' }, null, 'invalid'],
     trophies: [{ title: 'Campeón', nick: 'Ana' }],
     achievements: [{ title: 'Retador', nick: 'Luis' }],
     duels: [{ id: 'd1', challenger: 'Ana', opponent: 'Luis' }],
@@ -118,6 +119,9 @@ test('normalizes and formats every merge-impact category', () => {
   assert.equal(mergeItemText({ nick: 'Ana', attempts: 3 }), 'Ana: −3 intentos extra');
   assert.equal(mergeItemText({ title: 'Título' }), 'Título');
   assert.equal(mergeItemText({ name: 'Nombre' }), 'Nombre');
+  assert.equal(mergeItemText({ challenger: 'Ana' }), 'Elemento competitivo');
+  assert.equal(mergeItemText({ referrer: 'Ana' }), 'Elemento competitivo');
+  assert.equal(mergeItemText({ nick: 'Ana', attempts: 'not-a-number' }), 'Elemento competitivo');
   assert.equal(mergeItemText({ code: 'code' }), 'code');
   assert.equal(mergeItemText({ id: 'id' }), 'id');
   assert.equal(mergeItemText({}), 'Elemento competitivo');
@@ -126,6 +130,7 @@ test('normalizes and formats every merge-impact category', () => {
 test('summarizes provider sessions and rejects missing users', () => {
   assert.equal(sessionSummary(null), null);
   assert.equal(sessionSummary({}), null);
+  assert.equal(sessionSummary({ user: 'invalid' }), null);
   assert.deepEqual(sessionSummary({ user: { email: 'a@example.com', email_confirmed_at: 'now', app_metadata: { provider: 'google' } } }), {
     email: 'a@example.com', provider: 'google', emailVerified: true,
   });
