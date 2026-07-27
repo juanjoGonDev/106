@@ -40,6 +40,7 @@
     "test:pr-visual-evidence:coverage": "node --test --experimental-test-coverage --test-coverage-include=scripts/pr-visual-evidence.mjs --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/pr-visual-evidence.node-test.js",
     "test:platform-evidence:coverage": "node --test --experimental-test-coverage --test-coverage-include=scripts/platform-evidence.mjs --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/platform-evidence.node-test.js",
     "test:e2e": "node scripts/run-playwright.mjs",
+    "test:auth-live:e2e": "node scripts/run-playwright.mjs --grep @live-auth --project=desktop-chrome",
     "test:security": "vitest run tests/security",
     "test:supabase": "node scripts/test-database-permissions-local.mjs && node scripts/test-account-auth-local.mjs && node scripts/test-verified-email-reward-local.mjs && node scripts/test-account-auth-concurrency-local.mjs && node scripts/test-supabase-local.mjs && node scripts/test-attempt-reservations-local.mjs && node scripts/test-migration-compatibility-local.mjs && node scripts/test-mobile-touch-local.mjs && node scripts/test-ready-flow-local.mjs && node scripts/test-trophies-local.mjs && node scripts/test-player-share-local.mjs && node scripts/test-social-share-local.mjs",
     "preview:platform": "node scripts/run-pr-previews.mjs",
