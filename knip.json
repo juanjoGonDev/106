@@ -9,6 +9,7 @@
     "public/achievement-unlocks.js",
     "public/compliance.js",
     "public/competition.js",
+    "public/daily-attempt-ui.js",
     "public/duel-context.js",
     "public/format.js",
     "public/human-check-ready-flow.js",

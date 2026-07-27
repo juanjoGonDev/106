@@ -61,4 +61,5 @@
   };
 
   loadAchievementUnlocks();
+  import('./daily-attempt-ui.js').catch(() => {});
 })();
