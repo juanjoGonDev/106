@@ -75,10 +75,20 @@ async function createAuthUser(environment, email, password, options = {}) {
       email,
       password,
       email_confirm: options.confirmed !== false,
-      app_metadata: { provider, providers: [provider] },
     },
   });
   assert.equal(result.response.status, 200, JSON.stringify(result.body));
+  if (provider !== 'email') {
+    psql(environment.databaseUrl, `
+      update auth.users
+      set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+        || jsonb_build_object(
+          'provider', ${sqlLiteral(provider)},
+          'providers', jsonb_build_array(${sqlLiteral(provider)})
+        )
+      where id = ${sqlLiteral(result.body.id)}::uuid;
+    `);
+  }
   return result.body;
 }
 
@@ -120,6 +130,14 @@ function accountIdForUser(databaseUrl, userId) {
     select public.resolve_game_account_id(account_id)
     from public.game_auth_identities
     where auth_user_id = ${sqlLiteral(userId)}::uuid;
+  `);
+}
+
+function createGameAccount(databaseUrl) {
+  return psql(databaseUrl, `
+    insert into public.game_accounts(token_hash)
+    values (${sqlLiteral(randomBytes(32).toString('hex'))})
+    returning id;
   `);
 }
 
@@ -249,23 +267,41 @@ assert.equal(psql(environment.databaseUrl, `
 `), '0');
 process.stdout.write('✓ Google and Facebook can share one game account while granting only one social attempt\n');
 
-const pendingUser = await createAuthUser(
-  environment,
-  `pending-${suffix}@example.com`,
-  password,
-  { confirmed: false },
-);
+const pendingEmail = `pending-${suffix}@example.com`;
+const pendingUser = await createAuthUser(environment, pendingEmail, password, { confirmed: false });
+const pendingAccountId = createGameAccount(environment.databaseUrl);
 psql(environment.databaseUrl, `
   insert into public.game_auth_identities(
-    auth_user_id, account_id, provider, origin_provider,
-    email, email_normalized, email_verified_at
+    auth_user_id,
+    account_id,
+    provider,
+    origin_provider,
+    email,
+    email_normalized,
+    email_verified_at
   ) values (
     ${sqlLiteral(pendingUser.id)}::uuid,
-    ${sqlLiteral(randomUUID())}::uuid,
+    ${sqlLiteral(pendingAccountId)}::uuid,
     'email',
     'email',
-    'pending-${suffix}@example.com',
-    'pending-${suffix}@example.com',
+    ${sqlLiteral(pendingEmail)},
+    ${sqlLiteral(pendingEmail)},
     null
   );
 `);
+const pendingReward = JSON.parse(psql(environment.databaseUrl, `
+  select public.grant_game_auth_link_reward(${sqlLiteral(pendingUser.id)}::uuid)::text;
+`));
+assert.deepEqual(pendingReward, {
+  eligible: true,
+  active: false,
+  granted: false,
+  pendingConfirmation: true,
+  dailyAttemptBonus: 0,
+  source: 'email_confirmation',
+  provider: 'email',
+});
+assert.equal(psql(environment.databaseUrl, `
+  select public.grant_game_auth_link_reward(${sqlLiteral(randomUUID())}::uuid)->>'eligible';
+`), 'false');
+process.stdout.write('✓ unconfirmed and missing identities cannot claim a reward before activation\n');
