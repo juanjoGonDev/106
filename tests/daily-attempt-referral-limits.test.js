@@ -23,6 +23,7 @@ describe('daily attempt and account referral limits', () => {
       '20260727150300_daily_challenge_reservations.sql',
       '20260727150400_daily_attempt_finish.sql',
       '20260727150500_daily_profile_limits.sql',
+      '20260727150600_auth_reward_daily_bonus.sql',
     ]);
   });
 
@@ -44,9 +45,13 @@ describe('daily attempt and account referral limits', () => {
     expect(migration).toContain('v_completed + v_active >= v_max_attempts');
   });
 
-  it('derives an account-wide referral bonus with an absolute cap of ten', () => {
+  it('derives account-wide referral and authentication bonuses with an absolute cap of ten', () => {
     expect(migration).toContain('least(5, public.game_account_completed_referrals(p_account_id))');
     expect(migration).toContain('public.game_account_referral_bonus(selected.account_id)');
+    expect(migration).toContain('public.game_account_auth_daily_bonus(selected.account_id)');
+    expect(migration).toContain("to_regclass('public.game_account_entitlements') is null");
+    expect(migration).toContain("'auth_identity_daily_attempt'");
+    expect(migration).toContain("'verified_email_daily_attempt'");
     expect(migration).toContain("'dailyLimitCeiling', 10");
     expect(migration).toContain("'maxAttempts', v_max_attempts");
     expect(migration).not.toMatch(/grant execute[\s\S]*to (anon|authenticated)/i);
