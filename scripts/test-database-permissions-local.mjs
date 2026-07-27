@@ -49,6 +49,23 @@ function parseJson(databaseUrl, sql) {
   return value ? JSON.parse(value) : null;
 }
 
+const requiredServiceFunctions = [
+  'resolve_game_account_id',
+  'resolve_game_account_token',
+  'game_account_nick_keys',
+  'get_game_account_merge_impact',
+  'reconcile_game_player_identity_achievements',
+  'refresh_game_player_progression_achievements_unfiltered',
+  'refresh_game_player_progression_achievements',
+  'merge_game_accounts_internal',
+  'prepare_game_auth_link',
+  'confirm_game_auth_merge',
+  'cancel_game_auth_merge',
+  'ensure_game_account_player',
+  'get_game_account_players',
+  'sync_game_league_trophies',
+];
+
 const { databaseUrl } = readLocalEnvironment();
 const tablePrivileges = parseJson(databaseUrl, `
   select coalesce(json_agg(row_to_json(audit) order by audit.table_name), '[]'::json)
@@ -113,39 +130,21 @@ const functionPrivileges = parseJson(databaseUrl, `
   ) audit;
 `);
 
-assert.ok(functionPrivileges.length >= 25, 'Expected privileged game functions to be installed.');
+assert.ok(functionPrivileges.length >= 25, 'Expected private game functions to be installed.');
 for (const procedure of functionPrivileges) {
-  assert.equal(procedure.security_definer, true, `${procedure.signature} must remain SECURITY DEFINER.`);
   assert.equal(procedure.public_execute, false, `${procedure.signature} must revoke PUBLIC execution.`);
   assert.equal(procedure.anon_execute, false, `${procedure.signature} must deny anon execution.`);
   assert.equal(procedure.authenticated_execute, false, `${procedure.signature} must deny authenticated execution.`);
 }
 
-const requiredServiceFunctions = [
-  'resolve_game_account_id',
-  'resolve_game_account_token',
-  'game_account_nick_keys',
-  'get_game_account_merge_impact',
-  'reconcile_game_player_identity_achievements',
-  'refresh_game_player_progression_achievements_unfiltered',
-  'refresh_game_player_progression_achievements',
-  'merge_game_accounts_internal',
-  'prepare_game_auth_link',
-  'confirm_game_auth_merge',
-  'cancel_game_auth_merge',
-  'ensure_game_account_player',
-  'get_game_account_players',
-  'sync_game_league_trophies',
-];
-const serviceFunctions = new Set(
-  functionPrivileges
-    .filter((procedure) => procedure.service_execute)
-    .map((procedure) => procedure.function_name),
-);
+const proceduresByName = new Map(functionPrivileges.map((procedure) => [procedure.function_name, procedure]));
 for (const functionName of requiredServiceFunctions) {
-  assert.ok(serviceFunctions.has(functionName), `public.${functionName} must remain executable by service_role.`);
+  const procedure = proceduresByName.get(functionName);
+  assert.ok(procedure, `public.${functionName} must be installed.`);
+  assert.equal(procedure.security_definer, true, `${procedure.signature} must remain SECURITY DEFINER.`);
+  assert.equal(procedure.service_execute, true, `${procedure.signature} must remain executable by service_role.`);
 }
-process.stdout.write(`✓ ${functionPrivileges.length} privileged functions deny public roles and preserve required service RPCs\n`);
+process.stdout.write(`✓ ${functionPrivileges.length} private functions deny browser roles and preserve required definer RPCs\n`);
 
 const sequencePrivileges = parseJson(databaseUrl, `
   select coalesce(json_agg(row_to_json(audit) order by audit.sequence_name), '[]'::json)
