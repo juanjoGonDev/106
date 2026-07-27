@@ -23,7 +23,16 @@ GitHub Actions repository variables:
 | `PUBLIC_SITE_URL` | Canonical GitHub Pages URL. |
 | `TURNSTILE_SITE_KEY` | Public CAPTCHA key when Supabase Auth CAPTCHA protection is enabled. |
 
-`SUPABASE_PUBLISHABLE_KEY` is intentionally emitted into `public/config.js`. It does not bypass RLS or authorize private RPCs. Never replace it with `sb_secret_`, `service_role` or any provider secret.
+`SUPABASE_PUBLISHABLE_KEY` is intentionally emitted into the generated production `public/config.js`. It does not bypass RLS or authorize private RPCs. Never replace it with `sb_secret_`, `service_role` or any provider secret.
+
+GitHub repository variables are available to Actions, not to a developer shell. For local development, `pnpm dev` runs `supabase status -o env` and injects only the local public `API_URL` and `ANON_KEY` into `/config.js`. Start local Supabase first:
+
+```bash
+pnpm supabase:start
+pnpm dev
+```
+
+No production key needs to be copied into the repository. Explicit local environment values still take precedence when a non-default local stack is required.
 
 ## Private configuration
 
@@ -87,9 +96,21 @@ Authentication → Sign In / Providers → Email:
 - Allow new users to sign up.
 - Require email confirmation.
 - Enable secure email changes.
-- Use a minimum password length of 12 characters.
+- Use a minimum password length of 10 characters.
 
-The browser also requires lowercase, uppercase, number and symbol for new passwords. Recovery and registration use neutral messages so the UI does not reveal whether an email exists.
+The browser additionally requires lowercase, uppercase, number and symbol. Registration and password reset display every requirement independently and require the password to be entered twice. Sign-in only requires the existing password. Recovery and registration use neutral messages so the UI does not reveal whether an email exists.
+
+## One-time email confirmation reward
+
+After Supabase consumes the email confirmation link and exposes `email_confirmed_at`, the next authenticated synchronization grants:
+
+- One account-level `verified_email_daily_attempt` entitlement.
+- One additional daily attempt for every nickname on the canonical game account.
+- The `Cuenta confirmada` achievement, worth 10 points, for every current and future nickname on that account.
+
+The entitlement is unique per canonical account and cannot stack through callback replay, repeated login, multiple tabs or multiple confirmed email identities. Google and Facebook identities do not claim this specific email-link incentive. The bonus contributes inside the existing bonus ceiling: the absolute daily maximum remains 10.
+
+The email address remains private. Public profiles may show the achievement because it is intentionally a user-facing reward, but they never expose the address.
 
 ## SMTP
 
@@ -110,7 +131,8 @@ Do not place SMTP credentials in GitHub. Keep Auth rate limits conservative and 
 3. The browser sends the verified Supabase JWT and, when present, the current private key to `account-auth`.
 4. `account-auth` validates the JWT with Supabase Auth and hashes the private key using the server pepper.
 5. The service-role-only database function links the Supabase user to the game account.
-6. On a clean device, the server issues a new private key for the same game account. Only its hash is stored.
+6. For a confirmed email provider, a second service-role-only function grants or reuses the idempotent confirmation entitlement and synchronizes achievements.
+7. On a clean device, the server issues a new private key for the same game account. Only its hash is stored.
 
 Signing out of Supabase does not remove the local private key. Closing the local account does not delete the Supabase identity or server progress.
 
@@ -126,7 +148,7 @@ When the signed-in identity and current private key resolve to different game ac
 6. A changed fingerprint rejects the proposal as stale.
 7. A valid confirmation applies corrections, records the complete impact and redirects every old private key to the canonical account.
 
-The merge preserves attempts and nickname history. Derived rewards that are no longer valid are removed, and the immutable merge event retains their complete prior snapshot for audit.
+The merge preserves attempts and nickname history. Derived rewards that are no longer valid are removed, and the immutable merge event retains their complete prior snapshot for audit. Email entitlements are resolved through the canonical account, so merging two confirmed accounts still produces only one daily bonus.
 
 ## Database boundary
 
@@ -148,8 +170,8 @@ bash scripts/run-supabase-ci.sh
 PR_VISUAL_CAPTURE=1 pnpm test:e2e
 ```
 
-The local Supabase integration creates confirmed users through the local admin API, signs in through the password endpoint, exercises `account-auth`, recovers a game account on a clean device, confirms/cancels/stales merge proposals and verifies role isolation.
+The local Supabase integration creates confirmed users through the local admin API, signs in through the password endpoint, exercises `account-auth`, grants and replays the confirmed-email reward, links future nicknames, recovers a game account on a clean device, confirms/cancels/stales merge proposals and verifies role isolation.
 
 ## Rollback
 
-The migration is additive. A frontend or Edge Function regression can be reverted while identity, credential and merge-audit tables remain dormant. Do not rewrite an applied migration. Any production correction must be a new forward migration.
+The migrations are additive. A frontend or Edge Function regression can be reverted while identity, credential, entitlement and merge-audit tables remain dormant. Do not rewrite an applied migration. Any production correction must be a new forward migration.
