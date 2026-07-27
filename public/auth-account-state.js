@@ -1,8 +1,16 @@
 export const AUTH_SESSION_STORAGE_KEY = 'minuto106:supabase-session-v1';
 export const AUTH_PKCE_STORAGE_KEY = 'minuto106:supabase-pkce-v1';
 export const AUTH_RETURN_STORAGE_KEY = 'minuto106:supabase-return-v1';
+export const PASSWORD_MIN_LENGTH = 10;
 
 const PROVIDERS = new Set(['google', 'facebook']);
+const PASSWORD_REQUIREMENT_DEFINITIONS = Object.freeze([
+  Object.freeze({ code: 'length', label: `Al menos ${PASSWORD_MIN_LENGTH} caracteres`, test: (value) => value.length >= PASSWORD_MIN_LENGTH }),
+  Object.freeze({ code: 'lowercase', label: 'Una letra minúscula', test: (value) => /[a-z]/.test(value) }),
+  Object.freeze({ code: 'uppercase', label: 'Una letra mayúscula', test: (value) => /[A-Z]/.test(value) }),
+  Object.freeze({ code: 'number', label: 'Un número', test: (value) => /[0-9]/.test(value) }),
+  Object.freeze({ code: 'symbol', label: 'Un símbolo', test: (value) => /[^a-zA-Z0-9]/.test(value) }),
+]);
 
 export function normalizeAuthConfig(value) {
   const input = value && typeof value === 'object' ? value : {};
@@ -29,15 +37,40 @@ export function normalizeProvider(value) {
   return PROVIDERS.has(provider) ? provider : '';
 }
 
-export function passwordProblems(value) {
+export function passwordRequirements(value) {
   const password = String(value ?? '');
-  const problems = [];
-  if (password.length < 12) problems.push('Usa al menos 12 caracteres.');
-  if (!/[a-z]/.test(password)) problems.push('Añade una letra minúscula.');
-  if (!/[A-Z]/.test(password)) problems.push('Añade una letra mayúscula.');
-  if (!/[0-9]/.test(password)) problems.push('Añade un número.');
-  if (!/[^a-zA-Z0-9]/.test(password)) problems.push('Añade un símbolo.');
-  return problems;
+  return PASSWORD_REQUIREMENT_DEFINITIONS.map((requirement) => ({
+    code: requirement.code,
+    label: requirement.label,
+    met: requirement.test(password),
+  }));
+}
+
+export function passwordProblems(value) {
+  return passwordRequirements(value)
+    .filter((requirement) => !requirement.met)
+    .map((requirement) => requirement.code === 'length'
+      ? `Usa al menos ${PASSWORD_MIN_LENGTH} caracteres.`
+      : `Añade ${requirement.label.toLocaleLowerCase('es')}.`);
+}
+
+export function passwordConfirmationProblem(passwordValue, confirmationValue) {
+  const password = String(passwordValue ?? '');
+  const confirmation = String(confirmationValue ?? '');
+  if (!confirmation) return 'Repite la contraseña para confirmar que está bien escrita.';
+  return password === confirmation ? '' : 'Las contraseñas no coinciden.';
+}
+
+export function registrationReadiness(emailValue, passwordValue, confirmationValue) {
+  const email = normalizeEmail(emailValue);
+  const problems = passwordProblems(passwordValue);
+  const confirmationProblem = passwordConfirmationProblem(passwordValue, confirmationValue);
+  return {
+    ready: Boolean(email) && problems.length === 0 && !confirmationProblem,
+    email,
+    problems,
+    confirmationProblem,
+  };
 }
 
 export function normalizeEmail(value) {
@@ -53,7 +86,7 @@ export function accountRedirectUrl(publicSiteUrl, page = 'cuenta.html') {
 export function neutralAuthMessage(operation, errorCode = '') {
   const code = String(errorCode ?? '').toLowerCase();
   if (operation === 'signup') {
-    return 'Revisa tu correo para confirmar la cuenta. Si la dirección ya estaba registrada, no se realizará ningún cambio.';
+    return 'Revisa tu correo y abre el enlace de un solo uso para confirmar la cuenta. Al verificarlo recibirás +1 intento diario y el logro Cuenta confirmada. Si la dirección ya estaba registrada, no se realizará ningún cambio.';
   }
   if (operation === 'recovery') {
     return 'Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.';
@@ -62,7 +95,7 @@ export function neutralAuthMessage(operation, errorCode = '') {
     return 'El email o la contraseña no son correctos.';
   }
   if (code.includes('email not confirmed')) {
-    return 'Confirma tu correo antes de iniciar sesión.';
+    return 'Confirma tu correo desde el enlace de un solo uso antes de iniciar sesión.';
   }
   if (code.includes('captcha')) {
     return 'No se pudo completar la verificación anti-bots. Inténtalo de nuevo.';
