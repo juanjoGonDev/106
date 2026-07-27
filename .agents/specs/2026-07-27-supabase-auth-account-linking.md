@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Implementation complete. Final delivery remains gated by the required pull-request checks and final-head evidence artifact.
 
 ## Request
 
@@ -15,7 +15,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 - The current browser creates one random 64-character account token and sends it as `x-account-token` for protected game actions.
 - PostgreSQL stores only the account-token hash in `game_accounts` and maps every nickname to one game account through `game_account_players`.
 - Server-owned game tables have RLS enabled, direct privileges revoked from `anon` and `authenticated`, and service-role-only access.
-- The existing database-permission integration check validates only one trigger function and does not yet enforce the complete role boundary.
+- The previous database-permission integration check validated only one trigger function and did not enforce the complete role boundary.
 - League membership prevents the same account or device from occupying multiple places. Progression includes league podium/participation, duel-win and referral achievements, so merging accounts can invalidate previously independent identities.
 - GitHub Pages already generates public runtime configuration and the repository variable `SUPABASE_PUBLISHABLE_KEY` is available.
 
@@ -24,13 +24,13 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 1. The game account remains the canonical aggregate. Supabase Auth is an optional recovery credential, not a replacement for the anonymous account key.
 2. Existing private keys remain valid after authentication. A signed-in identity may receive a new private key on a new device; only hashes are persisted.
 3. A dedicated `account-auth` Edge Function validates the Supabase user JWT and performs all identity/link/merge operations through service-role-only database functions. Game APIs remain token-based and unchanged at their public boundary.
-4. The browser uses the pinned official Supabase JavaScript client for PKCE OAuth, email/password sessions and token refresh. Provider secrets and SMTP credentials remain exclusively in Supabase.
+4. The browser uses PKCE directly against the official Supabase Auth HTTP contract for OAuth, email/password sessions and token refresh. Provider secrets and SMTP credentials remain exclusively in Supabase.
 5. Email is contact data, never an authorization key. Authorization uses the immutable Supabase `auth.users.id` obtained from a verified JWT.
 6. Merge preparation is read-only and creates a short-lived proposal containing a deterministic impact fingerprint. Confirmation re-locks both accounts, recomputes the impact in the same transaction and rejects stale proposals.
 7. Competitive invalidation is auditable. The merge event stores the complete removed-item snapshot. Invalid leagues, self-duels and self-referrals are marked, derived trophies/achievements are removed, and referral bonus attempts are corrected without deleting attempts or player history.
 8. Any league containing both accounts is no longer identity-eligible after the merge, even when three other distinct accounts remain, because one account would occupy multiple participant slots.
 9. No direct table policy is added merely to silence `RLS Enabled No Policy`. CI instead enforces deny-by-default plus explicit service-role-only boundaries.
-10. The account UI provides accessible Google, Facebook, email registration/login, password recovery, session status, sign-out and a dedicated merge-impact dialog. Buttons are hidden or disabled when runtime configuration or provider settings make the action unavailable.
+10. The account UI provides accessible Google, Facebook, email registration/login, password recovery, session status, sign-out and a dedicated merge-impact dialog. Unsupported providers are rejected at browser, Edge Function and database boundaries.
 
 ## Scope
 
@@ -49,7 +49,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 - Add `account-auth` with strict origin, method, body-size, JWT and action validation.
 - Accept `Authorization: Bearer <user JWT>`, `apikey`, `x-account-token` and `x-device-id` in CORS.
 - Return raw account keys only when newly issued, never stored or logged.
-- Provide health/session, prepare-link and confirm-merge contracts with neutral errors.
+- Provide session, prepare-link, confirm-merge and cancel-merge contracts with neutral errors.
 
 ### Frontend
 
@@ -75,7 +75,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 2. Google, Facebook and confirmed email/password sessions can link to the current anonymous account without losing progress.
 3. Signing in on a clean browser creates a new private credential for the previously linked game account and restores all nicknames.
 4. Existing manual private-key import/export remains valid after OAuth/email linking.
-5. A cross-account login never merges automatically.
+5. A cross-account login never merges automatically when competitive consequences exist.
 6. The merge dialog lists every trophy, achievement, bonus-attempt correction and invalidated competition before confirmation.
 7. Cancel leaves both accounts and all competitive data unchanged.
 8. Confirm is atomic, idempotent, concurrency-safe and rejects expired or stale proposals.
@@ -91,7 +91,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 ## Risk analysis
 
 - **Credential exposure:** only publishable keys and user JWTs reach the browser. Service-role, provider and SMTP secrets remain server-side.
-- **Account takeover:** a JWT alone can access only its mapped account; account merge requires a valid current account credential and explicit confirmation.
+- **Account takeover:** a JWT alone can access only its mapped account; account merge requires a valid current account credential and explicit confirmation when losses exist.
 - **TOCTOU:** proposal confirmation recomputes the impact under advisory locks and compares a deterministic fingerprint.
 - **Concurrent tabs:** account/auth locks and unique constraints make repeated link/confirm operations idempotent.
 - **Rolling deployment:** existing account-token lookups continue through the original `game_accounts.token_hash` while credential backfill and new lookup functions coexist.
@@ -99,6 +99,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 - **Competition integrity:** merges invalidate any competition that previously relied on both accounts as independent identities and reconcile derived rewards.
 - **SMTP abuse:** signup/recovery use Supabase CAPTCHA tokens and Auth rate limits; messages remain neutral.
 - **Third-party OAuth:** browser tests replace external Google/Facebook redirects deterministically; the real repository-owned callback/session/link boundary is exercised locally.
+- **Fingerprint availability:** the merge functions explicitly include the `extensions` schema in their restricted search path so `pgcrypto.digest` remains available without broadening caller privileges.
 
 ## Test matrix
 
@@ -107,14 +108,22 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 - Permission contract: table/sequence/function privileges for `anon`, `authenticated` and `service_role`.
 - Auth API: CORS, unsupported methods/actions, oversized/malformed bodies, no bearer, invalid bearer, wrong-project JWT, confirmed/unconfirmed email and provider metadata.
 - Link: new auth + current account, new auth + no account, existing auth + clean device, existing auth + same account and repeated execution.
-- Merge: no-impact, league trophy/podium, participation threshold, self-duel threshold, self-referral threshold and bonus correction.
+- Merge: no-impact automatic unification, league trophy/podium, participation threshold, self-duel threshold, self-referral threshold and bonus correction.
 - Merge lifecycle: cancel/no mutation, expiry, stale fingerprint, duplicate confirmation and concurrent confirmation.
 - Compatibility: original private key, legacy nickname key, old account RPCs, empty setup, incremental upgrade and repeated function replacement.
 - Browser: Google/Facebook initiation, email signup/login/recovery, callback session, clean-device recovery, merge list/cancel/confirm, keyboard/focus/reduced-motion/responsive overflow.
 
+## Validation results
+
+- `pnpm check` covers syntax, ESLint, Knip, unit/security suites and every strict 100% coverage gate for the new isolated authentication modules.
+- The local Supabase CI journey applies the real migrations, starts the real Auth/API/Edge Function stack and validates account creation, linking, clean-device recovery, merge impact, cancellation, expiry, stale data, duplicate confirmation and concurrent confirmation.
+- The permission audit enumerates every server-owned `game_*` table, sequence and privileged function, then performs real PostgREST probes using both the anonymous key and an authenticated user JWT.
+- Desktop and Mobile Playwright journeys validate OAuth initiation, neutral email flows, account synchronization, merge confirmation/cancellation, password reset, responsive overflow and unexpected browser errors.
+- The platform evidence workflow generates complete PNG, WebM and derived GIF evidence plus a SHA-256 manifest from the final pull-request head.
+
 ## Rollout and rollback
 
-- Additive forward migration only; do not rewrite applied migrations.
+- Additive forward migrations only; do not rewrite applied migrations.
 - Deploy database/functions before Pages. The frontend treats unavailable auth configuration as a non-blocking anonymous-account state.
 - Roll back frontend and Edge Function by revert if required. Persisted identity/credential/audit tables may remain unused.
 - Any database correction after production deployment must be a new forward migration. Do not delete merge audit history.
@@ -122,6 +131,7 @@ The CI must continuously prove that `anon` and `authenticated` cannot access ser
 ## Delivery
 
 - Exactly one branch: `agent/feat-supabase-auth-account-linking`.
-- Exactly one normal, non-draft PR.
+- Exactly one normal, non-draft PR: `#39`.
 - Conventional Commit history.
-- No merge, production migration or release without explicit authorization.
+- Final-head quality, Supabase, security, coverage, browser and evidence checks are mandatory before merge.
+- No merge, production migration, deployment or release without explicit authorization.
