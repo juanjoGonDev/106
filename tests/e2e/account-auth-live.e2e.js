@@ -87,6 +87,26 @@ function entitlementState(id) {
   `);
 }
 
+function dailyAttemptState(nick) {
+  return JSON.parse(psql(`
+    select public.get_game_daily_attempt_state(
+      lower(${sqlLiteral(nick)}),
+      clock_timestamp()
+    )::text;
+  `));
+}
+
+function expectSingleAuthDailyBonus(nick) {
+  const state = dailyAttemptState(nick);
+  expect(state.dailyLimitBase).toBe(5);
+  expect(state.authRewardBonus).toBe(1);
+  expect(state.emailVerificationBonus).toBe(1);
+  expect(state.bonusAttempts).toBe(1);
+  expect(state.maxAttempts).toBe(6);
+  expect(state.attemptsLeft).toBe(6);
+  expect(state.dailyLimitCeiling).toBe(10);
+}
+
 function achievementCount(nick) {
   return Number(psql(`
     select count(*)
@@ -268,12 +288,14 @@ test.describe('real Supabase account authentication @live-auth', () => {
     const id = accountId(token);
     expect(entitlementState(id)).toBe('1|email_confirmation');
     expect(achievementCount(nick)).toBe(1);
+    expectSingleAuthDailyBonus(nick);
 
     const replay = await request.get(verifyUrl(activeToken), { maxRedirects: 0 });
     const replayLocation = replay.headers().location || '';
     expect(replay.status() >= 400 || /error/i.test(replayLocation)).toBe(true);
     expect(entitlementState(id)).toBe('1|email_confirmation');
     expect(achievementCount(nick)).toBe(1);
+    expectSingleAuthDailyBonus(nick);
 
     emailOrigin.email = email;
     emailOrigin.nick = nick;
@@ -297,6 +319,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
 
     const id = accountId(token);
     expect(entitlementState(id)).toBe('1|social_link');
+    expectSingleAuthDailyBonus(nick);
 
     await createProviderUser(request, 'facebook', facebookEmail);
     const facebookSession = await signIn(request, facebookEmail);
@@ -306,6 +329,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     expect(entitlementState(id)).toBe('1|social_link');
     expect(identityProviders(id)).toBe('facebook,google');
     expect(achievementCount(nick)).toBe(0);
+    expectSingleAuthDailyBonus(nick);
 
     const recoveredIds = [];
     for (const session of [googleSession, facebookSession]) {
@@ -340,6 +364,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     expect(entitlementState(emailOrigin.accountId)).toBe('1|email_confirmation');
     expect(achievementCount(emailOrigin.nick)).toBe(1);
     expect(identityProviders(emailOrigin.accountId)).toBe('email,facebook,google');
+    expectSingleAuthDailyBonus(emailOrigin.nick);
   });
 
   test('anon and authenticated browser requests cannot access private tables or privileged RPCs', async ({ browser }) => {
