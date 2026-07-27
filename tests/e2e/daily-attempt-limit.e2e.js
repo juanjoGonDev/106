@@ -10,6 +10,10 @@ const previewDirectory = '.tmp/pr-previews';
 const captureEvidence = process.env.PR_VISUAL_CAPTURE === '1';
 const applicationUrl = 'http://127.0.0.1:3000';
 const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: '2026-07-27T00:00:00.000Z' });
+const transparentPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
 mkdirSync(previewDirectory, { recursive: true });
 
 function evidenceName(isMobile) {
@@ -83,6 +87,11 @@ function bodyOf(request) {
 }
 
 async function installMocks(page, resetAtMs, requests) {
+  await page.route('**/functions/v1/player-share/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'image/png',
+    body: transparentPng,
+  }));
   await page.route('**/functions/v1/player-context', async (route) => {
     requests.playerContext += 1;
     const resetAt = new Date(resetAtMs).toISOString();
