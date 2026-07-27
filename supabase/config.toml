@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.player-context]
 verify_jwt = false
+
+[functions.account-auth]
+verify_jwt = false
