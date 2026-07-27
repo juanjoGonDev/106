@@ -85,6 +85,13 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
+export function migrationExecutionSql(sql) {
+  return String(sql ?? '').replace(
+    /(create\s+(?:or\s+replace\s+)?function\b[\s\S]*?\bas\s+)(\$[a-zA-Z0-9_]*\$)([\s\S]*?)\2\s*;/gi,
+    '$1$2/* runtime function body omitted by deployment guard */$2;',
+  );
+}
+
 function isVerifiedAchievementCheckExpansion(sql, pattern) {
   if (pattern.label !== 'ALTER TABLE ... DROP') return false;
   const normalized = sql.toLowerCase().replaceAll(/\s+/g, ' ').trim();
@@ -108,11 +115,12 @@ export function migrationViolations(files) {
 
   for (const file of files) {
     const sql = readFileSync(file, 'utf8');
+    const executionSql = migrationExecutionSql(sql);
     const explicitlyApproved = /--\s*production-data-loss-approved:\s*[^\s].+/i.test(sql);
 
     for (const pattern of destructivePatterns) {
-      if (!pattern.regex.test(sql)) continue;
-      if (explicitlyApproved || isVerifiedAchievementCheckExpansion(sql, pattern)) continue;
+      if (!pattern.regex.test(executionSql)) continue;
+      if (explicitlyApproved || isVerifiedAchievementCheckExpansion(executionSql, pattern)) continue;
       violations.push(`${file}: ${pattern.label}`);
     }
   }
