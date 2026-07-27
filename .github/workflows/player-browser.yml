@@ -61,6 +61,9 @@ jobs:
       - name: Enforce league directory coverage
         run: pnpm test:league-directory:coverage
 
+      - name: Enforce daily attempt limit coverage
+        run: pnpm test:daily-attempts:coverage
+
       - name: Enforce account auth state coverage
         run: pnpm test:auth-state:coverage
 
