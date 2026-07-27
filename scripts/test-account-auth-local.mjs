@@ -206,7 +206,7 @@ assert.equal(psql(environment.databaseUrl, `select email_normalized from public.
 process.stdout.write('✓ a confirmed email identity creates a recoverable game account without exposing email publicly\n');
 
 const ownerToken = randomBytes(32).toString('hex');
-const ownerNick = `Owner${suffix}`.slice(0, 24);
+const ownerNick = `owner${suffix}`.slice(0, 24);
 await createAnonymousPlayer(environment, ownerToken, ownerNick);
 const secondEmail = `second-${suffix}@example.com`;
 await createAuthUser(environment, secondEmail, password);
@@ -227,8 +227,8 @@ process.stdout.write('✓ OAuth/email identity linking preserves the anonymous k
 
 const targetToken = randomBytes(32).toString('hex');
 const sourceToken = randomBytes(32).toString('hex');
-const targetNick = `Target${suffix}`.slice(0, 24);
-const sourceNick = `Source${suffix}`.slice(0, 24);
+const targetNick = `target${suffix}`.slice(0, 24);
+const sourceNick = `source${suffix}`.slice(0, 24);
 await createAnonymousPlayer(environment, targetToken, targetNick);
 await createAnonymousPlayer(environment, sourceToken, sourceNick);
 const mergeEmail = `merge-${suffix}@example.com`;
@@ -265,8 +265,8 @@ process.stdout.write('✓ confirmed cross-account merge is atomic, keeps both ke
 
 const staleTargetToken = randomBytes(32).toString('hex');
 const staleSourceToken = randomBytes(32).toString('hex');
-const staleTargetNick = `StaleT${suffix}`.slice(0, 24);
-const staleSourceNick = `StaleS${suffix}`.slice(0, 24);
+const staleTargetNick = `stalet${suffix}`.slice(0, 24);
+const staleSourceNick = `stales${suffix}`.slice(0, 24);
 await createAnonymousPlayer(environment, staleTargetToken, staleTargetNick);
 await createAnonymousPlayer(environment, staleSourceToken, staleSourceNick);
 const staleEmail = `stale-${suffix}@example.com`;
@@ -288,8 +288,8 @@ process.stdout.write('✓ stale merge proposals are rejected after competitive d
 
 const cancelTargetToken = randomBytes(32).toString('hex');
 const cancelSourceToken = randomBytes(32).toString('hex');
-const cancelTargetNick = `CancelT${suffix}`.slice(0, 24);
-const cancelSourceNick = `CancelS${suffix}`.slice(0, 24);
+const cancelTargetNick = `cancelt${suffix}`.slice(0, 24);
+const cancelSourceNick = `cancels${suffix}`.slice(0, 24);
 await createAnonymousPlayer(environment, cancelTargetToken, cancelTargetNick);
 await createAnonymousPlayer(environment, cancelSourceToken, cancelSourceNick);
 const cancelEmail = `cancel-${suffix}@example.com`;
