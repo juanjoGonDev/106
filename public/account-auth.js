@@ -4,7 +4,10 @@ import {
   normalizeAuthConfig,
   normalizeEmail,
   normalizeMergeImpact,
+  passwordConfirmationProblem,
   passwordProblems,
+  passwordRequirements,
+  registrationReadiness,
   sessionSummary,
 } from './auth-account-state.js';
 import { SupabaseAuthClient } from './supabase-auth-client.js';
@@ -22,7 +25,9 @@ const elements = {
   facebook: document.querySelector('#facebookSignIn'),
   email: document.querySelector('#authEmail'),
   password: document.querySelector('#authPassword'),
-  passwordHint: document.querySelector('#authPasswordHint'),
+  passwordConfirmation: document.querySelector('#authPasswordConfirmation'),
+  passwordRequirements: document.querySelector('#authPasswordRequirements'),
+  passwordMatch: document.querySelector('#authPasswordMatch'),
   signIn: document.querySelector('#emailSignIn'),
   signUp: document.querySelector('#emailSignUp'),
   recovery: document.querySelector('#emailRecovery'),
@@ -41,6 +46,7 @@ let confirmingMerge = false;
 let captchaWidgetId = null;
 let captchaWaiter = null;
 let turnstileLoader = null;
+let busy = false;
 
 function setStatus(message, tone = 'neutral') {
   if (!elements.status) return;
@@ -48,11 +54,31 @@ function setStatus(message, tone = 'neutral') {
   elements.status.dataset.tone = tone;
 }
 
-function setBusy(busy) {
-  for (const button of [elements.google, elements.facebook, elements.signIn, elements.signUp, elements.recovery, elements.signOut]) {
-    if (button) button.disabled = busy;
-  }
+function registrationState() {
+  return registrationReadiness(
+    elements.email?.value,
+    elements.password?.value,
+    elements.passwordConfirmation?.value,
+  );
+}
+
+function refreshControls() {
+  const email = normalizeEmail(elements.email?.value);
+  const password = String(elements.password?.value ?? '');
+  const registration = registrationState();
+  const unavailable = !config.available;
+  if (elements.google) elements.google.disabled = busy || unavailable;
+  if (elements.facebook) elements.facebook.disabled = busy || unavailable;
+  if (elements.signIn) elements.signIn.disabled = busy || unavailable || !email || !password;
+  if (elements.signUp) elements.signUp.disabled = busy || unavailable || !registration.ready;
+  if (elements.recovery) elements.recovery.disabled = busy || unavailable || !email;
+  if (elements.signOut) elements.signOut.disabled = busy || unavailable;
   if (elements.panel) elements.panel.dataset.busy = String(busy);
+}
+
+function setBusy(value) {
+  busy = value;
+  refreshControls();
 }
 
 function renderSession(session) {
@@ -148,6 +174,17 @@ async function cancelPendingMerge() {
   await accountAuthRequest('cancel-merge', { proposalId: proposal.proposalId }).catch(() => {});
 }
 
+function successfulSyncMessage(result) {
+  const reward = result.verificationReward;
+  if (reward?.granted) {
+    return 'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.';
+  }
+  if (reward?.eligible && reward?.active) {
+    return 'Cuenta vinculada. Tu bonificación de +1 intento diario por email confirmado sigue activa.';
+  }
+  return 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.';
+}
+
 async function synchronizeAccount() {
   const session = await client.currentSession();
   renderSession(session);
@@ -161,7 +198,7 @@ async function synchronizeAccount() {
     return result;
   }
   document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
-  setStatus('Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.', 'success');
+  setStatus(successfulSyncMessage(result), 'success');
   return result;
 }
 
@@ -256,8 +293,14 @@ async function runEmailOperation(operation) {
   }
 
   const password = elements.password.value;
-  const problems = passwordProblems(password);
-  if (operation === 'signup' && problems.length) throw new Error(problems.join(' '));
+  if (operation === 'signup') {
+    const readiness = registrationState();
+    if (readiness.problems.length) throw new Error(readiness.problems.join(' '));
+    if (readiness.confirmationProblem) throw new Error(readiness.confirmationProblem);
+  } else if (!password) {
+    throw new Error('Introduce tu contraseña.');
+  }
+
   const token = await captchaToken();
   try {
     if (operation === 'signup') {
@@ -287,19 +330,45 @@ async function handle(operation, action) {
   }
 }
 
-function refreshPasswordHint() {
-  if (!elements.passwordHint) return;
-  const problems = passwordProblems(elements.password.value);
-  elements.passwordHint.textContent = problems.length
-    ? problems.join(' ')
-    : 'La contraseña cumple los requisitos de seguridad.';
-  elements.passwordHint.dataset.valid = String(problems.length === 0);
+function refreshPasswordFeedback() {
+  if (elements.passwordRequirements) {
+    const fragment = document.createDocumentFragment();
+    for (const requirement of passwordRequirements(elements.password?.value)) {
+      const item = document.createElement('li');
+      item.dataset.met = String(requirement.met);
+      item.dataset.requirement = requirement.code;
+      item.textContent = requirement.label;
+      fragment.append(item);
+    }
+    elements.passwordRequirements.replaceChildren(fragment);
+  }
+
+  if (elements.passwordMatch) {
+    const confirmationValue = elements.passwordConfirmation?.value ?? '';
+    if (!confirmationValue) {
+      elements.passwordMatch.textContent = 'Repite la contraseña para poder crear la cuenta.';
+      elements.passwordMatch.dataset.valid = 'false';
+    } else {
+      const problem = passwordConfirmationProblem(elements.password?.value, confirmationValue);
+      elements.passwordMatch.textContent = problem || 'Las contraseñas coinciden.';
+      elements.passwordMatch.dataset.valid = String(!problem);
+    }
+  }
+  refreshControls();
+}
+
+function unavailableMessage() {
+  const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return local
+    ? 'Supabase local no está listo. Ejecuta pnpm supabase:start y vuelve a cargar; el servidor de desarrollo inyectará automáticamente la URL y la clave anónima local.'
+    : 'La autenticación no está configurada en esta publicación. Comprueba SUPABASE_PUBLISHABLE_KEY en el workflow de Pages.';
 }
 
 async function initialize() {
+  refreshPasswordFeedback();
   if (!config.available) {
-    setStatus('El acceso con Google, Facebook y email todavía no está disponible en este despliegue.', 'warning');
-    setBusy(true);
+    setStatus(unavailableMessage(), 'warning');
+    refreshControls();
     return;
   }
   client = new SupabaseAuthClient(config);
@@ -307,6 +376,7 @@ async function initialize() {
   renderSession(session);
   if (session) await synchronizeAccount();
   else setStatus('Vincula Google, Facebook o email para recuperar tu progreso sin depender únicamente de la clave privada.');
+  refreshControls();
 }
 
 elements.google?.addEventListener('click', () => handle('oauth', () => client.signInWithOAuth('google')));
@@ -314,7 +384,9 @@ elements.facebook?.addEventListener('click', () => handle('oauth', () => client.
 elements.signIn?.addEventListener('click', () => handle('signin', () => runEmailOperation('signin')));
 elements.signUp?.addEventListener('click', () => handle('signup', () => runEmailOperation('signup')));
 elements.recovery?.addEventListener('click', () => handle('recovery', () => runEmailOperation('recovery')));
-elements.password?.addEventListener('input', refreshPasswordHint);
+elements.email?.addEventListener('input', refreshControls);
+elements.password?.addEventListener('input', refreshPasswordFeedback);
+elements.passwordConfirmation?.addEventListener('input', refreshPasswordFeedback);
 elements.signOut?.addEventListener('click', () => handle('signout', async () => {
   await client.signOut();
   renderSession(null);
@@ -341,7 +413,7 @@ elements.mergeDialog?.addEventListener('close', () => {
   cancelPendingMerge().catch(() => {});
 });
 
-refreshPasswordHint();
 initialize().catch((error) => {
   setStatus(error.message || 'No se pudo iniciar la autenticación.', 'error');
+  refreshControls();
 });
