@@ -1,6 +1,10 @@
 export const AUTH_SESSION_STORAGE_KEY = 'minuto106:supabase-session-v1';
 export const AUTH_PKCE_STORAGE_KEY = 'minuto106:supabase-pkce-v1';
 export const AUTH_RETURN_STORAGE_KEY = 'minuto106:supabase-return-v1';
+export const AUTH_PENDING_CONFIRMATION_STORAGE_KEY = 'minuto106:pending-email-confirmation-v1';
+export const AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY = 'minuto106:email-resend-available-at-v1';
+export const AUTH_CONFIRMATION_LINK_TTL_SECONDS = 60 * 60;
+export const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 export const PASSWORD_MIN_LENGTH = 10;
 
 const PROVIDERS = new Set(['google', 'facebook']);
@@ -78,6 +82,13 @@ export function normalizeEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 320 ? email : '';
 }
 
+export function confirmationResendDelaySeconds(availableAtValue, nowValue = Date.now()) {
+  const availableAt = Number(availableAtValue);
+  const now = Number(nowValue);
+  if (!Number.isFinite(availableAt) || !Number.isFinite(now)) return 0;
+  return Math.max(0, Math.ceil((availableAt - now) / 1000));
+}
+
 export function accountRedirectUrl(publicSiteUrl, page = 'cuenta.html') {
   const base = String(publicSiteUrl ?? '').trim().replace(/\/$/, '');
   return `${base}/${String(page).replace(/^\//, '')}`;
@@ -86,7 +97,10 @@ export function accountRedirectUrl(publicSiteUrl, page = 'cuenta.html') {
 export function neutralAuthMessage(operation, errorCode = '') {
   const code = String(errorCode ?? '').toLowerCase();
   if (operation === 'signup') {
-    return 'Revisa tu correo y abre el enlace de un solo uso para confirmar la cuenta. Al verificarlo recibirás +1 intento diario y el logro Cuenta confirmada. Si la dirección ya estaba registrada, no se realizará ningún cambio.';
+    return 'Revisa tu correo y abre el enlace de un solo uso durante la próxima hora. Al confirmarlo recibirás +1 intento diario y el logro Cuenta confirmada. Si la dirección ya estaba registrada, no se realizará ningún cambio.';
+  }
+  if (operation === 'resend') {
+    return 'Si la cuenta sigue pendiente, recibirás un nuevo enlace de activación válido durante 1 hora. Al confirmarlo obtendrás +1 intento diario y el logro Cuenta confirmada.';
   }
   if (operation === 'recovery') {
     return 'Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.';
@@ -95,7 +109,7 @@ export function neutralAuthMessage(operation, errorCode = '') {
     return 'El email o la contraseña no son correctos.';
   }
   if (code.includes('email not confirmed')) {
-    return 'Confirma tu correo desde el enlace de un solo uso antes de iniciar sesión.';
+    return 'Confirma tu correo desde el enlace de un solo uso antes de iniciar sesión. Puedes reenviarlo desde esta página.';
   }
   if (code.includes('captcha')) {
     return 'No se pudo completar la verificación anti-bots. Inténtalo de nuevo.';
@@ -104,6 +118,29 @@ export function neutralAuthMessage(operation, errorCode = '') {
     return 'Demasiados intentos seguidos. Espera un momento.';
   }
   return 'No se pudo completar la autenticación. Inténtalo de nuevo.';
+}
+
+export function authRewardMessage(reward) {
+  const input = reward && typeof reward === 'object' ? reward : {};
+  const source = String(input.source ?? '');
+  const provider = String(input.provider ?? '');
+  if (input.granted === true && source === 'email_confirmation') {
+    return 'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.';
+  }
+  if (input.granted === true && source === 'social_link') {
+    const providerName = provider === 'facebook' ? 'Facebook' : 'Google';
+    return `Cuenta vinculada con ${providerName}. Has recibido +1 intento diario; vincular el otro proveedor no acumula otra bonificación.`;
+  }
+  if (input.active === true && source === 'email_confirmation') {
+    return 'Cuenta vinculada. Tu bonificación de +1 intento diario por email confirmado sigue activa.';
+  }
+  if (input.active === true && source === 'social_link') {
+    return 'Cuenta vinculada. Tu bonificación social de +1 intento diario sigue activa y se comparte entre Google y Facebook.';
+  }
+  if (input.pendingConfirmation === true) {
+    return 'Cuenta vinculada. Confirma el email desde el enlace de un solo uso para recibir +1 intento diario y el logro Cuenta confirmada.';
+  }
+  return 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.';
 }
 
 function normalizedList(value) {
