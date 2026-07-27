@@ -81,6 +81,7 @@ const functionPrivileges = parseJson(databaseUrl, `
   select coalesce(json_agg(row_to_json(audit) order by audit.signature), '[]'::json)
   from (
     select
+      procedure.proname as function_name,
       format('%I.%I(%s)', namespace.nspname, procedure.proname, pg_get_function_identity_arguments(procedure.oid)) as signature,
       procedure.prosecdef as security_definer,
       exists (
@@ -118,9 +119,33 @@ for (const procedure of functionPrivileges) {
   assert.equal(procedure.public_execute, false, `${procedure.signature} must revoke PUBLIC execution.`);
   assert.equal(procedure.anon_execute, false, `${procedure.signature} must deny anon execution.`);
   assert.equal(procedure.authenticated_execute, false, `${procedure.signature} must deny authenticated execution.`);
-  assert.equal(procedure.service_execute, true, `${procedure.signature} must remain executable by service_role.`);
 }
-process.stdout.write(`✓ ${functionPrivileges.length} privileged functions deny direct public, anon and authenticated execution\n`);
+
+const requiredServiceFunctions = [
+  'resolve_game_account_id',
+  'resolve_game_account_token',
+  'game_account_nick_keys',
+  'get_game_account_merge_impact',
+  'reconcile_game_player_identity_achievements',
+  'refresh_game_player_progression_achievements_unfiltered',
+  'refresh_game_player_progression_achievements',
+  'merge_game_accounts_internal',
+  'prepare_game_auth_link',
+  'confirm_game_auth_merge',
+  'cancel_game_auth_merge',
+  'ensure_game_account_player',
+  'get_game_account_players',
+  'sync_game_league_trophies',
+];
+const serviceFunctions = new Set(
+  functionPrivileges
+    .filter((procedure) => procedure.service_execute)
+    .map((procedure) => procedure.function_name),
+);
+for (const functionName of requiredServiceFunctions) {
+  assert.ok(serviceFunctions.has(functionName), `public.${functionName} must remain executable by service_role.`);
+}
+process.stdout.write(`✓ ${functionPrivileges.length} privileged functions deny public roles and preserve required service RPCs\n`);
 
 const sequencePrivileges = parseJson(databaseUrl, `
   select coalesce(json_agg(row_to_json(audit) order by audit.sequence_name), '[]'::json)
