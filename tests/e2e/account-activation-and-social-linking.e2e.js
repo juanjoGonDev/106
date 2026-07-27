@@ -133,7 +133,7 @@ test('pending email activation can be resent and clearly expires after one hour'
   await resend.click();
 
   await expect(page.locator('#cloudAccountStatus')).toContainText('válido durante 1 hora');
-  await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Revisa también la carpeta de spam');
+  await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Podrás solicitar otro enlace');
   await expect(resend).toBeDisabled();
   expect(authLog.some((entry) => entry.path.endsWith('/resend')
     && entry.body.type === 'signup'
