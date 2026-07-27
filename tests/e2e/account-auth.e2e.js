@@ -164,7 +164,12 @@ async function installAccountAuthApi(page, mode = 'linked', log = []) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ linked: true, issueToken: false, auth: { provider: 'email', email: 'player@example.com', emailVerified: true } }),
+      body: JSON.stringify({
+        linked: true,
+        issueToken: false,
+        auth: { provider: 'email', email: 'player@example.com', emailVerified: true },
+        verificationReward: { eligible: true, active: true, granted: false, dailyAttemptBonus: 1 },
+      }),
     });
   });
 }
@@ -173,7 +178,7 @@ async function installAccountPage(page, options = {}) {
   await installRuntimeConfig(page);
   await installGameApi(page);
   await installAuthApi(page, options.authLog);
-  await installAccountAuthApi(page, options.accountLog ? options.mode : options.mode, options.accountLog);
+  await installAccountAuthApi(page, options.mode, options.accountLog);
   await page.addInitScript(({ token }) => {
     localStorage.setItem('minuto106:account-access-v1', token);
   }, { token: accountToken });
@@ -244,14 +249,31 @@ test('Google and Facebook buttons initiate only the configured PKCE providers', 
   expect(new URL(page.url()).searchParams.get('redirect_to')).toBe('http://127.0.0.1:3000/cuenta.html');
 });
 
-test('email registration and recovery use neutral messages without account enumeration', async ({ page }) => {
+test('email registration requires progressive password rules and exact confirmation', async ({ page }) => {
   const authLog = [];
   await installAccountPage(page, { authLog });
   await page.goto('/cuenta.html');
+
+  const signup = page.locator('#emailSignUp');
+  await expect(signup).toBeDisabled();
   await page.locator('#authEmail').fill('Existing@Example.com');
-  await page.locator('#authPassword').fill('SecurePassword123!');
-  await page.locator('#emailSignUp').click();
-  await expect(page.locator('#cloudAccountStatus')).toContainText('Revisa tu correo para confirmar la cuenta');
+  await page.locator('#authPassword').fill('short');
+  await expect(page.locator('[data-requirement="length"]')).toHaveAttribute('data-met', 'false');
+  await expect(signup).toBeDisabled();
+
+  await page.locator('#authPassword').fill('Secure123!');
+  await expect(page.locator('#authPasswordRequirements li[data-met="true"]')).toHaveCount(5);
+  await page.locator('#authPasswordConfirmation').fill('Different1!');
+  await expect(page.locator('#authPasswordMatch')).toHaveText('Las contraseñas no coinciden.');
+  await expect(signup).toBeDisabled();
+
+  await page.locator('#authPasswordConfirmation').fill('Secure123!');
+  await expect(page.locator('#authPasswordMatch')).toHaveText('Las contraseñas coinciden.');
+  await expect(signup).toBeEnabled();
+  await signup.click();
+  await expect(page.locator('#cloudAccountStatus')).toContainText('enlace de un solo uso');
+  await expect(page.locator('#cloudAccountStatus')).toContainText('+1 intento diario');
+
   await page.locator('#emailRecovery').click();
   await expect(page.locator('#cloudAccountStatus')).toHaveText('Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.');
   expect(authLog.some((entry) => entry.path.endsWith('/signup'))).toBe(true);
@@ -275,7 +297,7 @@ test('records the complete optional account login flow on desktop and mobile', a
   await page.locator('#authPassword').fill('SecurePassword123!');
   await page.locator('#emailSignIn').click();
   await expect(page.locator('#cloudAccountIdentity')).toContainText('player@example.com · email');
-  await expect(page.locator('#cloudAccountStatus')).toContainText('Cuenta vinculada');
+  await expect(page.locator('#cloudAccountStatus')).toContainText('bonificación de +1 intento diario');
   expect(errors).toEqual([]);
   await saveVideo(context, page, 'account-auth', isMobile);
 });
@@ -326,7 +348,7 @@ test('canceling a merge sends cancellation and performs no confirmation', async 
   expect(accountLog.some((entry) => entry.action === 'confirm-merge')).toBe(false);
 });
 
-test('password reset validates the recovery session and updates the password responsively', async ({ page, isMobile }) => {
+test('password reset validates progressive requirements and exact confirmation responsively', async ({ page, isMobile }) => {
   const authLog = [];
   await installRuntimeConfig(page);
   await installAuthApi(page, authLog);
@@ -335,8 +357,12 @@ test('password reset validates the recovery session and updates the password res
   }, { storedSession: session() });
   await page.goto('/restablecer-clave.html');
 
-  await page.locator('#newPassword').fill('NewSecurePassword123!');
-  await page.locator('#confirmNewPassword').fill('NewSecurePassword123!');
+  await page.locator('#newPassword').fill('NewSecure1!');
+  await expect(page.locator('#passwordResetRequirements li[data-met="true"]')).toHaveCount(5);
+  await page.locator('#confirmNewPassword').fill('Different1!');
+  await expect(page.locator('#updatePassword')).toBeDisabled();
+  await expect(page.locator('#passwordResetMatch')).toHaveText('Las contraseñas no coinciden.');
+  await page.locator('#confirmNewPassword').fill('NewSecure1!');
   await expect(page.locator('#updatePassword')).toBeEnabled();
   await saveScreenshot(page, 'password-reset', isMobile);
   await page.locator('#updatePassword').click();
