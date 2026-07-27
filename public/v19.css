@@ -1,0 +1,51 @@
+.daily-limit-card {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 18px;
+  border: 1px solid rgba(255, 210, 92, 0.38);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255, 196, 64, 0.12), rgba(14, 16, 24, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.daily-limit-card[hidden] {
+  display: none;
+}
+
+.daily-limit-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.daily-limit-card__header strong {
+  font-size: clamp(1rem, 2.8vw, 1.25rem);
+}
+
+.daily-limit-card__count,
+.daily-limit-card__referral {
+  margin: 0;
+  color: var(--muted, #b9bdc9);
+}
+
+.daily-limit-card__count {
+  font-weight: 700;
+  color: #f7e8ae;
+}
+
+.daily-limit-countdown {
+  min-width: 8ch;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  letter-spacing: 0.04em;
+  color: #fff3bf;
+}
+
+@media (max-width: 520px) {
+  .daily-limit-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
