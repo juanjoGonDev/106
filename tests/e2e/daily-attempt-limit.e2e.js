@@ -122,6 +122,7 @@ async function installMocks(page, resetAtMs, requests) {
 test('exhausted daily global quota counts down and refreshes from the server at reset', async ({ browser, isMobile }) => {
   const context = await browser.newContext(contextOptions(isMobile));
   const page = await context.newPage();
+  const video = captureEvidence ? page.video() : null;
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
@@ -167,13 +168,11 @@ test('exhausted daily global quota counts down and refreshes from the server at 
     expect(consoleErrors).toEqual([]);
     expect(failedRequests).toEqual([]);
   } finally {
-    if (captureEvidence) {
-      const video = page.video();
-      if (!video) throw new Error('Playwright did not create the daily-limit countdown recording.');
-      await context.close();
-      await video.saveAs(join(previewDirectory, `${evidenceName(isMobile)}.webm`));
-    } else {
-      await context.close();
-    }
+    await context.close();
+  }
+
+  if (captureEvidence) {
+    if (!video) throw new Error('Playwright did not create the daily-limit countdown recording.');
+    await video.saveAs(join(previewDirectory, `${evidenceName(isMobile)}.webm`));
   }
 });
