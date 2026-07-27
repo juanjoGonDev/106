@@ -10,6 +10,9 @@ const migrationSource = readdirSync(migrationDirectory)
   .sort()
   .map((file) => readFileSync(join(migrationDirectory, file), 'utf8'))
   .join('\n');
+const boundCompatibilitySql = /execute \$query\$[\s\S]*?\$query\$ using v_account_id into v_resolved;/gi;
+const boundCompatibilityStatements = migrationSource.match(boundCompatibilitySql) ?? [];
+const migrationWithoutBoundCompatibilitySql = migrationSource.replace(boundCompatibilitySql, '');
 
 describe('Edge Function attack surface', () => {
   it('enforces method, origin and request-size boundaries', () => {
@@ -71,8 +74,12 @@ describe('PostgreSQL access controls', () => {
     expect(migrationSource).toMatch(/revoke all[\s\S]+from anon, authenticated/i);
   });
 
-  it('contains no dynamic SQL or unsafe search_path', () => {
-    expect(migrationSource).not.toMatch(/execute\s+(format|\$|')/i);
+  it('allows only the constant parameter-bound account compatibility query', () => {
+    expect(boundCompatibilityStatements).toHaveLength(1);
+    expect(boundCompatibilityStatements[0]).toContain('where account.id = $1');
+    expect(boundCompatibilityStatements[0]).toContain('using v_account_id into v_resolved');
+    expect(boundCompatibilityStatements[0]).not.toMatch(/format\s*\(|\|\|/i);
+    expect(migrationWithoutBoundCompatibilitySql).not.toMatch(/execute\s+(format|\$|')/i);
     expect(migrationSource).not.toMatch(/set\s+search_path\s*=\s*public\s*(;|as)/i);
     expect(migrationSource).not.toMatch(/grant\s+all[\s\S]+to\s+(anon|authenticated)/i);
   });
