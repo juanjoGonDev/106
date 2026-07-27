@@ -51,8 +51,11 @@
           <label for="authEmail">Email</label>
           <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="tu@email.com">
           <label for="authPassword">Contraseña</label>
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="12" maxlength="128" placeholder="Mínimo 12 caracteres">
-          <p id="authPasswordHint" class="auth-password-hint"></p>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="10" maxlength="128" placeholder="Mínimo 10 caracteres" aria-describedby="authPasswordRequirements">
+          <ul id="authPasswordRequirements" class="auth-password-requirements" aria-label="Requisitos de contraseña"></ul>
+          <label for="authPasswordConfirmation">Confirmar contraseña <span class="auth-label-note">solo para crear cuenta</span></label>
+          <input id="authPasswordConfirmation" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Repite la contraseña" aria-describedby="authPasswordMatch">
+          <p id="authPasswordMatch" class="auth-password-match" role="status" aria-live="polite"></p>
         </div>
         <div id="authCaptcha" class="auth-captcha" hidden></div>
         <div class="email-auth-actions">
@@ -61,6 +64,7 @@
           <button id="emailRecovery" class="ghost" type="button">He olvidado la contraseña</button>
         </div>
         <button id="cloudSignOut" class="ghost cloud-sign-out" type="button" hidden>Cerrar sesión en la nube</button>
+        <p class="verification-reward-note"><strong>+1 intento diario y logro:</strong> al crear la cuenta, abre el enlace de un solo uso enviado a tu email. La bonificación cuenta dentro del máximo diario absoluto de 10.</p>
         <p class="hint">El email se guarda de forma privada y no aparece en perfiles, rankings ni imágenes compartidas.</p>
       </section>
 
