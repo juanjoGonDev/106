@@ -83,6 +83,7 @@ test('builds callback URLs and neutral auth responses without account enumeratio
   assert.equal(accountRedirectUrl('https://example.com/app/'), 'https://example.com/app/cuenta.html');
   assert.equal(accountRedirectUrl('https://example.com/app/', 'cuenta.html'), 'https://example.com/app/cuenta.html');
   assert.equal(accountRedirectUrl('https://example.com/app', '/restablecer-clave.html'), 'https://example.com/app/restablecer-clave.html');
+  assert.equal(accountRedirectUrl(null), '/cuenta.html');
   assert.equal(neutralAuthMessage('signup'), 'Revisa tu correo para confirmar la cuenta. Si la dirección ya estaba registrada, no se realizará ningún cambio.');
   assert.equal(neutralAuthMessage('recovery'), 'Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.');
   assert.equal(neutralAuthMessage('signin', 'invalid login credentials'), 'El email o la contraseña no son correctos.');
@@ -92,6 +93,7 @@ test('builds callback URLs and neutral auth responses without account enumeratio
   assert.equal(neutralAuthMessage('signin', 'rate limit'), 'Demasiados intentos seguidos. Espera un momento.');
   assert.equal(neutralAuthMessage('signin', 'too many requests'), 'Demasiados intentos seguidos. Espera un momento.');
   assert.equal(neutralAuthMessage('other'), 'No se pudo completar la autenticación. Inténtalo de nuevo.');
+  assert.equal(neutralAuthMessage('other', null), 'No se pudo completar la autenticación. Inténtalo de nuevo.');
 });
 
 test('normalizes and formats every merge-impact category', () => {
