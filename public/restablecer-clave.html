@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./v2.css">
   <link rel="stylesheet" href="./v4.css">
   <link rel="stylesheet" href="./v18.css">
+  <link rel="stylesheet" href="./v20.css">
 </head>
 <body>
   <header class="site-header"></header>
@@ -23,9 +24,11 @@
       <p>El enlace solo puede utilizarse durante un tiempo limitado. Elige una contraseña que no uses en otros servicios.</p>
       <div class="password-reset-fields">
         <label for="newPassword">Nueva contraseña</label>
-        <input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+        <input id="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" aria-describedby="passwordResetRequirements">
+        <ul id="passwordResetRequirements" class="auth-password-requirements password-reset-requirements" aria-label="Requisitos de contraseña"></ul>
         <label for="confirmNewPassword">Repite la contraseña</label>
-        <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+        <input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" aria-describedby="passwordResetMatch">
+        <p id="passwordResetMatch" class="auth-password-match password-reset-match" role="status" aria-live="polite"></p>
       </div>
       <p id="passwordResetStatus" class="password-reset-status" role="status" aria-live="polite">Validando el enlace…</p>
       <div class="password-reset-actions">
