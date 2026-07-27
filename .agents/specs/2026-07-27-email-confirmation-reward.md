@@ -1,68 +1,90 @@
-# Email confirmation reward and local Auth UX
+# Authentication activation and account reward
 
 ## Status
 
-Implementation in progress. Validation and final evidence are pending.
+Implementation complete. Final-head CI and evidence validation are pending.
 
 ## Request
 
-Fix the account screen reporting Supabase Auth as unavailable on `localhost` even though the production publishable key exists in GitHub. Align the password minimum with the configured Supabase minimum of 10 characters, show each password requirement progressively, require exact password confirmation for signup and reset, and reward a confirmed email account with one additional daily attempt plus an achievement after the one-time confirmation link is consumed.
+Refine the account experience so local development reports missing local Supabase accurately, password policy matches the hosted minimum of 10 characters, signup and reset require exact confirmation, email activation links expire after one hour and can be resent from the account page, and authentication incentives cannot be farmed across providers.
+
+A canonical game account may link Google and Facebook simultaneously. A social-origin account receives one additional daily attempt in total, not one per provider. A game account whose first cloud identity was normal email does not later receive the social reward. A normal-email account receives its one additional daily attempt and the `Cuenta confirmada` achievement only after the one-use activation link is consumed.
 
 ## Evidence
 
 - GitHub repository variables exist only inside Actions/Pages jobs; they are not automatically exported into a developer shell.
-- The committed `public/config.js` intentionally has no production publishable key, so the previous static development server served an unavailable Auth configuration.
+- The committed `public/config.js` intentionally has no production publishable key, so the static development server previously served an unavailable Auth configuration.
 - Supabase local exposes its public `API_URL` and `ANON_KEY` through `supabase status -o env`.
 - Registration previously required 12 characters in the browser while the product configuration requires 10.
-- Signup had no confirmation field and represented all password requirements in a single mutable sentence.
-- Email verification was stored privately but did not create an idempotent account-level entitlement or achievement.
+- Signup previously had no confirmation field and represented all password requirements in one mutable sentence.
+- The original reward recognized only confirmed email identities and did not support a mutually exclusive social-origin reward.
+- `game_auth_identities` can map several Supabase user UUIDs to one canonical game account, so Google and Facebook can coexist without weakening the private-key boundary.
 
 ## Decisions
 
 1. Never commit the production publishable key merely to support local development.
-2. `pnpm dev` derives only the local public URL and anon key from `supabase status -o env`; service-role and provider secrets are never read into browser config.
-3. Explicit local environment values override auto-discovery. Production Pages continues to use the GitHub repository variable.
-4. Password policy is 10 characters plus lowercase, uppercase, number and symbol. Each requirement has a stable accessible state.
-5. Signup and password reset require an exact second entry. Sign-in does not require confirmation.
-6. The reward applies only to Supabase identities whose provider is `email` and whose email confirmation timestamp is present. Google and Facebook do not claim the email-link incentive.
-7. The reward is an account entitlement with a unique `(account_id, entitlement_code)` key. Replayed callbacks, concurrent tabs and repeated login cannot stack it.
-8. Every nickname linked to the canonical account receives the `Cuenta confirmada` achievement. A trigger also grants it to nicknames linked after verification.
-9. The entitlement contributes +1 inside the existing account bonus ceiling. The absolute daily maximum remains 10, never 11.
-10. Email remains private. Only the public achievement and bonus are exposed; the address is not.
+2. `pnpm dev` derives only the local public URL and anon key from `supabase status -o env`; service-role and provider secrets never enter browser config.
+3. Password policy is 10 characters plus lowercase, uppercase, number and symbol. Signup and reset require an exact second entry; sign-in does not.
+4. Confirmation links use Supabase PKCE, are one use and have a configured lifetime of 3,600 seconds.
+5. An unconfirmed user can request another signup confirmation from `cuenta.html`; the UI applies a one-minute cooldown and Supabase rate limits remain authoritative.
+6. Resend responses are neutral to avoid disclosing whether an email exists.
+7. One canonical entitlement, `auth_identity_daily_attempt`, represents the authentication incentive. Its unique account-level key prevents replay, concurrent-tab and multi-provider stacking.
+8. The first cloud identity linked to the canonical account fixes `origin_provider`. Later identities cannot change the reward class.
+9. Email-origin account: no reward before `email_confirmed_at`; after confirmation, +1 daily attempt and the `Cuenta confirmada` achievement for current and future nicks.
+10. Google/Facebook-origin account: +1 daily attempt after first successful link, no email-confirmation achievement. Linking the second social provider is allowed but grants nothing further.
+11. An email-origin account never gains the social reward later; a social-origin account never gains a second email reward.
+12. The entitlement contributes inside the existing absolute daily ceiling of 10.
+13. Email remains private. Only the public achievement and bonus state may be projected.
+14. Hosted Supabase settings are operational configuration: dashboard activation must set confirmation expiry to one hour and paste the maintained email template; the local `config.toml` does not configure hosted Auth by itself.
 
 ## Acceptance criteria
 
-1. Starting local Supabase and then `pnpm dev` makes Google, Facebook and email controls available without manually copying any production key.
-2. When local Supabase is unavailable, the page gives an actionable local message rather than saying the production deployment is disabled.
+1. Starting local Supabase and then `pnpm dev` enables Auth controls without copying a production key.
+2. Missing local Supabase produces an actionable local message.
 3. New passwords accept 10 characters and reject fewer than 10.
-4. Length, lowercase, uppercase, number and symbol states update independently as the user types.
-5. Signup remains disabled until email is valid, all password rules pass and confirmation matches.
-6. Sign-in remains possible without filling the confirmation field.
-7. Password reset uses the same policy and exact confirmation.
-8. A confirmed email identity receives one `verified_email_daily_attempt` entitlement exactly once.
-9. The current and future nicknames on that account receive one `email_verified` achievement each, worth 10 points.
-10. Unconfirmed email identities, Google identities, Facebook identities and missing identities receive no reward.
-11. The new table and RPCs remain inaccessible to `PUBLIC`, `anon` and `authenticated` and executable only by `service_role`.
-12. New isolated password decisions retain 100% line/function/branch coverage.
-13. Real local Supabase tests cover grant, replay, future nickname linking and ineligible providers.
-14. Desktop and Mobile Playwright verify progressive requirements, mismatch handling, signup, login and reset without overflow or page errors.
-15. The final PR head has green CI and a new complete platform evidence artifact.
+4. Length, lowercase, uppercase, number and symbol update independently.
+5. Signup remains disabled until email, password and confirmation are valid; sign-in does not require confirmation.
+6. Password reset applies the same password rules and exact confirmation.
+7. Signup copy and the email template state that activation expires after one hour and grants +1 plus the achievement.
+8. The account page can resend a signup confirmation for a pending email and enforces a visible cooldown.
+9. Confirmed email receives one account entitlement and one `email_verified` achievement per current/future nick.
+10. Unconfirmed email receives no entitlement.
+11. Google-origin or Facebook-origin account receives one shared social entitlement.
+12. Google and Facebook identities can both map to the same canonical game account.
+13. Linking the second social provider does not create a second entitlement.
+14. An email-origin account cannot claim the social incentive after confirmation or while pending.
+15. Missing identities receive no reward.
+16. New tables/functions remain inaccessible to `PUBLIC`, `anon` and `authenticated`; only `service_role` can execute them.
+17. New isolated decisions retain 100% line/function/branch coverage.
+18. Real local Supabase tests cover email grant/replay/future nick, social first/second provider, email-origin exclusion and pending email.
+19. Desktop and Mobile Playwright cover progressive password feedback, activation resend, one-hour copy and second-provider availability without overflow or page errors.
+20. The final PR head has green CI and a new complete platform evidence artifact.
 
 ## Validation plan
 
 - `pnpm check`
 - `pnpm test:auth-state:coverage`
+- `pnpm test:supabase-auth-client:coverage`
 - `bash scripts/run-supabase-ci.sh`
 - `PR_VISUAL_CAPTURE=1 pnpm test:e2e`
 - `pnpm preview:platform`
 - GitHub Actions quality, browser/evidence, public asset and PR evidence workflows
 
+## Rollout
+
+1. Merge migrations and Edge Function before Pages.
+2. In hosted Supabase, set Auth email confirmation expiry to 3,600 seconds, minimum password length to 10 and email confirmation on.
+3. Paste the maintained confirmation subject/template in hosted Auth templates.
+4. Keep Brevo custom SMTP, Site URL and redirect allow-list configured.
+5. Enable Google and Facebook only after their callback/client settings are complete.
+6. Deploy `account-auth`, then Pages.
+
 ## Rollback
 
-Revert the development runtime, frontend and Edge Function commits. The additive entitlement table and audit-safe achievement rows may remain dormant. Never rewrite an applied migration; any production correction is a new forward migration.
+Revert frontend and Edge Function. Additive identity-origin and entitlement data may remain dormant. Never rewrite an applied migration; any production correction must be a new forward migration.
 
 ## Delivery
 
-- Existing branch and normal PR #39 are reused because this is a direct refinement of the authentication feature.
-- The daily-limit consumer is implemented independently in PR #40 with an identical additive entitlement schema so either PR can merge first.
+- Existing branch and normal PR #39 are reused because these are direct authentication refinements.
+- Daily quota consumption is integrated independently in PR #40 so either PR can merge first.
 - No merge, production migration, deployment or release without explicit authorization.
