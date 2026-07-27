@@ -146,6 +146,7 @@ test('formats every email and social account reward state', () => {
   assert.match(authRewardMessage({ granted: true, source: 'social_link', provider: 'facebook' }), /Facebook/);
   assert.match(authRewardMessage({ granted: true, source: 'social_link', provider: 'unknown' }), /Google/);
   assert.match(authRewardMessage({ active: true, source: 'email_confirmation' }), /email confirmado/);
+  assert.match(authRewardMessage({ eligible: true, active: true, granted: false }), /email confirmado/);
   assert.match(authRewardMessage({ active: true, source: 'social_link' }), /Google y Facebook/);
   assert.match(authRewardMessage({ pendingConfirmation: true }), /Confirma el email/);
   assert.equal(authRewardMessage(null), 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.');
