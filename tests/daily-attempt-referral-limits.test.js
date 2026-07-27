@@ -1,12 +1,30 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const migration = readFileSync('supabase/migrations/20260727150000_daily_attempt_referral_limits.sql', 'utf8');
+const migrationDirectory = 'supabase/migrations';
+const dailyMigrationFiles = readdirSync(migrationDirectory)
+  .filter((file) => /^20260727150[0-5]00_.*\.sql$/.test(file))
+  .sort();
+const migration = dailyMigrationFiles
+  .map((file) => readFileSync(join(migrationDirectory, file), 'utf8'))
+  .join('\n');
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
 
 describe('daily attempt and account referral limits', () => {
+  it('keeps the migration split into cohesive ordered stages', () => {
+    expect(dailyMigrationFiles).toEqual([
+      '20260727150000_daily_attempt_schema.sql',
+      '20260727150100_daily_referral_limits.sql',
+      '20260727150200_daily_challenge_start.sql',
+      '20260727150300_daily_challenge_reservations.sql',
+      '20260727150400_daily_attempt_finish.sql',
+      '20260727150500_daily_profile_limits.sql',
+    ]);
+  });
+
   it('pins global challenges and attempts to a UTC quota day', () => {
     expect(migration).toContain("(p_at at time zone 'UTC')::date");
     expect(migration).toContain('add column if not exists quota_day date');
