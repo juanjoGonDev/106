@@ -1,7 +1,9 @@
 import { buildRuntimeConfig, validateRuntimeConfig } from './runtime-config.mjs';
 
 const config = buildRuntimeConfig(process.env);
-const errors = validateRuntimeConfig(config);
+const errors = validateRuntimeConfig(config, {
+  requireAuth: process.env.REQUIRE_AUTH_CONFIG === 'true',
+});
 
 if (errors.length > 0) {
   for (const error of errors) console.error(`Runtime configuration error: ${error}`);
