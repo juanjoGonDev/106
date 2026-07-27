@@ -83,7 +83,12 @@ const functionPrivileges = parseJson(databaseUrl, `
     select
       format('%I.%I(%s)', namespace.nspname, procedure.proname, pg_get_function_identity_arguments(procedure.oid)) as signature,
       procedure.prosecdef as security_definer,
-      has_function_privilege('PUBLIC', procedure.oid, 'EXECUTE') as public_execute,
+      exists (
+        select 1
+        from aclexplode(coalesce(procedure.proacl, acldefault('f', procedure.proowner))) acl_entry
+        where acl_entry.grantee = 0
+          and acl_entry.privilege_type = 'EXECUTE'
+      ) as public_execute,
       has_function_privilege('anon', procedure.oid, 'EXECUTE') as anon_execute,
       has_function_privilege('authenticated', procedure.oid, 'EXECUTE') as authenticated_execute,
       has_function_privilege('service_role', procedure.oid, 'EXECUTE') as service_execute
