@@ -159,7 +159,13 @@ Deno.serve(async (request) => {
         p_account_token_hash: currentTokenHash || null,
         p_new_token_hash: newTokenHash,
       });
-      return safeResult(origin, successfulSync(result, newToken, identity));
+      const verificationReward = await rpc('grant_game_verified_email_reward', {
+        p_auth_user_id: identity.id,
+      });
+      return safeResult(origin, successfulSync({
+        ...result,
+        verificationReward,
+      }, newToken, identity));
     }
 
     const proposalId = normalizeUuid(body.proposalId);
