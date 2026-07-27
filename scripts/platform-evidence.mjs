@@ -2,6 +2,8 @@ import { basename } from 'node:path';
 
 export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'account-actions',
+  'account-auth',
+  'account-merge-impact',
   'achievement-unlock',
   'browser-surface',
   'cookies-page',
@@ -18,6 +20,7 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'league-directory',
   'league-waiting',
   'legal-page',
+  'password-reset',
   'player-achievements',
   'player-honours-progress',
   'player-navigation',
@@ -36,6 +39,8 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
 ]);
 
 export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
+  'account-auth',
+  'account-merge-impact',
   'achievement-unlock',
   'cookies-page',
   'daily-awards-after-finish',
