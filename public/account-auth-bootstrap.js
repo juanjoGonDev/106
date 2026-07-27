@@ -3,9 +3,17 @@ import {
   normalizeEmail,
 } from './auth-account-state.js';
 
-const emailInput = document.querySelector('#authEmail');
-const pendingEmail = normalizeEmail(localStorage.getItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY));
-
-if (emailInput && pendingEmail && !normalizeEmail(emailInput.value)) {
-  emailInput.value = pendingEmail;
+export function restorePendingActivationEmail(input, pendingValue) {
+  if (!input) return '';
+  const currentEmail = normalizeEmail(input.value);
+  if (currentEmail) return currentEmail;
+  const pendingEmail = normalizeEmail(pendingValue);
+  if (!pendingEmail) return '';
+  input.value = pendingEmail;
+  return pendingEmail;
 }
+
+restorePendingActivationEmail(
+  document.querySelector('#authEmail'),
+  localStorage.getItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY),
+);
