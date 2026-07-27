@@ -85,11 +85,39 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
+function findFunctionBody(source, startIndex) {
+  const remainder = source.slice(startIndex);
+  const bodyStart = remainder.match(/\bas\s+(\$[a-zA-Z0-9_]*\$)/i);
+  if (!bodyStart || bodyStart.index === undefined) return null;
+
+  const delimiter = bodyStart[1];
+  const openingEnd = startIndex + bodyStart.index + bodyStart[0].length;
+  const closingStart = source.indexOf(delimiter, openingEnd);
+  if (closingStart < 0) return null;
+  return { delimiter, openingEnd, closingStart };
+}
+
 export function migrationExecutionSql(sql) {
-  return String(sql ?? '').replace(
-    /(create\s+(?:or\s+replace\s+)?function\b[\s\S]*?\bas\s+)(\$[a-zA-Z0-9_]*\$)([\s\S]*?)\2\s*;/gi,
-    '$1$2/* runtime function body omitted by deployment guard */$2;',
-  );
+  const source = String(sql ?? '');
+  const functionStart = /\bcreate\s+(?:or\s+replace\s+)?function\b/gi;
+  let cursor = 0;
+  let output = '';
+  let match = functionStart.exec(source);
+
+  while (match) {
+    output += source.slice(cursor, match.index);
+    const body = findFunctionBody(source, match.index);
+    if (!body) return output + source.slice(match.index);
+
+    output += source.slice(match.index, body.openingEnd);
+    output += '/* runtime function body omitted by deployment guard */';
+    output += body.delimiter;
+    cursor = body.closingStart + body.delimiter.length;
+    functionStart.lastIndex = cursor;
+    match = functionStart.exec(source);
+  }
+
+  return output + source.slice(cursor);
 }
 
 function isVerifiedAchievementCheckExpansion(sql, pattern) {
