@@ -2,7 +2,15 @@ export const AUTH_SESSION_STORAGE_KEY = 'minuto106:supabase-session-v1';
 export const AUTH_PKCE_STORAGE_KEY = 'minuto106:supabase-pkce-v1';
 export const AUTH_RETURN_STORAGE_KEY = 'minuto106:supabase-return-v1';
 
-const PROVIDERS = new Set(['google', 'facebook']);
+const OAUTH_PROVIDERS = new Set(['google', 'facebook', 'apple', 'x']);
+const AUTH_PROVIDERS = new Set(['email', ...OAUTH_PROVIDERS]);
+const PROVIDER_LABELS = {
+  email: 'email',
+  google: 'Google',
+  facebook: 'Facebook',
+  apple: 'Apple',
+  x: 'X',
+};
 
 export function normalizeAuthConfig(value) {
   const input = value && typeof value === 'object' ? value : {};
@@ -26,7 +34,12 @@ export function normalizeAuthConfig(value) {
 
 export function normalizeProvider(value) {
   const provider = String(value ?? '').trim().toLowerCase();
-  return PROVIDERS.has(provider) ? provider : '';
+  return OAUTH_PROVIDERS.has(provider) ? provider : '';
+}
+
+export function providerLabel(value) {
+  const provider = String(value ?? '').trim().toLowerCase();
+  return PROVIDER_LABELS[provider] ?? PROVIDER_LABELS.email;
 }
 
 export function passwordProblems(value) {
@@ -108,10 +121,11 @@ export function mergeItemText(item) {
 export function sessionSummary(session) {
   const user = session?.user;
   if (!user || typeof user !== 'object') return null;
-  const provider = String(user.app_metadata?.provider || 'email').toLowerCase();
+  const candidate = String(user.app_metadata?.provider || 'email').toLowerCase();
+  const provider = AUTH_PROVIDERS.has(candidate) ? candidate : 'email';
   return {
     email: String(user.email ?? ''),
-    provider: ['google', 'facebook'].includes(provider) ? provider : 'email',
+    provider,
     emailVerified: Boolean(user.email_confirmed_at),
   };
 }
