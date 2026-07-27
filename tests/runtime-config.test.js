@@ -80,15 +80,15 @@ describe('runtime configuration', () => {
     );
   });
 
-  it('rejects malformed derived auth endpoints', () => {
+  it('rejects malformed public endpoints while keeping the safe auth fallback', () => {
     const config = buildRuntimeConfig({
       SUPABASE_FUNCTIONS_URL: 'https://api.example.com/not-game-api',
       PUBLIC_SITE_URL: 'invalid',
     });
 
+    expect(config.accountAuthApiUrl).toBe(`${DEFAULT_SUPABASE_URL}/functions/v1/account-auth`);
     expect(validateRuntimeConfig(config)).toEqual(expect.arrayContaining([
       'The generated Supabase Edge Function URL is invalid.',
-      'The generated account-auth Edge Function URL is invalid.',
       'The public GitHub Pages URL could not be derived.',
     ]));
   });
