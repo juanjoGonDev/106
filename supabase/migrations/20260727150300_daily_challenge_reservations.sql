@@ -83,7 +83,6 @@ begin
   end if;
 
   return v_result || jsonb_build_object(
-    'attemptsLeft', greatest(0, v_max_attempts - v_completed_attempts - v_active_challenges + 1),
     'maxAttempts', v_max_attempts,
     'bonusAttempts', v_bonus_attempts,
     'dailyResetAt', case when v_is_global then public.game_server_reset_at(v_challenge.quota_day) else null end
