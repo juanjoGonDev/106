@@ -1,0 +1,65 @@
+name: Authentication Quality
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: read-all
+
+concurrency:
+  group: auth-quality-${{ github.event.pull_request.head.repo.full_name }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22.13.0
+  PNPM_VERSION: 11.15.1
+
+jobs:
+  auth-coverage:
+    name: 🔐 Auth · Syntax and 100% coverage
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Set up Node.js and pnpm cache
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Validate authentication syntax
+        run: |
+          node --check public/auth-account-state.js
+          node --check public/account-auth-bootstrap.js
+          node --check public/account-auth.js
+          node --check public/password-reset.js
+          node --check public/supabase-auth-client.js
+          node --check supabase/functions/account-auth/core.js
+          node --check scripts/auth-entrypoints.mjs
+          node --check tests/e2e/account-auth-live.e2e.js
+
+      - name: Enforce auth state coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-account-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-account-state.node-test.js
+
+      - name: Enforce pending activation bootstrap coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/account-auth-bootstrap.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/account-auth-bootstrap.node-test.js
+
+      - name: Enforce Supabase Auth client coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/supabase-auth-client.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/supabase-auth-client.node-test.js tests/supabase-auth-client-resend.node-test.js
+
+      - name: Enforce Edge boundary coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=supabase/functions/account-auth/core.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/account-auth-core.node-test.js
