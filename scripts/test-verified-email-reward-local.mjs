@@ -134,6 +134,25 @@ function accountIdForUser(databaseUrl, userId) {
   `);
 }
 
+function dailyAttemptState(databaseUrl, nick) {
+  return JSON.parse(psql(databaseUrl, `
+    select public.get_game_daily_attempt_state(
+      lower(${sqlLiteral(nick)}),
+      clock_timestamp()
+    )::text;
+  `));
+}
+
+function assertSingleAuthDailyBonus(state) {
+  assert.equal(state.dailyLimitBase, 5, JSON.stringify(state));
+  assert.equal(state.authRewardBonus, 1, JSON.stringify(state));
+  assert.equal(state.emailVerificationBonus, 1, JSON.stringify(state));
+  assert.equal(state.bonusAttempts, 1, JSON.stringify(state));
+  assert.equal(state.maxAttempts, 6, JSON.stringify(state));
+  assert.equal(state.attemptsLeft, 6, JSON.stringify(state));
+  assert.equal(state.dailyLimitCeiling, 10, JSON.stringify(state));
+}
+
 function createGameAccount(databaseUrl) {
   const output = psql(databaseUrl, `
     insert into public.game_accounts(token_hash)
@@ -189,6 +208,7 @@ assert.equal(psql(environment.databaseUrl, `
   where nick_key = ${sqlLiteral(firstNick.toLowerCase())}
     and achievement_code = 'email_verified';
 `), '1');
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, firstNick));
 
 const repeatedEmailSync = await syncAccount(environment, emailAccessToken, emailToken);
 assert.equal(repeatedEmailSync.response.status, 200, JSON.stringify(repeatedEmailSync.body));
@@ -196,6 +216,7 @@ assert.equal(repeatedEmailSync.body.authReward.granted, false);
 assert.equal(repeatedEmailSync.body.authReward.active, true);
 assert.equal(repeatedEmailSync.body.authReward.source, 'email_confirmation');
 assert.equal(repeatedEmailSync.body.authReward.achievementsGranted, 0);
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, firstNick));
 
 await linkNick(environment, emailToken, secondNick);
 assert.equal(psql(environment.databaseUrl, `
@@ -204,7 +225,8 @@ assert.equal(psql(environment.databaseUrl, `
   where nick_key = ${sqlLiteral(secondNick.toLowerCase())}
     and achievement_code = 'email_verified';
 `), '1');
-process.stdout.write('✓ confirmed email grants one account reward and the achievement to current and future nicks\n');
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, secondNick));
+process.stdout.write('✓ confirmed email grants one account reward, one achievement and a total daily limit of six to every nick\n');
 
 const emailAccountGoogle = `email-google-${suffix}@example.com`;
 const emailAccountGoogleUser = await createAuthUser(environment, emailAccountGoogle, password, { provider: 'google' });
@@ -219,7 +241,9 @@ assert.equal(psql(environment.databaseUrl, `
   from public.game_account_entitlements entitlement
   where public.resolve_game_account_id(entitlement.account_id) = ${sqlLiteral(emailAccountId)}::uuid;
 `), '1');
-process.stdout.write('✓ an email-origin account cannot stack the social reward later\n');
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, firstNick));
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, secondNick));
+process.stdout.write('✓ an email-origin account cannot stack the social reward or raise its daily limit above six\n');
 
 const socialToken = randomBytes(32).toString('hex');
 const socialNick = `social${suffix}`.slice(0, 24);
@@ -239,6 +263,7 @@ assert.equal(googleSync.body.authReward.provider, 'google');
 assert.equal(googleSync.body.authReward.achievementCode, null);
 assert.equal(googleSync.body.authReward.achievementTitle, null);
 assert.equal(googleSync.body.authReward.achievementsGranted, 0);
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, socialNick));
 
 const socialAccountId = accountIdForUser(environment.databaseUrl, googleUser.id);
 const facebookEmail = `facebook-${suffix}@example.com`;
@@ -269,7 +294,8 @@ assert.equal(psql(environment.databaseUrl, `
   where nick_key = ${sqlLiteral(socialNick.toLowerCase())}
     and achievement_code = 'email_verified';
 `), '0');
-process.stdout.write('✓ Google and Facebook can share one game account while granting only one social attempt\n');
+assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, socialNick));
+process.stdout.write('✓ Google and Facebook share one game account, one reward and the same total daily limit of six\n');
 
 const pendingEmail = `pending-${suffix}@example.com`;
 const pendingUser = await createAuthUser(environment, pendingEmail, password, { confirmed: false });
