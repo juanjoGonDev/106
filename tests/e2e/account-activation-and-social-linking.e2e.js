@@ -116,7 +116,7 @@ async function installPage(page, options = {}) {
   });
 }
 
-test('pending email activation can be resent and clearly expires after one hour', async ({ page }) => {
+test('pending email activation can be resent after reload and clearly expires after one hour', async ({ page }) => {
   const authLog = [];
   await installPage(page, { authLog, pendingEmail: 'pending@example.com' });
   await page.goto('/cuenta.html');
@@ -126,8 +126,8 @@ test('pending email activation can be resent and clearly expires after one hour'
   await expect(panel).toContainText('+1 intento diario');
   await expect(panel).toContainText('Cuenta confirmada');
   await expect(page.locator('#pendingConfirmationEmail')).toContainText('pending@example.com');
+  await expect(page.locator('#authEmail')).toHaveValue('pending@example.com');
 
-  await page.locator('#authEmail').fill('pending@example.com');
   const resend = page.locator('#emailConfirmationResend');
   await expect(resend).toBeEnabled();
   await resend.click();
