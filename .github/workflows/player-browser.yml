@@ -61,6 +61,12 @@ jobs:
       - name: Enforce league directory coverage
         run: pnpm test:league-directory:coverage
 
+      - name: Enforce account auth state coverage
+        run: pnpm test:auth-state:coverage
+
+      - name: Enforce account auth Edge boundary coverage
+        run: pnpm test:account-auth-core:coverage
+
       - name: Enforce public asset audit coverage
         run: pnpm test:public-assets:coverage
 
