@@ -5,6 +5,7 @@
     "public/app.js",
     "public/access.js",
     "public/account.js",
+    "public/account-auth-bootstrap.js",
     "public/account-auth.js",
     "public/password-reset.js",
     "public/attempt-refresh.js",
