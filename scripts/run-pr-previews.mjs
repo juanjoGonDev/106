@@ -18,4 +18,4 @@ const playwright = spawnSync(process.execPath, ['scripts/run-playwright.mjs'], {
 
 if (playwright.error) throw playwright.error;
 if (playwright.status !== 0) process.exit(playwright.status ?? 1);
-process.stdout.write(`Complete Desktop/Mobile screenshots and animated GIF evidence generated in ${outputDirectory}. Attach them to the PR; do not commit them to the feature branch.\n`);
+process.stdout.write(`Complete platform evidence generated in ${outputDirectory}. GitHub Actions publishes this directory as one downloadable ZIP; do not commit it or create an evidence branch.\n`);

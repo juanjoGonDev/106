@@ -115,4 +115,5 @@ runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test'], {
 if (process.env.PR_VISUAL_CAPTURE === '1') {
   ensureGifCapableFfmpeg();
   runNodeScript('scripts/create-preview-gif.mjs');
+  runNodeScript('scripts/package-platform-evidence.mjs');
 }

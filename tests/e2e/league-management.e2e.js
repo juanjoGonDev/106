@@ -165,10 +165,15 @@ async function installHomeApiMocks(page, requestLog = []) {
 async function clickCaptcha(page) {
   const canvas = page.locator('.human-check-canvas');
   await expect(canvas).toBeVisible();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('Captcha canvas has no bounding box.');
+  const size = await canvas.evaluate((element) => ({ width: element.clientWidth, height: element.clientHeight }));
+  if (!size.width || !size.height) throw new Error('Captcha canvas has no rendered size.');
   for (const ball of readyBalls) {
-    await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+    await canvas.click({
+      position: {
+        x: size.width * ball.x / 100,
+        y: size.height * ball.y / 100,
+      },
+    });
   }
 }
 

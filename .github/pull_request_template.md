@@ -16,31 +16,44 @@
 ## Validation
 
 - [ ] Formatting / syntax
-- [ ] Lint
-- [ ] Unit and integration tests
-- [ ] Coverage for changed behavior
-- [ ] Desktop browser journey
-- [ ] Mobile browser journey
-- [ ] Accessibility and keyboard checks
-- [ ] No console or network errors
+- [ ] Lint and dead-code analysis
+- [ ] Unit, contract and security tests
+- [ ] Bug regression reproduces the verified failure or root cause
+- [ ] Relevant boundary, invalid, authorization, timeout, stale-data, retry and idempotency cases
+- [ ] Relevant concurrency, multi-tab or reordered-response cases
+- [ ] New isolated decision logic has 100% line/function/branch coverage, or the specification documents the justified exception and alternative proof
+- [ ] Real local backend/database integration for critical repository-owned flows
+- [ ] Clean database setup and production-shaped upgrade validation when migrations change
+- [ ] Complete Desktop Playwright journey
+- [ ] Complete Mobile Playwright journey
+- [ ] Persistence, reload, navigation or route restoration verified when relevant
+- [ ] Accessibility, keyboard and reduced-motion checks when relevant
+- [ ] No unexpected page errors, console errors, failed requests or horizontal overflow
+- [ ] No `.skip`, `.only`, retry-as-fix, weakened threshold or fixed sleep used as synchronization
 
-## Frontend visual evidence
+## Full-platform visual evidence ZIP
 
-Every frontend area changed must include **three matching pieces of evidence**:
+Every frontend or UX pull request must run the complete maintained platform evidence suite from the final PR head:
+
+```bash
+pnpm preview:platform
+```
+
+GitHub Actions uploads all complete Desktop/Mobile PNG screenshots, real WebM recordings, derived GIFs and `manifest.json` as one downloadable artifact ZIP.
+
+**Platform evidence:** [Download the complete platform evidence ZIP](PASTE_PLATFORM_EVIDENCE_ARTIFACT_URL)
+
+Do not create or use `pr-evidence/*` branches. Generated media stays outside Git and is published only through the Actions artifact or direct PR attachments.
+
+## Changed-area visual evidence
+
+Every changed visual area must include three matching inline items:
 
 1. A complete Desktop viewport PNG.
 2. A complete Mobile viewport PNG.
-3. A GIF generated from a real browser video recording of the full interaction, from before the changed state appears until it finishes.
+3. A GIF derived from the real full-viewport WebM interaction recording.
 
-Evidence must be generated from the current PR head at native project resolution. Do not use element-only/locator screenshots, cropped images, compressed thumbnails, stale images from another PR, or images that omit surrounding page context. The WebM recording and derived GIF must preserve the whole viewport and must not crop the animated element.
-
-Generate all evidence outside Git with:
-
-```bash
-pnpm preview:pr
-```
-
-This creates lossless PNG screenshots, real Desktop/Mobile WebM recordings and responsive GIFs in `.tmp/pr-previews/`. Attach the generated media to the PR or publish it on a dedicated `pr-evidence/<number>` branch. Do not commit generated evidence to the feature branch or `main`.
+Evidence must come from the current PR head at native project resolution. Do not use element-only screenshots, crops, compressed thumbnails, stale media, synthetic GIFs or evidence from another commit. Full-quality WebM files remain in the platform ZIP.
 
 <!-- visual-evidence:start -->
 <details>
@@ -64,7 +77,9 @@ This creates lossless PNG screenshots, real Desktop/Mobile WebM recordings and r
 
 ## Delivery
 
-- [ ] Generated evidence is attached to the PR or published on `pr-evidence/<number>`, not tracked by the feature branch
+- [ ] Exactly one task branch and one pull request
+- [ ] No temporary or evidence branches
+- [ ] Platform evidence artifact linked
 - [ ] PR title follows Conventional Commits
 - [ ] Documentation/specification updated
 - [ ] CI is green

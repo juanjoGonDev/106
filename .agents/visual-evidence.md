@@ -1,63 +1,99 @@
-# Frontend visual evidence contract
+# Visual evidence workflow
 
-This is a stable repository rule for every frontend pull request.
+## Purpose
 
-## Required media
+Visual evidence is a required acceptance artifact for frontend and UX work. It must let a reviewer inspect the final pull-request head from a phone without cloning the repository or starting the application.
 
-For each affected page, component or interactive state, the pull request must show a matched evidence set:
+The evidence has two layers:
 
-1. **Desktop PNG** — the complete browser viewport at the configured desktop project resolution.
-2. **Mobile PNG** — the complete browser viewport at the configured mobile project resolution.
-3. **Animated GIF** — derived from a real browser video recording of the complete interaction, beginning before the changed state appears and ending after its animation or transition finishes.
+1. **Full-platform baseline:** all maintained screens and visual states are captured in Desktop and Mobile PNG files on every frontend PR.
+2. **Changed-area evidence:** each changed interaction or visual area is embedded in the PR as Desktop PNG, Mobile PNG and GIF, while the corresponding WebM remains in the platform artifact.
 
-Static screenshots and recordings must capture the page, not an isolated locator. The surrounding UI is part of the evidence because it proves positioning, overlap, responsive behavior and viewport containment.
+## Canonical command
 
-## Quality rules
-
-- Capture from the current PR head only.
-- Use Playwright project viewports and native screenshot resolution.
-- Use lossless PNG for static evidence.
-- Record the complete Desktop and Mobile viewport in WebM.
-- Never crop the changed element out of its page context.
-- Never reuse evidence from another commit or pull request.
-- Do not resize with nearest-neighbor or destructive compression.
-- GIF conversion must preserve the complete video frame, keep aspect ratio, use Lanczos scaling and a full 256-color palette.
-- Desktop and mobile evidence must show the same behavior and content.
-- Reduced-motion behavior remains a separate automated assertion; the main GIF records the standard animation.
-
-## Generation
-
-Run:
+Run from the final branch head:
 
 ```bash
-pnpm preview:pr
+pnpm preview:platform
 ```
 
-The command clears and recreates `.tmp/pr-previews/`, runs the responsive browser suite, captures complete Desktop/Mobile screenshots, records the real interaction in WebM and encodes each recording into a looping GIF.
+`pnpm preview:pr` remains a compatibility alias. Both commands clear stale output, execute the real Playwright suite, generate GIFs from real full-viewport WebM recordings, validate the platform inventory and write the integrity manifest under `.tmp/pr-previews/`.
 
-Expected files for a dynamic area named `example`:
+## Executable inventory
 
-```text
-.tmp/pr-previews/example-desktop.png
-.tmp/pr-previews/example-mobile.png
-.tmp/pr-previews/example-desktop.webm
-.tmp/pr-previews/example-mobile.webm
-.tmp/pr-previews/example-desktop.gif
-.tmp/pr-previews/example-mobile.gif
-```
+`scripts/platform-evidence.mjs` is the source of truth for required evidence IDs.
 
-## Publication
+- `REQUIRED_PLATFORM_SNAPSHOTS` contains every maintained screen or visual state. Each ID requires exactly:
+  - `<id>-desktop.png`
+  - `<id>-mobile.png`
+- `REQUIRED_PLATFORM_INTERACTIONS` contains animated actions and events. Each ID additionally requires exactly:
+  - `<id>-desktop.webm`
+  - `<id>-mobile.webm`
+  - `<id>-desktop.gif`
+  - `<id>-mobile.gif`
 
-Generated evidence must not be committed to the feature branch or `main`.
+When a route, modal, state, animation, notification, game phase, share flow or competition phase is introduced or removed, update the Playwright capture and executable inventory in the same PR. A missing or duplicate required file is a blocking failure.
 
-Preferred publication order:
+The current inventory covers:
 
-1. Attach the generated PNG/GIF files directly to the pull request and keep WebM available as the full-quality recording.
-2. When direct attachment is unavailable, publish the exact generated files to a dedicated `pr-evidence/<number>` branch and embed its immutable raw commit URLs in the pull request.
-3. Include the GIF and full-quality PNG/WebM download links in the final user-facing report whenever the work is performed through an agent.
+- application shell and primary browser surface;
+- game readiness, countdown, awards and post-attempt behavior;
+- home statistics, rankings, awards and competition selection;
+- account actions;
+- precision, trophy and achievement rankings;
+- player overview, navigation, profile states, achievements, trophies and honours progress;
+- duel and shared-result surfaces;
+- league directory, public, waiting, scheduled and active states;
+- achievement unlock and daily-award animations;
+- legal, privacy, cookies and privacy-settings surfaces.
 
-## CI enforcement
+## Capture rules
 
-`scripts/pr-visual-evidence.mjs` requires a complete Desktop/Mobile/GIF set for every frontend evidence area in the pull request body. Missing, duplicated or placeholder media fails the visual-evidence workflow.
+- Capture the complete viewport or complete page; do not capture only the changed component.
+- Use the repository Desktop and Mobile Playwright projects.
+- Capture realistic surrounding content and the full lifecycle of animated behavior.
+- Start recordings before the user action or event and end after the resulting state is stable.
+- GIFs must be derived from the corresponding real WebM recording.
+- Do not reuse evidence from another branch, commit or PR.
+- Do not manually resize, crop, recreate, recompress or replace generated evidence.
+- Inspect browser console, page errors, network failures, overflow and responsive layout during the journey.
 
-The browser workflow uploads `.tmp/pr-previews/` as an artifact. That artifact is the source of truth for evidence publication and must correspond to the final PR head.
+## Artifact contract
+
+After Playwright and GIF generation, `scripts/package-platform-evidence.mjs` validates the inventory and writes `.tmp/pr-previews/manifest.json`.
+
+The manifest records:
+
+- schema version;
+- generation timestamp;
+- commit SHA when available;
+- screen and interaction inventories;
+- every file path;
+- file size;
+- SHA-256 digest.
+
+GitHub Actions uploads `.tmp/pr-previews/` as `platform-evidence-<run-id>` with 14-day retention. GitHub exposes that artifact as one downloadable ZIP. Generated media and ZIP contents must remain outside Git.
+
+## Pull-request requirements
+
+For a frontend PR:
+
+1. Wait for the browser workflow to create the platform artifact.
+2. Update the same PR body with the canonical artifact URL.
+3. Add one `<details>` group per changed area containing matching Desktop, Mobile and GIF evidence.
+4. Keep the WebM recordings and complete platform inventory in the artifact ZIP.
+5. Verify the PR metadata workflow, full browser workflow and quality pipeline are green.
+
+Do not create `pr-evidence/*` branches or a second PR. Evidence URLs from such branches are rejected.
+
+## Final report
+
+The user-facing completion report must include:
+
+- the PR URL;
+- the final commit SHA;
+- verified checks;
+- a link to the downloadable platform evidence ZIP;
+- exact blockers when any check or artifact is incomplete.
+
+A frontend task is not complete without the final-head artifact and a green evidence contract.

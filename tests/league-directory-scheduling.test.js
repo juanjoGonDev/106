@@ -125,7 +125,8 @@ describe('coverage and remote visual evidence', () => {
     }
     expect(e2e).toContain('recordVideo:');
     expect(e2e).toContain('video.saveAs(join(previewDirectory');
-    expect(browserWorkflow).toContain('Upload desktop and mobile PR previews');
+    expect(browserWorkflow).toContain('Upload downloadable platform evidence ZIP');
+    expect(browserWorkflow).toContain('name: platform-evidence-${{ github.run_id }}');
     expect(browserWorkflow).toContain('path: .tmp/pr-previews');
   });
 });

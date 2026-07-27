@@ -13,6 +13,8 @@ const SUMMARY_SEPARATORS = new Set(['·', '—', '-']);
 const START_MARKER = '<!-- visual-evidence:start -->';
 const END_MARKER = '<!-- visual-evidence:end -->';
 const PLACEHOLDER_PATTERN = /(?:paste|pega|replace|placeholder|todo|example\.com|github\.com\/OWNER)/i;
+const ARTIFACT_URL_PATTERN = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/actions\/runs\/\d+\/artifacts\/\d+/i;
+const EVIDENCE_BRANCH_PATTERN = /(?:refs\/heads\/)?pr-evidence\//i;
 
 function stringValue(value) {
   return value === null || value === undefined ? '' : String(value);
@@ -113,20 +115,28 @@ export function parseVisualEvidence(body) {
   return { hasMarkers: true, entries };
 }
 
+export function platformEvidenceArtifactUrl(body) {
+  return stringValue(body).match(ARTIFACT_URL_PATTERN)?.[0] ?? '';
+}
+
 export function validateVisualEvidence(body, changedFiles) {
   const files = changedFiles === null || changedFiles === undefined ? [] : changedFiles;
   const frontendFiles = [...new Set(files.map(String).filter(isFrontendPath))].sort();
-  if (!frontendFiles.length) return { required: false, frontendFiles, errors: [] };
+  if (!frontendFiles.length) return { required: false, frontendFiles, artifactUrl: '', errors: [] };
 
-  const parsed = parseVisualEvidence(body);
+  const text = stringValue(body);
+  const artifactUrl = platformEvidenceArtifactUrl(text);
+  const parsed = parseVisualEvidence(text);
   const errors = [];
+  if (!artifactUrl) errors.push('Add the downloadable GitHub Actions platform evidence artifact URL.');
+  if (EVIDENCE_BRANCH_PATTERN.test(text)) errors.push('Do not publish visual evidence from a pr-evidence branch; use the Actions artifact.');
   if (!parsed.hasMarkers) {
     errors.push('Missing visual evidence marker block. Use the repository pull request template.');
-    return { required: true, frontendFiles, errors };
+    return { required: true, frontendFiles, artifactUrl, errors };
   }
   if (!parsed.entries.length) {
     errors.push('Add at least one complete Desktop/Mobile/GIF visual evidence area.');
-    return { required: true, frontendFiles, errors };
+    return { required: true, frontendFiles, artifactUrl, errors };
   }
 
   const areas = new Map();
@@ -151,7 +161,7 @@ export function validateVisualEvidence(body, changedFiles) {
     if (area.gif.length > 1) errors.push(`${area.label}: duplicate GIF evidence.`);
   }
 
-  return { required: true, frontendFiles, errors: [...new Set(errors)] };
+  return { required: true, frontendFiles, artifactUrl, errors: [...new Set(errors)] };
 }
 
 export const VISUAL_EVIDENCE_MARKERS = Object.freeze({ start: START_MARKER, end: END_MARKER });

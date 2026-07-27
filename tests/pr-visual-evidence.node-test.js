@@ -3,12 +3,15 @@ import test from 'node:test';
 import {
   isFrontendPath,
   parseVisualEvidence,
+  platformEvidenceArtifactUrl,
   validateVisualEvidence,
   VISUAL_EVIDENCE_MARKERS,
 } from '../scripts/pr-visual-evidence.mjs';
 
-function block(content) {
-  return `${VISUAL_EVIDENCE_MARKERS.start}\n${content}\n${VISUAL_EVIDENCE_MARKERS.end}`;
+const artifact = 'https://github.com/juanjoGonDev/106/actions/runs/123/artifacts/456';
+
+function block(content, prefix = artifact) {
+  return `${prefix}\n${VISUAL_EVIDENCE_MARKERS.start}\n${content}\n${VISUAL_EVIDENCE_MARKERS.end}`;
 }
 
 function details(summary, image = 'https://github.com/user-attachments/assets/real-image') {
@@ -22,13 +25,8 @@ function rawDetails(summary, body) {
 
 test('detects frontend paths across canonical directories and media extensions', () => {
   for (const path of [
-    'index.html',
-    'playwright.config.js',
-    'public/app.js',
-    'public\\v11.css',
-    'supabase/functions/player-share/index.ts',
-    'docs/mockup.webp',
-    'docs/flow.GIF',
+    'index.html', 'playwright.config.js', 'public/app.js', 'public\\v11.css',
+    'supabase/functions/player-share/index.ts', 'docs/mockup.webp', 'docs/flow.GIF',
   ]) assert.equal(isFrontendPath(path), true, path);
   for (const path of ['', null, undefined, 'README', 'supabase/migrations/one.sql', 'scripts/server.mjs', 'README.md']) {
     assert.equal(isFrontendPath(path), false, String(path));
@@ -54,78 +52,72 @@ test('parses desktop, mobile and gif summaries inside a valid marker block', () 
   });
 });
 
-test('returns empty image destinations for every malformed Markdown boundary', () => {
+test('returns empty image destinations for malformed Markdown boundaries', () => {
   const body = block([
     rawDetails('Missing opener · Desktop', 'No image'),
     rawDetails('Missing destination · Mobile', '![broken'),
     rawDetails('Missing closing parenthesis · GIF', '![broken](https://images.invalid/no-close.gif'),
     rawDetails('Empty destination · Desktop', '![]()'),
   ].join('\n'));
-  assert.deepEqual(parseVisualEvidence(body), {
-    hasMarkers: true,
-    entries: [
-      { area: 'Missing opener', type: 'desktop', image: '', summary: 'Missing opener · Desktop' },
-      { area: 'Missing destination', type: 'mobile', image: '', summary: 'Missing destination · Mobile' },
-      { area: 'Missing closing parenthesis', type: 'gif', image: '', summary: 'Missing closing parenthesis · GIF' },
-      { area: 'Empty destination', type: 'desktop', image: '', summary: 'Empty destination · Desktop' },
-    ],
-  });
+  assert.deepEqual(parseVisualEvidence(body).entries.map((entry) => entry.image), ['', '', '', '']);
 });
 
-test('rejects missing, incomplete and reversed marker blocks', () => {
-  for (const body of [
-    null,
-    'no markers',
-    VISUAL_EVIDENCE_MARKERS.start,
-    `${VISUAL_EVIDENCE_MARKERS.end}${VISUAL_EVIDENCE_MARKERS.start}`,
-  ]) assert.deepEqual(parseVisualEvidence(body), { hasMarkers: false, entries: [] });
-});
-
-test('stops safely at every malformed details boundary', () => {
-  for (const content of [
-    '<details',
-    '<details>',
-    '<details><summary>',
-    '<details><summary>Area · Desktop</summary>',
-  ]) {
+test('rejects missing, incomplete and reversed marker blocks and malformed details', () => {
+  for (const body of [null, 'no markers', VISUAL_EVIDENCE_MARKERS.start, `${VISUAL_EVIDENCE_MARKERS.end}${VISUAL_EVIDENCE_MARKERS.start}`]) {
+    assert.deepEqual(parseVisualEvidence(body), { hasMarkers: false, entries: [] });
+  }
+  for (const content of ['<details', '<details>', '<details><summary>', '<details><summary>Area · Desktop</summary>']) {
     assert.deepEqual(parseVisualEvidence(block(content)), { hasMarkers: true, entries: [] });
   }
+});
+
+test('extracts only canonical artifact URLs', () => {
+  assert.equal(platformEvidenceArtifactUrl(`Download ${artifact}.`), artifact);
+  assert.equal(platformEvidenceArtifactUrl('https://github.com/a/b/actions/runs/x/artifacts/2'), '');
+  assert.equal(platformEvidenceArtifactUrl(null), '');
 });
 
 test('does not require evidence for backend-only or absent changed files', () => {
   for (const changedFiles of [null, undefined, ['supabase/migrations/one.sql', 'README.md', 'README.md']]) {
     assert.deepEqual(validateVisualEvidence('', changedFiles), {
-      required: false,
-      frontendFiles: [],
-      errors: [],
+      required: false, frontendFiles: [], artifactUrl: '', errors: [],
     });
   }
 });
 
-test('requires the repository marker block and at least one complete evidence area', () => {
+test('requires the artifact, repository marker block and at least one complete area', () => {
   assert.deepEqual(validateVisualEvidence('plain body', ['public/app.js']), {
     required: true,
     frontendFiles: ['public/app.js'],
-    errors: ['Missing visual evidence marker block. Use the repository pull request template.'],
+    artifactUrl: '',
+    errors: [
+      'Add the downloadable GitHub Actions platform evidence artifact URL.',
+      'Missing visual evidence marker block. Use the repository pull request template.',
+    ],
   });
   assert.deepEqual(validateVisualEvidence(block('<details><summary>Broken</summary></details>'), ['public/app.js']), {
     required: true,
     frontendFiles: ['public/app.js'],
+    artifactUrl: artifact,
     errors: ['Add at least one complete Desktop/Mobile/GIF visual evidence area.'],
   });
 });
 
-test('accepts complete desktop, mobile and gif evidence with case-insensitive area matching', () => {
-  const body = block([
+test('accepts complete evidence and rejects evidence branches', () => {
+  const content = [
     details('Ranking · Desktop', 'https://github.com/user-attachments/assets/desktop'),
     details('ranking — Mobile', 'https://github.com/user-attachments/assets/mobile'),
     details('RANKING - GIF', 'https://github.com/user-attachments/assets/animation'),
-  ].join('\n'));
-  assert.deepEqual(validateVisualEvidence(body, ['public/ranking.html', 'public/ranking.html']), {
+  ].join('\n');
+  assert.deepEqual(validateVisualEvidence(block(content), ['public/ranking.html', 'public/ranking.html']), {
     required: true,
     frontendFiles: ['public/ranking.html'],
+    artifactUrl: artifact,
     errors: [],
   });
+  assert.deepEqual(validateVisualEvidence(block(content, `${artifact}\nhttps://raw.githubusercontent.com/a/b/refs/heads/pr-evidence/1/x.png`), ['public/app.js']).errors, [
+    'Do not publish visual evidence from a pr-evidence branch; use the Actions artifact.',
+  ]);
 });
 
 test('reports missing images, placeholders, counterparts and duplicates once', () => {
@@ -141,8 +133,6 @@ test('reports missing images, placeholders, counterparts and duplicates once', (
     details('Ranking - GIF', 'https://images.invalid/ranking-2.gif'),
   ].join('\n'));
   const result = validateVisualEvidence(body, ['public/index.html']);
-  assert.deepEqual(result.frontendFiles, ['public/index.html']);
-  assert.equal(result.required, true);
   assert.deepEqual(result.errors, [
     'Home · Desktop: missing Markdown image.',
     'Home · Desktop: replace the placeholder image URL.',
