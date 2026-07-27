@@ -5,7 +5,6 @@ import {
   normalizeEmail,
   normalizeMergeImpact,
   passwordConfirmationProblem,
-  passwordProblems,
   passwordRequirements,
   registrationReadiness,
   sessionSummary,
