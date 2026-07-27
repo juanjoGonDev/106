@@ -17,7 +17,6 @@ const liveEnabled = process.env.SUPABASE_AUTH_LIVE === '1'
 const hashPepper = 'ci-local-only-pepper-106-do-not-use-in-production';
 const password = 'LiveAuthPassword123!';
 const suffix = `${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
-
 const emailOrigin = {};
 const socialOrigin = {};
 
@@ -49,12 +48,16 @@ function accountId(token) {
   return psql(`select public.resolve_game_account_token(${sqlLiteral(accountHash(token))});`);
 }
 
+function authUserId(email) {
+  return psql(`select id from auth.users where lower(email) = lower(${sqlLiteral(email)}) limit 1;`);
+}
+
 function oneTimeTokenTableExists() {
   return psql("select to_regclass('auth.one_time_tokens') is not null;") === 't';
 }
 
 function confirmationToken(email) {
-  const userId = psql(`select id from auth.users where lower(email) = lower(${sqlLiteral(email)}) limit 1;`);
+  const userId = authUserId(email);
   if (!userId) return '';
   if (oneTimeTokenTableExists()) {
     const token = psql(`
@@ -70,11 +73,19 @@ function confirmationToken(email) {
 }
 
 function expireConfirmation(email) {
-  const userId = psql(`select id from auth.users where lower(email) = lower(${sqlLiteral(email)}) limit 1;`);
+  const userId = authUserId(email);
   if (!userId) throw new Error(`Auth user not found for ${email}`);
-  psql(`update auth.users set confirmation_sent_at = clock_timestamp() - interval '61 minutes' where id = ${sqlLiteral(userId)}::uuid;`);
+  psql(`
+    update auth.users
+    set confirmation_sent_at = clock_timestamp() - interval '61 minutes'
+    where id = ${sqlLiteral(userId)}::uuid;
+  `);
   if (oneTimeTokenTableExists()) {
-    psql(`update auth.one_time_tokens set created_at = clock_timestamp() - interval '61 minutes' where user_id = ${sqlLiteral(userId)}::uuid;`);
+    psql(`
+      update auth.one_time_tokens
+      set created_at = clock_timestamp() - interval '61 minutes'
+      where user_id = ${sqlLiteral(userId)}::uuid;
+    `);
   }
 }
 
@@ -84,6 +95,23 @@ function entitlementState(id) {
     from public.game_account_entitlements
     where public.resolve_game_account_id(account_id) = ${sqlLiteral(id)}::uuid
       and entitlement_code = 'auth_identity_daily_attempt';
+  `);
+}
+
+function achievementCount(nick) {
+  return Number(psql(`
+    select count(*)
+    from public.game_player_achievements
+    where nick_key = lower(${sqlLiteral(nick)})
+      and achievement_code = 'email_verified';
+  `));
+}
+
+function identityProviders(id) {
+  return psql(`
+    select coalesce(string_agg(provider, ',' order by provider), '')
+    from public.game_auth_identities
+    where public.resolve_game_account_id(account_id) = ${sqlLiteral(id)}::uuid;
   `);
 }
 
@@ -105,23 +133,6 @@ function expectSingleAuthDailyBonus(nick) {
   expect(state.maxAttempts).toBe(6);
   expect(state.attemptsLeft).toBe(6);
   expect(state.dailyLimitCeiling).toBe(10);
-}
-
-function achievementCount(nick) {
-  return Number(psql(`
-    select count(*)
-    from public.game_player_achievements
-    where nick_key = lower(${sqlLiteral(nick)})
-      and achievement_code = 'email_verified';
-  `));
-}
-
-function identityProviders(id) {
-  return psql(`
-    select coalesce(string_agg(provider, ',' order by provider), '')
-    from public.game_auth_identities
-    where public.resolve_game_account_id(account_id) = ${sqlLiteral(id)}::uuid;
-  `);
 }
 
 function verifyUrl(token) {
@@ -160,18 +171,18 @@ async function createProviderUser(request, provider, email) {
       app_metadata: { provider, providers: [provider] },
     },
   });
-  const createdBody = await responseJson(created);
-  expect(created.status(), JSON.stringify(createdBody)).toBe(200);
+  const body = await responseJson(created);
+  expect(created.status(), JSON.stringify(body)).toBe(200);
 
-  if (createdBody.app_metadata?.provider !== provider) {
-    const updated = await request.put(`${supabaseUrl}/auth/v1/admin/users/${createdBody.id}`, {
+  if (body.app_metadata?.provider !== provider) {
+    const updated = await request.put(`${supabaseUrl}/auth/v1/admin/users/${body.id}`, {
       headers: adminHeaders(),
       data: { app_metadata: { provider, providers: [provider] } },
     });
-    const updatedBody = await responseJson(updated);
-    expect(updated.status(), JSON.stringify(updatedBody)).toBe(200);
+    const updateBody = await responseJson(updated);
+    expect(updated.status(), JSON.stringify(updateBody)).toBe(200);
   }
-  return createdBody;
+  return body;
 }
 
 async function signIn(request, email) {
@@ -201,39 +212,40 @@ async function createAnonymousPlayer(request, token, nick) {
   expect(body.authorized).toBe(true);
 }
 
-async function openAccount(browser, { session = null, accountToken = '', pendingEmail = '' } = {}) {
+async function openAccount(browser, { session = null, accountToken = '' } = {}) {
   const context = await browser.newContext({ baseURL: appUrl });
-  await context.addInitScript(({ storedSession, token, email }) => {
+  await context.addInitScript(({ storedSession, token }) => {
     localStorage.setItem('minuto106:consent-v1', JSON.stringify({ analytics: false, ads: false }));
     if (storedSession) localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
     if (token) localStorage.setItem('minuto106:account-access-v1', token);
-    if (email) localStorage.setItem('minuto106:pending-email-confirmation-v1', email);
-  }, { storedSession: session, token: accountToken, email: pendingEmail });
+  }, { storedSession: session, token: accountToken });
+
   const page = await context.newPage();
-  const pageErrors = [];
-  page.on('pageerror', (error) => pageErrors.push(error.message));
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
-    if (message.type() === 'error') pageErrors.push(message.text());
+    if (message.type() === 'error') errors.push(message.text());
   });
   await page.goto(`${appUrl}/cuenta.html`);
   return {
     context,
     page,
     assertNoErrors() {
-      expect(pageErrors).toEqual([]);
+      expect(errors).toEqual([]);
     },
   };
 }
 
 async function recoveredToken(page) {
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('minuto106:account-access-v1') || '')).toMatch(/^[a-f0-9]{64}$/);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('minuto106:account-access-v1') || ''))
+    .toMatch(/^[a-f0-9]{64}$/);
   return page.evaluate(() => localStorage.getItem('minuto106:account-access-v1'));
 }
 
-async function linkSession(browser, session, token, expectedNick) {
+async function linkSession(browser, session, token, nick) {
   const opened = await openAccount(browser, { session, accountToken: token });
   await expect(opened.page.locator('#cloudAccountStatus')).toContainText('+1 intento diario');
-  await expect(opened.page.locator('#accountPlayers')).toContainText(expectedNick);
+  await expect(opened.page.locator('#accountPlayers')).toContainText(nick);
   opened.assertNoErrors();
   await opened.context.close();
 }
@@ -242,7 +254,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
   test.describe.configure({ mode: 'serial' });
   test.skip(!liveEnabled, 'Requires the local Supabase stack and its ephemeral test credentials.');
 
-  test('email signup enforces password edges, expires after one hour, resends, confirms once and grants exactly one reward', async ({ browser, request }) => {
+  test('email signup expires, resends, confirms once and raises the total daily limit from five to six', async ({ browser, request }) => {
     const email = `email-origin-${suffix}@example.com`;
     const nick = `Email${suffix}`.slice(0, 24);
     const token = randomBytes(32).toString('hex');
@@ -273,10 +285,19 @@ test.describe('real Supabase account authentication @live-auth', () => {
 
     await page.evaluate(() => localStorage.setItem('minuto106:email-resend-available-at-v1', '0'));
     await page.reload();
-    await expect(page.locator('#emailConfirmationResend')).toBeEnabled();
-    await page.locator('#emailConfirmationResend').click();
-    await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Revisa también la carpeta de spam');
+    const resendButton = page.locator('#emailConfirmationResend');
+    await expect(resendButton).toBeEnabled();
+    const resendResponsePromise = page.waitForResponse((response) => (
+      response.url().includes('/auth/v1/resend')
+      && response.request().method() === 'POST'
+    ));
+    await resendButton.click();
+    const resendResponse = await resendResponsePromise;
+    expect(resendResponse.ok()).toBe(true);
     await expect.poll(() => confirmationToken(email)).not.toBe(expiredToken);
+    await expect(resendButton).toBeDisabled();
+    await expect(page.locator('#emailConfirmationResendStatus'))
+      .toContainText('Podrás solicitar otro enlace en');
 
     const activeToken = confirmationToken(email);
     await page.goto(verifyUrl(activeToken));
@@ -297,7 +318,6 @@ test.describe('real Supabase account authentication @live-auth', () => {
     expect(achievementCount(nick)).toBe(1);
     expectSingleAuthDailyBonus(nick);
 
-    emailOrigin.email = email;
     emailOrigin.nick = nick;
     emailOrigin.token = token;
     emailOrigin.accountId = id;
@@ -306,17 +326,17 @@ test.describe('real Supabase account authentication @live-auth', () => {
     await opened.context.close();
   });
 
-  test('Google then Facebook share one reward and both recover the same nicks from clean browsers', async ({ browser, request }) => {
+  test('Google then Facebook share one reward and recover the same nicks from clean browsers', async ({ browser, request }) => {
     const token = randomBytes(32).toString('hex');
     const nick = `Social${suffix}`.slice(0, 24);
     const googleEmail = `google-${suffix}@example.com`;
     const facebookEmail = `facebook-${suffix}@example.com`;
     await createAnonymousPlayer(request, token, nick);
+
     await createProviderUser(request, 'google', googleEmail);
     const googleSession = await signIn(request, googleEmail);
     expect(googleSession.user.app_metadata.provider).toBe('google');
     await linkSession(browser, googleSession, token, nick);
-
     const id = accountId(token);
     expect(entitlementState(id)).toBe('1|social_link');
     expectSingleAuthDailyBonus(nick);
@@ -325,7 +345,6 @@ test.describe('real Supabase account authentication @live-auth', () => {
     const facebookSession = await signIn(request, facebookEmail);
     expect(facebookSession.user.app_metadata.provider).toBe('facebook');
     await linkSession(browser, facebookSession, token, nick);
-
     expect(entitlementState(id)).toBe('1|social_link');
     expect(identityProviders(id)).toBe('facebook,google');
     expect(achievementCount(nick)).toBe(0);
@@ -333,31 +352,26 @@ test.describe('real Supabase account authentication @live-auth', () => {
 
     const recoveredIds = [];
     for (const session of [googleSession, facebookSession]) {
-      const opened = await openAccount(browser, { session });
-      await expect(opened.page.locator('#accountPlayers')).toContainText(nick);
-      const recovered = await recoveredToken(opened.page);
-      recoveredIds.push(accountId(recovered));
-      opened.assertNoErrors();
-      await opened.context.close();
+      const clean = await openAccount(browser, { session });
+      await expect(clean.page.locator('#accountPlayers')).toContainText(nick);
+      recoveredIds.push(accountId(await recoveredToken(clean.page)));
+      clean.assertNoErrors();
+      await clean.context.close();
     }
     expect(recoveredIds).toEqual([id, id]);
 
-    socialOrigin.nick = nick;
-    socialOrigin.token = token;
-    socialOrigin.accountId = id;
     socialOrigin.googleSession = googleSession;
-    socialOrigin.facebookSession = facebookSession;
   });
 
-  test('an email-origin account can add Google and Facebook without changing or stacking its email reward', async ({ browser, request }) => {
+  test('an email-origin account can add both social providers without stacking its daily reward', async ({ browser, request }) => {
     expect(emailOrigin.accountId).toBeTruthy();
     const googleEmail = `email-google-${suffix}@example.com`;
     const facebookEmail = `email-facebook-${suffix}@example.com`;
     await createProviderUser(request, 'google', googleEmail);
     await createProviderUser(request, 'facebook', facebookEmail);
+
     const googleSession = await signIn(request, googleEmail);
     const facebookSession = await signIn(request, facebookEmail);
-
     await linkSession(browser, googleSession, emailOrigin.token, emailOrigin.nick);
     await linkSession(browser, facebookSession, emailOrigin.token, emailOrigin.nick);
 
@@ -377,9 +391,9 @@ test.describe('real Supabase account authentication @live-auth', () => {
         const response = await fetch(`${url}${path}`, { ...options, headers });
         return response.status;
       }
-      const roles = ['', accessToken];
+
       const results = [];
-      for (const authorization of roles) {
+      for (const authorization of ['', accessToken]) {
         results.push(await probe('/rest/v1/game_accounts?select=id', authorization));
         results.push(await probe('/rest/v1/game_auth_identities?select=auth_user_id', authorization));
         results.push(await probe('/rest/v1/rpc/grant_game_auth_link_reward', authorization, {
