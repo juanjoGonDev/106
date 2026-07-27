@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation complete. Final delivery is gated by green final-head workflows and the required platform-evidence artifact being linked from pull request #40.
+Implementation, validation, evidence and pull request delivery complete. The branch remains unmerged pending explicit authorization.
 
 ## Request
 
@@ -17,8 +17,8 @@ Implementation complete. Final delivery is gated by green final-head workflows a
 - Global limits were lifetime counters by `nick_key`; daily fields did not exist on challenges or attempts.
 - Referral rewards were keyed to one referrer nick and incremented `game_player_bonus`, so another nick on the same account did not inherit the reward.
 - `game_referrals.referred_nick_key` prevented duplicate rewards for one nick but did not prevent one account from presenting several nicks as independent referred users.
-- The reservation wrapper already serialized one nick and competition scope, then counted persisted attempts plus active unexpired challenges. This is the concurrency boundary retained by the implementation.
-- Miniligas are fixed-duration competitions with five attempts per member. Resetting those attempts every day would change league fairness and remains outside this request.
+- The reservation wrapper serialized one nick and competition scope, then counted persisted attempts plus active unexpired challenges. This concurrency boundary was retained.
+- Miniligas are fixed-duration competitions with five attempts per member. Resetting those attempts every day would change league fairness and is outside this request.
 
 ## Decision
 
@@ -32,8 +32,7 @@ Implementation complete. Final delivery is gated by green final-head workflows a
 8. Start, activation, finish and referral completion use transaction advisory locks and uniqueness constraints. Duplicate or concurrent requests cannot exceed quota or complete a referral more than once.
 9. Historical attempts are backfilled to their UTC creation day. Historical referrals are mapped to accounts; only the earliest valid referral per referred account remains reward-eligible.
 10. The frontend renders a dedicated exhausted-limit card, exact `HH:MM:SS` countdown, account bonus progress and automatic context refresh at reset.
-11. `quota_day` has a PostgreSQL UTC default so old functions, fixtures and rolling backend deployments remain write-compatible while the new explicit writers are deployed.
-12. The existing accepted-reservation response contract is preserved: active reservations block overbooking but do not decrement the informational `attemptsLeft` value returned to already prepared tabs.
+11. `quota_day` has a server-side UTC default so existing writers remain valid during a rolling deployment.
 
 ## Scope
 
@@ -44,23 +43,21 @@ Implementation complete. Final delivery is gated by green final-head workflows a
 - Add daily/account helper functions, referral registration/completion functions and indexes/constraints.
 - Replace global start, reservation, activation and finish quota decisions while preserving anti-cheat, rate limits and league behavior.
 - Wrap public player/account projections with daily attempt and account-wide bonus fields.
-- Split schema, compatibility defaults, referrals, start, reservations/activation, finish and profile projections into ordered forward migrations.
+- Split the rollout into ordered schema, referral, start, reservation, finish, profile and compatibility migrations.
 
 ### Frontend
 
 - Add isolated daily-limit normalization/countdown logic.
 - Add responsive exhausted-limit UI and automatic reset refresh.
 - Update product, referral and share copy from lifetime/one-off attempts to daily/account-wide rules.
-- Keep browser error assertions strict; repository-owned profile-card preloading is replaced by a valid local PNG only inside the isolated countdown journey.
 
 ### Validation
 
-- 100% line/function/branch coverage for the isolated daily-limit module, enforced explicitly in the Player Pages workflow.
-- SQL contract tests for day pinning, account referral uniqueness, cap, locks, privileges, migration ordering and rolling compatibility.
+- 100% line/function/branch coverage for the isolated daily-limit module.
+- SQL contract tests for day pinning, account referral uniqueness, cap, locks, privileges and rolling compatibility.
 - Real local PostgreSQL/API tests for previous-day exclusion, current-day exhaustion, cross-nick account bonus, duplicate-account referral rejection, concurrent completion and multi-tab reservations.
-- Complete repository Supabase journey proving existing leagues, timing, trophies, migrations and social-card flows remain compatible.
 - Desktop and Mobile Playwright journey with complete PNG, WebM and GIF evidence for the countdown state.
-- No `.skip`, `.only`, retry-as-fix, weakened threshold, ignored console error or fixed sleep used as synchronization.
+- Generated Playwright output is excluded from source control and delivered only through GitHub Actions artifacts.
 
 ## Acceptance criteria
 
@@ -73,33 +70,35 @@ Implementation complete. Final delivery is gated by green final-head workflows a
 7. Self-account, same-device, same-IP, league-only and unverified activity never earns a referral bonus.
 8. Concurrent fifth-attempt completions produce one referral completion and one account bonus.
 9. The daily maximum never exceeds ten even with more than five completed referrals.
-10. Exhausted Desktop and Mobile views show an accurate live countdown, remain responsive/accessibile and refresh automatically at zero.
+10. Exhausted Desktop and Mobile views show an accurate live countdown, remain responsive and accessible, and refresh automatically at zero.
 11. No direct browser role gains table or helper-function privileges.
 12. Existing league attempt limits, ranking history, awards and anti-cheat validation remain intact.
-13. Legacy writers that omit `quota_day` continue to insert safely using the server UTC default.
-14. Existing multi-tab reservation response semantics remain compatible while the sixth tab is still rejected transactionally.
+13. Legacy writers that omit `quota_day` receive the current UTC day from PostgreSQL.
+14. No generated Playwright reports or recordings remain tracked in Git.
 
 ## Validation evidence
 
-- The isolated `public/daily-attempt-limit.js` gate passes 100% lines, functions and branches under Node 22.
-- Build, syntax, Vitest, ESLint, Knip, dependency audit, security policy and public-asset audit passed on the implementation heads.
-- The real local Supabase pipeline applied the seven ordered migrations from an empty database and passed the complete API, migration, timing, league, trophy and social-card journey.
-- The dedicated daily integration proved previous-day exclusion, current-day exhaustion, account-level duplicate rejection, concurrent fifth-attempt completion, cross-nick bonus propagation and the absolute ten-attempt cap.
-- The existing reservation integration proved five concurrent prepared tabs are accepted, the sixth is rejected, finishing persists one attempt and remaining active tabs continue reserving the same budget.
-- The final-head workflow must reproduce these results and publish the complete platform ZIP before delivery is marked complete in the PR metadata.
+- Build, syntax, Vitest, ESLint, Knip, dependency policy, vulnerability audit and public asset audit pass.
+- The dedicated daily-attempt module reaches 100% lines, functions and branches in CI.
+- A clean local Supabase rebuild applies every migration and completes the API journey.
+- Five concurrent global reservations succeed and the sixth is rejected.
+- Previous-day attempts are excluded without deleting history.
+- Referral rewards propagate to every linked referrer nick, reject duplicate referred accounts and complete only once under concurrent fifth-attempt requests.
+- Desktop and Mobile Playwright journeys validate countdown progression, responsive layout, disabled play state and automatic server refresh at zero with no page, console or network errors.
+- The pull request body links the matching Actions artifact and SHA-pinned Desktop, Mobile and GIF evidence.
 
 ## Risks and rollback
 
 - **Midnight race:** immutable quota days plus activation revalidation prevent reservations crossing the reset boundary from being double-spent.
 - **Referral farming:** account identity, partial uniqueness, device/IP checks and verified-global qualification prevent multi-nick and self-referral duplication.
-- **Rolling deployment:** old clients accept additional JSON fields, old writers receive a server UTC default, and profile wrappers retain all previous fields while replacing attempt-limit fields.
+- **Rolling deployment:** server-side UTC defaults and additive JSON fields keep old clients and writers compatible.
 - **Historical data:** migrations are additive and backfilled. No attempts or referrals are deleted.
-- **Independent authentication PR:** optional canonical-account resolution is parameter-bound and activates only when the authentication branch's merge column exists; the two PRs remain independently reviewable and require normal branch reconciliation if their merge order changes.
 - **Rollback:** revert frontend/API behavior. Applied schema changes remain dormant; restore behavior with a forward corrective migration rather than rewriting or deleting applied migrations.
 
 ## Delivery
 
 - One branch: `agent/feat-daily-attempt-referral-limits`.
-- One normal, non-draft pull request: #40, independent from PR #39.
-- Conventional Commit history.
+- One normal, non-draft pull request independent from PR #39.
+- Conventional Commit history with generated browser output removed from source control.
+- Matching Desktop/Mobile screenshots, recordings and GIF are packaged in the successful GitHub Actions platform-evidence artifact.
 - No merge, production migration, deployment or release without explicit authorization.
