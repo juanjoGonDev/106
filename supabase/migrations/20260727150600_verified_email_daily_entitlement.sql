@@ -11,7 +11,7 @@ alter table public.game_account_entitlements enable row level security;
 revoke all on table public.game_account_entitlements from public, anon, authenticated;
 grant all on table public.game_account_entitlements to service_role;
 
-create or replace function public.game_account_verified_email_bonus(p_account_id uuid)
+create or replace function public.game_account_auth_daily_bonus(p_account_id uuid)
 returns integer
 language sql
 stable
@@ -21,10 +21,23 @@ as $$
   select case when exists (
     select 1
     from public.game_account_entitlements entitlement
-    where entitlement.entitlement_code = 'verified_email_daily_attempt'
+    where entitlement.entitlement_code in (
+        'auth_identity_daily_attempt',
+        'verified_email_daily_attempt'
+      )
       and public.daily_game_account_id(entitlement.account_id)
         = public.daily_game_account_id(p_account_id)
   ) then 1 else 0 end;
+$$;
+
+create or replace function public.game_account_verified_email_bonus(p_account_id uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select public.game_account_auth_daily_bonus(p_account_id);
 $$;
 
 create or replace function public.game_player_daily_bonus(p_nick_key text)
@@ -51,7 +64,7 @@ as $$
     5,
     public.game_account_referral_bonus(selected.account_id)
       + greatest(0, legacy.total_bonus - legacy.historical_referral_bonus)
-      + public.game_account_verified_email_bonus(selected.account_id)
+      + public.game_account_auth_daily_bonus(selected.account_id)
   )::integer
   from selected cross join legacy;
 $$;
@@ -68,7 +81,7 @@ as $$
 declare
   v_day date := public.game_server_day(p_at);
   v_account_id uuid := public.game_account_id_for_nick(p_nick_key);
-  v_email_bonus integer := public.game_account_verified_email_bonus(v_account_id);
+  v_auth_bonus integer := public.game_account_auth_daily_bonus(v_account_id);
   v_bonus integer := public.game_player_daily_bonus(p_nick_key);
   v_completed_referrals integer := public.game_account_completed_referrals(v_account_id);
   v_max_attempts integer := 5 + v_bonus;
@@ -96,7 +109,8 @@ begin
     'attemptsLeft', greatest(0, v_max_attempts - v_attempts_used - v_attempts_reserved),
     'maxAttempts', v_max_attempts,
     'bonusAttempts', v_bonus,
-    'emailVerificationBonus', v_email_bonus,
+    'authRewardBonus', v_auth_bonus,
+    'emailVerificationBonus', v_auth_bonus,
     'completedReferrals', v_completed_referrals,
     'dailyLimitBase', 5,
     'dailyLimitCeiling', 10,
@@ -106,5 +120,11 @@ begin
 end;
 $$;
 
+revoke all on function public.game_account_auth_daily_bonus(uuid) from public, anon, authenticated;
 revoke all on function public.game_account_verified_email_bonus(uuid) from public, anon, authenticated;
+revoke all on function public.game_player_daily_bonus(text) from public, anon, authenticated;
+revoke all on function public.get_game_daily_attempt_state(text, timestamptz) from public, anon, authenticated;
+grant execute on function public.game_account_auth_daily_bonus(uuid) to service_role;
 grant execute on function public.game_account_verified_email_bonus(uuid) to service_role;
+grant execute on function public.game_player_daily_bonus(text) to service_role;
+grant execute on function public.get_game_daily_attempt_state(text, timestamptz) to service_role;
