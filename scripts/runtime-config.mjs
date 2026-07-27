@@ -13,7 +13,10 @@ function normalizedProjectRef(value) {
 
 function normalizedPublishableKey(value) {
   const key = String(value ?? '').trim();
-  return /^sb_publishable_[a-zA-Z0-9_-]{20,}$/.test(key) ? key : '';
+  return /^sb_publishable_[a-zA-Z0-9_-]{20,}$/.test(key)
+    || /^eyJ[a-zA-Z0-9._-]{20,}$/.test(key)
+    ? key
+    : '';
 }
 
 function repositoryPagesUrl(repository, owner) {
@@ -28,11 +31,15 @@ function repositoryPagesUrl(repository, owner) {
     : `https://${normalizedOwner}.github.io/${repositoryName}`;
 }
 
-function validHttpsUrl(value, expectedPath = null) {
+function isLocalUrl(url) {
+  return url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname);
+}
+
+function validPublicUrl(value, expectedPath = null, allowLocal = false) {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:'
-      && (!expectedPath || url.pathname.replace(/\/$/, '') === expectedPath);
+    const validProtocol = url.protocol === 'https:' || (allowLocal && isLocalUrl(url));
+    return validProtocol && (!expectedPath || url.pathname.replace(/\/$/, '') === expectedPath);
   } catch {
     return false;
   }
@@ -41,7 +48,7 @@ function validHttpsUrl(value, expectedPath = null) {
 function supabaseUrlFromApi(apiBaseUrl, projectRef) {
   try {
     const url = new URL(apiBaseUrl);
-    if (url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')) {
+    if ((url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')) || isLocalUrl(url)) {
       return `${url.protocol}//${url.host}`;
     }
   } catch {
@@ -50,15 +57,22 @@ function supabaseUrlFromApi(apiBaseUrl, projectRef) {
   return `https://${projectRef}.supabase.co`;
 }
 
+function normalizedSupabaseUrl(value) {
+  const url = normalizedUrl(value);
+  return validPublicUrl(url, null, true) ? url : '';
+}
+
 export function buildRuntimeConfig(environment = process.env) {
   const explicitApiUrl = normalizedUrl(environment.SUPABASE_FUNCTIONS_URL);
   const configuredProjectRef = normalizedProjectRef(
     environment.SUPABASE_PROJECT_ID || environment.PROJECT_ID,
   );
   const projectRef = configuredProjectRef || DEFAULT_SUPABASE_PROJECT_ID;
+  const explicitSupabaseUrl = normalizedSupabaseUrl(environment.SUPABASE_URL);
   const apiBaseUrl = explicitApiUrl
+    || (explicitSupabaseUrl ? `${explicitSupabaseUrl}/functions/v1/game-api` : '')
     || `https://${projectRef}.supabase.co/functions/v1/game-api`;
-  const supabaseUrl = supabaseUrlFromApi(apiBaseUrl, projectRef);
+  const supabaseUrl = explicitSupabaseUrl || supabaseUrlFromApi(apiBaseUrl, projectRef);
 
   const publicSiteUrl = normalizedUrl(environment.PUBLIC_SITE_URL)
     || normalizedUrl(environment.GITHUB_PAGES_URL)
@@ -79,16 +93,17 @@ export function buildRuntimeConfig(environment = process.env) {
 
 export function validateRuntimeConfig(config, options = {}) {
   const errors = [];
-  if (!validHttpsUrl(config.apiBaseUrl, '/functions/v1/game-api')) {
+  const allowLocal = options.allowLocal === true;
+  if (!validPublicUrl(config.apiBaseUrl, '/functions/v1/game-api', allowLocal)) {
     errors.push('The generated Supabase Edge Function URL is invalid.');
   }
-  if (!validHttpsUrl(config.accountAuthApiUrl, '/functions/v1/account-auth')) {
+  if (!validPublicUrl(config.accountAuthApiUrl, '/functions/v1/account-auth', allowLocal)) {
     errors.push('The generated account-auth Edge Function URL is invalid.');
   }
-  if (!validHttpsUrl(config.supabaseUrl)) {
+  if (!validPublicUrl(config.supabaseUrl, null, allowLocal)) {
     errors.push('The generated Supabase project URL is invalid.');
   }
-  if (!validHttpsUrl(config.publicSiteUrl)) {
+  if (!validPublicUrl(config.publicSiteUrl, null, allowLocal)) {
     errors.push('The public GitHub Pages URL could not be derived.');
   }
   if (options.requireAuth === true && !config.supabasePublishableKey) {
