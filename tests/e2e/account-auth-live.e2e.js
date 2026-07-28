@@ -230,8 +230,8 @@ async function openAccount(browser, { session = null, accountToken = '' } = {}) 
   return {
     context,
     page,
-    assertNoErrors() {
-      expect(errors).toEqual([]);
+    assertNoErrors(allowedError = () => false) {
+      expect(errors.filter((error) => !allowedError(error))).toEqual([]);
     },
   };
 }
@@ -406,8 +406,8 @@ test.describe('real Supabase account authentication @live-auth', () => {
     }, { url: supabaseUrl, key: anonKey, accessToken: socialOrigin.googleSession.access_token });
 
     expect(statuses).toHaveLength(6);
-    for (const status of statuses) expect(status).not.toBe(200);
-    opened.assertNoErrors();
+    for (const status of statuses) expect([401, 403, 404]).toContain(status);
+    opened.assertNoErrors((error) => /Failed to load resource: the server responded with a status of (401|403|404)/.test(error));
     await opened.context.close();
   });
 });
