@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
+import { openApplicationPage } from './app-navigation.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -73,7 +75,7 @@ async function saveVideo(context, page, area, isMobile) {
 
 for (const pageDefinition of staticPages) {
   test(`captures the complete ${pageDefinition.id} surface`, async ({ page }, testInfo) => {
-    await page.goto(pageDefinition.path);
+    await openApplicationPage(page, pageDefinition.path);
     await expectResponsivePage(page);
     await capture(page, pageDefinition.id, testInfo);
   });
@@ -83,7 +85,7 @@ test('captures the privacy settings dialog from the real application shell', asy
   await page.route('**/functions/v1/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
-  await page.goto('/');
+  await openApplicationPage(page, '/');
   await expectResponsivePage(page);
   await waitForSharedEnhancements(page);
   await expect(page.locator('#privacyChip')).toBeVisible();
@@ -96,7 +98,7 @@ test('records the complete responsive cookies page journey', async ({ browser, i
   test.skip(!captureEvidence, 'Visual recording is generated only by the PR evidence workflow.');
   const context = await browser.newContext(recordingContextOptions(isMobile));
   const page = await context.newPage();
-  await page.goto('/cookies.html');
+  await openApplicationPage(page, '/cookies.html');
   await expectResponsivePage(page);
   await page.waitForTimeout(500);
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }));
