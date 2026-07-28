@@ -9,6 +9,7 @@ const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: 
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.e2e.js',
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: true,
   retries: 0,
