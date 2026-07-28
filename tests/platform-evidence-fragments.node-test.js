@@ -32,13 +32,15 @@ function file(path, content = path) {
   writeFileSync(path, content);
 }
 
-test('lists nested regular files deterministically and ignores missing or symbolic entries', () => {
+test('lists nested regular files deterministically and ignores missing, marker and symbolic entries', () => {
   const state = workspace();
   try {
     assert.deepEqual(filesBelow(join(state.root, 'missing')), []);
     mkdirSync(join(state.root, 'tree', 'nested'), { recursive: true });
     writeFileSync(join(state.root, 'tree', 'z.png'), 'z');
     writeFileSync(join(state.root, 'tree', 'nested', 'a.webm'), 'a');
+    writeFileSync(join(state.root, 'tree', '.fragment-desktop-1'), 'marker');
+    writeFileSync(join(state.root, 'tree', 'nested', '.fragment-gif-desktop-1'), 'marker');
     symlinkSync(join(state.root, 'tree', 'z.png'), join(state.root, 'tree', 'linked.png'));
     assert.deepEqual(filesBelow(join(state.root, 'tree')), ['nested/a.webm', 'z.png']);
   } finally {
@@ -46,7 +48,7 @@ test('lists nested regular files deterministically and ignores missing or symbol
   }
 });
 
-test('rejects missing, absent and empty fragment inventories', () => {
+test('rejects missing, absent and marker-only fragment inventories', () => {
   const state = workspace();
   try {
     assert.throws(
@@ -62,6 +64,7 @@ test('rejects missing, absent and empty fragment inventories', () => {
     );
 
     mkdirSync(join(state.fragments, 'fragment-empty'));
+    writeFileSync(join(state.fragments, 'fragment-empty', '.fragment-empty'), 'marker');
     assert.throws(
       () => mergePlatformEvidenceFragments({ fragmentsDirectory: state.fragments, outputDirectory: state.output }),
       /contained no files/,
