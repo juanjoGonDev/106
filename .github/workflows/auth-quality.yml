@@ -71,7 +71,7 @@ jobs:
         run: node --test --experimental-test-coverage --test-coverage-include=public/auth-pending-confirmation.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-pending-confirmation.node-test.js
 
       - name: Enforce captcha coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-captcha.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-captcha.node-test.js
+        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-captcha.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-captcha.node-test.js tests/auth-captcha-defaults.node-test.js
 
       - name: Enforce cloud account service coverage
         run: node --test --experimental-test-coverage --test-coverage-include=public/cloud-account-service.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/cloud-account-service.node-test.js
