@@ -50,7 +50,7 @@
       <h1 id="leagueHubTitle">Elige una liga o crea la tuya.</h1>
       <p>Las públicas aceptan participantes desde el listado. Las privadas muestran un candado y requieren la clave que comparte su creador.</p>
       <div class="league-explanation">Al alcanzar <strong>3 cuentas y 3 dispositivos distintos</strong>, la liga programa su inicio para dentro de <strong>23 horas</strong>. Cada persona dispone de <strong>5 intentos</strong> y cada cuenta o dispositivo solo puede ocupar una plaza dentro de la misma liga.</div>
-      <div class="league-nick-row"><label for="leagueNick">Nick con el que competirás<input id="leagueNick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label><a class="ghost compact" href="./cuenta.html">Gestionar mi cuenta</a></div>
+      <div class="league-nick-row"><label for="leagueNick">Nick con el que competirás<input id="leagueNick" minlength="3" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label><a class="ghost compact" href="./cuenta.html">Gestionar mi cuenta</a></div>
       <div class="league-management-grid">
         <article class="league-action-card">
           <h2>Crear liga</h2>
@@ -99,7 +99,7 @@
       </div>
       <p id="leagueLookupMeta" class="leaderboard-help"></p>
       <div id="leagueLookupConfig" class="league-config-list" aria-label="Configuración de la liga"></div>
-      <div id="leagueDetailNickRow" class="league-detail-nick" hidden><label for="leagueDetailNick">Nick para unirte<input id="leagueDetailNick" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label></div>
+      <div id="leagueDetailNickRow" class="league-detail-nick" hidden><label for="leagueDetailNick">Nick para unirte<input id="leagueDetailNick" minlength="3" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Ej. Juanjo96"></label></div>
       <p id="leagueMembershipMessage" class="league-membership-message"></p>
       <div class="league-detail-actions">
         <button id="joinPublicLeagueButton" class="primary" type="button" hidden>Unirme a esta liga</button>
@@ -116,6 +116,8 @@
   <script src="./share-actions.js" data-minuto106-share-actions="true"></script>
   <script src="./access.js?v=20260724"></script>
   <script src="./format.js"></script>
+  <script src="./nickname-policy.js"></script>
+  <script src="./nickname-input-guard.js"></script>
   <script src="./league-api-compat.js?v=20260726"></script>
   <script src="./league-directory.js?v=20260726"></script>
   <script src="./ligas.js?v=20260726"></script>
