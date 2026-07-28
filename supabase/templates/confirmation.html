@@ -8,9 +8,9 @@
       <p style="margin:0 0 8px;color:#c6cad3;line-height:1.6">Tu código de un solo uso es:</p>
       <p style="margin:0 0 22px;padding:16px;border:1px solid #f4c95d55;border-radius:14px;background:#08090c;color:#ffe27f;font-family:Consolas,monospace;font-size:30px;font-weight:900;letter-spacing:.24em;text-align:center">{{ .Token }}</p>
       <p style="margin:0 0 22px">
-        <a href="{{ .SiteURL }}/verificar-email.html?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block;padding:14px 18px;border-radius:12px;background:#f4c95d;color:#11131a;font-weight:800;text-decoration:none">Verificar y conseguir +1 intento</a>
+        <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block;padding:14px 18px;border-radius:12px;background:#f4c95d;color:#11131a;font-weight:800;text-decoration:none">Verificar y conseguir +1 intento</a>
       </p>
-      <p style="margin:0 0 16px;color:#c6cad3;line-height:1.6">El código y el enlace son de un solo uso y caducan en <strong>1 hora</strong>. Puedes solicitar otros desde la pantalla de verificación mientras la cuenta siga pendiente.</p>
+      <p style="margin:0 0 16px;color:#c6cad3;line-height:1.6">El enlace caduca en <strong>1 hora</strong> y es de un solo uso. El código tiene la misma validez. Puedes solicitar otros desde la pantalla de verificación mientras la cuenta siga pendiente.</p>
       <p style="margin:0;color:#8f96a3;font-size:12px;line-height:1.5">Si no has creado esta cuenta, ignora este mensaje.</p>
     </main>
   </body>
