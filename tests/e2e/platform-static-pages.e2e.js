@@ -48,6 +48,13 @@ async function expectResponsivePage(page) {
   expect(overflow.content).toBeLessThanOrEqual(overflow.viewport + 1);
 }
 
+async function waitForSharedEnhancements(page) {
+  await page.evaluate(async () => {
+    await window.Minuto106EnhancementsReady;
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-minuto106-enhancements', 'ready');
+}
+
 async function capture(page, id, testInfo) {
   if (!captureEvidence) return;
   await page.screenshot({
@@ -78,6 +85,7 @@ test('captures the privacy settings dialog from the real application shell', asy
   });
   await page.goto('/');
   await expectResponsivePage(page);
+  await waitForSharedEnhancements(page);
   await expect(page.locator('#privacyChip')).toBeVisible();
   await page.locator('#openCookieSettings').click();
   await expect(page.locator('#cookieDialog')).toBeVisible();
