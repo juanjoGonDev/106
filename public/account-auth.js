@@ -1,10 +1,12 @@
 import {
   authRewardMessage,
   mergeItemText,
+  neutralAuthMessage,
   normalizeAuthConfig,
   normalizeMergeImpact,
 } from './auth-account-state.js';
 import { browserAuthExperience } from './auth-browser-context.js';
+import { AuthCaptcha } from './auth-captcha.js';
 import {
   authIdentity,
   providerAction,
@@ -13,6 +15,8 @@ import {
 import {
   clearPendingConfirmation,
   pendingConfirmationSnapshot,
+  pendingConfirmationView,
+  resendPendingConfirmation,
 } from './auth-pending-confirmation.js';
 import { CloudAccountService } from './cloud-account-service.js';
 import { SupabaseAuthClient } from './supabase-auth-client.js';
@@ -27,6 +31,9 @@ const elements = {
   authenticated: document.querySelector('#cloudAuthenticatedPanel'),
   identity: document.querySelector('#cloudAccountIdentity'),
   pendingEmail: document.querySelector('#pendingConfirmationEmail'),
+  resend: document.querySelector('#emailConfirmationResend'),
+  resendStatus: document.querySelector('#emailConfirmationResendStatus'),
+  captcha: document.querySelector('#authCaptcha'),
   localGoogle: document.querySelector('#googleSignIn'),
   localFacebook: document.querySelector('#facebookSignIn'),
   authenticatedGoogle: document.querySelector('#authenticatedGoogle'),
@@ -41,10 +48,12 @@ const elements = {
 
 let client = null;
 let service = null;
+let captcha = null;
 let currentSession = null;
 let currentExperience = null;
 let pendingMerge = null;
 let confirmingMerge = false;
+let resendTimer = null;
 let busy = false;
 
 function setStatus(message, tone = 'neutral') {
@@ -64,7 +73,8 @@ function setPanelVisibility(element, visible) {
 }
 
 function providerName(provider) {
-  return provider === 'facebook' ? 'Facebook' : provider === 'google' ? 'Google' : 'Email';
+  const names = { facebook: 'Facebook', google: 'Google', email: 'Email' };
+  return names[provider] || names.email;
 }
 
 function renderProviderButton(button, provider, mode, identity) {
@@ -85,6 +95,28 @@ function renderIdentity(identity) {
   elements.identity.append(strong, providers);
 }
 
+function manageResendTimer(delaySeconds) {
+  if (delaySeconds > 0 && resendTimer === null) {
+    resendTimer = window.setInterval(renderPendingConfirmation, 1000);
+    return;
+  }
+  if (delaySeconds === 0 && resendTimer !== null) {
+    window.clearInterval(resendTimer);
+    resendTimer = null;
+  }
+}
+
+function renderPendingConfirmation() {
+  const view = pendingConfirmationView(pendingConfirmationSnapshot(localStorage));
+  if (elements.pendingEmail) elements.pendingEmail.textContent = view.emailText;
+  if (elements.resend) elements.resend.disabled = busy || !config.available || !view.resendAvailable;
+  if (elements.resendStatus) {
+    elements.resendStatus.textContent = view.resendStatus;
+    elements.resendStatus.dataset.tone = view.resendTone;
+  }
+  manageResendTimer(view.resendDelaySeconds);
+}
+
 function renderExperience() {
   if (!currentExperience) return;
   const mode = currentExperience.mode;
@@ -95,11 +127,7 @@ function renderExperience() {
   setPanelVisibility(elements.authenticated, mode === 'authenticated');
   setPanelVisibility(elements.pending, mode === 'pending-email' || verificationVisible);
 
-  if (elements.pendingEmail) {
-    const email = currentExperience.pendingEmail || identity?.email || '';
-    elements.pendingEmail.textContent = email ? `Activación pendiente para ${email}` : '';
-  }
-
+  renderPendingConfirmation();
   renderIdentity(identity);
   renderProviderButton(elements.localGoogle, 'google', 'local-link', identity);
   renderProviderButton(elements.localFacebook, 'facebook', 'local-link', identity);
@@ -139,7 +167,8 @@ function renderMergeImpact(impact) {
     elements.mergeSections?.append(group);
   }
   if (elements.mergeSummary) {
-    elements.mergeSummary.textContent = `${normalized.totalLosses} ${normalized.totalLosses === 1 ? 'consecuencia competitiva' : 'consecuencias competitivas'} antes de unificar las cuentas.`;
+    const label = normalized.totalLosses === 1 ? 'consecuencia competitiva' : 'consecuencias competitivas';
+    elements.mergeSummary.textContent = `${normalized.totalLosses} ${label} antes de unificar las cuentas.`;
   }
 }
 
@@ -195,12 +224,19 @@ async function withOperation(action) {
   } catch (error) {
     setStatus(error.message || 'No se pudo completar la operación.', 'error');
   } finally {
+    captcha?.reset();
     setBusy(false);
   }
 }
 
 async function startOAuth(provider) {
   await client.signInWithOAuth(provider, { returnPage: 'cuenta.html' });
+}
+
+async function resendConfirmation() {
+  await resendPendingConfirmation({ client, captcha, storage: localStorage });
+  setStatus(neutralAuthMessage('resend'), 'success');
+  renderPendingConfirmation();
 }
 
 function bindProvider(button, provider) {
@@ -221,25 +257,32 @@ async function initialize() {
 
   client = new SupabaseAuthClient(config);
   service = new CloudAccountService(config, client);
+  captcha = new AuthCaptcha(config.turnstileSiteKey, elements.captcha);
   currentSession = await client.exchangeCallback();
   await refreshExperience();
 
   const snapshot = pendingConfirmationSnapshot(localStorage);
   if (currentSession) {
     await synchronizeAccount();
-  } else if (currentExperience.mode === 'local-link') {
-    setStatus('Vincula esta cuenta local con Google o Facebook. No necesitas volver a registrarte.');
-  } else if (currentExperience.mode === 'pending-email') {
-    setStatus(`La cuenta ${snapshot.email} aún no está verificada. Confírmala para recibir +1 intento diario.`,'warning');
-  } else {
-    setStatus('Inicia sesión o crea una cuenta para recuperar tus nicks en otros dispositivos.');
+    return;
   }
+  if (currentExperience.mode === 'local-link') {
+    setStatus('Vincula esta cuenta local con Google o Facebook. No necesitas volver a registrarte.');
+    return;
+  }
+  if (currentExperience.mode === 'pending-email') {
+    setStatus(`La cuenta ${snapshot.email} aún no está verificada. Confírmala para recibir +1 intento diario.`, 'warning');
+    return;
+  }
+  setStatus('Inicia sesión o crea una cuenta para recuperar tus nicks en otros dispositivos.');
 }
 
 bindProvider(elements.localGoogle, 'google');
 bindProvider(elements.localFacebook, 'facebook');
 bindProvider(elements.authenticatedGoogle, 'google');
 bindProvider(elements.authenticatedFacebook, 'facebook');
+
+elements.resend?.addEventListener('click', () => withOperation(resendConfirmation));
 
 elements.signOut?.addEventListener('click', () => withOperation(async () => {
   await client.signOut();
@@ -267,6 +310,9 @@ elements.mergeConfirm?.addEventListener('click', () => withOperation(async () =>
 
 elements.mergeCancel?.addEventListener('click', () => elements.mergeDialog?.close());
 elements.mergeDialog?.addEventListener('close', () => cancelPendingMerge().catch(() => {}));
+window.addEventListener('pagehide', () => {
+  if (resendTimer !== null) window.clearInterval(resendTimer);
+});
 
 initialize().catch((error) => {
   setStatus(error.message || 'No se pudo iniciar la autenticación.', 'error');
