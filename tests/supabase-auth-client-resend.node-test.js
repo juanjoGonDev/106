@@ -69,7 +69,7 @@ test('resends signup confirmation with custom and default redirect branches', as
   });
 
   assert.deepEqual(await client.resendSignupConfirmation('user@example.com'), { second: true });
-  assert.ok(calls[1][0].includes(encodeURIComponent('https://example.com/106/cuenta.html')));
+  assert.ok(calls[1][0].includes(encodeURIComponent('https://example.com/106/verificar-email.html')));
   assert.equal(Object.hasOwn(JSON.parse(calls[1][1].body), 'gotrue_meta_security'), false);
 
   await assert.rejects(client.resendSignupConfirmation('invalid'), /email válido/);
