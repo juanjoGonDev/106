@@ -6,9 +6,12 @@
   const startButton = document.querySelector('#startButton');
   const status = document.querySelector('#nickStatus');
   const captchaContainer = document.querySelector('#turnstileContainer');
+  const nativeHeadAppend = document.head.append;
+  const deferredCaptchaNodes = [];
   let remoteAvailability = 'unknown';
   let remotePending = false;
   let applying = false;
+  let captchaReleased = false;
 
   function structuralState(input) {
     return policy.validateNickname(input?.value ?? '');
@@ -20,6 +23,30 @@
       remoteAvailability,
       remotePending,
     });
+  }
+
+  function isTurnstileScript(node) {
+    return node instanceof HTMLScriptElement
+      && new URL(node.src, location.href).hostname === 'challenges.cloudflare.com';
+  }
+
+  function releaseCaptchaScripts() {
+    if (captchaReleased || !currentGate().captchaAllowed) return;
+    captchaReleased = true;
+    document.head.append = nativeHeadAppend;
+    if (deferredCaptchaNodes.length) nativeHeadAppend.apply(document.head, deferredCaptchaNodes.splice(0));
+  }
+
+  function deferCaptchaScripts() {
+    if (!homeInput) return;
+    document.head.append = function appendWithNicknameGate(...nodes) {
+      const immediate = [];
+      for (const node of nodes) {
+        if (!captchaReleased && isTurnstileScript(node)) deferredCaptchaNodes.push(node);
+        else immediate.push(node);
+      }
+      if (immediate.length) nativeHeadAppend.apply(document.head, immediate);
+    };
   }
 
   function setInputValidity(input, validation) {
@@ -45,6 +72,7 @@
 
     if (startButton && !gate.startAllowed) startButton.disabled = true;
     if (captchaContainer) captchaContainer.hidden = !gate.captchaAllowed;
+    if (gate.captchaAllowed) releaseCaptchaScripts();
     applying = false;
   }
 
@@ -68,6 +96,7 @@
   }
 
   if (homeInput) {
+    deferCaptchaScripts();
     homeInput.addEventListener('input', () => {
       remoteAvailability = 'unknown';
       remotePending = structuralState(homeInput).valid;
