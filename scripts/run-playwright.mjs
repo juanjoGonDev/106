@@ -1,12 +1,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, extname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const PLAYWRIGHT_VERSION = '1.60.0';
 const PLAYWRIGHT_PACKAGE = `@playwright/test@${PLAYWRIGHT_VERSION}`;
 const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
-const PREVIEW_DIRECTORY = resolve('.tmp/pr-previews');
 const playwrightArguments = process.argv.slice(2);
 
 function runCommand(command, arguments_, options = {}) {
@@ -102,12 +101,6 @@ function findPackageJson(root) {
   return null;
 }
 
-function hasPreviewRecordings() {
-  if (!existsSync(PREVIEW_DIRECTORY)) return false;
-  return readdirSync(PREVIEW_DIRECTORY, { withFileTypes: true })
-    .some((entry) => entry.isFile() && extname(entry.name).toLowerCase() === '.webm');
-}
-
 runPnpm(['dlx', PLAYWRIGHT_PACKAGE, '--version']);
 const packageJsonPath = cacheRoots().map(findPackageJson).find(Boolean);
 if (!packageJsonPath) throw new Error(`Unable to locate ${PLAYWRIGHT_PACKAGE} in the pnpm dlx cache.`);
@@ -120,10 +113,8 @@ runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test', ...playwrightArguments], {
   },
 });
 
-if (process.env.PR_VISUAL_CAPTURE === '1') {
-  const fragmentMode = process.env.PLATFORM_EVIDENCE_FRAGMENT === '1';
-  if (fragmentMode && !hasPreviewRecordings()) process.exit(0);
+if (process.env.PR_VISUAL_CAPTURE === '1' && process.env.PLATFORM_EVIDENCE_FRAGMENT !== '1') {
   ensureGifCapableFfmpeg();
   runNodeScript('scripts/create-preview-gif.mjs');
-  if (!fragmentMode) runNodeScript('scripts/package-platform-evidence.mjs');
+  runNodeScript('scripts/package-platform-evidence.mjs');
 }
