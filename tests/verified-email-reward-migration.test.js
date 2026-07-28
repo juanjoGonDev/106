@@ -50,7 +50,10 @@ describe('authentication reward migrations', () => {
     expect(config).toContain('enable_confirmations = true');
     expect(config).toContain('content_path = "./supabase/templates/confirmation.html"');
     expect(template).toContain('+1 intento diario');
-    expect(template).toContain('caduca en <strong>1 hora</strong>');
-    expect(template).toContain('{{ .ConfirmationURL }}');
+    expect(template).toContain('El enlace caduca en <strong>1 hora</strong>');
+    expect(template).toContain('{{ .Token }}');
+    expect(template).toContain('{{ .TokenHash }}');
+    expect(template).toContain('{{ .RedirectTo }}?token_hash=');
+    expect(template).not.toContain('{{ .SiteURL }}/verificar-email.html');
   });
 });
