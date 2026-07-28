@@ -5,10 +5,16 @@ import {
   readdirSync,
   rmSync,
 } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
+
+const FRAGMENT_MARKER_PREFIX = '.fragment-';
 
 function normalizedRelativePath(root, path) {
   return relative(root, path).replaceAll('\\', '/');
+}
+
+function isFragmentMarker(path) {
+  return basename(path).startsWith(FRAGMENT_MARKER_PREFIX);
 }
 
 export function filesBelow(directory) {
@@ -23,7 +29,8 @@ export function filesBelow(directory) {
         pending.push(path);
         continue;
       }
-      if (entry.isFile()) files.push(normalizedRelativePath(directory, path));
+      const relativePath = normalizedRelativePath(directory, path);
+      if (entry.isFile() && !isFragmentMarker(relativePath)) files.push(relativePath);
     }
   }
   return files.sort();
