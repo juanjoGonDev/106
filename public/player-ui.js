@@ -14,7 +14,7 @@
 
   function normalizeNick(value) {
     const policy = globalThis.Minuto106NicknamePolicy;
-    if (policy) return policy.normalizeNickname(value);
+    if (policy) return policy.normalizeNickname(value).slice(0, 24);
     return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').slice(0, 24);
   }
 
