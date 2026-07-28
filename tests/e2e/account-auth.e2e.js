@@ -261,7 +261,7 @@ test('login, registration and local linking expose only Google and Facebook with
     await installPage(page, { initial });
     await openApplicationPage(page, `/${path}`);
     await page.getByRole('button', { name: label }).click();
-    await expect(page).toHaveURL(new RegExp(`/auth/v1/authorize\?.*provider=${provider}`));
+    await expect(page).toHaveURL(new RegExp(`/auth/v1/authorize[?].*provider=${provider}`));
     expect(new URL(page.url()).searchParams.get('redirect_to')).toBe(`${applicationUrl}/cuenta.html`);
     expect(new URL(page.url()).searchParams.get('code_challenge_method')).toBe('s256');
     await context.close();
