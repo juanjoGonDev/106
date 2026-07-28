@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const workflow = readFileSync('.github/workflows/player-browser.yml', 'utf8');
+const gifEncoder = readFileSync('scripts/create-preview-gif.mjs', 'utf8');
 
 function stepBlock(name) {
   const start = workflow.indexOf(`      - name: ${name}`);
@@ -29,6 +30,15 @@ describe('parallel player browser workflow', () => {
     expect(workflow).toContain('node scripts/create-preview-gif.mjs');
     expect(workflow).not.toContain('gif-shards:');
     expect(workflow).not.toContain('continue-on-error: true');
+  });
+
+  it('installs the full GIF encoder only after a shard produced recordings', () => {
+    expect(gifEncoder.indexOf('const recordings = recordingFiles();'))
+      .toBeLessThan(gifEncoder.indexOf('installHostedFfmpeg()'));
+    expect(gifEncoder).toContain("process.env.GITHUB_ACTIONS === 'true'");
+    expect(gifEncoder).toContain("['apt-get', 'update', '-qq']");
+    expect(gifEncoder).toContain("['apt-get', 'install', '-y', '--no-install-recommends', 'ffmpeg']");
+    expect(gifEncoder).toContain('gifCapableFfmpeg() || installHostedFfmpeg()');
   });
 
   it('publishes complete fragments before one validated canonical artifact', () => {
