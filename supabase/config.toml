@@ -4,9 +4,13 @@ project_id = "minuto-106"
 site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = [
   "http://localhost:3000/cuenta.html",
+  "http://localhost:3000/login.html",
+  "http://localhost:3000/registro.html",
   "http://localhost:3000/verificar-email.html",
   "http://localhost:3000/restablecer-clave.html",
   "http://127.0.0.1:3000/cuenta.html",
+  "http://127.0.0.1:3000/login.html",
+  "http://127.0.0.1:3000/registro.html",
   "http://127.0.0.1:3000/verificar-email.html",
   "http://127.0.0.1:3000/restablecer-clave.html"
 ]
