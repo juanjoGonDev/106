@@ -1,7 +1,7 @@
 const DEVICE_STORAGE_KEY = 'minuto106:device-id';
 
 export function getOrCreateDeviceId(storage, cryptoApi) {
-  const current = String(storage?.getItem?.(DEVICE_STORAGE_KEY) ?? '');
+  const current = String(storage.getItem(DEVICE_STORAGE_KEY) ?? '');
   if (/^[a-zA-Z0-9._:-]{16,80}$/u.test(current)) return current;
   const generated = cryptoApi.randomUUID();
   storage.setItem(DEVICE_STORAGE_KEY, generated);
@@ -15,7 +15,7 @@ export class CloudAccountService {
     this.fetch = dependencies.fetch ?? window.fetch.bind(window);
     this.storage = dependencies.storage ?? window.localStorage;
     this.crypto = dependencies.crypto ?? crypto;
-    this.access = dependencies.access ?? window.Minuto106Access;
+    this.access = Object.hasOwn(dependencies, 'access') ? dependencies.access : window.Minuto106Access;
     this.deviceId = getOrCreateDeviceId(this.storage, this.crypto);
   }
 
