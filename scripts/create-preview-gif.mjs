@@ -52,6 +52,18 @@ function commandOutput(command, arguments_) {
   return `${result.stdout || ''}\n${result.stderr || ''}`;
 }
 
+function runChecked(command, arguments_, environment = process.env) {
+  const result = spawnSync(command, arguments_, {
+    cwd: process.cwd(),
+    env: environment,
+    stdio: 'inherit',
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${command} ${arguments_.join(' ')} failed with exit code ${result.status ?? 1}.`);
+  }
+}
+
 function supportsGifEncoding(command) {
   const formats = commandOutput(command, ['-hide_banner', '-formats']);
   const filters = commandOutput(command, ['-hide_banner', '-filters']);
@@ -66,6 +78,17 @@ function gifCapableFfmpeg() {
     ...cacheRoots().map(findFfmpeg).filter(Boolean),
   ];
   return candidates.find(supportsGifEncoding) || null;
+}
+
+function installHostedFfmpeg() {
+  const hostedLinux = process.platform === 'linux'
+    && (process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true');
+  if (!hostedLinux) return null;
+
+  const environment = { ...process.env, DEBIAN_FRONTEND: 'noninteractive' };
+  runChecked('sudo', ['apt-get', 'update', '-qq'], environment);
+  runChecked('sudo', ['apt-get', 'install', '-y', '--no-install-recommends', 'ffmpeg'], environment);
+  return gifCapableFfmpeg();
 }
 
 function recordingFiles() {
@@ -105,7 +128,7 @@ function generateGif(ffmpeg, recording) {
 mkdirSync(outputDirectory, { recursive: true });
 const recordings = recordingFiles();
 if (!recordings.length) throw new Error(`No WebM viewport recordings found in ${outputDirectory}.`);
-const ffmpeg = gifCapableFfmpeg();
+const ffmpeg = gifCapableFfmpeg() || installHostedFfmpeg();
 if (!ffmpeg) {
   throw new Error('A full FFmpeg installation with GIF muxing plus palettegen/paletteuse filters is required to generate PR GIF evidence.');
 }
