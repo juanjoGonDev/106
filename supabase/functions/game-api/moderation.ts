@@ -1,5 +1,6 @@
 import { Profanease } from 'npm:profanease@2.0.3';
 import allLanguages from 'npm:profanease@2.0.3/langs/all';
+import { validateNickname } from '../_shared/nickname-policy.js';
 import { isReservedNickname, nicknameVariants } from './moderation-core.js';
 
 const customBlocked = [
@@ -15,19 +16,20 @@ const filter = new Profanease({
 });
 
 export function moderateNickname(value: string) {
-  const { candidate, compacted, spaced } = nicknameVariants(value);
-  if (!candidate) {
-    return { allowed: false, reason: 'empty' };
+  const structural = validateNickname(value);
+  if (!structural.valid) {
+    return { allowed: false, reason: structural.reason, normalized: structural.normalized };
   }
 
+  const { candidate, compacted, spaced } = nicknameVariants(structural.normalized);
   const analysis = filter.analyze(`${candidate} ${spaced} ${compacted}`);
   if (analysis.isProfane) {
-    return { allowed: false, reason: 'offensive', severity: analysis.severity };
+    return { allowed: false, reason: 'offensive', severity: analysis.severity, normalized: candidate };
   }
 
   if (isReservedNickname(candidate)) {
-    return { allowed: false, reason: 'reserved' };
+    return { allowed: false, reason: 'reserved', normalized: candidate };
   }
 
-  return { allowed: true };
+  return { allowed: true, normalized: candidate };
 }
