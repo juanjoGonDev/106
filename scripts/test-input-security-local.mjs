@@ -68,9 +68,9 @@ const leagueSearch = await request(leagueEndpoint, {
   search: searchPayload,
   visibility: 'all',
 });
-assert.equal(leagueSearch.response.status, 400, JSON.stringify(leagueSearch.payload));
-assert.equal(leagueSearch.payload.code, 'invalid_league_search');
-log('League search rejects pattern and statement syntax before the database boundary');
+assert.equal(leagueSearch.response.status, 200, JSON.stringify(leagueSearch.payload));
+assert.ok(Array.isArray(leagueSearch.payload));
+log('League search passes SQL-like text through a bounded RPC parameter');
 
 const leagueWrite = await request(leagueEndpoint, {
   action: 'create-league',
@@ -83,11 +83,13 @@ const leagueWrite = await request(leagueEndpoint, {
 assert.equal(leagueWrite.response.status, 400, JSON.stringify(leagueWrite.payload));
 log('League mutation rejects an invalid nickname before authorization or persistence');
 
-const [statsAfter, leaguesAfter] = await Promise.all([
-  request(gameEndpoint, { action: 'stats' }),
-  request(leagueEndpoint, { action: 'list-leagues', search: '', visibility: 'all' }),
-]);
+const statsAfter = await request(gameEndpoint, { action: 'stats' });
 assert.equal(statsAfter.response.status, 200, JSON.stringify(statsAfter.payload));
+const leaguesAfter = await request(leagueEndpoint, {
+  action: 'list-leagues',
+  search: '',
+  visibility: 'all',
+});
 assert.equal(leaguesAfter.response.status, 200, JSON.stringify(leaguesAfter.payload));
 assert.ok(Array.isArray(leaguesAfter.payload));
 log('Database and public APIs remain healthy after every injection probe');
