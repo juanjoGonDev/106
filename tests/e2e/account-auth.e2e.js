@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
+import { openApplicationPage } from './app-navigation.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -257,9 +259,9 @@ test('login, registration and local linking expose only Google and Facebook with
     const context = await browser.newContext({ baseURL: applicationUrl });
     const page = await context.newPage();
     await installPage(page, { initial });
-    await page.goto(`/${path}`);
+    await openApplicationPage(page, `/${path}`);
     await page.getByRole('button', { name: label }).click();
-    await expect(page).toHaveURL(new RegExp(`/auth/v1/authorize\\?.*provider=${provider}`));
+    await expect(page).toHaveURL(new RegExp(`/auth/v1/authorize\?.*provider=${provider}`));
     expect(new URL(page.url()).searchParams.get('redirect_to')).toBe(`${applicationUrl}/cuenta.html`);
     expect(new URL(page.url()).searchParams.get('code_challenge_method')).toBe('s256');
     await context.close();
@@ -269,7 +271,7 @@ test('login, registration and local linking expose only Google and Facebook with
 test('email registration uses progressive validation, dedicated verification and neutral recovery', async ({ page }) => {
   const authLog = [];
   await installPage(page, { authLog });
-  await page.goto('/registro.html');
+  await openApplicationPage(page, '/registro.html');
 
   const signup = page.locator('#authSubmit');
   await expect(signup).toBeDisabled();
@@ -288,7 +290,7 @@ test('email registration uses progressive validation, dedicated verification and
   await expect(page.locator('#pendingConfirmationEmail')).toContainText('player@example.com');
   expect(authLog.some((entry) => entry.path.endsWith('/signup'))).toBe(true);
 
-  await page.goto('/login.html');
+  await openApplicationPage(page, '/login.html');
   await page.locator('#authEmail').fill('Player@Example.com');
   await page.locator('#authRecovery').click();
   await expect(page.locator('#authStatus')).toHaveText('Si existe una cuenta asociada, recibirás un correo con los siguientes pasos.');
@@ -301,7 +303,7 @@ test('verification accepts a numeric code, synchronizes once and hides resend co
     authLog,
     initial: { accountToken, pendingEmail: 'player@example.com' },
   });
-  await page.goto('/verificar-email.html');
+  await openApplicationPage(page, '/verificar-email.html');
   await page.locator('#authOtp').fill('12a34-56');
   await expect(page.locator('#authOtp')).toHaveValue('123456');
   await expect(page.locator('#verifyEmailCode')).toBeEnabled();
@@ -321,7 +323,7 @@ test('authenticated and local accounts cannot revisit login or registration', as
     const context = await browser.newContext({ baseURL: applicationUrl });
     const page = await context.newPage();
     await installPage(page, { initial });
-    await page.goto(`/${path}`);
+    await openApplicationPage(page, `/${path}`);
     await expect(page).toHaveURL(/\/cuenta\.html$/u);
     await context.close();
   }
@@ -336,7 +338,7 @@ test('records the contextual authenticated account on desktop and mobile', async
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await installPage(page);
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
 
   await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
   await expect(page.locator('#cloudAccountIdentity')).toContainText('player@example.com');
@@ -360,7 +362,7 @@ test('records exact competitive losses and requires explicit merge confirmation'
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await installPage(page, { mode: 'merge', accountLog });
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
 
   const dialog = page.locator('#accountMergeDialog');
   await expect(dialog).toBeVisible();
@@ -386,7 +388,7 @@ test('canceling a merge sends cancellation and performs no confirmation', async 
     accountLog,
     initial: { accountToken, session: session() },
   });
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
   await expect(page.locator('#accountMergeDialog')).toBeVisible();
   await page.locator('#cancelAccountMerge').click();
   await expect(page.locator('#accountMergeDialog')).toBeHidden();
@@ -401,7 +403,7 @@ test('password reset validates progressive requirements and exact confirmation r
   await page.addInitScript(({ storedSession }) => {
     localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
   }, { storedSession: session() });
-  await page.goto('/restablecer-clave.html');
+  await openApplicationPage(page, '/restablecer-clave.html');
 
   await page.locator('#newPassword').fill('NewSecure1!');
   await expect(page.locator('#passwordResetRequirements li[data-met="true"]')).toHaveCount(5);
