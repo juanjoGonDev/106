@@ -64,4 +64,4 @@ test('allows an explicit null access adapter even when a token is returned', asy
     }),
   });
   assert.equal((await service.synchronize()).accountToken, 'd'.repeat(64));
-}));
+});
