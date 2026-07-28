@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
+import { nicknameErrorMessage, validateNickname } from '../_shared/nickname-policy.js';
 import { moderateNickname } from './moderation.ts';
 
 function resolveServiceKey() {
@@ -296,9 +297,16 @@ Deno.serve(async (request) => {
       return jsonResponse(origin, { ...stats, awards });
     }
     if (['profile', 'public-profile', 'nick-status'].includes(action)) {
-      const key = nickKey(body.nick);
-      if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
-      return jsonResponse(origin, await rpc('get_game_player_profile', { p_nick_key: key }));
+      const validation = validateNickname(body.nick);
+      if (!validation.valid) {
+        return jsonResponse(origin, {
+          error: nicknameErrorMessage(validation.reason),
+          code: `nick_${validation.reason}`,
+        }, 400);
+      }
+      return jsonResponse(origin, await rpc('get_game_player_profile', {
+        p_nick_key: validation.key,
+      }));
     }
     if (action === 'access-status') {
       const nick = normalizeNick(body.nick);
