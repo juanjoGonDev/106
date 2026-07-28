@@ -42,7 +42,7 @@ describe('parallel player browser workflow', () => {
 
   it('installs the full GIF encoder only after a shard produced recordings', () => {
     expect(gifEncoder.indexOf('const recordings = recordingFiles();'))
-      .toBeLessThan(gifEncoder.indexOf('installHostedFfmpeg()'));
+      .toBeLessThan(gifEncoder.indexOf('const ffmpeg = gifCapableFfmpeg() || installHostedFfmpeg();'));
     expect(gifEncoder).toContain("process.env.GITHUB_ACTIONS === 'true'");
     expect(gifEncoder).toContain("['apt-get', 'update', '-qq']");
     expect(gifEncoder).toContain("['apt-get', 'install', '-y', '--no-install-recommends', 'ffmpeg']");
