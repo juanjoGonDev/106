@@ -39,13 +39,15 @@ describe('parallel player browser workflow', () => {
     expect(playwrightConfig).toContain("video: visualCapture ? 'off' : 'retain-on-failure'");
   });
 
-  it('installs the full GIF encoder only after a shard produced recordings', () => {
-    expect(gifEncoder.indexOf('const recordings = recordingFiles();'))
-      .toBeLessThan(gifEncoder.indexOf('const ffmpeg = gifCapableFfmpeg() || installHostedFfmpeg();'));
-    expect(gifEncoder).toContain("process.env.GITHUB_ACTIONS === 'true'");
-    expect(gifEncoder).toContain("['apt-get', 'update', '-qq']");
-    expect(gifEncoder).toContain("['apt-get', 'install', '-y', '--no-install-recommends', 'ffmpeg']");
-    expect(gifEncoder).toContain('gifCapableFfmpeg() || installHostedFfmpeg()');
+  it('uses the bundled decoder and a dependency-free GIF encoder', () => {
+    expect(gifEncoder).toContain("'-f', 'rawvideo'");
+    expect(gifEncoder).toContain("Buffer.from('GIF89a')");
+    expect(gifEncoder).toContain("Buffer.from('NETSCAPE2.0')");
+    expect(gifEncoder).toContain('encodeRgbFrameLzw');
+    expect(gifEncoder).toContain('createRgb332Palette');
+    expect(gifEncoder).not.toContain('apt-get');
+    expect(gifEncoder).not.toContain('sudo');
+    expect(gifEncoder).not.toContain('palettegen');
   });
 
   it('publishes complete fragments before one validated canonical artifact', () => {
