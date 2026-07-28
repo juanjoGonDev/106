@@ -4,11 +4,13 @@
     <main style="max-width:560px;margin:0 auto;padding:28px;border:1px solid #2a2e38;border-radius:20px;background:#11131a">
       <p style="margin:0 0 10px;color:#f4c95d;font-size:12px;font-weight:700;letter-spacing:.14em">MINUTO 106</p>
       <h1 style="margin:0 0 16px;font-size:28px;line-height:1.15">Confirma tu cuenta y gana +1 intento diario</h1>
-      <p style="margin:0 0 16px;color:#c6cad3;line-height:1.6">Abre el enlace para confirmar tu email, proteger el acceso a tu progreso y desbloquear el logro <strong style="color:#ffe27f">Cuenta confirmada</strong>.</p>
-      <p style="margin:0 0 22px;color:#c6cad3;line-height:1.6">El enlace es de un solo uso y caduca en <strong>1 hora</strong>. Si caduca, podrás solicitar otro desde la página <strong>Mi cuenta</strong>.</p>
+      <p style="margin:0 0 16px;color:#c6cad3;line-height:1.6">Verifica tu email para proteger el acceso a tu progreso y desbloquear el logro <strong style="color:#ffe27f">Cuenta confirmada</strong>.</p>
+      <p style="margin:0 0 8px;color:#c6cad3;line-height:1.6">Tu código de un solo uso es:</p>
+      <p style="margin:0 0 22px;padding:16px;border:1px solid #f4c95d55;border-radius:14px;background:#08090c;color:#ffe27f;font-family:Consolas,monospace;font-size:30px;font-weight:900;letter-spacing:.24em;text-align:center">{{ .Token }}</p>
       <p style="margin:0 0 22px">
-        <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 18px;border-radius:12px;background:#f4c95d;color:#11131a;font-weight:800;text-decoration:none">Confirmar cuenta y conseguir +1 intento</a>
+        <a href="{{ .SiteURL }}/verificar-email.html?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block;padding:14px 18px;border-radius:12px;background:#f4c95d;color:#11131a;font-weight:800;text-decoration:none">Verificar y conseguir +1 intento</a>
       </p>
+      <p style="margin:0 0 16px;color:#c6cad3;line-height:1.6">El código y el enlace son de un solo uso y caducan en <strong>1 hora</strong>. Puedes solicitar otros desde la pantalla de verificación mientras la cuenta siga pendiente.</p>
       <p style="margin:0;color:#8f96a3;font-size:12px;line-height:1.5">Si no has creado esta cuenta, ignora este mensaje.</p>
     </main>
   </body>
