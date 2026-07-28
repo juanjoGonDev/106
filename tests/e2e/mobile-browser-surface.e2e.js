@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
+import { openApplicationPage } from './app-navigation.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -17,7 +19,7 @@ function projectDevice(testInfo) {
 }
 
 test('blocks mobile page zoom and keeps app browser chrome', async ({ page, context }, testInfo) => {
-  await page.goto('/');
+  await openApplicationPage(page, '/');
 
   await expect.poll(() => page.locator('meta[name="viewport"]').getAttribute('content')).toBe(APP_VIEWPORT_CONTENT);
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', APP_THEME_COLOR);
