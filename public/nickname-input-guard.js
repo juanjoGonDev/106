@@ -1,7 +1,6 @@
 (() => {
   const policy = globalThis.Minuto106NicknamePolicy;
-  const gateState = globalThis.Minuto106NicknameGateState;
-  if (!policy || !gateState) return;
+  if (!policy) return;
 
   const homeInput = document.querySelector('#nick');
   const startButton = document.querySelector('#startButton');
@@ -16,7 +15,7 @@
   }
 
   function currentGate() {
-    return gateState.resolveNicknameGate({
+    return policy.resolveNicknameGate({
       validation: structuralState(homeInput),
       remoteAvailability,
       remotePending,
