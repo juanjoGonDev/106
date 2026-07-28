@@ -5,8 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
   <title>Mi cuenta — Minuto 106</title>
-  <meta name="description" content="Recupera tu progreso con Google, Facebook, email o una clave privada en Minuto 106.">
+  <meta name="description" content="Gestiona tus nicks, proveedores y clave privada de Minuto 106.">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./site.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -15,74 +16,66 @@
   <link rel="stylesheet" href="./v4.css">
   <link rel="stylesheet" href="./v18.css">
   <link rel="stylesheet" href="./v20.css">
+  <link rel="stylesheet" href="./v21.css">
 </head>
 <body>
-  <!-- Google Tag Manager (noscript) -->
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  <!-- End Google Tag Manager (noscript) -->
   <header class="site-header"></header>
   <main class="page-shell account-page">
     <header class="account-page-heading">
       <p class="eyebrow">TU PROGRESO, SIEMPRE CONTIGO</p>
       <h1>Mi cuenta</h1>
-      <p>Juega sin registrarte o vincula una cuenta para recuperar todos tus nicks en cualquier dispositivo.</p>
+      <p>Gestiona tus nicks y elige cómo recuperar la cuenta en otros dispositivos.</p>
     </header>
 
     <div class="account-grid">
       <section id="cloudAccountPanel" class="page-card cloud-account-card" aria-labelledby="cloudAccountTitle">
         <p class="eyebrow">CUENTA EN LA NUBE</p>
-        <h2 id="cloudAccountTitle">Google, Facebook o email</h2>
-        <p>El acceso es opcional. Al vincularlo conservas tu clave privada y todo el progreso existente.</p>
+        <h2 id="cloudAccountTitle">Acceso y vinculación</h2>
         <p id="cloudAccountStatus" class="cloud-account-status" role="status" aria-live="polite"></p>
-        <p id="cloudAccountIdentity" class="cloud-account-identity" hidden></p>
 
-        <div class="oauth-actions" aria-label="Acceso con proveedor social">
-          <button id="googleSignIn" class="oauth-button" type="button">
-            <span aria-hidden="true">G</span>
-            Continuar con Google
-          </button>
-          <button id="facebookSignIn" class="oauth-button" type="button">
-            <span aria-hidden="true">f</span>
-            Continuar con Facebook
-          </button>
-        </div>
-        <p class="social-reward-note"><strong>+1 intento diario:</strong> al vincular por primera vez Google o Facebook. Puedes vincular ambos a la misma cuenta, pero la bonificación social se concede una sola vez y no se suma si la cuenta se creó primero con email.</p>
-
-        <div class="auth-divider"><span>o con email</span></div>
-        <div class="auth-fields">
-          <label for="authEmail">Email</label>
-          <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="tu@email.com">
-          <label for="authPassword">Contraseña</label>
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="10" maxlength="128" placeholder="Mínimo 10 caracteres" aria-describedby="authPasswordRequirements">
-          <ul id="authPasswordRequirements" class="auth-password-requirements" aria-label="Requisitos de contraseña"></ul>
-          <label for="authPasswordConfirmation">Confirmar contraseña <span class="auth-label-note">solo para crear cuenta</span></label>
-          <input id="authPasswordConfirmation" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Repite la contraseña" aria-describedby="authPasswordMatch">
-          <p id="authPasswordMatch" class="auth-password-match" role="status" aria-live="polite"></p>
-        </div>
-        <div id="authCaptcha" class="auth-captcha" hidden></div>
-        <div class="email-auth-actions">
-          <button id="emailSignIn" class="secondary" type="button">Iniciar sesión</button>
-          <button id="emailSignUp" class="primary" type="button">Crear cuenta</button>
-          <button id="emailRecovery" class="ghost" type="button">He olvidado la contraseña</button>
+        <div id="cloudGuestPanel" class="cloud-mode-panel" hidden>
+          <p>Inicia sesión para recuperar una cuenta existente o crea una nueva. También puedes jugar sin registrarte.</p>
+          <div class="account-cloud-actions">
+            <a class="primary" href="./login.html">Iniciar sesión</a>
+            <a class="secondary" href="./registro.html">Crear cuenta</a>
+          </div>
         </div>
 
-        <section id="emailConfirmationPanel" class="email-confirmation-panel" aria-labelledby="emailConfirmationTitle">
-          <p class="eyebrow">ACTIVACIÓN CON PREMIO</p>
-          <h3 id="emailConfirmationTitle">Confirma tu email y gana +1 intento diario</h3>
-          <p>El enlace de activación es de un solo uso y caduca en 1 hora. Al abrirlo también desbloqueas el logro <strong>Cuenta confirmada</strong>.</p>
-          <p id="pendingConfirmationEmail" class="pending-confirmation-email" hidden></p>
-          <button id="emailConfirmationResend" class="secondary" type="button" disabled>Reenviar enlace de activación</button>
-          <p id="emailConfirmationResendStatus" class="confirmation-resend-status" role="status" aria-live="polite">Escribe un email válido para poder reenviar la activación.</p>
-        </section>
+        <div id="cloudLocalLinkPanel" class="cloud-mode-panel" hidden>
+          <p>Este dispositivo ya tiene una cuenta local. Vincúlala para recuperarla sin depender únicamente de la clave privada.</p>
+          <div class="cloud-provider-grid" aria-label="Vincular proveedor social">
+            <button id="googleSignIn" class="oauth-button" type="button">Vincular Google</button>
+            <button id="facebookSignIn" class="oauth-button" type="button">Vincular Facebook</button>
+          </div>
+          <p class="social-reward-note"><strong>+1 intento diario:</strong> la primera vinculación social elegible concede una única bonificación compartida entre Google y Facebook.</p>
+        </div>
 
-        <button id="cloudSignOut" class="ghost cloud-sign-out" type="button" hidden>Cerrar sesión en la nube</button>
+        <div id="cloudPendingPanel" class="cloud-mode-panel" hidden>
+          <p class="eyebrow">ACTIVACIÓN PENDIENTE</p>
+          <h3>Confirma el email y gana +1 intento diario</h3>
+          <p id="pendingConfirmationEmail" class="pending-confirmation-email"></p>
+          <p>El código y el enlace caducan en 1 hora. La verificación también desbloquea el logro <strong>Cuenta confirmada</strong>.</p>
+          <a class="primary" href="./verificar-email.html">Introducir código o abrir enlace</a>
+        </div>
+
+        <div id="cloudAuthenticatedPanel" class="cloud-mode-panel" hidden>
+          <div id="cloudAccountIdentity" class="cloud-identity-summary"></div>
+          <p>Los proveedores vinculados recuperan la misma cuenta canónica y todos sus nicks.</p>
+          <div class="cloud-provider-grid" aria-label="Proveedores vinculados">
+            <button id="authenticatedGoogle" class="oauth-button" type="button">Vincular Google</button>
+            <button id="authenticatedFacebook" class="oauth-button" type="button">Vincular Facebook</button>
+          </div>
+          <button id="cloudSignOut" class="ghost cloud-sign-out" type="button">Cerrar sesión en la nube</button>
+        </div>
+
         <p class="hint">El email se guarda de forma privada y no aparece en perfiles, rankings ni imágenes compartidas.</p>
       </section>
 
       <section class="page-card" aria-labelledby="privateKeyTitle">
         <p class="eyebrow">RECUPERACIÓN PRIVADA</p>
         <h2 id="privateKeyTitle">Tu clave anónima</h2>
-        <p>También puedes seguir usando una clave privada. El servidor almacena solo su hash y no puede recuperar el texto original.</p>
+        <p>También puedes seguir usando una clave privada. El servidor almacena solo su hash.</p>
         <div id="accountSession">
           <p id="accountKeyStatus" class="hint"></p>
           <code id="accountKeyPreview" class="account-key"></code>
@@ -98,12 +91,19 @@
           <input id="importAccountKey" maxlength="64" autocomplete="off" spellcheck="false" placeholder="Pega una clave de cuenta existente">
           <button id="importAccountButton" class="secondary compact" type="button">Importar</button>
         </div>
-        <p class="hint">Quien tenga esta clave podrá usar todos tus nicks. Guárdala en un gestor de contraseñas y no la compartas.</p>
+        <p class="hint">Quien tenga esta clave podrá usar todos tus nicks. Guárdala en un gestor de contraseñas.</p>
       </section>
 
       <section class="page-card account-players-card" aria-labelledby="accountPlayersTitle">
-        <p class="eyebrow">ACCESO RÁPIDO</p>
+        <p class="eyebrow">TUS JUGADORES</p>
         <h2 id="accountPlayersTitle">Mis nicks</h2>
+        <p>Crea un nick desde aquí o recupera los que ya pertenecen a tu cuenta.</p>
+        <div class="account-create-nick">
+          <label class="sr-only" for="accountNickInput">Nuevo nick</label>
+          <input id="accountNickInput" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Nuevo nick, mínimo 3 caracteres" aria-describedby="accountNickStatus">
+          <button id="createAccountNick" class="primary compact" type="button" disabled>Crear nick</button>
+        </div>
+        <p id="accountNickStatus" class="account-nick-status" role="status" aria-live="polite">Escribe un nick para comprobarlo.</p>
         <p id="accountPlayersStatus" class="hint">Cargando…</p>
         <ul id="accountPlayers" class="account-player-list"></ul>
       </section>
@@ -125,9 +125,10 @@
   <footer class="site-footer"></footer>
   <script src="./config.js"></script>
   <script src="./layout.js"></script>
+  <script src="./nickname-policy.js"></script>
+  <script src="./player-ui.js"></script>
   <script src="./access.js"></script>
   <script src="./account.js"></script>
-  <script type="module" src="./account-auth-bootstrap.js"></script>
   <script type="module" src="./account-auth.js"></script>
 </body>
 </html>
