@@ -1,4 +1,5 @@
-import { AUTH_PENDING_CONFIRMATION_STORAGE_KEY, normalizeAuthConfig } from './auth-account-state.js';
+import { normalizeAuthConfig } from './auth-account-state.js';
+import { pendingConfirmationEmail } from './auth-pending-confirmation.js';
 import {
   authRouteUrl,
   localAccountActive,
@@ -18,10 +19,6 @@ export function localAccountSnapshot(access) {
   });
 }
 
-export function pendingConfirmationEmail(storage) {
-  return String(storage?.getItem?.(AUTH_PENDING_CONFIRMATION_STORAGE_KEY) ?? '');
-}
-
 export async function browserAuthExperience({
   client,
   config: configValue,
@@ -29,7 +26,7 @@ export async function browserAuthExperience({
   storage = window.localStorage,
   location = window.location,
 } = {}) {
-  const config = normalizeAuthConfig(configValue);
+  normalizeAuthConfig(configValue);
   const session = client ? await client.currentSession() : null;
   const local = localAccountSnapshot(access);
   return resolveAuthExperience({
