@@ -58,12 +58,11 @@ describe('privacy bootstrap telemetry boundary', () => {
     expect(result.window.dataLayer).toHaveLength(2);
   });
 
-  it('preloads both shared enhancement scripts before layout requests them', () => {
+  it('does not preload deferred enhancement scripts before window load', () => {
     const result = executePrivacyBootstrap('localhost');
-    expect(result.links.filter((link) => link.rel === 'preload')).toEqual([
-      expect.objectContaining({ rel: 'preload', as: 'script', href: './honours.js' }),
-      expect.objectContaining({ rel: 'preload', as: 'script', href: './compliance.js' }),
-    ]);
+    expect(result.links.filter((link) => link.rel === 'preload')).toEqual([]);
+    expect(source).not.toContain('SHARED_SCRIPT_PRELOADS');
+    expect(source).not.toContain('ensureSharedScriptPreloads');
   });
 
   it('keeps production Tag Manager loading unchanged', () => {
