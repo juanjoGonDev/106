@@ -52,6 +52,8 @@ describe('all public input boundaries', () => {
   it('applies the shared nickname policy to debounce, writes and public routes', () => {
     expect(edgeSources.get('supabase/functions/player-context/index.ts')).toContain('moderateNickname(body.nick)');
     expect(edgeSources.get('supabase/functions/player-context/index.ts')).toContain("availability: `invalid-${reason}`");
+    expect(edgeSources.get('supabase/functions/game-api/index.ts')).toContain('validateNickname(body.nick)');
+    expect(edgeSources.get('supabase/functions/game-api/index.ts')).toContain('p_nick_key: validation.key');
     expect(edgeSources.get('supabase/functions/game-api/index.ts')).toContain('moderateNickname');
     expect(edgeSources.get('supabase/functions/league-api/index.ts')).toContain('moderateNickname');
     expect(readFileSync('public/player-ui.js', 'utf8')).toContain('playerShellUrl(validation.normalized');
