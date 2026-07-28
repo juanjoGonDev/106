@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { expect, test } = require(runtimePath);
 
 const appUrl = 'http://localhost:3000';
-const supabaseUrl = String(process.env.SUPABASE_TEST_URL || '').replace(/\/$/, '');
+const supabaseUrl = String(process.env.SUPABASE_TEST_URL || '').replace(/\/$/u, '');
 const anonKey = String(process.env.SUPABASE_TEST_ANON_KEY || '');
 const serviceRoleKey = String(process.env.SUPABASE_TEST_SERVICE_ROLE_KEY || '');
 const databaseUrl = String(process.env.SUPABASE_TEST_DB_URL || '');
@@ -124,22 +124,29 @@ function dailyAttemptState(nick) {
   `));
 }
 
-function expectSingleAuthDailyBonus(nick) {
+function expectDailyState(nick, expectedBonus) {
   const state = dailyAttemptState(nick);
   expect(state.dailyLimitBase).toBe(5);
-  expect(state.authRewardBonus).toBe(1);
-  expect(state.emailVerificationBonus).toBe(1);
-  expect(state.bonusAttempts).toBe(1);
-  expect(state.maxAttempts).toBe(6);
-  expect(state.attemptsLeft).toBe(6);
+  expect(state.authRewardBonus).toBe(expectedBonus);
+  expect(state.emailVerificationBonus).toBe(expectedBonus);
+  expect(state.bonusAttempts).toBe(expectedBonus);
+  expect(state.maxAttempts).toBe(5 + expectedBonus);
+  expect(state.attemptsLeft).toBe(5 + expectedBonus);
   expect(state.dailyLimitCeiling).toBe(10);
 }
 
-function verifyUrl(token) {
+function directVerifyUrl(token) {
   const url = new URL(`${supabaseUrl}/auth/v1/verify`);
   url.searchParams.set('token', token);
   url.searchParams.set('type', 'signup');
-  url.searchParams.set('redirect_to', `${appUrl}/cuenta.html`);
+  url.searchParams.set('redirect_to', `${appUrl}/verificar-email.html`);
+  return url.toString();
+}
+
+function applicationVerifyUrl(tokenHash) {
+  const url = new URL(`${appUrl}/verificar-email.html`);
+  url.searchParams.set('token_hash', tokenHash);
+  url.searchParams.set('type', 'email');
   return url.toString();
 }
 
@@ -212,13 +219,14 @@ async function createAnonymousPlayer(request, token, nick) {
   expect(body.authorized).toBe(true);
 }
 
-async function openAccount(browser, { session = null, accountToken = '' } = {}) {
+async function openPage(browser, path, { session = null, accountToken = '', pendingEmail = '' } = {}) {
   const context = await browser.newContext({ baseURL: appUrl });
-  await context.addInitScript(({ storedSession, token }) => {
+  await context.addInitScript(({ storedSession, token, email }) => {
     localStorage.setItem('minuto106:consent-v1', JSON.stringify({ analytics: false, ads: false }));
     if (storedSession) localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
     if (token) localStorage.setItem('minuto106:account-access-v1', token);
-  }, { storedSession: session, token: accountToken });
+    if (email) localStorage.setItem('minuto106:pending-email-confirmation-v1', email);
+  }, { storedSession: session, token: accountToken, email: pendingEmail });
 
   const page = await context.newPage();
   const errors = [];
@@ -226,7 +234,7 @@ async function openAccount(browser, { session = null, accountToken = '' } = {}) 
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
-  await page.goto(`${appUrl}/cuenta.html`);
+  await page.goto(`${appUrl}/${path}`);
   return {
     context,
     page,
@@ -236,9 +244,13 @@ async function openAccount(browser, { session = null, accountToken = '' } = {}) 
   };
 }
 
+async function openAccount(browser, options = {}) {
+  return openPage(browser, 'cuenta.html', options);
+}
+
 async function recoveredToken(page) {
   await expect.poll(() => page.evaluate(() => localStorage.getItem('minuto106:account-access-v1') || ''))
-    .toMatch(/^[a-f0-9]{64}$/);
+    .toMatch(/^[a-f0-9]{64}$/u);
   return page.evaluate(() => localStorage.getItem('minuto106:account-access-v1'));
 }
 
@@ -250,38 +262,60 @@ async function linkSession(browser, session, token, nick) {
   await opened.context.close();
 }
 
+async function assertProtectedRoute(browser, route, options) {
+  const opened = await openPage(browser, route, options);
+  await expect(opened.page).toHaveURL(/\/cuenta\.html$/u);
+  opened.assertNoErrors();
+  await opened.context.close();
+}
+
 test.describe('real Supabase account authentication @live-auth', () => {
   test.describe.configure({ mode: 'serial' });
   test.skip(!liveEnabled, 'Requires the local Supabase stack and its ephemeral test credentials.');
 
-  test('email signup expires, resends, confirms once and raises the total daily limit from five to six', async ({ browser, request }) => {
+  test('email registration, skip, nick creation, expiry, resend and verification raise the daily limit from five to six', async ({ browser, request }) => {
     const email = `email-origin-${suffix}@example.com`;
     const nick = `Email${suffix}`.slice(0, 24);
-    const token = randomBytes(32).toString('hex');
-    await createAnonymousPlayer(request, token, nick);
-
-    const opened = await openAccount(browser, { accountToken: token });
+    const opened = await openPage(browser, 'registro.html');
     const { page } = opened;
+
+    await expect(page.getByRole('heading', { name: 'Crear cuenta' })).toBeVisible();
     await page.locator('#authEmail').fill(email);
     await page.locator('#authPassword').fill('Short1!');
     await page.locator('#authPasswordConfirmation').fill('Different1!');
-    await expect(page.locator('#emailSignUp')).toBeDisabled();
+    await expect(page.locator('#authSubmit')).toBeDisabled();
     await expect(page.locator('[data-requirement="length"]')).toHaveAttribute('data-met', 'false');
     await expect(page.locator('#authPasswordMatch')).toContainText('no coinciden');
 
     await page.locator('#authPassword').fill(password);
     await page.locator('#authPasswordConfirmation').fill(password);
-    await expect(page.locator('#emailSignUp')).toBeEnabled();
-    await page.locator('#emailSignUp').click();
-    await expect(page.locator('#cloudAccountStatus')).toContainText('durante la próxima hora');
+    await expect(page.locator('#authSubmit')).toBeEnabled();
+    await page.locator('#authSubmit').click();
+    await expect(page).toHaveURL(/\/verificar-email\.html$/u);
     await expect(page.locator('#pendingConfirmationEmail')).toContainText(email);
+    await expect(page.locator('.verification-prize')).toContainText('+1 intento diario');
 
+    await page.getByRole('link', { name: 'Saltar por ahora e ir a Mi cuenta' }).click();
+    await expect(page).toHaveURL(/\/cuenta\.html$/u);
+    await expect(page.locator('#cloudPendingPanel')).toBeVisible();
+    await page.locator('#accountNickInput').fill(nick);
+    await expect(page.locator('#createAccountNick')).toBeEnabled();
+    await page.locator('#createAccountNick').click();
+    await expect(page.locator('#accountPlayers')).toContainText(nick);
+    const token = await recoveredToken(page);
+    const id = accountId(token);
+    expect(id).toBeTruthy();
+    expect(entitlementState(id)).toBe('0|');
+    expect(achievementCount(nick)).toBe(0);
+    expectDailyState(nick, 0);
+
+    await page.goto(`${appUrl}/verificar-email.html`);
     await expect.poll(() => confirmationToken(email)).not.toBe('');
     const expiredToken = confirmationToken(email);
     expireConfirmation(email);
-    const expired = await request.get(verifyUrl(expiredToken), { maxRedirects: 0 });
+    const expired = await request.get(directVerifyUrl(expiredToken), { maxRedirects: 0 });
     const expiredLocation = expired.headers().location || '';
-    expect(expired.status() >= 400 || /error/i.test(expiredLocation)).toBe(true);
+    expect(expired.status() >= 400 || /error/iu.test(expiredLocation)).toBe(true);
 
     await page.evaluate(() => localStorage.setItem('minuto106:email-resend-available-at-v1', '0'));
     await page.reload();
@@ -292,31 +326,30 @@ test.describe('real Supabase account authentication @live-auth', () => {
       && response.request().method() === 'POST'
     ));
     await resendButton.click();
-    const resendResponse = await resendResponsePromise;
-    expect(resendResponse.ok()).toBe(true);
+    expect((await resendResponsePromise).ok()).toBe(true);
     await expect.poll(() => confirmationToken(email)).not.toBe(expiredToken);
     await expect(resendButton).toBeDisabled();
-    await expect(page.locator('#emailConfirmationResendStatus'))
-      .toContainText('Podrás solicitar otro enlace en');
+    await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Podrás solicitar otro código en');
 
     const activeToken = confirmationToken(email);
-    await page.goto(verifyUrl(activeToken));
-    await expect(page).toHaveURL(/localhost:3000\/cuenta\.html/);
-    await expect(page.locator('#cloudAccountStatus')).toContainText('Has recibido +1 intento diario');
-    await expect(page.locator('#cloudAccountStatus')).toContainText('Cuenta confirmada');
-    await expect(page.locator('#accountPlayers')).toContainText(nick);
+    await page.goto(applicationVerifyUrl(activeToken));
+    await expect(page.locator('#verificationSuccess')).toBeVisible();
+    await expect(page.locator('#verificationSuccessMessage')).toContainText('Has recibido +1 intento diario');
+    await expect(page.locator('#verificationSuccessMessage')).toContainText('Cuenta confirmada');
+    expect(new URL(page.url()).searchParams.has('token_hash')).toBe(false);
 
-    const id = accountId(token);
     expect(entitlementState(id)).toBe('1|email_confirmation');
     expect(achievementCount(nick)).toBe(1);
-    expectSingleAuthDailyBonus(nick);
+    expectDailyState(nick, 1);
 
-    const replay = await request.get(verifyUrl(activeToken), { maxRedirects: 0 });
-    const replayLocation = replay.headers().location || '';
-    expect(replay.status() >= 400 || /error/i.test(replayLocation)).toBe(true);
+    const replay = await request.post(`${supabaseUrl}/auth/v1/verify`, {
+      headers: publicHeaders(),
+      data: { token_hash: activeToken, type: 'email' },
+    });
+    expect(replay.status()).toBeGreaterThanOrEqual(400);
     expect(entitlementState(id)).toBe('1|email_confirmation');
     expect(achievementCount(nick)).toBe(1);
-    expectSingleAuthDailyBonus(nick);
+    expectDailyState(nick, 1);
 
     emailOrigin.nick = nick;
     emailOrigin.token = token;
@@ -324,6 +357,9 @@ test.describe('real Supabase account authentication @live-auth', () => {
     emailOrigin.session = await signIn(request, email);
     opened.assertNoErrors();
     await opened.context.close();
+
+    await assertProtectedRoute(browser, 'login.html', { session: emailOrigin.session });
+    await assertProtectedRoute(browser, 'registro.html', { accountToken: token });
   });
 
   test('Google then Facebook share one reward and recover the same nicks from clean browsers', async ({ browser, request }) => {
@@ -339,7 +375,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     await linkSession(browser, googleSession, token, nick);
     const id = accountId(token);
     expect(entitlementState(id)).toBe('1|social_link');
-    expectSingleAuthDailyBonus(nick);
+    expectDailyState(nick, 1);
 
     await createProviderUser(request, 'facebook', facebookEmail);
     const facebookSession = await signIn(request, facebookEmail);
@@ -348,7 +384,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     expect(entitlementState(id)).toBe('1|social_link');
     expect(identityProviders(id)).toBe('facebook,google');
     expect(achievementCount(nick)).toBe(0);
-    expectSingleAuthDailyBonus(nick);
+    expectDailyState(nick, 1);
 
     const recoveredIds = [];
     for (const session of [googleSession, facebookSession]) {
@@ -378,7 +414,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
     expect(entitlementState(emailOrigin.accountId)).toBe('1|email_confirmation');
     expect(achievementCount(emailOrigin.nick)).toBe(1);
     expect(identityProviders(emailOrigin.accountId)).toBe('email,facebook,google');
-    expectSingleAuthDailyBonus(emailOrigin.nick);
+    expectDailyState(emailOrigin.nick, 1);
   });
 
   test('anon and authenticated browser requests cannot access private tables or privileged RPCs', async ({ browser }) => {
@@ -407,7 +443,7 @@ test.describe('real Supabase account authentication @live-auth', () => {
 
     expect(statuses).toHaveLength(6);
     for (const status of statuses) expect([401, 403, 404]).toContain(status);
-    opened.assertNoErrors((error) => /Failed to load resource: the server responded with a status of (401|403|404)/.test(error));
+    opened.assertNoErrors((error) => /Failed to load resource: the server responded with a status of (401|403|404)/u.test(error));
     await opened.context.close();
   });
 });
