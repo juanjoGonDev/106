@@ -6,11 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 const source = readFileSync('public/privacy-bootstrap.js', 'utf8');
 
 function executePrivacyBootstrap(hostname) {
+  const links = [];
   const scripts = [];
   const listeners = new Map();
   const firstScriptParent = { insertBefore: vi.fn((script) => scripts.push(script)) };
   const head = {
     append: vi.fn((element) => {
+      if (element.tagName === 'LINK') links.push(element);
       if (element.tagName === 'SCRIPT') scripts.push(element);
     }),
     querySelector: vi.fn((selector) => selector.startsWith('meta')
@@ -45,7 +47,7 @@ function executePrivacyBootstrap(hostname) {
     window,
   });
 
-  return { document, firstScriptParent, listeners, scripts, window };
+  return { document, firstScriptParent, links, listeners, scripts, window };
 }
 
 describe('privacy bootstrap telemetry boundary', () => {
@@ -54,6 +56,14 @@ describe('privacy bootstrap telemetry boundary', () => {
     expect(result.scripts).toEqual([]);
     expect(result.firstScriptParent.insertBefore).not.toHaveBeenCalled();
     expect(result.window.dataLayer).toHaveLength(2);
+  });
+
+  it('preloads both shared enhancement scripts before layout requests them', () => {
+    const result = executePrivacyBootstrap('localhost');
+    expect(result.links.filter((link) => link.rel === 'preload')).toEqual([
+      expect.objectContaining({ rel: 'preload', as: 'script', href: './honours.js' }),
+      expect.objectContaining({ rel: 'preload', as: 'script', href: './compliance.js' }),
+    ]);
   });
 
   it('keeps production Tag Manager loading unchanged', () => {
