@@ -121,19 +121,21 @@ test('pending email activation can be resent after reload and clearly expires af
   await installPage(page, { authLog, pendingEmail: 'pending@example.com' });
   await page.goto('/cuenta.html');
 
-  const panel = page.locator('#emailConfirmationPanel');
-  await expect(panel).toContainText('caduca en 1 hora');
+  const panel = page.locator('#cloudPendingPanel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('caducan en 1 hora');
   await expect(panel).toContainText('+1 intento diario');
   await expect(panel).toContainText('Cuenta confirmada');
   await expect(page.locator('#pendingConfirmationEmail')).toContainText('pending@example.com');
-  await expect(page.locator('#authEmail')).toHaveValue('pending@example.com');
+  await expect(page.locator('#cloudGuestPanel')).toBeHidden();
+  await expect(page.locator('#cloudLocalLinkPanel')).toBeHidden();
 
   const resend = page.locator('#emailConfirmationResend');
   await expect(resend).toBeEnabled();
   await resend.click();
 
   await expect(page.locator('#cloudAccountStatus')).toContainText('válido durante 1 hora');
-  await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Podrás solicitar otro enlace');
+  await expect(page.locator('#emailConfirmationResendStatus')).toContainText('Podrás solicitar otro código');
   await expect(resend).toBeDisabled();
   expect(authLog.some((entry) => entry.path.endsWith('/resend')
     && entry.body.type === 'signup'
@@ -157,19 +159,21 @@ test('a signed-in Google account can still start Facebook linking without stacki
   });
   await page.goto('/cuenta.html');
 
-  await expect(page.locator('#cloudAccountIdentity')).toContainText('google@example.com · Google');
+  await expect(page.locator('#cloudAccountIdentity')).toContainText('google@example.com');
+  await expect(page.locator('#cloudAccountIdentity')).toContainText('Acceso: Google');
   await expect(page.locator('#cloudAccountStatus')).toContainText('se comparte entre Google y Facebook');
-  await expect(page.getByRole('button', { name: 'Continuar con Google' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Continuar con Facebook' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Google vinculado' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Vincular Facebook' })).toBeEnabled();
   expect(accountLog.some((entry) => entry.action === 'sync-account')).toBe(true);
 
-  await page.getByRole('button', { name: 'Continuar con Facebook' }).click();
+  await page.getByRole('button', { name: 'Vincular Facebook' }).click();
   await expect(page).toHaveURL(/\/auth\/v1\/authorize\?.*provider=facebook/);
 });
 
 test('social-origin reward is granted once and has no email-confirmation achievement', async ({ page }) => {
   await installPage(page, {
     provider: 'facebook',
+    storedSession: authSession('facebook'),
     reward: {
       eligible: true,
       active: true,
@@ -183,10 +187,10 @@ test('social-origin reward is granted once and has no email-confirmation achieve
     },
   });
   await page.goto('/cuenta.html');
-  await page.locator('#authEmail').fill('facebook@example.com');
-  await page.locator('#authPassword').fill('SecurePassword123!');
-  await page.locator('#emailSignIn').click();
 
   await expect(page.locator('#cloudAccountStatus')).toContainText('vinculada con Facebook');
   await expect(page.locator('#cloudAccountStatus')).toContainText('no acumula otra bonificación');
+  await expect(page.locator('#cloudPendingPanel')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Facebook vinculado' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Vincular Google' })).toBeEnabled();
 });
