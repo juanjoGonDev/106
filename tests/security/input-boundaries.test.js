@@ -14,6 +14,10 @@ const hardeningMigration = readFileSync(
   'supabase/migrations/20260728090000_nickname_input_hardening.sql',
   'utf8',
 );
+const leagueSearchMigration = readFileSync(
+  'supabase/migrations/20260729013000_literal_league_search.sql',
+  'utf8',
+);
 
 function rpcArguments(source) {
   return [...source.matchAll(/\brpc\s*\(\s*([^,\n)]+)/g)]
@@ -47,6 +51,15 @@ describe('all public input boundaries', () => {
     expect(edgeSources.get('supabase/functions/league-api/index.ts')).toContain("slice(0, 80)");
     expect(edgeSources.get('supabase/functions/game-api/index.ts')).toContain('slice(0, 40)');
     expect(edgeSources.get('supabase/functions/account-auth/index.ts')).toContain("request.method !== 'POST'");
+  });
+
+  it('treats league searches as bounded literal text rather than SQL patterns', () => {
+    expect(leagueSearchMigration).toContain("v_search text := left(lower(trim(coalesce(p_search, ''))), 80)");
+    expect(leagueSearchMigration).toContain('strpos(lower(league.name), v_search) > 0');
+    expect(leagueSearchMigration).toContain('strpos(lower(league.public_id), v_search) > 0');
+    expect(leagueSearchMigration).not.toMatch(/lower\(league\.(?:name|public_id)\)\s+like/iu);
+    expect(leagueSearchMigration).toMatch(/revoke all on function public\.list_game_leagues[\s\S]+from public, anon, authenticated/iu);
+    expect(leagueSearchMigration).toMatch(/grant execute on function public\.list_game_leagues[\s\S]+to service_role/iu);
   });
 
   it('applies the shared nickname policy to debounce, writes and public routes', () => {
