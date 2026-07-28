@@ -1,17 +1,21 @@
 export const MIN_NICKNAME_LENGTH = 3;
 export const MAX_NICKNAME_LENGTH = 24;
 
-const FORBIDDEN_CHARACTERS = /[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff/\\]/u;
-const ALLOWED_CHARACTERS = /^[\p{L}\p{N} _.'’\-]+$/u;
+const FORBIDDEN_VISIBLE_CHARACTERS = /[\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff/\\]/u;
+const ALLOWED_CHARACTERS = /^[\p{L}\p{N} _.'’-]+$/u;
 const ALPHANUMERIC = /[\p{L}\p{N}]/u;
-const SEPARATOR = /[ _.'’\-]/u;
-const REPEATED_SEPARATORS = /[ _.'’\-]{2,}/u;
+const SEPARATOR = /[ _.'’-]/u;
+const REPEATED_SEPARATORS = /[ _.'’-]{2,}/u;
 
 export function normalizeNickname(value) {
   return String(value ?? '')
     .normalize('NFKC')
     .trim()
     .replace(/\s+/gu, ' ');
+}
+
+function hasControlCharacter(value) {
+  return Array.from(value).some((character) => character.codePointAt(0) < 32);
 }
 
 export function validateNickname(value) {
@@ -25,7 +29,9 @@ export function validateNickname(value) {
   if (characters.length > MAX_NICKNAME_LENGTH) {
     return Object.freeze({ valid: false, normalized, reason: 'too_long' });
   }
-  if (FORBIDDEN_CHARACTERS.test(raw) || !ALLOWED_CHARACTERS.test(normalized)) {
+  if (hasControlCharacter(raw)
+    || FORBIDDEN_VISIBLE_CHARACTERS.test(raw)
+    || !ALLOWED_CHARACTERS.test(normalized)) {
     return Object.freeze({ valid: false, normalized, reason: 'invalid_characters' });
   }
   if (!ALPHANUMERIC.test(normalized)
