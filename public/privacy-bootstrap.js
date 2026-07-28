@@ -5,7 +5,6 @@
   const CONSENT_KEY = 'minuto106:consent-v1';
   const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
   const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost']);
-  const SHARED_SCRIPT_PRELOADS = Object.freeze(['./honours.js', './compliance.js']);
 
   function ensureBrowserSurfaceStylesheet() {
     if (document.querySelector('link[data-minuto106-browser-surface]')) return;
@@ -14,18 +13,6 @@
     stylesheet.href = './browser-surface.css';
     stylesheet.dataset.minuto106BrowserSurface = 'true';
     document.head.append(stylesheet);
-  }
-
-  function ensureSharedScriptPreloads() {
-    for (const href of SHARED_SCRIPT_PRELOADS) {
-      if (document.querySelector(`link[rel="preload"][href="${href}"]`)) continue;
-      const preload = document.createElement('link');
-      preload.rel = 'preload';
-      preload.as = 'script';
-      preload.href = href;
-      preload.dataset.minuto106SharedScript = 'true';
-      document.head.append(preload);
-    }
   }
 
   function ensureMeta(name, createMissing) {
@@ -61,7 +48,6 @@
 
   function configureBrowserSurface() {
     ensureBrowserSurfaceStylesheet();
-    ensureSharedScriptPreloads();
     applyBrowserMetadata();
     installZoomLock();
     const observer = new MutationObserver(() => applyBrowserMetadata());
