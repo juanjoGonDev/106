@@ -117,7 +117,7 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Run isolated responsive journey shard
+      - name: Run isolated responsive journey and encode its evidence
         shell: bash
         env:
           PR_VISUAL_CAPTURE: '1'
@@ -125,19 +125,22 @@ jobs:
         run: |
           set -o pipefail
           pnpm run test:e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ env.EVIDENCE_SHARDS_PER_PROJECT }} 2>&1 | tee playwright-output.txt
+          if compgen -G '.tmp/pr-previews/*.webm' > /dev/null; then
+            node scripts/create-preview-gif.mjs
+          fi
           mkdir -p .tmp/pr-previews
-          touch ".tmp/pr-previews/.fragment-raw-${{ matrix.project }}-${{ matrix.shard }}"
+          touch ".tmp/pr-previews/.fragment-complete-${{ matrix.project }}-${{ matrix.shard }}"
 
       - name: Summarize failed shard
         id: failure
         if: failure()
         run: node scripts/write-playwright-failure-summary.mjs >> "$GITHUB_OUTPUT"
 
-      - name: Upload raw evidence fragment
+      - name: Upload complete evidence fragment
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: platform-evidence-raw-fragment-${{ matrix.project }}-${{ matrix.shard }}
+          name: platform-evidence-fragment-${{ matrix.project }}-${{ matrix.shard }}
           path: .tmp/pr-previews
           if-no-files-found: error
           include-hidden-files: true
@@ -158,57 +161,10 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-  gif-shards:
-    name: 🎞️ GIF · ${{ matrix.project }} · ${{ matrix.shard }}/8
-    if: github.event.pull_request.draft == false
-    needs: browser-shards
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    strategy:
-      fail-fast: false
-      max-parallel: 16
-      matrix:
-        project: [desktop-chrome, mobile-chrome]
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-      - name: Checkout pull request
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Download raw evidence fragment
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
-        with:
-          name: platform-evidence-raw-fragment-${{ matrix.project }}-${{ matrix.shard }}
-          path: .tmp/pr-previews
-
-      - name: Encode shard recordings as GIF
-        shell: bash
-        run: |
-          if compgen -G '.tmp/pr-previews/*.webm' > /dev/null; then
-            node scripts/create-preview-gif.mjs
-          fi
-          touch ".tmp/pr-previews/.fragment-gif-${{ matrix.project }}-${{ matrix.shard }}"
-
-      - name: Upload GIF evidence fragment
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: platform-evidence-gif-fragment-${{ matrix.project }}-${{ matrix.shard }}
-          path: |
-            .tmp/pr-previews/*.gif
-            .tmp/pr-previews/.fragment-gif-${{ matrix.project }}-${{ matrix.shard }}
-          if-no-files-found: error
-          include-hidden-files: true
-          compression-level: 0
-          retention-days: 1
-
   browser:
     name: 🌐 Platform · Desktop, mobile and recordings
     if: github.event.pull_request.draft == false
-    needs: [browser-shards, gif-shards]
+    needs: browser-shards
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -223,7 +179,7 @@ jobs:
       - name: Download isolated evidence fragments
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          pattern: platform-evidence-*-fragment-*
+          pattern: platform-evidence-fragment-*
           path: .tmp/platform-evidence-fragments
 
       - name: Merge fragments and validate complete inventory
