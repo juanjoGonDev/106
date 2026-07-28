@@ -1,5 +1,6 @@
 const LOCAL_SUPABASE_URL = 'http://127.0.0.1:54321';
 const LOCAL_WEB_URL = 'http://127.0.0.1:3000';
+const EXCLUDED_LOCAL_SERVICES = 'studio,imgproxy,realtime,storage-api,postgres-meta,logflare,vector,supavisor';
 
 export const LOCAL_FUNCTION_ENV_PATH = 'supabase/functions/.env';
 export const LOCAL_FUNCTION_ENV = Object.freeze([
@@ -21,18 +22,22 @@ export function localDevelopmentMode(argumentsList = []) {
   return Object.freeze({ resetDatabase: flags.has('--reset') });
 }
 
+export function localSupabaseStartArguments() {
+  return Object.freeze(['start', '-x', EXCLUDED_LOCAL_SERVICES]);
+}
+
 export function localStartupPlan({ resetDatabase, stackRunning }) {
   if (resetDatabase) {
     return Object.freeze([
       Object.freeze({ command: 'supabase', args: Object.freeze(['stop', '--no-backup']), allowFailure: true }),
-      Object.freeze({ command: 'supabase', args: Object.freeze(['start']), allowFailure: false }),
+      Object.freeze({ command: 'supabase', args: localSupabaseStartArguments(), allowFailure: false }),
       Object.freeze({ command: 'supabase', args: Object.freeze(['db', 'reset', '--local']), allowFailure: false }),
     ]);
   }
 
   if (stackRunning) return Object.freeze([]);
   return Object.freeze([
-    Object.freeze({ command: 'supabase', args: Object.freeze(['start']), allowFailure: false }),
+    Object.freeze({ command: 'supabase', args: localSupabaseStartArguments(), allowFailure: false }),
   ]);
 }
 
