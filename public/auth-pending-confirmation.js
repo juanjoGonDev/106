@@ -20,6 +20,24 @@ export function pendingConfirmationSnapshot(storage, now = Date.now()) {
   });
 }
 
+export function pendingConfirmationView(snapshotValue) {
+  const snapshot = snapshotValue && typeof snapshotValue === 'object' ? snapshotValue : {};
+  const email = normalizeEmail(snapshot.email);
+  const resendDelaySeconds = Math.max(0, Math.ceil(Number(snapshot.resendDelaySeconds) || 0));
+  return Object.freeze({
+    email,
+    emailText: email ? `Activación pendiente para ${email}` : '',
+    resendAvailable: Boolean(email) && resendDelaySeconds === 0,
+    resendDelaySeconds,
+    resendStatus: resendDelaySeconds > 0
+      ? `Podrás solicitar otro código en ${resendDelaySeconds} s.`
+      : email
+        ? 'El nuevo código y enlace serán válidos durante 1 hora.'
+        : 'No se encontró un email pendiente.',
+    resendTone: resendDelaySeconds > 0 ? 'warning' : 'neutral',
+  });
+}
+
 export function storePendingConfirmation(storage, emailValue, now = Date.now()) {
   const email = normalizeEmail(emailValue);
   if (!email) throw new Error('Introduce un email válido.');
@@ -27,6 +45,16 @@ export function storePendingConfirmation(storage, emailValue, now = Date.now()) 
   storage.setItem(AUTH_PENDING_CONFIRMATION_STORAGE_KEY, email);
   storage.setItem(AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY, String(availableAt));
   return Object.freeze({ email, availableAt });
+}
+
+export async function resendPendingConfirmation({ client, captcha, storage, now = Date.now() } = {}) {
+  const snapshot = pendingConfirmationSnapshot(storage, now);
+  if (!snapshot.email) throw new Error('No se encontró el email pendiente de verificación.');
+  if (snapshot.resendDelaySeconds > 0) throw new Error('Espera antes de solicitar otro código.');
+  const captchaToken = await captcha.token();
+  await client.resendSignupConfirmation(snapshot.email, { captchaToken });
+  storePendingConfirmation(storage, snapshot.email, now);
+  return pendingConfirmationSnapshot(storage, now);
 }
 
 export function clearPendingConfirmation(storage) {
