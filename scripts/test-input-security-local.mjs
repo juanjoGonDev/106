@@ -68,9 +68,9 @@ const leagueSearch = await request(leagueEndpoint, {
   search: searchPayload,
   visibility: 'all',
 });
-assert.equal(leagueSearch.response.status, 200, JSON.stringify(leagueSearch.payload));
-assert.ok(Array.isArray(leagueSearch.payload));
-log('League search passes SQL-like text through a bounded RPC parameter');
+assert.equal(leagueSearch.response.status, 400, JSON.stringify(leagueSearch.payload));
+assert.equal(leagueSearch.payload.code, 'invalid_league_search');
+log('League search rejects pattern and statement syntax before the database boundary');
 
 const leagueWrite = await request(leagueEndpoint, {
   action: 'create-league',
