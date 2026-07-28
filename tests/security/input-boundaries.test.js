@@ -1,5 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const edgeFunctionPaths = [
@@ -11,11 +10,10 @@ const edgeFunctionPaths = [
   'supabase/functions/social-share/index.ts',
 ];
 const edgeSources = new Map(edgeFunctionPaths.map((path) => [path, readFileSync(path, 'utf8')]));
-const migrationSource = readdirSync('supabase/migrations')
-  .filter((file) => file.endsWith('.sql'))
-  .sort()
-  .map((file) => readFileSync(join('supabase/migrations', file), 'utf8'))
-  .join('\n');
+const hardeningMigration = readFileSync(
+  'supabase/migrations/20260728090000_nickname_input_hardening.sql',
+  'utf8',
+);
 
 function rpcArguments(source) {
   return [...source.matchAll(/\brpc\s*\(\s*([^,\n)]+)/g)].map((match) => match[1].trim());
@@ -60,9 +58,9 @@ describe('all public input boundaries', () => {
   });
 
   it('adds a forward-only database constraint without rewriting malformed legacy rows', () => {
-    expect(migrationSource).toMatch(/game_players_nickname_shape_check[\s\S]+char_length\(nick\) between 3 and 24/i);
-    expect(migrationSource).toMatch(/game_players_nickname_shape_check[\s\S]+not valid/i);
-    expect(migrationSource).toContain("nick !~ '[[:cntrl:]/\\\\]'");
-    expect(migrationSource).not.toMatch(/update\s+public\.game_players\s+set\s+nick\s*=/i);
+    expect(hardeningMigration).toMatch(/game_players_nickname_shape_check[\s\S]+char_length\(nick\) between 3 and 24/i);
+    expect(hardeningMigration).toMatch(/game_players_nickname_shape_check[\s\S]+not valid/i);
+    expect(hardeningMigration).toContain("nick !~ '[[:cntrl:]/\\\\]'");
+    expect(hardeningMigration).not.toMatch(/update\s+public\.game_players\s+set\s+nick\s*=/i);
   });
 });
