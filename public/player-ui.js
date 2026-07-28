@@ -22,7 +22,7 @@
     const policy = globalThis.Minuto106NicknamePolicy;
     if (policy) return policy.validateNickname(value);
     const normalized = normalizeNick(value);
-    return { valid: Array.from(normalized).length >= 3 && Array.from(normalized).length <= 24, normalized };
+    return { valid: Array.from(normalized).length >= 3, normalized };
   }
 
   function isValidNickname(value) {
