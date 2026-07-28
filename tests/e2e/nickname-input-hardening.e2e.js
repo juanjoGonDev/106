@@ -14,6 +14,7 @@ function bodyOf(request) {
 }
 
 async function installRuntime(page) {
+  const state = { turnstileRequests: 0 };
   await page.route('**/config.js*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -29,6 +30,7 @@ async function installRuntime(page) {
   });
 
   await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', async (route) => {
+    state.turnstileRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/javascript',
@@ -81,6 +83,7 @@ async function installRuntime(page) {
       body: JSON.stringify({ availability, profile: null, leagues: [] }),
     });
   });
+  return state;
 }
 
 function trackRuntimeErrors(page) {
@@ -103,7 +106,7 @@ async function fillAndWaitForLookup(page, value) {
 }
 
 test('nickname eligibility is resolved before CAPTCHA and malformed values never start', async ({ page }) => {
-  await installRuntime(page);
+  const runtime = await installRuntime(page);
   const errors = trackRuntimeErrors(page);
   await page.goto('/');
 
@@ -117,26 +120,31 @@ test('nickname eligibility is resolved before CAPTCHA and malformed values never
   await expect(nick).toHaveAttribute('aria-invalid', 'true');
   await expect(start).toBeDisabled();
   await expect(captcha).toBeHidden();
+  expect(runtime.turnstileRequests).toBe(0);
 
   await fillAndWaitForLookup(page, '../..');
   await expect(status).toContainText('no se permiten rutas');
   await expect(start).toBeDisabled();
   await expect(captcha).toBeHidden();
+  expect(runtime.turnstileRequests).toBe(0);
 
   await fillAndWaitForLookup(page, 'admin');
   await expect(status).toHaveText('Este nick está reservado.');
   await expect(start).toBeDisabled();
   await expect(captcha).toBeHidden();
+  expect(runtime.turnstileRequests).toBe(0);
 
   await fillAndWaitForLookup(page, 'pedofilo');
   await expect(status).toContainText('lenguaje ofensivo');
   await expect(start).toBeDisabled();
   await expect(captcha).toBeHidden();
+  expect(runtime.turnstileRequests).toBe(0);
 
   await fillAndWaitForLookup(page, 'Jugador106');
   await expect(nick).toHaveAttribute('aria-invalid', 'false');
   await expect(captcha).toBeVisible();
   await expect(status).toContainText('intentos globales disponibles');
+  await expect.poll(() => runtime.turnstileRequests).toBe(1);
   expect(errors).toEqual([]);
 });
 
