@@ -16,14 +16,14 @@ describe('parallel player browser workflow', () => {
     expect(workflow.match(/timeout-minutes:\s*3/gu)).toHaveLength(3);
   });
 
-  it('distributes complete capture and GIF encoding over parallel browser shards', () => {
-    expect(workflow.match(/max-parallel:\s*32/gu)).toHaveLength(1);
+  it('distributes complete capture and GIF encoding over balanced browser shards', () => {
+    expect(workflow.match(/max-parallel:\s*16/gu)).toHaveLength(1);
     expect(workflow.match(/project: \[desktop-chrome, mobile-chrome\]/gu)).toHaveLength(1);
-    expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]');
+    expect(workflow).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]');
     expect(workflow).toContain('--project=');
     expect(workflow).toContain('matrix.project');
     expect(workflow).toContain('--shard=');
-    expect(workflow).toContain('EVIDENCE_SHARDS_PER_PROJECT: 16');
+    expect(workflow).toContain('EVIDENCE_SHARDS_PER_PROJECT: 8');
     expect(workflow).toContain("PLATFORM_EVIDENCE_FRAGMENT: '1'");
     expect(workflow).toContain("compgen -G '.tmp/pr-previews/*.webm'");
     expect(workflow).toContain('node scripts/create-preview-gif.mjs');
