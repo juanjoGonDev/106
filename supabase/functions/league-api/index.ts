@@ -32,6 +32,7 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const DEVICE_ID = /^[a-zA-Z0-9._:-]{16,80}$/;
 const LEAGUE_ID = /^[A-Z0-9]{6}$/;
+const UNSAFE_SEARCH_PATTERN = /[%_\\;]|--/u;
 const ACTIONS = new Set([
   'create-league',
   'join-league',
@@ -83,6 +84,16 @@ function normalizeVisibility(value: unknown, allowAll = false) {
   const visibility = String(value ?? '').trim().toLowerCase();
   const allowed = allowAll ? ['all', 'public', 'private'] : ['public', 'private'];
   return allowed.includes(visibility) ? visibility : null;
+}
+
+function normalizeLeagueSearch(value: unknown) {
+  const normalized = String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const search = Array.from(normalized).slice(0, 80).join('');
+  return UNSAFE_SEARCH_PATTERN.test(search) ? null : search;
 }
 
 function normalizeInteger(value: unknown, minimum: number, maximum: number) {
@@ -162,6 +173,7 @@ function messageForError(error: string) {
     account_token_required: 'Necesitas la clave privada de tu cuenta.',
     invalid_input: 'Los datos de la liga no son válidos.',
     invalid_league_filter: 'El filtro de ligas no es válido.',
+    invalid_league_search: 'La búsqueda contiene caracteres no permitidos.',
     invalid_league_name: 'El nombre debe tener entre 3 y 40 caracteres.',
     invalid_league_settings: 'El acceso, la duración o el máximo de participantes no son válidos.',
     league_finished: 'La liga ya ha finalizado.',
@@ -199,9 +211,11 @@ Deno.serve(async (request) => {
 
     if (action === 'list-leagues') {
       const visibility = normalizeVisibility(body.visibility ?? 'all', true);
+      const search = normalizeLeagueSearch(body.search);
       if (!visibility) return safeResult(origin, { error: 'invalid_league_filter' });
+      if (search === null) return safeResult(origin, { error: 'invalid_league_search' });
       return safeResult(origin, await rpc('list_game_leagues', {
-        p_search: String(body.search ?? '').trim().slice(0, 80),
+        p_search: search,
         p_visibility: visibility,
         p_limit: 50,
         p_offset: 0,
