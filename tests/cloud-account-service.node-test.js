@@ -73,6 +73,7 @@ test('requires a session and preserves structured backend errors', async () => {
   const noSession = new CloudAccountService(config, { currentSession: async () => null }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
+    access: null,
     fetch: async () => { throw new Error('must not fetch'); },
   });
   await assert.rejects(() => noSession.request('sync-account'), /Inicia sesión/);
@@ -80,6 +81,7 @@ test('requires a session and preserves structured backend errors', async () => {
   const failing = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
+    access: null,
     fetch: async () => response(409, { error: 'Merge required', code: 'merge_required', detail: 1 }),
   });
   await assert.rejects(async () => {
@@ -95,6 +97,7 @@ test('requires a session and preserves structured backend errors', async () => {
   const invalidJson = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
+    access: null,
     fetch: async () => response(500, {}, true),
   });
   await assert.rejects(() => invalidJson.request('sync-account'), /No se pudo vincular la cuenta/);
