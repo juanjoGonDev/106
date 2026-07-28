@@ -98,13 +98,17 @@ test('protects login and registration from authenticated and local-account users
 
 test('protects verification and resolves every account mode', () => {
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify }).redirect, AUTH_ROUTES.register);
+  assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, hasVerificationToken: true }).mode, 'verify');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, pendingEmail: 'USER@example.com' }).mode, 'verify');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, pendingEmail: 'USER@example.com' }).pendingEmail, 'user@example.com');
-  assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, session: session({ confirmed: true }) }).redirect, AUTH_ROUTES.account);
+  assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, session: session({ confirmed: true }), hasVerificationToken: true }).redirect, AUTH_ROUTES.account);
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, session: session(), pendingEmail: '' }).mode, 'verify');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account }).mode, 'guest');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account, hasLocalAccount: true }).mode, 'local-link');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account, hasLocalAccount: true, pendingEmail: 'user@example.com' }).mode, 'pending-email');
+  const pendingIdentity = resolveAuthExperience({ route: AUTH_ROUTES.account, session: session() });
+  assert.equal(pendingIdentity.mode, 'pending-email');
+  assert.equal(pendingIdentity.pendingEmail, 'user@example.com');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account, session: session({ confirmed: true }) }).mode, 'authenticated');
   assert.equal(resolveAuthExperience({ route: '/unknown' }).route, AUTH_ROUTES.account);
 });
@@ -130,6 +134,7 @@ test('shows email verification only for explicit pending or eligible email state
   assert.equal(shouldShowEmailVerification({ redirect: AUTH_ROUTES.account }), false);
   assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.account, pendingEmail: 'user@example.com' })), true);
   assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.verify, pendingEmail: 'user@example.com' })), true);
+  assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.verify, hasVerificationToken: true })), false);
   assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.account, session: session() })), true);
   assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.account, session: session({ confirmed: true }) })), false);
   assert.equal(shouldShowEmailVerification(resolveAuthExperience({ route: AUTH_ROUTES.account, session: session({ provider: 'google' }) })), false);
