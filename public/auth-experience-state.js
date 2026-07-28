@@ -129,12 +129,9 @@ export function resolveAuthExperience({
 export function providerAction(providerValue, mode, identity = null) {
   const provider = normalizeProvider(providerValue);
   if (!provider) return Object.freeze({ provider: '', disabled: true, label: 'Proveedor no disponible' });
-  const linked = identity?.providers?.includes(provider) === true;
-  if (linked) {
-    const name = provider === 'facebook' ? 'Facebook' : 'Google';
-    return Object.freeze({ provider, disabled: true, label: `${name} vinculado` });
-  }
   const name = provider === 'facebook' ? 'Facebook' : 'Google';
+  const linked = identity?.providers?.includes(provider) === true;
+  if (linked) return Object.freeze({ provider, disabled: true, label: `${name} vinculado` });
   const prefix = mode === 'register' ? 'Crear con' : mode === 'local-link' || mode === 'authenticated' ? 'Vincular' : 'Continuar con';
   return Object.freeze({ provider, disabled: false, label: `${prefix} ${name}` });
 }
