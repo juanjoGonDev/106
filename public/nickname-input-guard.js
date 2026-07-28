@@ -1,6 +1,7 @@
 (() => {
   const policy = globalThis.Minuto106NicknamePolicy;
-  if (!policy) return;
+  const gateState = globalThis.Minuto106NicknameGateState;
+  if (!policy || !gateState) return;
 
   const homeInput = document.querySelector('#nick');
   const startButton = document.querySelector('#startButton');
@@ -14,17 +15,12 @@
     return policy.validateNickname(input?.value ?? '');
   }
 
-  function remoteReason(availability) {
-    return String(availability ?? '').startsWith('invalid-')
-      ? String(availability).slice('invalid-'.length)
-      : null;
-  }
-
-  function nicknameReady() {
-    const structural = structuralState(homeInput);
-    return structural.valid
-      && !remotePending
-      && ['available', 'owned'].includes(remoteAvailability);
+  function currentGate() {
+    return gateState.resolveNicknameGate({
+      validation: structuralState(homeInput),
+      remoteAvailability,
+      remotePending,
+    });
   }
 
   function setInputValidity(input, validation) {
@@ -38,19 +34,18 @@
     if (!homeInput || applying) return;
     applying = true;
     const validation = structuralState(homeInput);
-    const reason = remoteReason(remoteAvailability);
+    const gate = currentGate();
     setInputValidity(homeInput, validation);
 
-    if (!validation.valid && status) {
-      status.textContent = policy.nicknameErrorMessage(validation.reason);
-    } else if (reason && status) {
-      status.textContent = policy.nicknameErrorMessage(reason);
-      homeInput.setCustomValidity(policy.nicknameErrorMessage(reason));
+    if (gate.reason && status) {
+      const message = policy.nicknameErrorMessage(gate.reason);
+      status.textContent = message;
+      homeInput.setCustomValidity(message);
       homeInput.setAttribute('aria-invalid', 'true');
     }
 
-    if (startButton && !nicknameReady()) startButton.disabled = true;
-    if (captchaContainer) captchaContainer.hidden = !nicknameReady();
+    if (startButton && !gate.startAllowed) startButton.disabled = true;
+    if (captchaContainer) captchaContainer.hidden = !gate.captchaAllowed;
     applying = false;
   }
 
@@ -88,7 +83,7 @@
     });
 
     startButton?.addEventListener('click', (event) => {
-      if (nicknameReady()) return;
+      if (currentGate().startAllowed) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       applyHomeGate();
