@@ -22,13 +22,11 @@ async function request(url, body, headers = {}) {
     signal: AbortSignal.timeout(15_000),
   });
   const text = await response.text();
-  let payload = {};
   try {
-    payload = text ? JSON.parse(text) : {};
+    return { response, payload: text ? JSON.parse(text) : {} };
   } catch {
     throw new Error(`Expected JSON from ${url}, received: ${text.slice(0, 300)}`);
   }
-  return { response, payload };
 }
 
 function log(message) {
