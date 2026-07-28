@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 
+import { main as waitForLocalPostgrest } from './wait-for-postgrest-local.mjs';
+
 const gameEndpoint = process.env.SUPABASE_FUNCTION_URL
   ?? 'http://127.0.0.1:54321/functions/v1/game-api';
 const playerContextEndpoint = gameEndpoint.replace(/\/game-api$/, '/player-context');
@@ -32,6 +34,8 @@ async function request(url, body, headers = {}) {
 function log(message) {
   process.stdout.write(`✓ ${message}\n`);
 }
+
+await waitForLocalPostgrest();
 
 for (const [nick, expectedAvailability] of [
   ['..', 'invalid-too_short'],
