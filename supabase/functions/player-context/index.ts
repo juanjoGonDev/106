@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
+import { nicknameErrorMessage, normalizeNickname } from '../_shared/nickname-policy.js';
+import { moderateNickname } from '../game-api/moderation.ts';
 
 function resolveServiceKey() {
   const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -62,17 +64,8 @@ function jsonResponse(origin: string | null, body: unknown, status = 200) {
   });
 }
 
-function normalizeNick(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFKC')
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .slice(0, 24);
-}
-
 function nickKey(value: unknown) {
-  return normalizeNick(value).toLocaleLowerCase('es');
+  return normalizeNickname(value).toLocaleLowerCase('es');
 }
 
 function normalizeAchievementCodes(value: unknown) {
@@ -182,9 +175,26 @@ Deno.serve(async (request) => {
       return jsonResponse(origin, { error: 'Acción desconocida.' }, 404);
     }
 
-    const nick = normalizeNick(body.nick);
+    const moderation = moderateNickname(body.nick);
+    if (!moderation.allowed) {
+      const reason = String(moderation.reason ?? 'invalid');
+      const validation = {
+        code: `nick_${reason}`,
+        message: nicknameErrorMessage(reason),
+      };
+      if (action === 'player-context') {
+        return jsonResponse(origin, {
+          availability: `invalid-${reason}`,
+          profile: null,
+          leagues: [],
+          validation,
+        });
+      }
+      return jsonResponse(origin, { error: validation.message, code: validation.code }, 400);
+    }
+
+    const nick = String(moderation.normalized ?? '');
     const key = nickKey(nick);
-    if (key.length < 2) return jsonResponse(origin, { error: 'Nick inválido.' }, 400);
 
     if (action === 'player-context') {
       return jsonResponse(origin, await loadPlayerContext(request, key));
