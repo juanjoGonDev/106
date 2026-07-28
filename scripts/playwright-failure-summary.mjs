@@ -1,8 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
-const ANSI_ESCAPE = /\u001b\[[0-9;]*m/gu;
+const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'gu');
 const NON_SLUG = /[^a-z0-9]+/gu;
 const MAX_SLUG_LENGTH = 120;
 
@@ -47,21 +45,3 @@ export function playwrightFailureSlug(report, output = '') {
   const outputLine = String(output).replace(ANSI_ESCAPE, '').split(/\r?\n/u).filter(Boolean).at(-1) || 'postprocess-failure';
   return slugifyFailure(outputLine);
 }
-
-function readJson(path) {
-  if (!existsSync(path)) return {};
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return {};
-  }
-}
-
-function run() {
-  const reportPath = process.argv[2] || 'playwright-results.json';
-  const outputPath = process.argv[3] || 'playwright-output.txt';
-  const output = existsSync(outputPath) ? readFileSync(outputPath, 'utf8') : '';
-  process.stdout.write(`slug=${playwrightFailureSlug(readJson(reportPath), output)}\n`);
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) run();
