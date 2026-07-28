@@ -64,6 +64,43 @@ wait_for_auth_database() {
   return 1
 }
 
+probe_edge_function() {
+  local endpoint=$1
+  local payload=$2
+  curl --silent --show-error --fail --max-time 5 \
+    --request POST \
+    --header 'content-type: application/json' \
+    --header 'origin: http://127.0.0.1:3000' \
+    --data "$payload" \
+    "$endpoint" \
+    >/dev/null
+}
+
+wait_for_edge_functions() {
+  load_local_supabase_environment
+
+  local attempt
+  for attempt in $(seq 1 45); do
+    if [[ -n "$FUNCTION_PID" ]] && ! kill -0 "$FUNCTION_PID" 2>/dev/null; then
+      echo 'The local Edge Function runtime exited before becoming ready.' >&2
+      cat supabase-functions.log >&2 || true
+      return 1
+    fi
+
+    if probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' \
+      && probe_edge_function "$API_URL/functions/v1/player-context" '{"action":"player-context","nick":"Warmup106"}' \
+      && probe_edge_function "$API_URL/functions/v1/league-api" '{"action":"list-leagues","search":"","visibility":"all"}'; then
+      echo "✓ game, player-context and league Edge Functions are warm after ${attempt} probe(s)"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo 'Local Edge Functions did not become ready within 45 seconds.' >&2
+  cat supabase-functions.log >&2 || true
+  return 1
+}
+
 run_auth_integration() {
   node scripts/test-account-auth-local.mjs
   node scripts/test-verified-email-reward-local.mjs
@@ -92,12 +129,13 @@ supabase start \
 wait_for_auth_database
 echo '::endgroup::'
 
-echo '::group::Serve all Edge Functions in the local runtime'
+echo '::group::Serve and warm all Edge Functions in the local runtime'
 supabase functions serve \
   --env-file supabase/functions/.env \
   > supabase-functions.log 2>&1 &
 FUNCTION_PID=$!
 echo "$FUNCTION_PID" > .supabase-functions.pid
+wait_for_edge_functions
 echo '::endgroup::'
 
 echo '::group::Run complete API and persistence journey'
@@ -120,6 +158,7 @@ echo '::endgroup::'
 echo '::group::Rebuild database entirely from migrations'
 supabase db reset
 wait_for_auth_database
+wait_for_edge_functions
 echo '::endgroup::'
 
 echo '::group::Re-run API smoke checks after database rebuild'
