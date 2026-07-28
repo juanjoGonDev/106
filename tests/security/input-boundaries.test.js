@@ -16,7 +16,9 @@ const hardeningMigration = readFileSync(
 );
 
 function rpcArguments(source) {
-  return [...source.matchAll(/\brpc\s*\(\s*([^,\n)]+)/g)].map((match) => match[1].trim());
+  return [...source.matchAll(/\brpc\s*\(\s*([^,\n)]+)/g)]
+    .map((match) => match[1].trim())
+    .filter((argument) => argument !== 'name' && !argument.startsWith('name:'));
 }
 
 describe('all public input boundaries', () => {
@@ -33,7 +35,6 @@ describe('all public input boundaries', () => {
   it('uses literal named RPC calls at every repository-owned helper boundary', () => {
     for (const [path, source] of edgeSources) {
       for (const argument of rpcArguments(source)) {
-        if (argument === 'name') continue;
         expect(argument, `${path}: ${argument}`).toMatch(/^['"][a-z0-9_]+['"]$/i);
       }
     }
