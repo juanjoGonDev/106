@@ -92,3 +92,37 @@ test('all user-facing rejection reasons have deterministic messages', () => {
   assert.equal(browser.nicknameErrorMessage('unknown'), 'El nick no es válido.');
   assert.ok(Object.isFrozen(browser));
 });
+
+test('gate decisions keep captcha and start unavailable until debounce validates an eligible nickname', () => {
+  const browser = browserPolicy();
+  const valid = browser.validateNickname('Jugador106');
+  const invalid = browser.validateNickname('../..');
+
+  assert.equal(browser.remoteNicknameReason(null), null);
+  assert.equal(browser.remoteNicknameReason('available'), null);
+  assert.equal(browser.remoteNicknameReason('invalid-reserved'), 'reserved');
+
+  assert.deepEqual({ ...browser.resolveNicknameGate({ validation: invalid }) }, {
+    ready: false,
+    reason: 'invalid_characters',
+    captchaAllowed: false,
+    startAllowed: false,
+  });
+  assert.deepEqual({ ...browser.resolveNicknameGate({ validation: undefined }) }, {
+    ready: false,
+    reason: 'invalid',
+    captchaAllowed: false,
+    startAllowed: false,
+  });
+  assert.equal(browser.resolveNicknameGate({ validation: valid, remotePending: true, remoteAvailability: 'available' }).ready, false);
+  assert.equal(browser.resolveNicknameGate({ validation: valid, remoteAvailability: 'unknown' }).ready, false);
+  assert.equal(browser.resolveNicknameGate({ validation: valid, remoteAvailability: 'occupied' }).ready, false);
+  assert.equal(browser.resolveNicknameGate({ validation: valid, remoteAvailability: 'invalid-offensive' }).reason, 'offensive');
+  assert.deepEqual({ ...browser.resolveNicknameGate({ validation: valid, remoteAvailability: 'available' }) }, {
+    ready: true,
+    reason: null,
+    captchaAllowed: true,
+    startAllowed: true,
+  });
+  assert.equal(browser.resolveNicknameGate({ validation: valid, remoteAvailability: 'owned' }).ready, true);
+});
