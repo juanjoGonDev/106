@@ -19,6 +19,15 @@ export function localAccountSnapshot(access) {
   });
 }
 
+export function locationHasVerificationToken(locationValue) {
+  try {
+    const url = new URL(locationValue?.href || String(locationValue || ''), 'http://localhost');
+    return Boolean(url.searchParams.get('token_hash'));
+  } catch {
+    return false;
+  }
+}
+
 export async function browserAuthExperience({
   client,
   config: configValue,
@@ -34,6 +43,7 @@ export async function browserAuthExperience({
     session,
     hasLocalAccount: localAccountActive(local),
     pendingEmail: pendingConfirmationEmail(storage),
+    hasVerificationToken: locationHasVerificationToken(location),
   });
 }
 
