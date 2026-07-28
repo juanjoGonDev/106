@@ -13,24 +13,23 @@ function stepBlock(name) {
 }
 
 describe('parallel player browser workflow', () => {
-  it('caps every evidence stage at three minutes', () => {
+  it('caps the complete evidence workflow at three minutes per critical stage', () => {
     expect(workflow).not.toMatch(/timeout-minutes:\s*(?:15|30)/u);
-    expect(workflow.match(/timeout-minutes:\s*3/gu)).toHaveLength(4);
+    expect(workflow.match(/timeout-minutes:\s*3/gu)).toHaveLength(3);
+    expect(workflow).not.toContain('gif-shards:');
   });
 
-  it('isolates complete capture and GIF encoding over parallel browser shards', () => {
-    expect(workflow.match(/max-parallel:\s*16/gu)).toHaveLength(2);
-    expect(workflow.match(/project: \[desktop-chrome, mobile-chrome\]/gu)).toHaveLength(2);
-    expect(workflow.match(/shard: \[1, 2, 3, 4, 5, 6, 7, 8\]/gu)).toHaveLength(2);
+  it('captures and encodes evidence inside sixteen parallel browser shards', () => {
+    expect(workflow.match(/max-parallel:\s*16/gu)).toHaveLength(1);
+    expect(workflow.match(/project: \[desktop-chrome, mobile-chrome\]/gu)).toHaveLength(1);
+    expect(workflow.match(/shard: \[1, 2, 3, 4, 5, 6, 7, 8\]/gu)).toHaveLength(1);
     expect(workflow).toContain('--project=');
     expect(workflow).toContain('matrix.project');
     expect(workflow).toContain('--shard=');
     expect(workflow).toContain('EVIDENCE_SHARDS_PER_PROJECT: 8');
     expect(workflow).toContain("PLATFORM_EVIDENCE_FRAGMENT: '1'");
-    expect(workflow).toContain('gif-shards:');
-    expect(workflow).toContain('needs: browser-shards');
-    expect(stepBlock('Run isolated responsive journey shard')).not.toContain('create-preview-gif.mjs');
-    expect(stepBlock('Encode shard recordings as GIF')).toContain('node scripts/create-preview-gif.mjs');
+    expect(stepBlock('Run isolated responsive journey and encode its evidence')).toContain("compgen -G '.tmp/pr-previews/*.webm'");
+    expect(stepBlock('Run isolated responsive journey and encode its evidence')).toContain('node scripts/create-preview-gif.mjs');
     expect(workflow).not.toContain('continue-on-error: true');
   });
 
@@ -49,17 +48,16 @@ describe('parallel player browser workflow', () => {
     expect(gifEncoder).toContain('gifCapableFfmpeg() || installHostedFfmpeg()');
   });
 
-  it('publishes raw and GIF fragments before one validated canonical artifact', () => {
-    expect(workflow).toContain('platform-evidence-raw-fragment-');
-    expect(workflow).toContain('platform-evidence-gif-fragment-');
-    expect(workflow.match(/include-hidden-files:\s*true/gu)).toHaveLength(2);
-    expect(workflow).toContain('needs: [browser-shards, gif-shards]');
+  it('publishes complete fragments before one validated canonical artifact', () => {
+    expect(workflow).toContain('platform-evidence-fragment-');
+    expect(workflow.match(/include-hidden-files:\s*true/gu)).toHaveLength(1);
+    expect(workflow).toContain('needs: browser-shards');
     expect(workflow).toContain('actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c');
-    expect(workflow).toContain('pattern: platform-evidence-*-fragment-*');
+    expect(workflow).toContain('pattern: platform-evidence-fragment-*');
     expect(workflow).toContain('node scripts/merge-platform-evidence.mjs');
     expect(workflow).toContain('node scripts/package-platform-evidence.mjs');
     expect(workflow).toContain('name: platform-evidence-${{ github.run_id }}');
-    expect(workflow.match(/compression-level:\s*0/gu).length).toBeGreaterThanOrEqual(4);
+    expect(workflow.match(/compression-level:\s*0/gu).length).toBeGreaterThanOrEqual(3);
   });
 
   it('surfaces concise failure fingerprints without uploading duplicate preview trees', () => {
