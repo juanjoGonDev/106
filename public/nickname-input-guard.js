@@ -70,8 +70,12 @@
       homeInput.setAttribute('aria-invalid', 'true');
     }
 
-    if (startButton && !gate.startAllowed) startButton.disabled = true;
-    if (captchaContainer) captchaContainer.hidden = !gate.captchaAllowed;
+    if (startButton && startButton.disabled !== !gate.startAllowed) {
+      startButton.disabled = !gate.startAllowed;
+    }
+    if (captchaContainer && captchaContainer.hidden !== !gate.captchaAllowed) {
+      captchaContainer.hidden = !gate.captchaAllowed;
+    }
     if (gate.captchaAllowed) releaseCaptchaScripts();
     applying = false;
   }
