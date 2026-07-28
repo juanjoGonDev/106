@@ -9,6 +9,7 @@ import {
 test('normalizes safe bounded artifact slugs', () => {
   assert.equal(slugifyFailure('  Verificación Ágil: Error!  '), 'verificacion-agil-error');
   assert.equal(slugifyFailure('***'), 'unknown');
+  assert.equal(slugifyFailure(null), 'unknown');
   assert.equal(slugifyFailure('a'.repeat(200)).length, 120);
   assert.equal(slugifyFailure(`${'a'.repeat(119)}---`).endsWith('-'), false);
 });
@@ -69,4 +70,49 @@ test('ignores passed and skipped results before selecting a failure', () => {
     }],
   };
   assert.equal(playwrightFailureSlug(report), 'playwright-broken-failed');
+});
+
+test('covers defensive report shapes and every fallback field', () => {
+  assert.equal(playwrightFailureSlug({ suites: 'invalid' }, '\nlast line\n'), 'last-line');
+  assert.equal(playwrightFailureSlug({ suites: [{ suites: 'invalid', specs: 'invalid' }] }), 'postprocess-failure');
+  assert.equal(playwrightFailureSlug({ suites: [{ specs: [{ tests: 'invalid' }] }] }), 'postprocess-failure');
+  assert.equal(playwrightFailureSlug({ suites: [{ specs: [{ tests: [{ results: 'invalid' }] }] }] }), 'postprocess-failure');
+  assert.equal(playwrightFailureSlug({
+    suites: [{
+      specs: [{
+        tests: [{
+          title: 'test title',
+          results: [{ status: 'failed', error: { message: '\nSecond line' } }],
+        }],
+      }],
+    }],
+  }), 'playwright-test-title-second-line');
+  assert.equal(playwrightFailureSlug({
+    suites: [{ specs: [{ tests: [{ results: [{ status: 'failed' }] }] }] }],
+  }), 'playwright-test-failed');
+  assert.equal(playwrightFailureSlug({
+    suites: [{
+      file: '/suite-file.js',
+      specs: [{
+        file: '/spec-file.js',
+        title: '',
+        tests: [{
+          title: '',
+          results: [{ status: 'failed', errors: [{ message: '' }] }],
+        }],
+      }],
+    }],
+  }), 'spec-file-js-test-failed');
+});
+
+test('handles empty nullable failure messages', () => {
+  assert.equal(playwrightFailureSlug({
+    suites: [{
+      specs: [{
+        tests: [{
+          results: [{ status: null, errors: [{ message: null }], error: { message: null } }],
+        }],
+      }],
+    }],
+  }), 'playwright-test');
 });
