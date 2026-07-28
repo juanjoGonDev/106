@@ -48,6 +48,7 @@ test('derives unique providers from metadata and identities', () => {
     identities: [{ provider: 'email' }, { provider: 'facebook' }, null],
   }))], ['google', 'facebook', 'email']);
   assert.deepEqual([...sessionProviders(session({ provider: 'email' }))], ['email']);
+  assert.deepEqual([...sessionProviders({ user: { app_metadata: {}, identities: [] } })], []);
 });
 
 test('summarizes email and social identities with verification eligibility', () => {
@@ -69,6 +70,26 @@ test('summarizes email and social identities with verification eligibility', () 
   assert.deepEqual([...social.socialProviders], ['google', 'facebook']);
   assert.equal(social.primaryProvider, 'google');
   assert.equal(social.verificationEligible, false);
+
+  const autoLinked = authIdentity(session({
+    provider: 'email',
+    providers: ['email', 'google'],
+    confirmed: false,
+  }));
+  assert.equal(autoLinked.primaryProvider, 'email');
+  assert.deepEqual([...autoLinked.socialProviders], ['google']);
+  assert.equal(autoLinked.verificationEligible, false);
+
+  const legacy = authIdentity({
+    user: {
+      email: 'legacy@example.com',
+      email_confirmed_at: null,
+      app_metadata: {},
+    },
+  });
+  assert.equal(legacy.primaryProvider, 'email');
+  assert.deepEqual([...legacy.providers], []);
+  assert.equal(legacy.verificationEligible, true);
 });
 
 test('detects local account ownership without creating a token', () => {
