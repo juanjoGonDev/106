@@ -12,29 +12,33 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 
 - ESLint rejected `tests/e2e/account-auth.e2e.js` because a RegExp constructor escaped `?` unnecessarily.
 - The local Supabase journey sent a malformed SQL-like nickname to the read-only profile action. `game-api` called `get_game_player_profile` before structural validation, the RPC failed and the public boundary returned HTTP 500.
+- SQL-pattern and statement syntax reached the league-directory RPC and could return HTTP 500 instead of a bounded validation error.
 - Several independent Playwright shards timed out in their first `page.goto()` while the page was visibly rendered.
 - `nickname-input-guard.js` observed `disabled` and `hidden`, then assigned those same properties on every observer callback. Reassigning an unchanged reflected boolean attribute retriggered the observer and continuously queued `applyHomeGate` microtasks.
 - Making the nickname gate an exact two-way owner of `startButton.disabled` exposed a separate ownership bug: it could re-enable a button that the competition or daily-limit controller had disabled.
 - The CAPTCHA account-protection journey clicked while the dialog still had `data-phase="loading"`; desktop discarded those clicks while mobile timing sometimes hid the race.
 - The registration test persisted an incomplete consent record without `updatedAt`, so a later navigation showed the cookie banner and intercepted the recovery button.
 - Browser shards that produced explicit WebM evidence passed their Playwright tests, then failed GIF conversion because Playwright's bundled FFmpeg lacks GIF muxing and palette filters.
-- The prior combined browser/GIF shard made every runner install browser tooling and potentially FFmpeg in one critical path. Separate raw-capture and GIF matrices retain high parallelism while keeping each stage bounded.
+- Installing full Ubuntu FFmpeg downloaded 62.8 MB across 87 packages and consumed the complete three-minute budget after the slowest shard had already passed all eight tests in 26.4 seconds.
+- After direct PostgreSQL role probes, local PostgREST can briefly expose `Database client error. Retrying the connection.`; assertions must start only after the authoritative RPC pool is ready.
 
 ## Decisions
 
-1. Keep eight Desktop and eight Mobile shards for browser execution, with `max-parallel: 16` and a three-minute limit.
-2. Run GIF encoding in a second eight-by-two matrix, also `max-parallel: 16` and limited to three minutes, consuming only the raw fragment produced by its matching browser shard.
+1. Keep eight Desktop and eight Mobile shards, `max-parallel: 16`, and three-minute limits. Do not add a sequential GIF matrix.
+2. Keep test, explicit WebM recording and GIF generation inside the matching parallel shard so the final inventory merge starts immediately after the slowest shard.
 3. Use one Playwright worker in visual-capture shards to avoid competing explicit video contexts; retain two workers for normal non-capture execution. Sixteen runners still execute in parallel.
 4. Disable Playwright's implicit per-test video during visual capture because maintained journeys already create, close and save their own complete recordings.
-5. Install full system FFmpeg only after a GIF shard confirms that its downloaded fragment contains WebM recordings and no GIF-capable binary is available.
-6. Make the nickname gate idempotent without taking ownership from other controllers: it may disable the start button, but it never enables a button disabled by competition, quota or readiness state.
-7. Add deterministic VM regressions proving the mutation queue settles and externally disabled start state is preserved.
-8. Validate `profile`, `public-profile` and `nick-status` through the shared structural nickname policy before invoking PostgreSQL.
-9. Return HTTP 400 with the shared `nick_<reason>` code for malformed read-only nickname requests. Do not expose database errors or treat invalid input as an internal failure.
-10. Tighten the real local Supabase regression to require the exact 400 response and `nick_invalid_characters` code.
-11. Wait for CAPTCHA `data-phase="solving"` and observable progress between clicks instead of sleeps or retries.
-12. Persist the complete consent fixture across authentication navigations.
-13. Keep ESLint strict and replace the unnecessary escape with a character class rather than suppressing the rule.
+5. Reuse Playwright's lightweight FFmpeg only as a WebM-to-RGB decoder. Encode looping GIF89a evidence directly in Node with a deterministic RGB332 palette and bounded nine-bit LZW dictionary.
+6. Never run `apt-get`, `sudo` or install a GIF dependency inside evidence shards.
+7. Make the nickname gate idempotent without taking ownership from other controllers: it may disable the start button, but it never enables a button disabled by competition, quota or readiness state.
+8. Add deterministic VM regressions proving the mutation queue settles and externally disabled start state is preserved.
+9. Validate `profile`, `public-profile` and `nick-status` through the shared structural nickname policy before invoking PostgreSQL.
+10. Reject league searches containing wildcard, escape or statement syntax before invoking PostgreSQL and return HTTP 400 `invalid_league_search`.
+11. Tighten the real local Supabase regressions to require the exact controlled validation codes.
+12. Add one bounded PostgREST readiness boundary after direct permission probes. This may absorb a transient local pool reconnect, but behavioral assertions themselves are never retried.
+13. Wait for CAPTCHA `data-phase="solving"` and observable progress between clicks instead of sleeps or retries.
+14. Persist the complete consent fixture across authentication navigations.
+15. Keep ESLint strict and replace the unnecessary escape with a character class rather than suppressing the rule.
 
 ## Acceptance criteria
 
@@ -43,10 +47,12 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 - [x] Nickname validation cannot re-enable a button disabled by competition or daily-limit state.
 - [x] SQL-like nickname input on the profile action returns HTTP 400 before the database boundary.
 - [x] The profile rejection uses `nick_invalid_characters` and the shared user-facing validation message.
+- [x] Unsafe league search syntax returns HTTP 400 `invalid_league_search` before the RPC boundary.
 - [x] ESLint no longer reports `no-useless-escape` in the authentication journey.
 - [x] CAPTCHA interaction waits for a real interactive state without arbitrary delays.
 - [x] Authentication navigation preserves a valid complete consent state.
-- [x] GIF encoding installs full FFmpeg only in matching encoding shards that have recordings.
+- [x] GIF generation requires no package installation and remains inside the existing parallel shard.
+- [x] PostgREST readiness is bounded and isolated from behavioral assertions.
 - [x] No retry, skip, timeout increase or browser-shard reduction is introduced.
 - [ ] Pull Request Quality Pipeline is green on the final head.
 - [ ] Player Pages and Social Cards is green on the final head.
@@ -55,24 +61,25 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 ## Validation
 
 - `node --check public/nickname-input-guard.js`
-- Vitest regressions for observer stability, external start-button ownership and isolated evidence stages.
-- Security contract assertions for shared profile nickname validation.
-- Local Supabase input-security journey with real Edge Functions and PostgreSQL.
+- Vitest regressions for observer stability, external start-button ownership, GIF LZW output and PostgREST readiness.
+- Security contract assertions for shared profile and league-search validation.
+- Local Supabase input-security journey with real Edge Functions, PostgREST and PostgreSQL.
 - ESLint over repository JavaScript.
 - Full Desktop/Mobile Playwright browser matrix with no retries.
-- Matching parallel GIF matrix and final fragment inventory merge.
+- In-shard WebM decoding/GIF encoding and final fragment inventory merge.
 - Final workflow run IDs, job durations and evidence digest must be recorded after CI completes.
 
 ## Risks
 
 - The browser fix changes only redundant DOM writes and ownership boundaries. A controller may enable only the state it owns.
 - Structural validation now rejects malformed legacy profile URLs before PostgreSQL. Valid existing nicknames remain accepted by the same shared policy and database constraint used elsewhere.
-- GIF jobs add a second parallel stage, but avoid serial conversion in browser shards and install FFmpeg only where a recording exists.
+- RGB332 is a deterministic 256-colour GIF palette. Source WebM and PNG evidence remain available at full browser capture quality.
+- The readiness loop is limited to local PostgREST startup/reconnection and does not conceal deterministic API failures.
 - Sequential GitHub contents writes generated several small commits because the connected GitHub API does not expose an atomic patch operation. They remain on the existing task branch and PR; no additional branch or PR was created.
 
 ## Rollback
 
-Revert the commits from this specification. Do not restore the observer feedback loop, suppress ESLint, weaken the security regression or recombine GIF conversion into the browser-test critical path. If rollback is required, preserve the same ownership and validation contracts in an equivalent implementation.
+Revert the commits from this specification. Do not restore the observer feedback loop, suppress ESLint, weaken security regressions, install large CI packages or increase timeouts. If rollback is required, preserve the same ownership, validation and readiness contracts in an equivalent implementation.
 
 ## Delivery
 
