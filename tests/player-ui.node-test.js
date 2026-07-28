@@ -100,7 +100,11 @@ test('builds public share routes and versioned png endpoints without leaking API
 test('renders accessible player links and dates', () => {
   const { api } = loadPlayerUi();
   const generated = api.playerLinkHtml({ nick: 'Juan & Ana', team: 'spain', baseHref: 'https://example.test/106/' });
-  assert.match(generated, /href="https:\/\/example\.test\/106\/player\.html\?nick=Juan%20%26%20Ana"/);
+  const href = generated.match(/href="([^"]+)"/)?.[1];
+  assert.ok(href);
+  const playerUrl = new URL(href);
+  assert.equal(playerUrl.pathname, '/106/player.html');
+  assert.equal(playerUrl.searchParams.get('nick'), 'Juan & Ana');
   assert.match(generated, /flag--spain/);
   assert.match(generated, /Juan &amp; Ana/);
   const custom = api.playerLinkHtml({ nick: 'Ana', className: 'x" y', content: '<b>Custom</b>', section: 'trophies', baseHref: 'https://example.test/106/' });
