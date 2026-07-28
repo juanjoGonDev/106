@@ -56,7 +56,12 @@
           <h3>Confirma el email y gana +1 intento diario</h3>
           <p id="pendingConfirmationEmail" class="pending-confirmation-email"></p>
           <p>El código y el enlace caducan en 1 hora. La verificación también desbloquea el logro <strong>Cuenta confirmada</strong>.</p>
-          <a class="primary" href="./verificar-email.html">Introducir código o abrir enlace</a>
+          <div class="account-cloud-actions">
+            <a class="primary" href="./verificar-email.html">Introducir código o abrir enlace</a>
+            <button id="emailConfirmationResend" class="secondary" type="button">Reenviar código y enlace</button>
+          </div>
+          <div id="authCaptcha" class="auth-captcha" hidden></div>
+          <p id="emailConfirmationResendStatus" class="hint" role="status" aria-live="polite"></p>
         </div>
 
         <div id="cloudAuthenticatedPanel" class="cloud-mode-panel" hidden>
