@@ -48,6 +48,29 @@ export function callbackCode(url) {
   }
 }
 
+export function callbackSessionTokens(url) {
+  try {
+    const parsed = new URL(url);
+    const parameters = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+    const accessToken = parameters.get('access_token') || '';
+    if (!accessToken) return null;
+    const refreshToken = parameters.get('refresh_token') || '';
+    if (!refreshToken) return null;
+    const expiresAt = Number(parameters.get('expires_at') || 0);
+    const expiresIn = Number(parameters.get('expires_in') || 0);
+    if (!(expiresAt > 0) && !(expiresIn > 0)) return null;
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: expiresAt || undefined,
+      expires_in: expiresIn || undefined,
+      token_type: parameters.get('token_type') || 'bearer',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export class SupabaseAuthClient {
   constructor(config, dependencies = {}) {
     this.supabaseUrl = config.supabaseUrl;
@@ -158,18 +181,32 @@ export class SupabaseAuthClient {
 
   async exchangeCallback(url = this.location.href) {
     const code = callbackCode(url);
-    if (!code) return this.currentSession();
-    const verifier = this.consumePkce();
-    if (!verifier) throw new Error('No se encontró el verificador seguro de la sesión.');
-    const payload = await this.request('/token?grant_type=pkce', {
-      body: { auth_code: code, code_verifier: verifier },
-    });
-    const session = this.writeSession(payload);
+    if (code) {
+      const verifier = this.consumePkce();
+      if (!verifier) throw new Error('No se encontró el verificador seguro de la sesión.');
+      const payload = await this.request('/token?grant_type=pkce', {
+        body: { auth_code: code, code_verifier: verifier },
+      });
+      const session = this.writeSession(payload);
+      const clean = new URL(url);
+      clean.searchParams.delete('code');
+      clean.searchParams.delete('type');
+      this.history.replaceState({}, '', `${clean.pathname}${clean.search}${clean.hash}`);
+      return session;
+    }
+
+    const implicitTokens = callbackSessionTokens(url);
+    if (!implicitTokens) return this.currentSession();
+    this.consumePkce();
+    this.consumeReturnPage();
     const clean = new URL(url);
-    clean.searchParams.delete('code');
-    clean.searchParams.delete('type');
-    this.history.replaceState({}, '', `${clean.pathname}${clean.search}${clean.hash}`);
-    return session;
+    clean.hash = '';
+    this.history.replaceState({}, '', `${clean.pathname}${clean.search}`);
+    const user = await this.request('/user', {
+      method: 'GET',
+      session: implicitTokens,
+    });
+    return this.writeSession({ ...implicitTokens, user });
   }
 
   async signInWithOAuth(provider, options = {}) {
