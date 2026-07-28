@@ -70,8 +70,8 @@
       homeInput.setAttribute('aria-invalid', 'true');
     }
 
-    if (startButton && startButton.disabled !== !gate.startAllowed) {
-      startButton.disabled = !gate.startAllowed;
+    if (startButton && !gate.startAllowed && !startButton.disabled) {
+      startButton.disabled = true;
     }
     if (captchaContainer && captchaContainer.hidden !== !gate.captchaAllowed) {
       captchaContainer.hidden = !gate.captchaAllowed;
