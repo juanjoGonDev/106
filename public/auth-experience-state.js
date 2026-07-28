@@ -63,7 +63,13 @@ export function localAccountActive({ accountToken, rememberedNicks, legacyNicks 
     || (Array.isArray(legacyNicks) && legacyNicks.length > 0);
 }
 
-export function resolveAuthExperience({ route, session, hasLocalAccount = false, pendingEmail } = {}) {
+export function resolveAuthExperience({
+  route,
+  session,
+  hasLocalAccount = false,
+  pendingEmail,
+  hasVerificationToken = false,
+} = {}) {
   const currentRoute = normalizeAuthRoute(route);
   const identity = authIdentity(session);
   const pending = normalizeEmail(pendingEmail);
@@ -88,10 +94,26 @@ export function resolveAuthExperience({ route, session, hasLocalAccount = false,
     if (identity && !identity.verificationEligible) {
       return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.account, mode: 'redirect', identity, pendingEmail: pending });
     }
-    if (!pending && !identity?.verificationEligible) {
+    if (!hasVerificationToken && !pending && !identity?.verificationEligible) {
       return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.register, mode: 'redirect', identity, pendingEmail: pending });
     }
-    return Object.freeze({ route: currentRoute, redirect: '', mode: 'verify', identity, pendingEmail: pending || identity?.email || '' });
+    return Object.freeze({
+      route: currentRoute,
+      redirect: '',
+      mode: 'verify',
+      identity,
+      pendingEmail: pending || identity?.email || '',
+    });
+  }
+
+  if (identity?.verificationEligible) {
+    return Object.freeze({
+      route: AUTH_ROUTES.account,
+      redirect: '',
+      mode: 'pending-email',
+      identity,
+      pendingEmail: pending || identity.email,
+    });
   }
 
   const mode = identity
