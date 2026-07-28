@@ -21,7 +21,7 @@ export function localAccountSnapshot(access) {
 
 export function locationHasVerificationToken(locationValue) {
   try {
-    const url = new URL(locationValue?.href || String(locationValue || ''), 'http://localhost');
+    const url = new URL(locationValue?.href || String(locationValue), 'http://localhost');
     return Boolean(url.searchParams.get('token_hash'));
   } catch {
     return false;
