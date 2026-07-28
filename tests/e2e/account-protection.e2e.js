@@ -152,11 +152,20 @@ async function installAccountApi(page, accounts, captured) {
 }
 
 async function clickCaptcha(page) {
+  const overlay = page.locator('.human-check-overlay');
   const canvas = page.locator('.human-check-canvas');
-  await expect(canvas).toBeVisible();
+  const progress = page.locator('.human-check-progress');
+  await expect(overlay).toHaveAttribute('data-phase', 'solving');
+  await expect(progress).toHaveText(`0 / ${balls.length}`);
   const box = await canvas.boundingBox();
   if (!box) throw new Error('Captcha canvas has no bounding box.');
-  for (const ball of balls) await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+
+  for (const [index, ball] of balls.entries()) {
+    await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+    if (index < balls.length - 1) {
+      await expect(progress).toHaveText(`${index + 1} / ${balls.length}`);
+    }
+  }
 }
 
 async function startWithNick(page, nick) {
