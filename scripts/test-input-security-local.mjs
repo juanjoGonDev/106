@@ -57,8 +57,9 @@ assert.match(String(writeAttempt.payload.code), /^nick_/);
 log('SQL-like nickname payload is rejected before a write or CAPTCHA boundary');
 
 const profileProbe = await request(gameEndpoint, { action: 'profile', nick: sqlNickname });
-assert.notEqual(profileProbe.response.status, 500, JSON.stringify(profileProbe.payload));
-log('Read-only profile lookup treats SQL-like nickname input as data');
+assert.equal(profileProbe.response.status, 400, JSON.stringify(profileProbe.payload));
+assert.equal(profileProbe.payload.code, 'nick_invalid_characters');
+log('Read-only profile lookup rejects malformed nickname input before the database boundary');
 
 const searchPayload = "%' OR 1=1; DROP TABLE game_leagues; --";
 const leagueSearch = await request(leagueEndpoint, {
