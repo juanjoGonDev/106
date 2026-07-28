@@ -13,14 +13,21 @@ describe('shared layout enhancement loading', () => {
     expect(layout).toContain("dataset.minuto106Enhancements = 'failed'");
   });
 
-  it('does not inject blocking classic enhancement scripts', () => {
+  it('starts enhancement requests only after the browser load boundary', () => {
+    expect(layout).toContain("document.readyState === 'complete'");
+    expect(layout).toContain("window.addEventListener('load', resolve, { once: true })");
+    expect(layout).toContain('const ready = afterWindowLoad()');
+    expect(layout.indexOf('afterWindowLoad()')).toBeLessThan(layout.indexOf("import('./honours.js')"));
+  });
+
+  it('does not inject or preload blocking enhancement scripts', () => {
     expect(layout).not.toContain('ensureClassicScript');
-    expect(layout).not.toContain("script.async = false");
+    expect(layout).not.toContain('script.async = false');
     expect(layout).not.toContain("script.src = './honours.js'");
     expect(layout).not.toContain("script.src = './compliance.js'");
   });
 
-  it('builds shared DOM before starting the enhancement promise', () => {
+  it('builds shared DOM before scheduling the enhancement promise', () => {
     const privacy = layout.lastIndexOf('renderPrivacyComponents();');
     const chrome = layout.lastIndexOf('renderSiteChrome();');
     const dialogs = layout.lastIndexOf('enhanceDialogs();');
