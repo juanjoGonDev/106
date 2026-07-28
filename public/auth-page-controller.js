@@ -17,6 +17,8 @@ import {
 import {
   clearPendingConfirmation,
   pendingConfirmationSnapshot,
+  pendingConfirmationView,
+  resendPendingConfirmation,
   storePendingConfirmation,
 } from './auth-pending-confirmation.js';
 import { CloudAccountService } from './cloud-account-service.js';
@@ -87,28 +89,30 @@ function refreshPasswordFeedback() {
   elements.match.dataset.valid = String(Boolean(confirmation) && !problem);
 }
 
-function refreshResend() {
-  if (!elements.resend) return;
-  const snapshot = pendingState();
-  elements.resend.disabled = busy || !config.available || !snapshot.email || snapshot.resendDelaySeconds > 0;
-  if (elements.pendingEmail) {
-    elements.pendingEmail.textContent = snapshot.email ? `Activación pendiente para ${snapshot.email}` : '';
-    elements.pendingEmail.hidden = !snapshot.email;
-  }
-  if (elements.resendStatus) {
-    elements.resendStatus.textContent = snapshot.resendDelaySeconds > 0
-      ? `Podrás solicitar otro código en ${snapshot.resendDelaySeconds} s.`
-      : snapshot.email
-        ? 'El nuevo código y enlace serán válidos durante 1 hora.'
-        : 'No se encontró un email pendiente.';
-    elements.resendStatus.dataset.tone = snapshot.resendDelaySeconds > 0 ? 'warning' : 'neutral';
-  }
-  if (snapshot.resendDelaySeconds > 0 && resendTimer === null) {
+function manageResendTimer(delaySeconds) {
+  if (delaySeconds > 0 && resendTimer === null) {
     resendTimer = window.setInterval(refreshControls, 1000);
-  } else if (snapshot.resendDelaySeconds === 0 && resendTimer !== null) {
+    return;
+  }
+  if (delaySeconds === 0 && resendTimer !== null) {
     window.clearInterval(resendTimer);
     resendTimer = null;
   }
+}
+
+function refreshResend() {
+  if (!elements.resend) return;
+  const view = pendingConfirmationView(pendingState());
+  elements.resend.disabled = busy || !config.available || !view.resendAvailable;
+  if (elements.pendingEmail) {
+    elements.pendingEmail.textContent = view.emailText;
+    elements.pendingEmail.hidden = !view.email;
+  }
+  if (elements.resendStatus) {
+    elements.resendStatus.textContent = view.resendStatus;
+    elements.resendStatus.dataset.tone = view.resendTone;
+  }
+  manageResendTimer(view.resendDelaySeconds);
 }
 
 function refreshControls() {
@@ -230,12 +234,7 @@ async function verifyLinkToken(hash) {
 }
 
 async function resendConfirmation() {
-  const snapshot = pendingState();
-  if (!snapshot.email) throw new Error('No se encontró el email pendiente de verificación.');
-  if (snapshot.resendDelaySeconds > 0) throw new Error('Espera antes de solicitar otro código.');
-  const token = await captcha.token();
-  await client.resendSignupConfirmation(snapshot.email, { captchaToken: token });
-  storePendingConfirmation(localStorage, snapshot.email);
+  await resendPendingConfirmation({ client, captcha, storage: localStorage });
   setStatus(neutralAuthMessage('resend'), 'success');
 }
 
@@ -303,6 +302,9 @@ async function initialize() {
 }
 
 bindEvents();
+window.addEventListener('pagehide', () => {
+  if (resendTimer !== null) window.clearInterval(resendTimer);
+});
 initialize().catch((error) => {
   setStatus(error.message || 'No se pudo iniciar la autenticación.', 'error');
   refreshControls();
