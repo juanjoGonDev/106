@@ -28,17 +28,26 @@
     ensureStylesheet('./v9.css', 'data-minuto106-shared');
   }
 
+  function afterWindowLoad() {
+    if (document.readyState === 'complete') return Promise.resolve();
+    return new Promise((resolve) => {
+      window.addEventListener('load', resolve, { once: true });
+    });
+  }
+
   function loadSharedEnhancements() {
     if (window.Minuto106EnhancementsReady) return window.Minuto106EnhancementsReady;
-    const ready = Promise.all([
-      import('./honours.js'),
-      import('./compliance.js'),
-    ]).then(() => {
-      document.documentElement.dataset.minuto106Enhancements = 'ready';
-    }).catch((error) => {
-      document.documentElement.dataset.minuto106Enhancements = 'failed';
-      throw error;
-    });
+    const ready = afterWindowLoad()
+      .then(() => Promise.all([
+        import('./honours.js'),
+        import('./compliance.js'),
+      ]))
+      .then(() => {
+        document.documentElement.dataset.minuto106Enhancements = 'ready';
+      }).catch((error) => {
+        document.documentElement.dataset.minuto106Enhancements = 'failed';
+        throw error;
+      });
     window.Minuto106EnhancementsReady = ready;
     return ready;
   }
