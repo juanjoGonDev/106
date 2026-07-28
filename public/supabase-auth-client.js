@@ -10,7 +10,7 @@ import {
 function base64Url(bytes) {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
 export function createCodeVerifier(cryptoApi = crypto) {
@@ -51,11 +51,10 @@ export function callbackCode(url) {
 export function callbackSessionTokens(url) {
   try {
     const parsed = new URL(url);
-    const parameters = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+    const parameters = new URLSearchParams(parsed.hash.replace(/^#/u, ''));
     const accessToken = parameters.get('access_token') || '';
-    if (!accessToken) return null;
     const refreshToken = parameters.get('refresh_token') || '';
-    if (!refreshToken) return null;
+    if (!accessToken || !refreshToken) return null;
     const expiresAt = Number(parameters.get('expires_at') || 0);
     const expiresIn = Number(parameters.get('expires_in') || 0);
     if (!(expiresAt > 0) && !(expiresIn > 0)) return null;
@@ -69,6 +68,16 @@ export function callbackSessionTokens(url) {
   } catch {
     return null;
   }
+}
+
+function verificationToken(value) {
+  const token = String(value ?? '').trim();
+  return /^\d{6}$/u.test(token) ? token : '';
+}
+
+function tokenHash(value) {
+  const hash = String(value ?? '').trim();
+  return /^[a-zA-Z0-9_-]{20,512}$/u.test(hash) ? hash : '';
 }
 
 export class SupabaseAuthClient {
@@ -212,8 +221,9 @@ export class SupabaseAuthClient {
   async signInWithOAuth(provider, options = {}) {
     const normalizedProvider = normalizeProvider(provider);
     if (!normalizedProvider) throw new Error('Proveedor OAuth no válido.');
-    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl);
-    const { challenge } = await this.createPkce('cuenta.html');
+    const returnPage = String(options.returnPage || 'cuenta.html');
+    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl, returnPage);
+    const { challenge } = await this.createPkce(returnPage);
     const url = new URL(this.authUrl('/authorize'));
     url.searchParams.set('provider', normalizedProvider);
     url.searchParams.set('redirect_to', redirectTo);
@@ -227,8 +237,9 @@ export class SupabaseAuthClient {
   async signUp(email, password, options = {}) {
     const normalized = normalizeEmail(email);
     if (!normalized) throw new Error('Introduce un email válido.');
-    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl);
-    const { challenge } = await this.createPkce('cuenta.html');
+    const returnPage = 'verificar-email.html';
+    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl, returnPage);
+    const { challenge } = await this.createPkce(returnPage);
     const query = new URLSearchParams({ redirect_to: redirectTo });
     const payload = await this.request(`/signup?${query}`, {
       body: {
@@ -246,7 +257,7 @@ export class SupabaseAuthClient {
   async resendSignupConfirmation(email, options = {}) {
     const normalized = normalizeEmail(email);
     if (!normalized) throw new Error('Introduce un email válido.');
-    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl);
+    const redirectTo = options.redirectTo || accountRedirectUrl(this.publicSiteUrl, 'verificar-email.html');
     const query = new URLSearchParams({ redirect_to: redirectTo });
     return this.request(`/resend?${query}`, {
       body: {
@@ -255,6 +266,26 @@ export class SupabaseAuthClient {
         gotrue_meta_security: options.captchaToken ? { captcha_token: options.captchaToken } : undefined,
       },
     });
+  }
+
+  async verifyEmailOtp(email, tokenValue) {
+    const normalized = normalizeEmail(email);
+    const token = verificationToken(tokenValue);
+    if (!normalized) throw new Error('No se encontró el email pendiente de verificación.');
+    if (!token) throw new Error('Introduce el código de 6 dígitos.');
+    const payload = await this.request('/verify', {
+      body: { email: normalized, token, type: 'email' },
+    });
+    return this.writeSession(payload);
+  }
+
+  async verifyTokenHash(tokenHashValue) {
+    const hash = tokenHash(tokenHashValue);
+    if (!hash) throw new Error('El enlace de verificación no es válido.');
+    const payload = await this.request('/verify', {
+      body: { token_hash: hash, type: 'email' },
+    });
+    return this.writeSession(payload);
   }
 
   async signInWithPassword(email, password, options = {}) {
