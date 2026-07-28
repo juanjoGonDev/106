@@ -121,7 +121,7 @@ jobs:
           PLATFORM_EVIDENCE_FRAGMENT: '1'
         run: |
           set -o pipefail
-          pnpm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ env.EVIDENCE_SHARDS_PER_PROJECT }} 2>&1 | tee playwright-output.txt
+          pnpm run test:e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ env.EVIDENCE_SHARDS_PER_PROJECT }} 2>&1 | tee playwright-output.txt
 
       - name: Upload successful evidence fragment
         if: success()
