@@ -5,10 +5,11 @@ import { AUTH_PENDING_CONFIRMATION_STORAGE_KEY } from '../public/auth-account-st
 import {
   browserAuthExperience,
   localAccountSnapshot,
-  pendingConfirmationEmail,
+  locationHasVerificationToken,
   redirectToAuthRoute,
 } from '../public/auth-browser-context.js';
 import { AUTH_ROUTES } from '../public/auth-experience-state.js';
+import { pendingConfirmationEmail } from '../public/auth-pending-confirmation.js';
 
 const config = {
   supabaseUrl: 'https://project.supabase.co',
@@ -46,9 +47,13 @@ test('reads local ownership without creating a private account', () => {
   });
 });
 
-test('reads pending confirmation email defensively', () => {
-  assert.equal(pendingConfirmationEmail(memoryStorage({ [AUTH_PENDING_CONFIRMATION_STORAGE_KEY]: 'User@example.com' })), 'User@example.com');
+test('reads pending confirmation and verification links defensively', () => {
+  assert.equal(pendingConfirmationEmail(memoryStorage({ [AUTH_PENDING_CONFIRMATION_STORAGE_KEY]: 'User@example.com' })), 'user@example.com');
   assert.equal(pendingConfirmationEmail(null), '');
+  assert.equal(locationHasVerificationToken({ href: 'https://example.com/verificar-email.html?token_hash=abc' }), true);
+  assert.equal(locationHasVerificationToken({ href: 'https://example.com/verificar-email.html' }), false);
+  assert.equal(locationHasVerificationToken('not a valid absolute url'), false);
+  assert.equal(locationHasVerificationToken({ href: 'http://[' }), false);
 });
 
 test('resolves browser experience from session, route, local account and pending email', async () => {
@@ -58,7 +63,7 @@ test('resolves browser experience from session, route, local account and pending
     config,
     access: { getAccountToken: () => 'a'.repeat(64) },
     storage: memoryStorage(),
-    location: { pathname: '/106/login.html' },
+    location: { pathname: '/106/login.html', href: 'https://example.com/106/login.html' },
   });
   assert.equal(experience.redirect, AUTH_ROUTES.account);
 
@@ -67,10 +72,23 @@ test('resolves browser experience from session, route, local account and pending
     config,
     access: null,
     storage: memoryStorage({ [AUTH_PENDING_CONFIRMATION_STORAGE_KEY]: 'User@example.com' }),
-    location: { pathname: '/106/verificar-email.html' },
+    location: { pathname: '/106/verificar-email.html', href: 'https://example.com/106/verificar-email.html' },
   });
   assert.equal(pending.mode, 'verify');
   assert.equal(pending.pendingEmail, 'user@example.com');
+
+  const cleanLink = await browserAuthExperience({
+    client: null,
+    config,
+    access: null,
+    storage: memoryStorage(),
+    location: {
+      pathname: '/106/verificar-email.html',
+      href: 'https://example.com/106/verificar-email.html?token_hash=valid-token',
+    },
+  });
+  assert.equal(cleanLink.mode, 'verify');
+  assert.equal(cleanLink.redirect, '');
 });
 
 test('redirects only when the target differs from the current route', () => {
