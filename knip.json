@@ -18,6 +18,8 @@
     "public/home-stats.js",
     "public/honours.js",
     "public/honours-catalog.js",
+    "public/nickname-policy.js",
+    "public/nickname-input-guard.js",
     "public/profile-card-highlights.js",
     "public/profile-share.js",
     "public/share-actions.js",
