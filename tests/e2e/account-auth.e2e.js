@@ -190,12 +190,13 @@ async function installPage(page, { mode = 'linked', authLog = [], accountLog = [
   await installGameApi(page);
   await installAuthApi(page, authLog);
   await installAccountAuthApi(page, mode, accountLog);
-  await page.addInitScript(({ token, storedSession, pendingEmail }) => {
-    localStorage.setItem('minuto106:consent-v1', JSON.stringify({ analytics: false, ads: false }));
+  await page.addInitScript(({ consent, token, storedSession, pendingEmail }) => {
+    localStorage.setItem('minuto106:consent-v1', consent);
     if (token) localStorage.setItem('minuto106:account-access-v1', token);
     if (storedSession) localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
     if (pendingEmail) localStorage.setItem('minuto106:pending-email-confirmation-v1', pendingEmail);
   }, {
+    consent: storedConsent,
     token: initial.accountToken || '',
     storedSession: initial.session || null,
     pendingEmail: initial.pendingEmail || '',
