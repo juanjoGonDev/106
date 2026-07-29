@@ -120,6 +120,9 @@ async function installRuntime(page, { logoutStatus = 204, authLog = [] } = {}) {
 
 async function installStorage(page, { session = null, pendingEmail = '', token = '', complete = false } = {}) {
   await page.addInitScript(({ consent, storedSession, email, accountKey, includeCompleteState }) => {
+    const seedKey = 'minuto106:test-auth-storage-seeded';
+    if (sessionStorage.getItem(seedKey) === 'true') return;
+    sessionStorage.setItem(seedKey, 'true');
     localStorage.setItem('minuto106:consent-v1', consent);
     if (storedSession) localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
     if (email) {
@@ -226,7 +229,7 @@ test('authenticated email change and recovery link reuse the same password page 
     await page.locator('#confirmNewPassword').fill('NewSecure1!');
     await expect(page.locator('#updatePassword')).toBeEnabled();
     await page.locator('#updatePassword').click();
-    await expect(page.locator('#passwordResetStatus')).toContainText(scenario.mode === 'change' ? 'Contraseña cambiada' : 'Contraseña restablecida');
+    await expect(page.locator('#passwordResetStatus')).toContainText('Contraseña actualizada');
     const update = authLog.find((entry) => entry.path.endsWith('/user') && entry.method === 'PUT');
     expect(update?.body.password).toBe('NewSecure1!');
     expect(update?.body.current_password).toBe(scenario.currentVisible ? 'Current123!' : undefined);
@@ -288,4 +291,13 @@ test('direct password management access without a cloud session is guarded', asy
   await openApplicationPage(page, '/restablecer-clave.html');
   await expect(page).toHaveURL(`${applicationUrl}/login.html`);
   await expect(page.locator('#loginTitle')).toBeVisible();
+});
+
+test('Google-only accounts cannot enter the email password change mode directly', async ({ page }) => {
+  await installRuntime(page);
+  await installStorage(page, { session: cloudSession('google') });
+  await openApplicationPage(page, '/restablecer-clave.html?mode=change');
+  await expect(page).toHaveURL(`${applicationUrl}/cuenta.html`);
+  await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
+  await expect(page.locator('#changePasswordLink')).toBeHidden();
 });
