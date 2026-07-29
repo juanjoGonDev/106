@@ -12,6 +12,12 @@ function stepBlock(name) {
   return workflow.slice(start, next < 0 ? workflow.length : next);
 }
 
+function jobBlock(name, nextName) {
+  const start = workflow.indexOf(`  ${name}:`);
+  const end = workflow.indexOf(`\n  ${nextName}:`, start);
+  return workflow.slice(start, end < 0 ? workflow.length : end);
+}
+
 describe('parallel player browser workflow', () => {
   it('caps the complete evidence workflow at three minutes per critical stage', () => {
     expect(workflow).not.toMatch(/timeout-minutes:\s*(?:15|30)/u);
@@ -31,6 +37,17 @@ describe('parallel player browser workflow', () => {
     expect(stepBlock('Run isolated responsive journey and encode its evidence')).toContain("compgen -G '.tmp/pr-previews/*.webm'");
     expect(stepBlock('Run isolated responsive journey and encode its evidence')).toContain('node scripts/create-preview-gif.mjs');
     expect(workflow).not.toContain('continue-on-error: true');
+  });
+
+  it('does not install unrelated project dependencies in each visual shard', () => {
+    const shards = jobBlock('browser-shards', 'browser');
+
+    expect(shards).toContain('Validate package policy without installing project dependencies');
+    expect(shards).toContain('node scripts/check-package-policy.mjs');
+    expect(shards).not.toContain('pnpm install');
+    expect(shards).not.toContain('cache: pnpm');
+    expect(shards).toContain('Set up pinned Node.js');
+    expect(shards).toContain('pnpm run test:e2e');
   });
 
   it('prevents capture workers from recording every test implicitly', () => {
