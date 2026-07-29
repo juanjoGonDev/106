@@ -9,6 +9,7 @@ import {
   authRouteGuardDecision,
   authRoutePolicy,
   authRouteUrl,
+  identitySupportsPassword,
   localAccountActive,
   normalizeAuthRoute,
   providerAction,
@@ -111,11 +112,19 @@ test('summarizes email and Google identities with verification eligibility', () 
   assert.equal(legacy.verificationEligible, true);
 });
 
-test('detects local account ownership without creating a token', () => {
+test('detects whether an authenticated identity owns an email password', () => {
+  assert.equal(identitySupportsPassword(null), false);
+  assert.equal(identitySupportsPassword({ providers: [] }), false);
+  assert.equal(identitySupportsPassword({ providers: ['google'] }), false);
+  assert.equal(identitySupportsPassword({ providers: ['google', 'email'] }), true);
+  assert.equal(identitySupportsPassword(authIdentity(session({ confirmed: true }))), true);
+});
+
+test('detects local account credentials without treating remembered display names as authentication', () => {
   assert.equal(localAccountActive(), false);
   assert.equal(localAccountActive({ accountToken: 'a'.repeat(64) }), true);
   assert.equal(localAccountActive({ accountToken: 'invalid' }), false);
-  assert.equal(localAccountActive({ rememberedNicks: ['Ana'] }), true);
+  assert.equal(localAccountActive({ rememberedNicks: ['Ana'] }), false);
   assert.equal(localAccountActive({ rememberedNicks: [] }), false);
   assert.equal(localAccountActive({ legacyNicks: ['ana'] }), true);
   assert.equal(localAccountActive({ legacyNicks: 'invalid' }), false);

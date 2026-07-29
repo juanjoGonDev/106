@@ -88,10 +88,13 @@ export function authIdentity(session) {
   });
 }
 
-export function localAccountActive({ accountToken, rememberedNicks, legacyNicks } = {}) {
+export function identitySupportsPassword(identity) {
+  return identity?.providers?.includes('email') === true;
+}
+
+export function localAccountActive({ accountToken, legacyNicks } = {}) {
   const token = String(accountToken ?? '').trim();
   return /^[a-f0-9]{64}$/iu.test(token)
-    || (Array.isArray(rememberedNicks) && rememberedNicks.length > 0)
     || (Array.isArray(legacyNicks) && legacyNicks.length > 0);
 }
 

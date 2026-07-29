@@ -1,6 +1,7 @@
 const LEGACY_ACCESS_STORAGE_KEY = 'minuto106:player-access-v1';
 const ACCOUNT_STORAGE_KEY = 'minuto106:account-access-v1';
 const ACCOUNT_NICKS_STORAGE_KEY = 'minuto106:account-nicks-v1';
+const ACTIVE_NICK_STORAGE_KEY = 'minuto106:nick';
 const protectedActions = new Set([
   'start',
   'prepare-start',
@@ -68,6 +69,14 @@ function clearAccountToken() {
   document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
 }
 
+function clearAccountSession() {
+  localStorage.removeItem(ACCOUNT_STORAGE_KEY);
+  localStorage.removeItem(ACCOUNT_NICKS_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_ACCESS_STORAGE_KEY);
+  localStorage.removeItem(ACTIVE_NICK_STORAGE_KEY);
+  document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+}
+
 function getLegacyPlayerKey(nick) {
   const key = normalizeAccessNick(nick);
   if (!key) return '';
@@ -104,6 +113,7 @@ function getRememberedNicks() {
 }
 
 window.Minuto106Access = {
+  clearAccountSession,
   clearAccountToken,
   forgetLegacyPlayerKey,
   generatePrivateKey,
@@ -137,7 +147,7 @@ window.fetch = async (input, init = {}) => {
         body.nick
         || document.querySelector('#nick')?.value
         || document.querySelector('#leagueNick')?.value
-        || localStorage.getItem('minuto106:nick')
+        || localStorage.getItem(ACTIVE_NICK_STORAGE_KEY)
         || '',
       ).trim();
       const legacyToken = getLegacyPlayerKey(nick);
@@ -171,7 +181,7 @@ function currentNick() {
   return String(
     document.querySelector('#nick')?.value
     || document.querySelector('#leagueNick')?.value
-    || localStorage.getItem('minuto106:nick')
+    || localStorage.getItem(ACTIVE_NICK_STORAGE_KEY)
     || '',
   ).trim();
 }
