@@ -117,6 +117,7 @@ jobs:
         env:
           PR_VISUAL_CAPTURE: '1'
           PLATFORM_EVIDENCE_FRAGMENT: '1'
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node scripts/serve.mjs
         run: |
           set -o pipefail
           node scripts/run-playwright.mjs --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ env.EVIDENCE_SHARDS_PER_PROJECT }} 2>&1 | tee playwright-output.txt
