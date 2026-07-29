@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,6 +10,8 @@ import {
 } from '../scripts/check-production-migrations.mjs';
 
 const temporaryDirectories = [];
+const authProviderRewardsMigration = 'supabase/migrations/20260727120400_auth_provider_rewards.sql';
+const entitlementConsolidationApproval = '-- production-data-loss-approved: remove only a duplicate legacy entitlement after its canonical equivalent exists';
 
 function migration(content) {
   const directory = mkdtempSync(join(tmpdir(), 'minuto106-migration-'));
@@ -65,6 +67,22 @@ describe('production migration runtime function filtering', () => {
       -- production-data-loss-approved: reviewed one-off cleanup
       delete from public.game_attempts;
     `)])).toEqual([]);
+  });
+
+  it('approves only the reviewed duplicate entitlement consolidation in the real migration', () => {
+    const sql = readFileSync(authProviderRewardsMigration, 'utf8');
+    const executionSql = migrationExecutionSql(sql);
+    const unapprovedSql = sql.replace(entitlementConsolidationApproval, '');
+
+    expect(sql).toContain(entitlementConsolidationApproval);
+    expect(executionSql.indexOf(entitlementConsolidationApproval)).toBeLessThan(
+      executionSql.indexOf('delete from public.game_account_entitlements legacy'),
+    );
+    expect(executionSql.match(/^\s*delete\s+from\b/gim)).toHaveLength(1);
+    expect(migrationViolations([migration(unapprovedSql)])).toEqual([
+      expect.stringContaining('DELETE FROM'),
+    ]);
+    expect(migrationViolations([authProviderRewardsMigration])).toEqual([]);
   });
 
   it('handles empty input deterministically', () => {

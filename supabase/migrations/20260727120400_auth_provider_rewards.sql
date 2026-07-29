@@ -34,6 +34,8 @@ where entitlement.entitlement_code = 'verified_email_daily_attempt'
       and existing.entitlement_code = 'auth_identity_daily_attempt'
   );
 
+-- production-data-loss-approved: remove only a duplicate legacy entitlement after its canonical equivalent exists
+
 delete from public.game_account_entitlements legacy
 where legacy.entitlement_code = 'verified_email_daily_attempt'
   and exists (
