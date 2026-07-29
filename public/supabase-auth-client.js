@@ -145,6 +145,12 @@ export class SupabaseAuthClient {
     this.storage.removeItem(AUTH_SESSION_STORAGE_KEY);
   }
 
+  clearAuthenticationState() {
+    this.storage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    this.storage.removeItem(AUTH_PKCE_STORAGE_KEY);
+    this.storage.removeItem(AUTH_RETURN_STORAGE_KEY);
+  }
+
   async refreshSession(session = this.readSession()) {
     if (!session?.refresh_token) {
       this.clearSession();
@@ -317,13 +323,16 @@ export class SupabaseAuthClient {
     });
   }
 
-  async updatePassword(password) {
+  async updatePassword(password, options = {}) {
     const session = await this.currentSession();
-    if (!session) throw new Error('La sesión de recuperación no es válida.');
+    if (!session) throw new Error('La sesión para cambiar la contraseña no es válida.');
+    const currentPassword = String(options.currentPassword ?? '');
+    const body = { password };
+    if (currentPassword) body.current_password = currentPassword;
     const payload = await this.request('/user', {
       method: 'PUT',
       session,
-      body: { password },
+      body,
     });
     session.user = payload;
     this.writeSession(session);
@@ -332,10 +341,14 @@ export class SupabaseAuthClient {
 
   async signOut() {
     const session = this.readSession();
+    let remoteRevoked = true;
     try {
       if (session) await this.request('/logout', { session, body: {} });
+    } catch {
+      remoteRevoked = false;
     } finally {
-      this.clearSession();
+      this.clearAuthenticationState();
     }
+    return Object.freeze({ remoteRevoked });
   }
 }
