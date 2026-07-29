@@ -24,7 +24,7 @@ describe('linked-player daily quota projection', () => {
   });
 
   it('preserves lifetime metrics and overlays the authoritative server-day state', () => {
-    expect(normalized).toContain("'attemptsused', coalesce(summary.attempts_used, 0)");
+    expect(normalized).toContain("'lifetimeattemptsused', coalesce(summary.attempts_used, 0)");
     expect(normalized).toContain("'verifiedattempts', coalesce(summary.verified_attempts, 0)");
     expect(normalized).toContain("'bestdifferencems', summary.best_difference_ms");
     expect(normalized).toContain("'averagedifferencems', summary.average_difference_ms");
