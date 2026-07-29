@@ -8,6 +8,7 @@ const runner = readFileSync('scripts/run-supabase-ci.sh', 'utf8');
 const playwrightConfig = readFileSync('playwright.config.js', 'utf8');
 const suites = [
   'security',
+  'ready-flow',
   'gameplay-core',
   'gameplay-sharing',
   'auth-api',
@@ -36,9 +37,9 @@ describe('fast parallel Supabase CI', () => {
 
   it('starts independent quality jobs immediately instead of serializing behind build', () => {
     expect(workflow).not.toMatch(/^\s{4}needs:\s*build\s*$/gmu);
-    expect(workflow).toContain('max-parallel: 6');
+    expect(workflow).toContain('max-parallel: 7');
     expect(workflow).toContain(
-      'suite: [security, gameplay-core, gameplay-sharing, auth-api, auth-browser, migrations]',
+      'suite: [security, ready-flow, gameplay-core, gameplay-sharing, auth-api, auth-browser, migrations]',
     );
   });
 
@@ -51,6 +52,14 @@ describe('fast parallel Supabase CI', () => {
     for (const suite of suites) {
       expect(runner).toContain(`${suite})`);
     }
+  });
+
+  it('isolates the exact-deadline ready flow from security cleanup', () => {
+    expect(runner).toMatch(/run_security_suite\(\)[\s\S]*?^}/mu);
+    expect(runner).toMatch(/run_ready_flow_suite\(\) \{\n  node scripts\/test-ready-flow-local\.mjs\n}/u);
+
+    const securitySuite = runner.match(/run_security_suite\(\) \{([\s\S]*?)\n}/u)?.[1] ?? '';
+    expect(securitySuite).not.toContain('test-ready-flow-local.mjs');
   });
 
   it('avoids dependency installation in isolated Supabase runners', () => {
