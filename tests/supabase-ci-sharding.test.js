@@ -5,7 +5,15 @@ import { describe, expect, it } from 'vitest';
 
 const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
 const runner = readFileSync('scripts/run-supabase-ci.sh', 'utf8');
-const suites = ['security', 'gameplay', 'auth-api', 'auth-browser', 'migrations'];
+const playwrightConfig = readFileSync('playwright.config.js', 'utf8');
+const suites = [
+  'security',
+  'gameplay-core',
+  'gameplay-sharing',
+  'auth-api',
+  'auth-browser',
+  'migrations',
+];
 
 function occurrences(source, value) {
   return source.split(value).length - 1;
@@ -28,15 +36,17 @@ describe('fast parallel Supabase CI', () => {
 
   it('starts independent quality jobs immediately instead of serializing behind build', () => {
     expect(workflow).not.toMatch(/^\s{4}needs:\s*build\s*$/gmu);
-    expect(workflow).toContain('max-parallel: 5');
-    expect(workflow).toContain('suite: [security, gameplay, auth-api, auth-browser, migrations]');
+    expect(workflow).toContain('max-parallel: 6');
+    expect(workflow).toContain(
+      'suite: [security, gameplay-core, gameplay-sharing, auth-api, auth-browser, migrations]',
+    );
   });
 
   it('runs one isolated local stack per domain and aggregates the matrix result', () => {
     expect(workflow).toContain('bash scripts/run-supabase-ci.sh "${{ matrix.suite }}"');
     expect(workflow).toContain('supabase=${{ needs.supabase-integration.result }}');
     expect(workflow).toContain('supabase-local-diagnostics-${{ matrix.suite }}-${{ github.run_id }}');
-    expect(workflow).toContain("matrix.suite == 'gameplay'");
+    expect(workflow).toContain("matrix.suite == 'gameplay-sharing'");
 
     for (const suite of suites) {
       expect(runner).toContain(`${suite})`);
@@ -50,6 +60,14 @@ describe('fast parallel Supabase CI', () => {
     expect(block).toContain("if: matrix.suite == 'auth-browser'");
     expect(block).toContain('Set up pnpm for live browser suite');
     expect(occurrences(block, 'pnpm/action-setup@')).toBe(1);
+  });
+
+  it('uses the direct Node server for the live browser suite', () => {
+    expect(playwrightConfig).toContain(
+      "const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND || 'pnpm dev';",
+    );
+    expect(playwrightConfig).toContain('command: webServerCommand');
+    expect(runner).toContain("export PLAYWRIGHT_WEB_SERVER_COMMAND='node scripts/serve.mjs'");
   });
 
   it('does not reintroduce the six-minute monolithic journey', () => {
