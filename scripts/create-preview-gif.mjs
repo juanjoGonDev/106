@@ -237,11 +237,11 @@ async function openVideo(page, recording) {
   await page.goto(`${EVIDENCE_ORIGIN}/player`, { waitUntil: 'domcontentloaded' });
 
   return await page.evaluate(async () => {
-    const response = await fetch('/video.webm', { cache: 'no-store' });
+    const response = await globalThis.fetch('/video.webm', { cache: 'no-store' });
     if (!response.ok) throw new Error(`Unable to load recording: HTTP ${response.status}`);
     const blob = await response.blob();
-    const video = document.querySelector('#source');
-    video.src = URL.createObjectURL(blob);
+    const video = globalThis.document.querySelector('#source');
+    video.src = globalThis.URL.createObjectURL(blob);
     await new Promise((resolvePromise, rejectPromise) => {
       video.addEventListener('loadeddata', resolvePromise, { once: true });
       video.addEventListener('error', () => rejectPromise(new Error('Chrome could not decode the WebM recording.')), { once: true });
@@ -263,8 +263,8 @@ async function encodeVideoFrames(page, dimensions, duration, delayCentiseconds) 
     const endCode = 257;
     const dictionaryResetCode = 511;
     const codeSize = 9;
-    const video = document.querySelector('#source');
-    const canvas = document.querySelector('#frame');
+    const video = globalThis.document.querySelector('#source');
+    const canvas = globalThis.document.querySelector('#frame');
     const context = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     if (!context) throw new Error('Canvas 2D context is unavailable.');
     canvas.width = width;
@@ -331,19 +331,22 @@ async function encodeVideoFrames(page, dimensions, duration, delayCentiseconds) 
       for (let offset = 0; offset < bytes.length; offset += chunkSize) {
         binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
       }
-      return btoa(binary);
+      return globalThis.btoa(binary);
     }
 
     async function seek(time) {
       if (Math.abs(video.currentTime - time) < 0.0005 && video.readyState >= 2) return;
       await new Promise((resolvePromise, rejectPromise) => {
-        const timeout = setTimeout(() => rejectPromise(new Error(`Timed out seeking to ${time.toFixed(3)}s.`)), 5_000);
+        const timeout = globalThis.setTimeout(
+          () => rejectPromise(new Error(`Timed out seeking to ${time.toFixed(3)}s.`)),
+          5_000,
+        );
         video.addEventListener('seeked', () => {
-          clearTimeout(timeout);
+          globalThis.clearTimeout(timeout);
           resolvePromise();
         }, { once: true });
         video.addEventListener('error', () => {
-          clearTimeout(timeout);
+          globalThis.clearTimeout(timeout);
           rejectPromise(new Error(`Video decode failed while seeking to ${time.toFixed(3)}s.`));
         }, { once: true });
         video.currentTime = time;
@@ -356,7 +359,7 @@ async function encodeVideoFrames(page, dimensions, duration, delayCentiseconds) 
       await seek(time);
       context.drawImage(video, 0, 0, width, height);
       const pixels = context.getImageData(0, 0, width, height).data;
-      await window.emitGifFrame(base64(encodeRgbaFrame(pixels)), delay);
+      await globalThis.emitGifFrame(base64(encodeRgbaFrame(pixels)), delay);
     }
     return frameCount;
   }, {
