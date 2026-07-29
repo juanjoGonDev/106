@@ -20,6 +20,14 @@ if (checkOnly && hostedJson) {
   throw new Error('Use either --check or --hosted-json, not both.');
 }
 
+function isCurrent(template, expected) {
+  try {
+    return readFileSync(template.outputPath, 'utf8') === expected;
+  } catch {
+    return false;
+  }
+}
+
 if (hostedJson) {
   process.stdout.write(`${JSON.stringify(buildHostedAuthEmailConfig(), null, 2)}\n`);
 } else {
@@ -27,14 +35,7 @@ if (hostedJson) {
   for (const template of AUTH_EMAIL_TEMPLATES) {
     const expected = renderAuthEmailTemplate(template);
     if (checkOnly) {
-      let current = '';
-      try {
-        current = readFileSync(template.outputPath, 'utf8');
-      } catch {
-        staleFiles.push(template.outputPath);
-        continue;
-      }
-      if (current !== expected) staleFiles.push(template.outputPath);
+      if (!isCurrent(template, expected)) staleFiles.push(template.outputPath);
       continue;
     }
 
