@@ -12,6 +12,8 @@ DB_URL=''
 POSTGRES_URL=''
 
 readonly VALID_SUITES='security ready-flow gameplay-core gameplay-sharing auth-api auth-browser migrations'
+readonly EDGE_WARMUP_ATTEMPTS=3
+readonly EDGE_WARMUP_TIMEOUT_SECONDS=30
 
 cleanup() {
   exit_code=$?
@@ -22,7 +24,9 @@ cleanup() {
     wait "$FUNCTION_PID" 2>/dev/null || true
   fi
 
-  supabase stop --no-backup >/dev/null 2>&1 || true
+  if [[ "${GITHUB_ACTIONS:-false}" != 'true' ]]; then
+    supabase stop --no-backup >/dev/null 2>&1 || true
+  fi
   rm -f supabase/functions/.env .supabase-functions.pid
 
   exit "$exit_code"
@@ -79,7 +83,9 @@ probe_edge_function() {
   local payload=$2
   local status
 
-  if ! status=$(curl --silent --show-error --max-time 8 \
+  if ! status=$(curl --silent --show-error \
+    --connect-timeout 2 \
+    --max-time "$EDGE_WARMUP_TIMEOUT_SECONDS" \
     --output /dev/null \
     --write-out '%{http_code}' \
     --request POST \
@@ -120,7 +126,7 @@ wait_for_edge_functions() {
   load_local_supabase_environment
 
   local attempt
-  for attempt in $(seq 1 30); do
+  for attempt in $(seq 1 "$EDGE_WARMUP_ATTEMPTS"); do
     if [[ -n "$FUNCTION_PID" ]] && ! kill -0 "$FUNCTION_PID" 2>/dev/null; then
       echo "The local Edge Function runtime for ${SUITE} exited before becoming ready." >&2
       cat supabase-functions.log >&2 || true
@@ -134,7 +140,7 @@ wait_for_edge_functions() {
     sleep 1
   done
 
-  echo "Local Edge Functions for ${SUITE} did not become ready within 30 seconds." >&2
+  echo "Local Edge Functions for ${SUITE} did not become ready after ${EDGE_WARMUP_ATTEMPTS} bounded probes." >&2
   cat supabase-functions.log >&2 || true
   return 1
 }
