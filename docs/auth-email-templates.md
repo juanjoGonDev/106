@@ -92,6 +92,8 @@ A newly created Free project using Supabase's default SMTP provider may reject c
 
 ## Verification checklist
 
+Repository tests cannot replace real confirmation, recovery and security smoke emails from the hosted project. Produce that evidence after hosted synchronization.
+
 1. Confirm the protected Supabase deployment reports hosted Auth synchronization and exact post-PATCH verification.
 2. Confirm the hosted subject is Spanish and branded rather than the Supabase default.
 3. Confirm the hero image loads from the canonical Pages asset and meaningful text remains when images are blocked.
