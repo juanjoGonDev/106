@@ -26,6 +26,12 @@ function jobBlock(name, nextName) {
   return workflow.slice(start, end < 0 ? workflow.length : end);
 }
 
+function shellFunctionBlock(name) {
+  const start = runner.indexOf(`${name}() {`);
+  const end = runner.indexOf('\n}', start);
+  return runner.slice(start, end < 0 ? runner.length : end + 2);
+}
+
 describe('fast parallel Supabase CI', () => {
   it('keeps every executable quality job bounded to three minutes or less', () => {
     const timeouts = [...workflow.matchAll(/timeout-minutes:\s*(\d+)/gu)]
@@ -55,11 +61,11 @@ describe('fast parallel Supabase CI', () => {
   });
 
   it('isolates the exact-deadline ready flow from security cleanup', () => {
-    expect(runner).toMatch(/run_security_suite\(\)[\s\S]*?^}/mu);
-    expect(runner).toMatch(/run_ready_flow_suite\(\) \{\n  node scripts\/test-ready-flow-local\.mjs\n}/u);
+    const securitySuite = shellFunctionBlock('run_security_suite');
+    const readyFlowSuite = shellFunctionBlock('run_ready_flow_suite');
 
-    const securitySuite = runner.match(/run_security_suite\(\) \{([\s\S]*?)\n}/u)?.[1] ?? '';
     expect(securitySuite).not.toContain('test-ready-flow-local.mjs');
+    expect(readyFlowSuite).toContain('node scripts/test-ready-flow-local.mjs');
   });
 
   it('avoids dependency installation in isolated Supabase runners', () => {
