@@ -54,14 +54,24 @@ jobs:
           node --check public/account-auth-bootstrap.js
           node --check public/account-auth-entry.js
           node --check public/account-auth.js
+          node --check public/password-page-state.js
           node --check public/password-reset.js
           node --check public/password-visibility-state.js
           node --check public/password-visibility.js
           node --check public/supabase-auth-client.js
+          node --check scripts/auth-email-templates.mjs
+          node --check scripts/hosted-auth-email-sync.mjs
+          node --check scripts/sync-hosted-auth-email-templates.mjs
           node --check supabase/functions/account-auth/core.js
           node --check scripts/auth-entrypoints.mjs
           node --check tests/e2e/account-auth-live.e2e.js
           node --check tests/e2e/auth-session-ux.e2e.js
+
+      - name: Enforce auth email renderer coverage
+        run: pnpm test:auth-email-templates:coverage
+
+      - name: Enforce hosted Auth email sync coverage
+        run: pnpm test:hosted-auth-email-sync:coverage
 
       - name: Enforce auth state coverage
         run: pnpm test:auth-state:coverage
@@ -71,6 +81,9 @@ jobs:
 
       - name: Enforce browser route context coverage
         run: pnpm test:auth-browser-context:coverage
+
+      - name: Enforce password page coverage
+        run: pnpm test:password-page:coverage
 
       - name: Enforce password visibility state coverage
         run: pnpm test:password-visibility:coverage
