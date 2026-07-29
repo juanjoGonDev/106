@@ -269,21 +269,17 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Set up pnpm
+      - name: Set up pnpm for live browser suite
+        if: matrix.suite == 'auth-browser'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
-      - name: Set up Node.js and pnpm store cache
+      - name: Set up pinned Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install exact dependencies from frozen lockfile
-        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Set up pinned Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
