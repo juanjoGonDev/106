@@ -51,7 +51,7 @@ describe('Google Tag Manager and consent components', () => {
     expect(bootstrap).toContain("gtag('set', 'ads_data_redaction', true)");
   });
 
-  it('renders privacy UI and compliance behavior once through the shared layout', () => {
+  it('renders privacy UI once and loads compliance through the observable enhancement boundary', () => {
     for (const path of pages) {
       const html = read(path);
       expect(html).not.toContain('id="cookieBanner"');
@@ -62,7 +62,9 @@ describe('Google Tag Manager and consent components', () => {
     expect(layout).toContain('function createPrivacyBanner()');
     expect(layout).toContain('function createPrivacyDialog()');
     expect(layout).toContain('renderPrivacyComponents();');
-    expect(layout).toContain("ensureClassicScript('./compliance.js'");
+    expect(layout).toContain("import('./compliance.js')");
+    expect(layout).toContain('window.Minuto106EnhancementsReady = ready');
+    expect(layout).not.toContain("ensureClassicScript('./compliance.js'");
     expect(layout).toContain("ensureStylesheet('./v9.css'");
   });
 

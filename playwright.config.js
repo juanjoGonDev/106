@@ -5,14 +5,17 @@ if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwri
 const require = createRequire(import.meta.url);
 const { defineConfig, devices } = require(runtimePath);
 const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: new Date().toISOString() });
+const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND || 'pnpm dev';
 
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.e2e.js',
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: true,
   retries: 0,
-  workers: 2,
+  workers: visualCapture ? 1 : 2,
   reporter: [
     ['list'],
     ['json', { outputFile: 'playwright-results.json' }],
@@ -23,7 +26,7 @@ export default defineConfig({
     channel: 'chrome',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: visualCapture ? 'off' : 'retain-on-failure',
     storageState: {
       cookies: [],
       origins: [{
@@ -33,7 +36,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: 'pnpm dev',
+    command: webServerCommand,
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
     timeout: 20_000,

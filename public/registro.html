@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,follow">
+  <title>Crear cuenta — Minuto 106</title>
+  <meta name="description" content="Crea una cuenta de Minuto 106 con email, Google o Facebook.">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./v18.css">
+  <link rel="stylesheet" href="./v20.css">
+  <link rel="stylesheet" href="./v21.css">
+  <link rel="stylesheet" href="./password-visibility.css">
+</head>
+<body data-auth-page="register">
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <header class="site-header"></header>
+  <main class="auth-page" data-auth-shell>
+    <section class="auth-card" aria-labelledby="registerTitle">
+      <p class="eyebrow">GUARDA TODOS TUS NICKS</p>
+      <h1 id="registerTitle">Crear cuenta</h1>
+      <p class="auth-lead">Regístrate con email o usa Google/Facebook. Tu progreso local se conserva.</p>
+      <p id="authStatus" class="cloud-account-status" role="status" aria-live="polite"></p>
+
+      <div class="oauth-actions" aria-label="Registro social">
+        <button id="googleSignIn" class="oauth-button" type="button">Crear con Google</button>
+        <button id="facebookSignIn" class="oauth-button" type="button">Crear con Facebook</button>
+      </div>
+      <p class="social-reward-note"><strong>+1 intento diario:</strong> las cuentas originadas con Google o Facebook reciben una única bonificación social compartida.</p>
+
+      <div class="auth-divider"><span>o con email</span></div>
+      <div class="auth-fields">
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="tu@email.com">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Mínimo 10 caracteres" aria-describedby="authPasswordRequirements">
+        <ul id="authPasswordRequirements" class="auth-password-requirements" aria-label="Requisitos de contraseña"></ul>
+        <label for="authPasswordConfirmation">Confirmar contraseña</label>
+        <input id="authPasswordConfirmation" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Repite la contraseña" aria-describedby="authPasswordMatch">
+        <p id="authPasswordMatch" class="auth-password-match" role="status" aria-live="polite"></p>
+      </div>
+      <div id="authCaptcha" class="auth-captcha" hidden></div>
+      <button id="authSubmit" class="primary auth-submit" type="button" disabled>Crear cuenta con email</button>
+      <p class="verification-reward-note"><strong>Confirma y gana:</strong> recibirás un código y un enlace de un solo uso. Si verificas el email en menos de 1 hora obtendrás +1 intento diario y el logro Cuenta confirmada.</p>
+      <p class="auth-switch">¿Ya tienes cuenta? <a href="./login.html">Iniciar sesión</a></p>
+      <p class="auth-switch"><a href="./cuenta.html">Volver a Mi cuenta</a></p>
+    </section>
+  </main>
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./access.js"></script>
+  <script type="module" src="./password-visibility.js"></script>
+  <script type="module" src="./auth-route-entry.js"></script>
+</body>
+</html>

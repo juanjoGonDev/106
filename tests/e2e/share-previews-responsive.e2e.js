@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
+import { openApplicationPage } from './app-navigation.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -149,7 +151,7 @@ async function capture(page, testInfo, name) {
 
 test('duel recipients see the exact verified time to beat', async ({ page }, testInfo) => {
   await installCommonMocks(page);
-  await page.goto(`/?duel=${duelCode}`);
+  await openApplicationPage(page, `/?duel=${duelCode}`);
 
   const notice = page.locator('#duelNotice');
   await expect(notice).toBeVisible();
@@ -163,7 +165,7 @@ test('duel recipients see the exact verified time to beat', async ({ page }, tes
 
 test('shared attempts use the public result URL without exposing Supabase', async ({ page }, testInfo) => {
   await installCommonMocks(page);
-  await page.goto('/');
+  await openApplicationPage(page, '/');
   await page.evaluate((attempt) => {
     document.querySelector('#setup')?.classList.remove('active');
     document.querySelector('#result')?.classList.add('active');
@@ -195,7 +197,7 @@ test('shared attempts use the public result URL without exposing Supabase', asyn
 
 test('account player actions stay inside every card', async ({ page }, testInfo) => {
   await installCommonMocks(page);
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
 
   const cards = page.locator('.account-player');
   await expect(cards).toHaveCount(2);

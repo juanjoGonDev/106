@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
+const policySource = readFileSync(new URL('../public/nickname-policy.js', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../public/player-ui.js', import.meta.url), 'utf8');
 
-function loadPlayerUi() {
+function loadPlayerUi({ withPolicy = true } = {}) {
   const context = {
     URL,
     String,
@@ -17,22 +18,30 @@ function loadPlayerUi() {
     document: { baseURI: 'https://example.test/106/ranking.html' },
     location: { href: 'https://example.test/106/ranking.html' },
   };
+  if (withPolicy) vm.runInNewContext(policySource, context, { filename: 'public/nickname-policy.js' });
   vm.runInNewContext(source, context, { filename: 'public/player-ui.js' });
   return { api: context.Minuto106PlayerUI, context };
 }
 
-test('normalizes and escapes public player inputs', () => {
+test('normalizes, validates and escapes public player inputs', () => {
   const { api } = loadPlayerUi();
   assert.equal(api.escapeHtml(`&<>'"`), '&amp;&lt;&gt;&#39;&quot;');
   assert.equal(api.escapeHtml(null), '');
   assert.equal(api.normalizeNick('  Ｊuan   Pérez  '), 'Juan Pérez');
   assert.equal(api.normalizeNick(null), '');
   assert.equal(api.normalizeNick('12345678901234567890123456789'), '123456789012345678901234');
+  assert.equal(api.isValidNickname('Ana'), true);
+  assert.equal(api.isValidNickname('..'), false);
   assert.equal(api.normalizeSection('achievements'), 'achievements');
   assert.equal(api.normalizeSection('invalid'), 'overview');
   assert.equal(api.normalizeRevision(42.9), 42);
   assert.equal(api.normalizeRevision(-1), 0);
   assert.equal(api.normalizeRevision('invalid'), 0);
+
+  const fallback = loadPlayerUi({ withPolicy: false }).api;
+  assert.equal(fallback.normalizeNick('  Ana  María  '), 'Ana María');
+  assert.equal(fallback.isValidNickname('Ana'), true);
+  assert.equal(fallback.isValidNickname('..'), false);
 });
 
 test('resolves teams from direct, profile and history sources', () => {
@@ -46,7 +55,7 @@ test('resolves teams from direct, profile and history sources', () => {
   assert.match(api.teamHtml('', { history: [] }, 'x" y'), /player-team--unknown/);
 });
 
-test('builds application, player and shell routes from every base source', () => {
+test('builds application, player and safe shell routes from every base source', () => {
   const { api, context } = loadPlayerUi();
   assert.equal(api.appBaseUrl().toString(), 'https://example.test/106/');
   assert.equal(api.appBaseUrl('https://example.test/106/player/Juan/trophies').toString(), 'https://example.test/106/');
@@ -58,14 +67,18 @@ test('builds application, player and shell routes from every base source', () =>
   assert.equal(api.playerUrl('Juan', 'trophies', 'https://example.test/106/'), 'https://example.test/106/player/Juan/trophies');
   assert.equal(api.playerShellUrl('Juan', 'overview', 'https://example.test/106/'), 'https://example.test/106/player.html?nick=Juan');
   assert.equal(api.playerShellUrl('Juan', 'achievements', 'https://example.test/106/'), 'https://example.test/106/player.html?nick=Juan&section=achievements');
+  assert.equal(api.playerUrl('../..', 'overview', 'https://example.test/106/'), 'https://example.test/106/player.html?nick=..%2F..');
+  assert.equal(new URL(api.playerUrl('../..', 'overview', 'https://example.test/106/')).pathname, '/106/player.html');
 });
 
-test('parses query, clean, malformed and unrelated locations', () => {
+test('parses valid query and clean routes while rejecting malformed and unrelated locations', () => {
   const { api, context } = loadPlayerUi();
   context.location = { href: 'https://example.test/106/player.html?nick=Ana%20Mar&section=trophies' };
   assert.deepEqual({ ...api.parsePlayerLocation() }, { nick: 'Ana Mar', section: 'trophies' });
   assert.deepEqual({ ...api.parsePlayerLocation({ href: 'https://example.test/106/player/Juan%20P%C3%A9rez/achievements' }) }, { nick: 'Juan Pérez', section: 'achievements' });
-  assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/player/%E0%A4%A/trophies') }, { nick: '%E0%A4%A', section: 'trophies' });
+  assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/player/%E0%A4%A/trophies') }, { nick: '', section: 'trophies' });
+  assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/player.html?nick=..%2F..&section=achievements') }, { nick: '', section: 'achievements' });
+  assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/player/../..') }, { nick: '', section: 'overview' });
   assert.deepEqual({ ...api.parsePlayerLocation(null) }, { nick: '', section: 'overview' });
   assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/ranking.html') }, { nick: '', section: 'overview' });
 });
@@ -79,6 +92,7 @@ test('builds public share routes and versioned png endpoints without leaking API
   assert.equal(api.shareUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'achievements', 123.8), 'https://example.test/106/player/Juan/achievements');
   assert.equal(api.shareUrl('https://public.example/106/', 'Juan', 'trophies'), 'https://public.example/106/player/Juan/trophies');
   assert.equal(api.cardUrl('', 'Juan'), '');
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', '..'), '');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456');
 });
@@ -86,7 +100,11 @@ test('builds public share routes and versioned png endpoints without leaking API
 test('renders accessible player links and dates', () => {
   const { api } = loadPlayerUi();
   const generated = api.playerLinkHtml({ nick: 'Juan & Ana', team: 'spain', baseHref: 'https://example.test/106/' });
-  assert.match(generated, /href="https:\/\/example\.test\/106\/player\/Juan%20%26%20Ana"/);
+  const href = generated.match(/href="([^"]+)"/)?.[1];
+  assert.ok(href);
+  const playerUrl = new URL(href);
+  assert.equal(playerUrl.pathname, '/106/player.html');
+  assert.equal(playerUrl.searchParams.get('nick'), 'Juan & Ana');
   assert.match(generated, /flag--spain/);
   assert.match(generated, /Juan &amp; Ana/);
   const custom = api.playerLinkHtml({ nick: 'Ana', className: 'x" y', content: '<b>Custom</b>', section: 'trophies', baseHref: 'https://example.test/106/' });

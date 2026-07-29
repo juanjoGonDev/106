@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 const PLAYWRIGHT_VERSION = '1.60.0';
 const PLAYWRIGHT_PACKAGE = `@playwright/test@${PLAYWRIGHT_VERSION}`;
 const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
+const playwrightArguments = process.argv.slice(2);
 
 function runCommand(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
@@ -105,14 +106,14 @@ const packageJsonPath = cacheRoots().map(findPackageJson).find(Boolean);
 if (!packageJsonPath) throw new Error(`Unable to locate ${PLAYWRIGHT_PACKAGE} in the pnpm dlx cache.`);
 
 runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'install', 'ffmpeg']);
-runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test'], {
+runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test', ...playwrightArguments], {
   env: {
     ...process.env,
     PLAYWRIGHT_TEST_PATH: dirname(packageJsonPath),
   },
 });
 
-if (process.env.PR_VISUAL_CAPTURE === '1') {
+if (process.env.PR_VISUAL_CAPTURE === '1' && process.env.PLATFORM_EVIDENCE_FRAGMENT !== '1') {
   ensureGifCapableFfmpeg();
   runNodeScript('scripts/create-preview-gif.mjs');
   runNodeScript('scripts/package-platform-evidence.mjs');

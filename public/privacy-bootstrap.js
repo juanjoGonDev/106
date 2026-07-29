@@ -4,6 +4,7 @@
   const TAG_MANAGER_ID = 'GTM-NKZK4DC5';
   const CONSENT_KEY = 'minuto106:consent-v1';
   const CONSENT_MAX_AGE_MS = 730 * 24 * 60 * 60 * 1_000;
+  const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost']);
 
   function ensureBrowserSurfaceStylesheet() {
     if (document.querySelector('link[data-minuto106-browser-surface]')) return;
@@ -93,6 +94,7 @@
   }
 
   function loadTagManager() {
+    if (LOCAL_HOSTNAMES.has(window.location.hostname)) return;
     if (document.querySelector('script[data-minuto106-gtm]')) return;
     const script = document.createElement('script');
     script.async = true;

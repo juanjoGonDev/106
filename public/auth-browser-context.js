@@ -1,0 +1,78 @@
+import { normalizeAuthConfig } from './auth-account-state.js';
+import { pendingConfirmationEmail } from './auth-pending-confirmation.js';
+import {
+  authRouteUrl,
+  localAccountActive,
+  normalizeAuthRoute,
+  resolveAuthExperience,
+} from './auth-experience-state.js';
+
+export function localAccountSnapshot(access) {
+  const source = access && typeof access === 'object' ? access : {};
+  const accountToken = typeof source.getAccountToken === 'function' ? source.getAccountToken(false) : '';
+  const rememberedNicks = typeof source.getRememberedNicks === 'function' ? source.getRememberedNicks() : [];
+  const legacyNicks = typeof source.getLegacyLocalNicks === 'function' ? source.getLegacyLocalNicks() : [];
+  return Object.freeze({
+    accountToken,
+    rememberedNicks: Object.freeze(Array.isArray(rememberedNicks) ? [...rememberedNicks] : []),
+    legacyNicks: Object.freeze(Array.isArray(legacyNicks) ? [...legacyNicks] : []),
+  });
+}
+
+export function locationHasVerificationToken(locationValue) {
+  try {
+    const url = new URL(locationValue?.href || String(locationValue), 'http://localhost');
+    return Boolean(url.searchParams.get('token_hash'));
+  } catch {
+    return false;
+  }
+}
+
+export async function browserAuthExperience(options = {}) {
+  const {
+    client,
+    config: configValue,
+    access,
+    storage = window.localStorage,
+    location = window.location,
+  } = options;
+  normalizeAuthConfig(configValue);
+  const session = Object.hasOwn(options, 'session')
+    ? options.session
+    : client
+      ? await client.currentSession()
+      : null;
+  const local = localAccountSnapshot(access);
+  return resolveAuthExperience({
+    route: normalizeAuthRoute(location?.pathname),
+    session,
+    hasLocalAccount: localAccountActive(local),
+    pendingEmail: pendingConfirmationEmail(storage),
+    hasVerificationToken: locationHasVerificationToken(location),
+  });
+}
+
+export function redirectToAuthRoute(experience, configValue, location = window.location) {
+  if (!experience?.redirect) return false;
+  const config = normalizeAuthConfig(configValue);
+  const target = authRouteUrl(config.publicSiteUrl, experience.redirect);
+  const current = new URL(location.href);
+  const destination = new URL(target, current);
+  if (destination.pathname === current.pathname && destination.search === current.search) return false;
+  location.replace(destination.toString());
+  return true;
+}
+
+export function markAuthRouteReady(documentValue = globalThis.document) {
+  const body = documentValue?.body;
+  if (!body) return false;
+  body.dataset.authRouteReady = 'true';
+  return true;
+}
+
+export async function guardAuthRoute(options = {}) {
+  const experience = await browserAuthExperience(options);
+  const redirected = redirectToAuthRoute(experience, options.config, options.location);
+  if (!redirected) markAuthRouteReady(options.document);
+  return Object.freeze({ experience, redirected });
+}

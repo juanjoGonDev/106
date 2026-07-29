@@ -61,7 +61,7 @@
         </ol>
         <p>Las filas empatadas muestran los valores concretos utilizados para el desempate. La portada mantiene una vista compacta.</p>
       </aside>
-      <div class="inline-form"><input id="rankingSearch" maxlength="24" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="Buscar jugador" aria-label="Buscar jugador"><button id="rankingSearchButton" class="secondary compact" type="button">Buscar</button></div>
+      <div class="inline-form"><input id="rankingSearch" minlength="3" maxlength="24" autocomplete="off" data-bwignore="true" data-1p-ignore placeholder="Buscar jugador" aria-label="Buscar jugador"><button id="rankingSearchButton" class="secondary compact" type="button">Buscar</button></div>
       <div class="ranking-tabs" role="tablist" aria-label="Tipo de clasificación"><button class="ghost compact" type="button" role="tab" aria-selected="true" aria-controls="precisionRanking" data-ranking-tab="precision">Precisión</button><button class="ghost compact" type="button" role="tab" aria-selected="false" aria-controls="trophyRanking" data-ranking-tab="trophies">Trofeos</button><button class="ghost compact" type="button" role="tab" aria-selected="false" aria-controls="achievementRanking" data-ranking-tab="achievements">Logros</button></div>
       <section id="precisionRanking" class="honours-ranking" data-ranking-panel="precision"><h2>Los más precisos</h2><ol id="fullRanking" class="leaderboard"><li class="empty">Cargando clasificación…</li></ol></section>
       <section id="trophyRanking" class="honours-ranking" data-ranking-panel="trophies" hidden><h2>Ranking por trofeos</h2><ol id="trophyLeaderboard" class="leaderboard"><li class="empty">Cargando palmarés…</li></ol></section>
@@ -71,6 +71,8 @@
   <footer class="site-footer"></footer>
   <script src="./config.js"></script>
   <script src="./layout.js"></script>
+  <script src="./nickname-policy.js"></script>
+  <script src="./nickname-input-guard.js"></script>
   <script src="./player-ui.js"></script>
   <script src="./ranking.js?v=20260724"></script>
 </body>

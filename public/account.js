@@ -1,9 +1,17 @@
 const accountConfig = window.__MINUTO106_CONFIG__ ?? {};
-const accountApiUrl = String(accountConfig.apiBaseUrl ?? '').replace(/\/$/, '');
+const accountApiUrl = String(accountConfig.apiBaseUrl ?? '').replace(/\/$/u, '');
 const accountDeviceKey = 'minuto106:device-id';
 const accountDeviceId = localStorage.getItem(accountDeviceKey) || crypto.randomUUID();
 localStorage.setItem(accountDeviceKey, accountDeviceId);
 let keyIsVisible = false;
+let nicknameAvailability = 'unknown';
+
+const nicknameLookup = window.Minuto106NicknameAvailability?.createDebouncedLookup({
+  checkFn: (input) => window.Minuto106NicknameAvailability.check({
+    ...input,
+    apiBaseUrl: accountApiUrl,
+  }),
+});
 
 async function accountRequest(action, payload = {}) {
   const response = await fetch(accountApiUrl, {
@@ -12,7 +20,11 @@ async function accountRequest(action, payload = {}) {
     body: JSON.stringify({ action, ...payload }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'No se pudo cargar la cuenta.');
+  if (!response.ok) {
+    const error = new Error(body.error || 'No se pudo cargar la cuenta.');
+    error.code = String(body.code || 'account_error');
+    throw error;
+  }
   return body;
 }
 
@@ -39,7 +51,7 @@ function refreshAccountKey() {
 
   if (!token) {
     preview.textContent = 'No hay una cuenta activa en este dispositivo.';
-    status.textContent = 'Crea una clave nueva o importa la que utilizas en otro dispositivo.';
+    status.textContent = 'Crea una clave nueva o inicia sesión para generar una cuenta recuperable.';
     createButton.hidden = false;
     copyButton.hidden = true;
     showButton.hidden = true;
@@ -79,7 +91,7 @@ function createPlayerItem(player) {
   });
   const profileLink = document.createElement('a');
   profileLink.className = 'ghost compact';
-  profileLink.href = `./ranking.html?nick=${encodeURIComponent(player.nick)}`;
+  profileLink.href = window.Minuto106PlayerUI?.playerShellUrl(player.nick) || `./player.html?nick=${encodeURIComponent(player.nick)}`;
   profileLink.textContent = 'Perfil';
   actions.append(useButton, profileLink);
   item.append(information, actions);
@@ -89,8 +101,7 @@ function createPlayerItem(player) {
 async function linkLegacyNicks() {
   const access = window.Minuto106Access;
   if (!access?.getAccountToken(false)) return;
-  const legacyNicks = access.getLegacyLocalNicks();
-  for (const nick of legacyNicks) {
+  for (const nick of access.getLegacyLocalNicks()) {
     try {
       await accountRequest('link-account-player', { nick });
       access.forgetLegacyPlayerKey(nick);
@@ -106,7 +117,7 @@ async function loadPlayers() {
   list.replaceChildren();
   const access = window.Minuto106Access;
   if (!access?.getAccountToken(false)) {
-    status.textContent = 'Inicia una cuenta para ver y recuperar tus nicks.';
+    status.textContent = 'Crea una cuenta local, inicia sesión o vincula un proveedor para añadir nicks.';
     const empty = document.createElement('li');
     empty.className = 'account-empty';
     empty.textContent = 'Todavía no hay una cuenta activa.';
@@ -120,11 +131,11 @@ async function loadPlayers() {
   const players = Array.isArray(account.players) ? account.players : [];
   status.textContent = players.length
     ? `${players.length} ${players.length === 1 ? 'nick vinculado' : 'nicks vinculados'}.`
-    : 'La cuenta todavía no tiene nicks vinculados. Juega con uno para añadirlo.';
+    : 'La cuenta todavía no tiene nicks. Puedes crear el primero desde esta página.';
   if (!players.length) {
     const empty = document.createElement('li');
     empty.className = 'account-empty';
-    empty.textContent = 'Juega con un nick o importa una cuenta que ya tenga jugadores.';
+    empty.textContent = 'Escribe un nick arriba para añadirlo a la cuenta.';
     list.append(empty);
     return;
   }
@@ -139,6 +150,84 @@ async function copyKey() {
   button.textContent = 'Copiada';
   setTimeout(() => { button.textContent = original; }, 1500);
   refreshAccountKey();
+}
+
+function setNicknameStatus(message, tone = 'neutral') {
+  const status = document.querySelector('#accountNickStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.dataset.tone = tone;
+}
+
+function refreshNicknameButton() {
+  const button = document.querySelector('#createAccountNick');
+  if (button) button.disabled = nicknameAvailability !== 'available';
+}
+
+function scheduleNicknameCheck() {
+  const input = document.querySelector('#accountNickInput');
+  const validation = window.Minuto106NicknamePolicy?.validateNickname(input?.value);
+  nicknameAvailability = 'unknown';
+  refreshNicknameButton();
+  if (!validation?.valid) {
+    nicknameLookup?.cancel();
+    setNicknameStatus(window.Minuto106NicknamePolicy?.nicknameErrorMessage(validation?.reason) || 'El nick no es válido.', 'error');
+    input?.setAttribute('aria-invalid', 'true');
+    return;
+  }
+
+  setNicknameStatus('Comprobando disponibilidad y contenido…');
+  input.setAttribute('aria-invalid', 'false');
+  nicknameLookup?.schedule({ nick: validation.normalized }, {
+    onResult(result) {
+      nicknameAvailability = result.availability;
+      if (result.availability === 'available') {
+        setNicknameStatus('Nick disponible. Puedes añadirlo a tu cuenta.', 'success');
+      } else if (result.availability === 'owned') {
+        setNicknameStatus('Este nick ya pertenece a tu cuenta.', 'warning');
+      } else if (result.availability === 'occupied') {
+        setNicknameStatus('Este nick pertenece a otra cuenta.', 'error');
+      } else if (result.availability.startsWith('invalid-')) {
+        const reason = result.availability.slice('invalid-'.length);
+        setNicknameStatus(window.Minuto106NicknamePolicy.nicknameErrorMessage(reason), 'error');
+      } else {
+        setNicknameStatus('No se pudo confirmar la disponibilidad.', 'error');
+      }
+      refreshNicknameButton();
+    },
+    onError(error) {
+      nicknameAvailability = 'unknown';
+      setNicknameStatus(error.message || 'No se pudo comprobar el nick.', 'error');
+      refreshNicknameButton();
+    },
+  });
+}
+
+async function createNickname() {
+  const input = document.querySelector('#accountNickInput');
+  const validation = window.Minuto106NicknamePolicy.validateNickname(input.value);
+  if (!validation.valid || nicknameAvailability !== 'available') {
+    scheduleNicknameCheck();
+    return;
+  }
+  const button = document.querySelector('#createAccountNick');
+  button.disabled = true;
+  setNicknameStatus('Creando nick…');
+  try {
+    window.Minuto106Access.getAccountToken(true);
+    await accountRequest('link-account-player', { nick: validation.normalized });
+    window.Minuto106Access.rememberAccountNick(validation.normalized);
+    localStorage.setItem('minuto106:nick', validation.normalized);
+    input.value = '';
+    nicknameAvailability = 'unknown';
+    setNicknameStatus('Nick creado y vinculado a tu cuenta.', 'success');
+    refreshAccountKey();
+    await loadPlayers();
+  } catch (error) {
+    setNicknameStatus(error.message || 'No se pudo crear el nick.', 'error');
+  } finally {
+    refreshNicknameButton();
+  }
 }
 
 document.querySelector('#createAccountKey')?.addEventListener('click', async () => {
@@ -158,7 +247,7 @@ document.querySelector('#showAccountKey')?.addEventListener('click', () => {
 document.querySelector('#logoutAccount')?.addEventListener('click', async () => {
   const accepted = await window.Minuto106UI?.ask({
     title: 'Cerrar cuenta en este dispositivo',
-    message: 'Se eliminará la clave privada de este navegador. Tus nicks y estadísticas seguirán guardados, pero necesitarás la clave para recuperarlos.',
+    message: 'Se eliminará la clave privada de este navegador. Tus nicks seguirán guardados, pero necesitarás la clave o una cuenta en la nube para recuperarlos.',
     acceptLabel: 'Cerrar cuenta',
     cancelLabel: 'Cancelar',
   });
@@ -184,8 +273,15 @@ document.querySelector('#importAccountButton')?.addEventListener('click', async 
     await showAccountError(error, 'Clave no válida');
   }
 });
+document.querySelector('#accountNickInput')?.addEventListener('input', scheduleNicknameCheck);
+document.querySelector('#createAccountNick')?.addEventListener('click', () => createNickname().catch((error) => showAccountError(error, 'No se pudo crear el nick')));
 document.addEventListener('minuto106:account-updated', refreshAccountKey);
+document.addEventListener('minuto106:cloud-account-synced', () => {
+  refreshAccountKey();
+  loadPlayers().catch((error) => showAccountError(error, 'No se pudo sincronizar la cuenta'));
+});
 refreshAccountKey();
+refreshNicknameButton();
 loadPlayers().catch((error) => {
   document.querySelector('#accountPlayersStatus').textContent = error.message;
   showAccountError(error, 'No se pudo sincronizar la cuenta');

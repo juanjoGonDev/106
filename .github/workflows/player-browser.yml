@@ -16,13 +16,14 @@ env:
   PNPM_VERSION: 11.15.1
   PLAYWRIGHT_VERSION: 1.60.0
   COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+  EVIDENCE_SHARDS_PER_PROJECT: 8
 
 jobs:
   coverage:
     name: 🧮 Frontend modules · 100% coverage
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -73,14 +74,26 @@ jobs:
       - name: Enforce platform evidence coverage
         run: pnpm test:platform-evidence:coverage
 
+      - name: Enforce evidence fragment merge coverage
+        run: pnpm test:platform-evidence-fragments:coverage
+
+      - name: Enforce Playwright failure summary coverage
+        run: pnpm test:playwright-failure-summary:coverage
+
       - name: Audit public assets
         run: pnpm check:public-assets
 
-  browser:
-    name: 🌐 Platform · Desktop, mobile and recordings
+  browser-shards:
+    name: 🌐 Capture · ${{ matrix.project }} · ${{ matrix.shard }}/8
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        project: [desktop-chrome, mobile-chrome]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -91,51 +104,90 @@ jobs:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
-      - name: Set up Node.js and pnpm cache
+      - name: Set up pinned Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Validate package policy before installation
+      - name: Validate package policy without installing project dependencies
         run: node scripts/check-package-policy.mjs
 
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run responsive journeys and build complete platform evidence
-        id: playwright
-        continue-on-error: true
+      - name: Run isolated responsive journey and encode its evidence
         shell: bash
         env:
           PR_VISUAL_CAPTURE: '1'
+          PLATFORM_EVIDENCE_FRAGMENT: '1'
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node scripts/serve.mjs
         run: |
           set -o pipefail
-          pnpm test:e2e 2>&1 | tee playwright-output.txt
+          node scripts/run-playwright.mjs --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ env.EVIDENCE_SHARDS_PER_PROJECT }} 2>&1 | tee playwright-output.txt
+          if compgen -G '.tmp/pr-previews/*.webm' > /dev/null; then
+            node scripts/create-preview-gif.mjs
+          fi
+          mkdir -p .tmp/pr-previews
+          touch ".tmp/pr-previews/.fragment-complete-${{ matrix.project }}-${{ matrix.shard }}"
 
-      - name: Upload downloadable platform evidence ZIP
-        if: always()
+      - name: Summarize failed shard
+        id: failure
+        if: failure()
+        run: node scripts/write-playwright-failure-summary.mjs >> "$GITHUB_OUTPUT"
+
+      - name: Upload complete evidence fragment
+        if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: platform-evidence-${{ github.run_id }}
+          name: platform-evidence-fragment-${{ matrix.project }}-${{ matrix.shard }}
           path: .tmp/pr-previews
           if-no-files-found: error
-          retention-days: 14
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 1
 
-      - name: Upload failed browser diagnostics
-        if: steps.playwright.outcome == 'failure'
+      - name: Upload failed shard diagnostics
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: player-browser-${{ github.run_id }}
+          name: player-browser-${{ matrix.project }}-${{ matrix.shard }}-${{ steps.failure.outputs.slug }}
           path: |
             playwright-output.txt
             playwright-results.json
             playwright-report
             test-results
           if-no-files-found: ignore
+          compression-level: 0
           retention-days: 7
 
-      - name: Enforce browser result
-        if: steps.playwright.outcome == 'failure'
-        run: exit 1
+  browser:
+    name: 🌐 Platform · Desktop, mobile and recordings
+    if: github.event.pull_request.draft == false
+    needs: browser-shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download isolated evidence fragments
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: platform-evidence-fragment-*
+          path: .tmp/platform-evidence-fragments
+
+      - name: Merge fragments and validate complete inventory
+        run: |
+          node scripts/merge-platform-evidence.mjs
+          node scripts/package-platform-evidence.mjs
+
+      - name: Upload downloadable platform evidence ZIP
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: platform-evidence-${{ github.run_id }}
+          path: .tmp/pr-previews
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

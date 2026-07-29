@@ -1,0 +1,92 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import {
+  migrationExecutionSql,
+  migrationViolations,
+} from '../scripts/check-production-migrations.mjs';
+
+const temporaryDirectories = [];
+const authProviderRewardsMigration = 'supabase/migrations/20260727120400_auth_provider_rewards.sql';
+const entitlementConsolidationApproval = '-- production-data-loss-approved: remove only a duplicate legacy entitlement after its canonical equivalent exists';
+
+function migration(content) {
+  const directory = mkdtempSync(join(tmpdir(), 'minuto106-migration-'));
+  temporaryDirectories.push(directory);
+  const path = join(directory, '20260727120000_example.sql');
+  writeFileSync(path, content, 'utf8');
+  return path;
+}
+
+afterEach(() => {
+  while (temporaryDirectories.length) rmSync(temporaryDirectories.pop(), { recursive: true, force: true });
+});
+
+describe('production migration runtime function filtering', () => {
+  it('omits runtime PL/pgSQL and SQL function bodies from deployment-time checks', () => {
+    const sql = `
+      create or replace function public.remove_invalid_reward()
+      returns integer language plpgsql as $$
+      begin
+        delete from public.game_player_achievements where false;
+        return 0;
+      end;
+      $$;
+      create function public.remove_invalid_trophy()
+      returns integer language sql as $body$
+        delete from public.game_league_trophies where false returning 1;
+      $body$;
+    `;
+
+    const executable = migrationExecutionSql(sql);
+    expect(executable).not.toContain('game_player_achievements');
+    expect(executable).not.toContain('game_league_trophies');
+    expect(migrationViolations([migration(sql)])).toEqual([]);
+  });
+
+  it('still detects destructive top-level statements and destructive DO blocks', () => {
+    expect(migrationViolations([migration('delete from public.game_attempts;')])).toEqual([
+      expect.stringContaining('DELETE FROM'),
+    ]);
+    expect(migrationViolations([migration(`
+      do $$
+      begin
+        delete from public.game_attempts;
+      end;
+      $$;
+    `)])).toEqual([
+      expect.stringContaining('DELETE FROM'),
+    ]);
+  });
+
+  it('keeps explicit production-data-loss approval behavior', () => {
+    expect(migrationViolations([migration(`
+      -- production-data-loss-approved: reviewed one-off cleanup
+      delete from public.game_attempts;
+    `)])).toEqual([]);
+  });
+
+  it('approves only the reviewed duplicate entitlement consolidation in the real migration', () => {
+    const sql = readFileSync(authProviderRewardsMigration, 'utf8');
+    const executionSql = migrationExecutionSql(sql);
+    const unapprovedSql = sql.replace(entitlementConsolidationApproval, '');
+
+    expect(sql).toContain(entitlementConsolidationApproval);
+    expect(executionSql.indexOf(entitlementConsolidationApproval)).toBeLessThan(
+      executionSql.indexOf('delete from public.game_account_entitlements legacy'),
+    );
+    expect(executionSql.match(/^\s*delete\s+from\b/gim)).toHaveLength(1);
+    expect(migrationViolations([migration(unapprovedSql)])).toEqual([
+      expect.stringContaining('DELETE FROM'),
+    ]);
+    expect(migrationViolations([authProviderRewardsMigration])).toEqual([]);
+  });
+
+  it('handles empty input deterministically', () => {
+    expect(migrationExecutionSql()).toBe('');
+    expect(migrationExecutionSql(null)).toBe('');
+  });
+});

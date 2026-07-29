@@ -1,3 +1,5 @@
+import { normalizeNickname } from '../_shared/nickname-policy.js';
+
 const RESERVED_NICKNAMES = new Set([
   'admin',
   'administrator',
@@ -78,7 +80,7 @@ export function isReservedNickname(value) {
 }
 
 export function nicknameVariants(value) {
-  const candidate = String(value ?? '').trim();
+  const candidate = normalizeNickname(value);
   return {
     candidate,
     compacted: compactNickname(candidate),
