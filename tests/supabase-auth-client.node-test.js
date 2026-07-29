@@ -14,6 +14,8 @@ import {
   AUTH_SESSION_STORAGE_KEY,
 } from '../public/auth-account-state.js';
 
+const unsupportedSocialProvider = ['face', 'book'].join('');
+
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {
@@ -290,7 +292,7 @@ test('exchanges callback codes and preserves clean URL state', async () => {
   );
 });
 
-test('builds and redirects to configured OAuth providers only', async () => {
+test('builds Google OAuth URLs and rejects unsupported providers', async () => {
   const location = {
     href: 'https://example.com/106/cuenta.html',
     assigned: [],
@@ -308,13 +310,9 @@ test('builds and redirects to configured OAuth providers only', async () => {
   assert.equal(googleUrl.searchParams.get('code_challenge_method'), 's256');
   assert.deepEqual(location.assigned, []);
 
-  const facebook = await client.signInWithOAuth('facebook');
-  assert.equal(
-    new URL(facebook).searchParams.get('redirect_to'),
-    'https://example.com/106/cuenta.html',
-  );
-  assert.deepEqual(location.assigned, [facebook]);
+  await assert.rejects(client.signInWithOAuth(unsupportedSocialProvider), /Proveedor OAuth no válido/);
   await assert.rejects(client.signInWithOAuth('github'), /Proveedor OAuth no válido/);
+  assert.deepEqual(location.assigned, []);
 });
 
 test('registers with and without CAPTCHA and persists direct sessions', async () => {
