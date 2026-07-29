@@ -10,6 +10,12 @@ import {
   resolvePasswordPageMode,
 } from '../public/password-page-state.js';
 
+const invalidUrlValue = {
+  [Symbol.toPrimitive]() {
+    throw new Error('invalid URL value');
+  },
+};
+
 test('detects recovery callbacks from every supported URL shape', () => {
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html?code=abc'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html?token_hash=abc'), true);
@@ -17,14 +23,14 @@ test('detects recovery callbacks from every supported URL shape', () => {
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#access_token=abc'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#type=recovery'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html?type=email'), false);
-  assert.equal(hasPasswordCallback(Symbol('invalid')), false);
+  assert.equal(hasPasswordCallback(invalidUrlValue), false);
 });
 
 test('detects only explicit authenticated password change requests', () => {
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=change'), true);
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=recovery'), false);
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html'), false);
-  assert.equal(isPasswordChangeRequest(Symbol('invalid')), false);
+  assert.equal(isPasswordChangeRequest(invalidUrlValue), false);
 });
 
 test('distinguishes explicit authenticated change, recovery and unavailable modes', () => {
