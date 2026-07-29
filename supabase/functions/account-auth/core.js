@@ -1,7 +1,7 @@
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEVICE_ID = /^[a-zA-Z0-9._:-]{16,80}$/;
-const SUPPORTED_PROVIDERS = new Set(['email', 'google', 'facebook']);
+const SUPPORTED_PROVIDERS = new Set(['email', 'google']);
 const SUPPORTED_ACTIONS = new Set(['session', 'sync-account', 'confirm-merge', 'cancel-merge']);
 
 export function normalizeAction(value) {
@@ -36,7 +36,7 @@ export function normalizeFingerprint(value) {
 
 export function normalizeProvider(value) {
   const provider = String(value ?? '').trim().toLowerCase();
-  return SUPPORTED_PROVIDERS.has(provider) ? provider : 'email';
+  return SUPPORTED_PROVIDERS.has(provider) ? provider : '';
 }
 
 export function normalizeEmail(value) {
@@ -47,8 +47,8 @@ export function normalizeEmail(value) {
 export function authIdentity(user) {
   if (!user || typeof user !== 'object') return null;
   const id = normalizeUuid(user.id);
-  if (!id) return null;
   const provider = normalizeProvider(user.app_metadata?.provider);
+  if (!id || !provider) return null;
   const email = normalizeEmail(user.email);
   const emailVerified = Boolean(user.email_confirmed_at);
   return { id, provider, email, emailVerified };
