@@ -28,15 +28,20 @@ export function locationHasVerificationToken(locationValue) {
   }
 }
 
-export async function browserAuthExperience({
-  client,
-  config: configValue,
-  access,
-  storage = window.localStorage,
-  location = window.location,
-} = {}) {
+export async function browserAuthExperience(options = {}) {
+  const {
+    client,
+    config: configValue,
+    access,
+    storage = window.localStorage,
+    location = window.location,
+  } = options;
   normalizeAuthConfig(configValue);
-  const session = client ? await client.currentSession() : null;
+  const session = Object.hasOwn(options, 'session')
+    ? options.session
+    : client
+      ? await client.currentSession()
+      : null;
   const local = localAccountSnapshot(access);
   return resolveAuthExperience({
     route: normalizeAuthRoute(location?.pathname),
@@ -56,4 +61,18 @@ export function redirectToAuthRoute(experience, configValue, location = window.l
   if (destination.pathname === current.pathname && destination.search === current.search) return false;
   location.replace(destination.toString());
   return true;
+}
+
+export function markAuthRouteReady(documentValue = globalThis.document) {
+  const body = documentValue?.body;
+  if (!body) return false;
+  body.dataset.authRouteReady = 'true';
+  return true;
+}
+
+export async function guardAuthRoute(options = {}) {
+  const experience = await browserAuthExperience(options);
+  const redirected = redirectToAuthRoute(experience, options.config, options.location);
+  if (!redirected) markAuthRouteReady(options.document);
+  return Object.freeze({ experience, redirected });
 }
