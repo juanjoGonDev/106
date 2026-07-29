@@ -203,13 +203,17 @@ supabase start \
 wait_for_auth_database
 echo '::endgroup::'
 
-echo "::group::Serve and warm Edge Functions for ${SUITE}"
+echo "::group::Serve Edge Functions for ${SUITE}"
 supabase functions serve \
   --env-file supabase/functions/.env \
   > supabase-functions.log 2>&1 &
 FUNCTION_PID=$!
 echo "$FUNCTION_PID" > .supabase-functions.pid
-wait_for_edge_functions
+if [[ "$SUITE" == 'migrations' ]]; then
+  echo '✓ migrations defers Edge Function warm-up until after database reset'
+else
+  wait_for_edge_functions
+fi
 echo '::endgroup::'
 
 echo "::group::Run Supabase ${SUITE} suite"
