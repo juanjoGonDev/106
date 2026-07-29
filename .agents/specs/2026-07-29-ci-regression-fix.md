@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. Two clean complete workflow sets are green; one further consecutive set is required.
+Complete. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. Three clean complete workflow sets passed consecutively.
 
 ## Request
 
@@ -32,7 +32,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] All jobs remain bounded to three minutes or less.
 - [x] Final stability execution 1/3 green.
 - [x] Final stability execution 2/3 green.
-- [ ] Final stability execution 3/3 green.
+- [x] Final stability execution 3/3 green.
 
 ## Validation history
 
@@ -63,6 +63,16 @@ Head `25e630a6f57f895b83477ad34c20578987a1dd6e`:
 - Public Asset Audit `30436387873`: success.
 - Pull Request Visual Evidence `30436386271`: success.
 
+### Final stability execution 3/3
+
+Head `1ce0638dc16b829f12da277e8f6a201264d2ebfb`:
+
+- Pull Request Quality Pipeline `30436697332`: success.
+- Player Pages and Social Cards `30436697342`: success.
+- Authentication Quality `30436697367`: success.
+- Public Asset Audit `30436697355`: success.
+- Pull Request Visual Evidence `30436697345`: success.
+
 ### Evidence artifact
 
 - `platform-evidence-30427861063`, artifact ID `8714334100`.
@@ -84,5 +94,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `2/3` on the bounded cold-compilation candidate.
+- Stability: `3/3` clean bounded cold-compilation executions.
 - No merge, deployment, release or production migration included.
