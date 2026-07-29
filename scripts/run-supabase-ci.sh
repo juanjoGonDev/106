@@ -125,10 +125,10 @@ run_gameplay_core_suite() {
   node scripts/test-daily-attempt-limits-local.mjs
   node scripts/test-verified-email-daily-bonus-local.mjs
   node scripts/test-mobile-touch-local.mjs
-  node scripts/test-ready-flow-local.mjs
 }
 
 run_gameplay_sharing_suite() {
+  node scripts/test-ready-flow-local.mjs
   node scripts/test-trophies-local.mjs
   node scripts/test-player-share-local.mjs
   node scripts/test-social-share-local.mjs
