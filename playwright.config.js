@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { defineConfig, devices } = require(runtimePath);
 const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: new Date().toISOString() });
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const videoDisabled = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1';
 const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND || 'pnpm dev';
 
 export default defineConfig({
@@ -26,7 +27,7 @@ export default defineConfig({
     channel: 'chrome',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: visualCapture ? 'off' : 'retain-on-failure',
+    video: visualCapture || videoDisabled ? 'off' : 'retain-on-failure',
     storageState: {
       cookies: [],
       origins: [{
