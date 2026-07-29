@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. The runner now clears stale Supabase containers before startup. Stability is reset to zero; three complete green workflow sets are required on this final candidate.
+In progress. Logout invalidation, centralized route guards, reusable password visibility controls and CI runner isolation are implemented. The first complete final-candidate workflow set is green; two further consecutive sets are required.
 
 ## Request
 
@@ -34,7 +34,7 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - Frontend route guards are bypassable and cannot replace Edge Function, PostgreSQL or RLS authorization.
 - An early CI candidate warmed `account-auth` but later invoked a cold `game-api`; that request reached its 15-second behavioral timeout.
 - The auth API candidate now warms only the two functions genuinely used by its journey, concurrently inside the existing 30-second readiness window.
-- After two green sets, a GitHub-hosted migrations runner inherited `supabase_db_minuto-106` with port `54322` occupied. The suite never started. The final candidate removes stale `supabase_*` containers only on ephemeral GitHub runners before startup.
+- After two green sets, a GitHub-hosted migrations runner inherited `supabase_db_minuto-106` with port `54322` occupied. The final candidate removes stale `supabase_*` containers only on ephemeral GitHub runners before startup.
 - No behavioral timeout, assertion, browser shard, coverage threshold or test retry was weakened.
 
 ## Decisions
@@ -67,7 +67,7 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - [x] New pure route/password decisions have 100% line/function/branch coverage.
 - [x] Existing backend authorization and real local Auth/API/database journeys remain enabled.
 - [x] Stale CI Supabase containers are removed before startup without affecting local execution.
-- [ ] Final candidate workflow execution 1/3 green.
+- [x] Final candidate workflow execution 1/3 green.
 - [ ] Final candidate workflow execution 2/3 green.
 - [ ] Final candidate workflow execution 3/3 green.
 - [ ] Final-head platform evidence and PR metadata updated.
@@ -85,8 +85,18 @@ Head `0ef426ecaccebbf06f89e7bd16a2ffc3812b6e42`:
 ### Superseded preflight candidate
 
 - Heads `fe24aee129b3193eb161b0c937316252733bdf46` and `352f21c22661e110aca49a64994ddf8ed71ea8d3` completed all five workflows successfully.
-- Head `82437390dba4c0faff901c7e23caa9f3e7a3004d` had four green workflows; migrations failed before suite execution because port `54322` was held by a stale Supabase container on the hosted runner.
-- These sets do not count toward the final candidate after adding runner preflight cleanup.
+- Head `82437390dba4c0faff901c7e23caa9f3e7a3004d` had four green workflows; migrations failed before suite execution because port `54322` was held by a stale Supabase container.
+- These sets do not count toward the final runner-isolated candidate.
+
+### Final candidate execution 1/3
+
+Head `c002295afb1cc77e2773160834e7e7f8c85e2a1c`:
+
+- Pull Request Quality Pipeline `30445590917`: success.
+- Player Pages and Social Cards `30445590852`: success.
+- Authentication Quality `30445590869`: success.
+- Public Asset Audit `30445590933`: success.
+- Pull Request Visual Evidence `30445590957`: success.
 
 ## Risk analysis
 
@@ -114,5 +124,5 @@ Revert the route-policy/guard, password component, logout cleanup, auth-api read
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `0/3` on the final runner-isolated candidate.
+- Stability: `1/3` on the final runner-isolated candidate.
 - No merge, deployment, remote migration or provider-secret change is authorized.
