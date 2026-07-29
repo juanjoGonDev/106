@@ -261,7 +261,7 @@ test('login, registration and local linking expose only Google with contextual l
     const page = await context.newPage();
     await installPage(page, { initial });
     await openApplicationPage(page, `/${path}`);
-    await expect(page.locator('.oauth-button')).toHaveCount(1);
+    await expect(page.locator('.oauth-button:visible')).toHaveCount(1);
     await page.getByRole('button', { name: label }).click();
     await expect(page).toHaveURL(/\/auth\/v1\/authorize[?].*provider=google/u);
     expect(new URL(page.url()).searchParams.get('redirect_to')).toBe(`${applicationUrl}/cuenta.html`);
