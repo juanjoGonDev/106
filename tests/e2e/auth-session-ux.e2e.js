@@ -205,7 +205,7 @@ test('remote logout failure still clears every local credential and reports the 
 
 test('authenticated email change and recovery link reuse the same password page safely', async ({ browser }) => {
   for (const scenario of [
-    { mode: 'change', initialSession: cloudSession(), path: '/restablecer-clave.html', currentVisible: true },
+    { mode: 'change', initialSession: cloudSession(), path: '/restablecer-clave.html?mode=change', currentVisible: true },
     { mode: 'recovery', initialSession: null, path: '/restablecer-clave.html?code=recovery&type=recovery', currentVisible: false },
   ]) {
     const context = await browser.newContext({ baseURL: applicationUrl });
@@ -219,7 +219,8 @@ test('authenticated email change and recovery link reuse the same password page 
     await openApplicationPage(page, scenario.path);
 
     await expect(page.locator('[data-password-mode]')).toHaveAttribute('data-password-mode', scenario.mode);
-    await expect(page.locator('#currentPasswordField')).toBeVisible({ visible: scenario.currentVisible });
+    if (scenario.currentVisible) await expect(page.locator('#currentPasswordField')).toBeVisible();
+    else await expect(page.locator('#currentPasswordField')).toBeHidden();
     if (scenario.currentVisible) await page.locator('#currentPassword').fill('Current123!');
     await page.locator('#newPassword').fill('NewSecure1!');
     await page.locator('#confirmNewPassword').fill('NewSecure1!');
@@ -238,7 +239,7 @@ test('all password routes use one accessible eye control without changing values
   for (const { path, inputs, session } of [
     { path: '/login.html', inputs: ['authPassword'], session: null },
     { path: '/registro.html', inputs: ['authPassword', 'authPasswordConfirmation'], session: null },
-    { path: '/restablecer-clave.html', inputs: ['currentPassword', 'newPassword', 'confirmNewPassword'], session: cloudSession() },
+    { path: '/restablecer-clave.html?mode=change', inputs: ['currentPassword', 'newPassword', 'confirmNewPassword'], session: cloudSession() },
   ]) {
     const context = await browser.newContext({ baseURL: applicationUrl });
     const page = await context.newPage();
