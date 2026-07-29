@@ -65,11 +65,14 @@
 
         <div id="cloudAuthenticatedPanel" class="cloud-mode-panel" hidden>
           <div id="cloudAccountIdentity" class="cloud-identity-summary"></div>
-          <p>Google recupera la misma cuenta canónica y todos sus nicks.</p>
+          <p>Tu acceso en la nube recupera la misma cuenta canónica y todos sus nicks, aunque todavía no hayas creado ninguno.</p>
           <div class="cloud-provider-grid" aria-label="Acceso con Google">
             <button id="authenticatedGoogle" class="oauth-button" type="button">Vincular Google</button>
           </div>
-          <button id="cloudSignOut" class="ghost cloud-sign-out" type="button">Cerrar sesión en la nube</button>
+          <div class="cloud-session-actions">
+            <a id="changePasswordLink" class="secondary" href="./restablecer-clave.html" hidden>Cambiar contraseña</a>
+            <button id="cloudSignOut" class="ghost cloud-sign-out" type="button">Cerrar sesión</button>
+          </div>
         </div>
 
         <p class="hint">El email se guarda de forma privada y no aparece en perfiles, rankings ni imágenes compartidas.</p>
@@ -86,7 +89,7 @@
             <button id="createAccountKey" class="primary" type="button">Crear clave</button>
             <button id="copyAccountKey" class="secondary" type="button">Copiar clave</button>
             <button id="showAccountKey" class="ghost" type="button">Mostrar</button>
-            <button id="logoutAccount" class="ghost" type="button">Cerrar sesión local</button>
+            <button id="logoutAccount" class="ghost" type="button">Cerrar sesión de clave local</button>
           </div>
         </div>
         <div class="profile-compare account-import">
