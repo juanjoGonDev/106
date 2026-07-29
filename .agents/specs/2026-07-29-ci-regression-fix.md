@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The functional implementation is fixed. Final-head stability restarted after the documentation closure removed the mandatory PR visual-evidence marker block. The marker contract is restored and the current final-head candidate has completed one full green workflow set; two additional consecutive full green sets are required.
+In progress. The functional implementation and PR metadata contract are fixed. Two consecutive complete final-head workflow sets are green after restoring the mandatory visual-evidence marker block. One additional consecutive complete green set is required, followed by a green validation of the final documentation head.
 
 ## Request
 
@@ -19,7 +19,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - The original Supabase integration was sequential and exceeded six minutes.
 - The first parallel `gameplay-core` allocation completed all assertions but reached the three-minute limit during cleanup.
 - Moving the exact-deadline ready-flow journey into `gameplay-sharing` balanced both domain jobs without modifying assertions or timeouts.
-- The first documentation closure removed `<!-- visual-evidence:start -->` / `<!-- visual-evidence:end -->` from the PR body. The metadata check correctly failed; the marker block and complete Desktop/Mobile/GIF area were restored.
+- A documentation closure removed the mandatory PR visual-evidence marker block. The metadata check correctly failed; the block and complete Desktop/Mobile/GIF evidence area were restored.
 
 ## Decisions
 
@@ -44,18 +44,10 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] No skip, retry-as-fix, timeout increase or coverage reduction.
 - [x] Mandatory PR visual-evidence marker block restored.
 - [x] Final-head stability execution 1/3 green.
-- [ ] Final-head stability execution 2/3 green.
+- [x] Final-head stability execution 2/3 green.
 - [ ] Final-head stability execution 3/3 green.
 
 ## Validation
-
-### Earlier functional stability evidence
-
-Three complete workflow sets passed before the metadata closure regression:
-
-- Set A: quality `30427222053`, browser `30427221870`, auth `30427221716`, audit `30427221764`, metadata `30427221726`.
-- Set B: quality `30427557353`, browser `30427557557`, auth `30427557508`, audit `30427557346`, metadata `30427557379`.
-- Set C: quality `30427861060`, browser `30427861063`, auth `30427861054`, audit `30427861082`, metadata `30427861057`.
 
 ### Final-head stability execution 1/3
 
@@ -65,7 +57,17 @@ Head: `7ad55950c1e897eb94e5aaacc45d046bedeba864`.
 - Player Pages and Social Cards `30428298968`: success.
 - Authentication Quality `30428299030`: success.
 - Public Asset Audit `30428298901`: success.
-- Pull Request Visual Evidence `30428475565`: success after restoring the required PR metadata block.
+- Pull Request Visual Evidence `30428475565`: success.
+
+### Final-head stability execution 2/3
+
+Head: `e8fdca5d381d308fd25236fa1c5fab2db17c99c0`.
+
+- Pull Request Quality Pipeline `30428616702`: success.
+- Player Pages and Social Cards `30428616651`: success.
+- Authentication Quality `30428616674`: success.
+- Public Asset Audit `30428616680`: success.
+- Pull Request Visual Evidence `30428616652`: success.
 
 ### Evidence artifact
 
@@ -89,5 +91,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Current final-head stability: `1/3`.
+- Current final-head stability: `2/3`.
 - No merge, deployment, release, production migration or provider configuration is included.
