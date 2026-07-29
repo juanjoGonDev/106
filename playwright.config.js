@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { defineConfig, devices } = require(runtimePath);
 const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: new Date().toISOString() });
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND || 'pnpm dev';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -35,7 +36,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: 'pnpm dev',
+    command: webServerCommand,
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
     timeout: 20_000,
