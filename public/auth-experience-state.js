@@ -4,7 +4,35 @@ export const AUTH_ROUTES = Object.freeze({
   account: 'cuenta.html',
   login: 'login.html',
   register: 'registro.html',
+  reset: 'restablecer-clave.html',
   verify: 'verificar-email.html',
+});
+
+export const AUTH_ROUTE_ACCESS = Object.freeze({
+  contextual: 'contextual',
+  guestOnly: 'guest-only',
+  recoverySession: 'recovery-session',
+  verification: 'verification',
+});
+
+const routePolicy = (access, redirects = {}) => Object.freeze({ access, ...redirects });
+
+export const AUTH_ROUTE_POLICIES = Object.freeze({
+  [AUTH_ROUTES.account]: routePolicy(AUTH_ROUTE_ACCESS.contextual),
+  [AUTH_ROUTES.login]: routePolicy(AUTH_ROUTE_ACCESS.guestOnly, {
+    authenticatedRedirect: AUTH_ROUTES.account,
+  }),
+  [AUTH_ROUTES.register]: routePolicy(AUTH_ROUTE_ACCESS.guestOnly, {
+    authenticatedRedirect: AUTH_ROUTES.account,
+    pendingRedirect: AUTH_ROUTES.verify,
+  }),
+  [AUTH_ROUTES.reset]: routePolicy(AUTH_ROUTE_ACCESS.recoverySession, {
+    missingRedirect: AUTH_ROUTES.login,
+  }),
+  [AUTH_ROUTES.verify]: routePolicy(AUTH_ROUTE_ACCESS.verification, {
+    missingRedirect: AUTH_ROUTES.register,
+    verifiedRedirect: AUTH_ROUTES.account,
+  }),
 });
 
 const SOCIAL_PROVIDERS = Object.freeze(['google', 'facebook']);
@@ -14,6 +42,10 @@ export function normalizeAuthRoute(value) {
   const pathname = String(value ?? '').split(/[?#]/u)[0];
   const file = pathname.split('/').filter(Boolean).at(-1) || AUTH_ROUTES.account;
   return AUTH_ROUTE_NAMES.has(file) ? file : AUTH_ROUTES.account;
+}
+
+export function authRoutePolicy(value) {
+  return AUTH_ROUTE_POLICIES[normalizeAuthRoute(value)];
 }
 
 export function authRouteUrl(publicSiteUrl, route) {
@@ -63,7 +95,7 @@ export function localAccountActive({ accountToken, rememberedNicks, legacyNicks 
     || (Array.isArray(legacyNicks) && legacyNicks.length > 0);
 }
 
-export function resolveAuthExperience({
+export function authRouteGuardDecision({
   route,
   session,
   hasLocalAccount = false,
@@ -71,16 +103,46 @@ export function resolveAuthExperience({
   hasVerificationToken = false,
 } = {}) {
   const currentRoute = normalizeAuthRoute(route);
+  const policy = authRoutePolicy(currentRoute);
   const identity = authIdentity(session);
   const pending = normalizeEmail(pendingEmail);
+  let redirect = '';
+
+  if (policy.access === AUTH_ROUTE_ACCESS.guestOnly) {
+    if (identity || hasLocalAccount) redirect = policy.authenticatedRedirect;
+    else if (pending && policy.pendingRedirect) redirect = policy.pendingRedirect;
+  } else if (policy.access === AUTH_ROUTE_ACCESS.verification) {
+    if (identity && !identity.verificationEligible) redirect = policy.verifiedRedirect;
+    else if (!hasVerificationToken && !pending && !identity?.verificationEligible) redirect = policy.missingRedirect;
+  } else if (policy.access === AUTH_ROUTE_ACCESS.recoverySession && !identity) {
+    redirect = policy.missingRedirect;
+  }
+
+  return Object.freeze({
+    route: currentRoute,
+    redirect: redirect || '',
+    identity,
+    pendingEmail: pending,
+  });
+}
+
+export function resolveAuthExperience(input = {}) {
+  const guard = authRouteGuardDecision(input);
+  const currentRoute = guard.route;
+  const identity = guard.identity;
+  const pending = guard.pendingEmail;
+
+  if (guard.redirect) {
+    return Object.freeze({
+      route: currentRoute,
+      redirect: guard.redirect,
+      mode: 'redirect',
+      identity,
+      pendingEmail: pending,
+    });
+  }
 
   if ([AUTH_ROUTES.login, AUTH_ROUTES.register].includes(currentRoute)) {
-    if (identity || hasLocalAccount) {
-      return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.account, mode: 'redirect', identity, pendingEmail: pending });
-    }
-    if (currentRoute === AUTH_ROUTES.register && pending) {
-      return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.verify, mode: 'redirect', identity, pendingEmail: pending });
-    }
     return Object.freeze({
       route: currentRoute,
       redirect: '',
@@ -91,18 +153,22 @@ export function resolveAuthExperience({
   }
 
   if (currentRoute === AUTH_ROUTES.verify) {
-    if (identity && !identity.verificationEligible) {
-      return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.account, mode: 'redirect', identity, pendingEmail: pending });
-    }
-    if (!hasVerificationToken && !pending && !identity?.verificationEligible) {
-      return Object.freeze({ route: currentRoute, redirect: AUTH_ROUTES.register, mode: 'redirect', identity, pendingEmail: pending });
-    }
     return Object.freeze({
       route: currentRoute,
       redirect: '',
       mode: 'verify',
       identity,
       pendingEmail: pending || identity?.email || '',
+    });
+  }
+
+  if (currentRoute === AUTH_ROUTES.reset) {
+    return Object.freeze({
+      route: currentRoute,
+      redirect: '',
+      mode: 'password-reset',
+      identity,
+      pendingEmail: pending,
     });
   }
 
