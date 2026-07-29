@@ -9,7 +9,7 @@ Never commit or expose:
 - PostgreSQL password or connection string
 - `HASH_PEPPER`
 - Cloudflare Turnstile secret key
-- Google or Facebook OAuth client secret
+- Google OAuth client secret
 - Brevo SMTP key, SMTP password or provider API key
 - Registry credentials or authentication tokens in `.npmrc`, `pnpm-workspace.yaml` or the lockfile
 
@@ -51,7 +51,7 @@ CI enumerates every server-owned game table, sequence and privileged function an
 
 ## Supabase Auth boundary
 
-Google, Facebook and email/password are optional recovery credentials for an existing game account. They do not replace the private account key.
+Google and email/password are optional recovery credentials for an existing game account. They do not replace the private account key.
 
 - The browser sends a Supabase user JWT only to Supabase Auth and the dedicated `account-auth` Edge Function.
 - `account-auth` validates the JWT against the same Supabase project and uses the immutable `auth.users.id` for authorization.
@@ -62,6 +62,7 @@ Google, Facebook and email/password are optional recovery credentials for an exi
 - A JWT that maps to a different game account cannot merge it silently with the current private key. The server creates a short-lived impact proposal and requires explicit confirmation.
 - Confirmation locks both accounts, recomputes the impact, rejects stale proposals and records the complete correction snapshot.
 - Old private keys continue resolving to the canonical merged account so a successful merge does not strand devices.
+- Unsupported social providers are rejected at the browser, Edge Function and database-write boundaries.
 
 Email registration, password login and recovery use Supabase Auth rate limits and Turnstile when configured. User-visible responses for registration and recovery remain neutral and must not reveal whether an email is registered.
 
