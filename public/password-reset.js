@@ -5,6 +5,7 @@ import {
   passwordProblems,
   passwordRequirements,
 } from './auth-account-state.js';
+import { guardAuthRoute, markAuthRouteReady } from './auth-browser-context.js';
 import { SupabaseAuthClient } from './supabase-auth-client.js';
 
 const config = normalizeAuthConfig(window.__MINUTO106_CONFIG__);
@@ -61,6 +62,7 @@ function refreshValidation() {
 
 async function initialize() {
   if (!config.available) {
+    markAuthRouteReady(document);
     submit.disabled = true;
     const local = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     setStatus(local
@@ -71,6 +73,16 @@ async function initialize() {
   }
   client = new SupabaseAuthClient(config);
   const session = await client.exchangeCallback();
+  const guard = await guardAuthRoute({
+    client,
+    session,
+    config: window.__MINUTO106_CONFIG__,
+    access: window.Minuto106Access,
+    storage: window.localStorage,
+    location: window.location,
+    document,
+  });
+  if (guard.redirected) return;
   if (!session) {
     submit.disabled = true;
     setStatus('El enlace de recuperación no es válido o ha caducado.', 'error');
@@ -103,6 +115,7 @@ submit.addEventListener('click', async () => {
 });
 
 initialize().catch((error) => {
+  markAuthRouteReady(document);
   submit.disabled = true;
   setStatus(error.message || 'No se pudo validar el enlace de recuperación.', 'error');
   renderRequirements();
