@@ -1,13 +1,7 @@
 alter table public.game_auth_identities
-  drop constraint if exists game_auth_identities_supported_provider_check;
-
-alter table public.game_auth_identities
   add constraint game_auth_identities_supported_provider_check
   check (provider in ('email', 'google'))
   not valid;
-
-alter table public.game_auth_identities
-  drop constraint if exists game_auth_identities_supported_origin_provider_check;
 
 alter table public.game_auth_identities
   add constraint game_auth_identities_supported_origin_provider_check
