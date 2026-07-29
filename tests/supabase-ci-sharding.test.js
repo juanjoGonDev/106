@@ -11,6 +11,12 @@ function occurrences(source, value) {
   return source.split(value).length - 1;
 }
 
+function jobBlock(name, nextName) {
+  const start = workflow.indexOf(`  ${name}:`);
+  const end = workflow.indexOf(`\n  ${nextName}:`, start);
+  return workflow.slice(start, end < 0 ? workflow.length : end);
+}
+
 describe('fast parallel Supabase CI', () => {
   it('keeps every executable quality job bounded to three minutes or less', () => {
     const timeouts = [...workflow.matchAll(/timeout-minutes:\s*(\d+)/gu)]
@@ -35,6 +41,15 @@ describe('fast parallel Supabase CI', () => {
     for (const suite of suites) {
       expect(runner).toContain(`${suite})`);
     }
+  });
+
+  it('avoids dependency installation in isolated Supabase runners', () => {
+    const block = jobBlock('supabase-integration', 'quality-gate');
+    expect(block).not.toContain('pnpm install');
+    expect(block).not.toContain('cache: pnpm');
+    expect(block).toContain("if: matrix.suite == 'auth-browser'");
+    expect(block).toContain('Set up pnpm for live browser suite');
+    expect(occurrences(block, 'pnpm/action-setup@')).toBe(1);
   });
 
   it('does not reintroduce the six-minute monolithic journey', () => {
