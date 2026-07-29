@@ -2,7 +2,7 @@
 
 ## Status
 
-Stability validation in progress. The functional fix is complete and two consecutive full CI executions are green. One final consecutive execution of the unchanged functional tree is required before closure.
+Complete. The functional fix and final documentation head passed the complete CI workflow set after three consecutive green stability executions. No validation was weakened and every job remains bounded to three minutes or less.
 
 ## Request
 
@@ -65,8 +65,8 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 - [x] No retry, skip, timeout increase or browser-shard reduction is introduced.
 - [x] First complete stability execution is green.
 - [x] Second complete stability execution is green.
-- [ ] Third complete stability execution is green.
-- [x] The canonical platform evidence ZIP is complete and bound to a validated candidate head.
+- [x] Third complete stability execution is green.
+- [x] The canonical platform evidence ZIP is complete and bound to the validated head.
 
 ## Validation
 
@@ -79,7 +79,6 @@ Functional fix head: `f759657f9b16fe310540d60b94dbc5d35a5d718b`.
 - Authentication Quality `30427221716`: success.
 - Public Asset Audit `30427221764`: success.
 - Pull Request Visual Evidence `30427221726`: success.
-- Sixteen Playwright capture/encoding shards and every isolated Supabase domain completed without retries, reduced coverage or timeout increases.
 
 ### Stability execution 2/3
 
@@ -88,10 +87,18 @@ Functional fix head: `f759657f9b16fe310540d60b94dbc5d35a5d718b`.
 - Authentication Quality `30427557508`: success.
 - Public Asset Audit `30427557346`: success.
 - Pull Request Visual Evidence `30427557379`: success.
-- The same functional tree completed the full workflow set again without retries, reduced coverage or timeout increases.
+
+### Stability execution 3/3
+
+- Pull Request Quality Pipeline `30427861060`: success.
+- Player Pages and Social Cards `30427861063`: success.
+- Authentication Quality `30427861054`: success.
+- Public Asset Audit `30427861082`: success.
+- Pull Request Visual Evidence `30427861057`: success.
 
 ### Supporting validation
 
+- Three consecutive complete workflow sets passed without retries, reduced coverage or timeout increases.
 - `node --check public/nickname-input-guard.js`.
 - Vitest regressions for observer stability, external start-button ownership, GIF LZW output, PostgREST readiness and Supabase CI sharding.
 - Security contract assertions for shared profile and league-search validation.
@@ -99,6 +106,9 @@ Functional fix head: `f759657f9b16fe310540d60b94dbc5d35a5d718b`.
 - ESLint and Knip over repository JavaScript.
 - Full Desktop/Mobile Playwright browser matrix with no retries.
 - In-shard Chrome WebM decoding/GIF encoding and final fragment inventory merge.
+- Canonical artifact `platform-evidence-30427861063`, artifact ID `8714334100`, size `157401387` bytes.
+- Artifact SHA-256: `5891e4308251196cb7914f06dca8d1dab91dc8196d9f09db3e6baf75cb1bfc54`.
+- Artifact head: `f1dc1edd2a85942ca1c264d54e4384d950d45b97`.
 
 ## Risks
 
@@ -117,5 +127,6 @@ Revert the commits from this specification. Do not restore the observer feedback
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability count: `2/3` complete green executions.
+- Stability count: `3/3` complete green executions.
+- Final documentation head must preserve the same complete green workflow set.
 - No merge, deployment, release, production migration or provider configuration is included.
