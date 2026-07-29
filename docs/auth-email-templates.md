@@ -41,7 +41,7 @@ pnpm test:auth-email-templates:coverage
 
 ## Hosted Supabase rollout
 
-Repository files and `supabase/config.toml` do not mutate hosted Auth configuration. Production synchronization is therefore part of the existing protected `Deploy Supabase backend safely` workflow.
+Repository files and `supabase/config.toml` do **not** mutate the hosted project. They configure local Auth and provide the maintained source used by the existing protected `Deploy Supabase backend safely` workflow.
 
 On a push to `main` that changes maintained email sources, generated templates, Auth configuration or the synchronization scripts, the production workflow:
 
