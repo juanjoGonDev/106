@@ -5,6 +5,7 @@ import {
   passwordRequirements,
 } from './auth-account-state.js';
 import { guardAuthRoute, markAuthRouteReady } from './auth-browser-context.js';
+import { authIdentity, identitySupportsPassword } from './auth-experience-state.js';
 import {
   PASSWORD_PAGE_MODES,
   hasPasswordCallback,
@@ -128,6 +129,10 @@ async function initialize() {
     changeRequested,
     session,
   });
+  if (mode === PASSWORD_PAGE_MODES.change && !identitySupportsPassword(authIdentity(session))) {
+    window.location.assign('./cuenta.html');
+    return;
+  }
   renderMode();
   if (mode === PASSWORD_PAGE_MODES.unavailable) {
     submit.disabled = true;
