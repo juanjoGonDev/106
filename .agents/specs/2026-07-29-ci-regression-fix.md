@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The timed ready-flow journey has an isolated seventh Supabase domain and its CI contract test is syntactically valid. Stability is reset to zero; three consecutive complete green workflow sets are required on this final head.
+In progress. The timed ready-flow journey has an isolated seventh Supabase domain. The first complete final-allocation workflow set is green; two additional consecutive green sets are required.
 
 ## Request
 
@@ -27,7 +27,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Every maintained Supabase journey is assigned exactly once.
 - [x] Ready-flow has an isolated local stack.
 - [x] All jobs remain bounded to three minutes or less.
-- [ ] Final stability execution 1/3 green.
+- [x] Final stability execution 1/3 green.
 - [ ] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
@@ -48,11 +48,15 @@ Head `774684886d3980a35d4f15becbd07ddf06c57256`:
 
 Head `d1304e41c1a4b0a9abe17b65e6543ab7f01001b5` correctly launched the seven-domain matrix, but ESLint and Vitest rejected a malformed regular expression in `tests/supabase-ci-sharding.test.js`. The production runner and workflow were not the cause.
 
-### Final seven-domain allocation
+### Final stability execution 1/3
 
-Candidate implementation and test head before this documentation close: `639d8eb97aa6dc859ddb8bad26f29a16a23acdc1`.
+Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`:
 
-This documentation-close head must pass three complete consecutive workflow sets before delivery.
+- Pull Request Quality Pipeline `30432416134`: success.
+- Player Pages and Social Cards `30432416132`: success.
+- Authentication Quality `30432416137`: success.
+- Public Asset Audit `30432416167`: success.
+- Pull Request Visual Evidence `30432416141`: success.
 
 ### Evidence artifact
 
@@ -73,5 +77,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `0/3` on the final seven-domain allocation.
+- Stability: `1/3` on the final seven-domain allocation.
 - No merge, deployment, release or production migration included.
