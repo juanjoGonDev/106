@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. Stability is reset to zero; three clean complete workflow sets are required on this final candidate.
+In progress. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. The first clean complete workflow set is green; two further consecutive sets are required.
 
 ## Request
 
@@ -16,9 +16,8 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - The exact 30-second anti-abuse journey has its own stack; no timeout, assertion duration, coverage, retry or browser shard was weakened.
 - Replaced generic Edge Function warm-up with suite-specific probes after `auth-browser` crashed the local runtime while compiling unrelated functions.
 - Migrations performs only the authoritative post-reset warm-up and PostgREST readiness check.
-- Ready-flow showed four consecutive 8-second client timeouts before cold compilation completed; aborting each request extended startup and left the successful suite at the job boundary.
-- Cold compilation now receives up to 30 seconds per probe with three bounded attempts and a two-second connection timeout. 4xx responses prove a compiled, serving authorization boundary; 5xx and transport errors remain failures.
-- Local executions still stop Supabase explicitly. GitHub-hosted jobs kill the function process and rely on ephemeral runner teardown for containers, avoiding roughly twelve seconds of non-functional shutdown after all assertions pass.
+- Cold compilation receives up to 30 seconds per probe with three bounded attempts and a two-second connection timeout. Controlled 4xx responses prove a compiled, serving boundary; 5xx and transport errors remain failures.
+- Local executions stop Supabase explicitly. GitHub-hosted jobs kill the function process and rely on ephemeral runner teardown for containers, preserving the assertion budget.
 - CI contract regressions enforce the matrix, exact assignment, domain warm-up, post-reset migration ordering, bounded cold compilation and cleanup policy.
 - The mandatory PR Desktop/Mobile/GIF marker block remains restored.
 
@@ -31,7 +30,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Migration warm-up runs only after database reset.
 - [x] Local cleanup remains complete; ephemeral CI cleanup does not consume the assertion budget.
 - [x] All jobs remain bounded to three minutes or less.
-- [ ] Final stability execution 1/3 green.
+- [x] Final stability execution 1/3 green.
 - [ ] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
@@ -44,9 +43,15 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - Double migration warm-up: migrations passed and was cancelled during cleanup.
 - Short ready-flow probes: the suite passed its real 30-second deadline assertion but was cancelled during cleanup after repeated cold-compilation aborts.
 
-### Final candidate
+### Final stability execution 1/3
 
-Implementation and contract-test head before documentation close: `51ecf99c3f8c0ffc85c2031c7a6ca15b1de296a1`.
+Head `5d39e6bed34f537e8e7c6fffee22ef58193eb208`:
+
+- Pull Request Quality Pipeline `30436091616`: success.
+- Player Pages and Social Cards `30436091646`: success.
+- Authentication Quality `30436091587`: success.
+- Public Asset Audit `30436091638`: success.
+- Pull Request Visual Evidence `30436091610`: success.
 
 ### Evidence artifact
 
@@ -69,5 +74,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `0/3` on the bounded cold-compilation candidate.
+- Stability: `1/3` on the bounded cold-compilation candidate.
 - No merge, deployment, release or production migration included.
