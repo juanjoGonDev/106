@@ -22,7 +22,7 @@ jobs:
     name: 🟢 Build · Prepare workspace
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -57,9 +57,9 @@ jobs:
 
   tests:
     name: 🚧 Tests · Unit & security
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -101,9 +101,9 @@ jobs:
 
   eslint:
     name: 🧹 ESLint · Static analysis
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -145,9 +145,9 @@ jobs:
 
   knip:
     name: 🧩 Knip · Dead code analysis
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -189,9 +189,9 @@ jobs:
 
   security:
     name: 🛡️ Security · Dependency & policy checks
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -256,10 +256,15 @@ jobs:
           fi
 
   supabase-integration:
-    name: 🧪 Supabase · Local API integration
-    needs: build
+    name: 🧪 Supabase · ${{ matrix.suite }}
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        suite: [security, gameplay, auth-api, auth-browser, migrations]
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -285,14 +290,14 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      - name: Run local stack, Edge Function and API journey
+      - name: Run isolated local Supabase suite
         id: supabase-suite
         continue-on-error: true
         shell: bash
-        run: bash scripts/run-supabase-ci.sh
+        run: bash scripts/run-supabase-ci.sh "${{ matrix.suite }}"
 
       - name: Upload generated social card previews
-        if: steps.supabase-suite.outcome == 'success'
+        if: matrix.suite == 'gameplay' && steps.supabase-suite.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: social-card-previews-${{ github.run_id }}
@@ -304,10 +309,12 @@ jobs:
         if: steps.supabase-suite.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: supabase-local-diagnostics-${{ github.run_id }}
+          name: supabase-local-diagnostics-${{ matrix.suite }}-${{ github.run_id }}
           path: |
             supabase-integration.log
             supabase-functions.log
+            playwright-report
+            test-results
           if-no-files-found: ignore
           retention-days: 7
 
