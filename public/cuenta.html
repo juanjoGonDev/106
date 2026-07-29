@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#08090c">
   <meta name="color-scheme" content="dark">
   <title>Mi cuenta — Minuto 106</title>
-  <meta name="description" content="Gestiona tus nicks, proveedores y clave privada de Minuto 106.">
+  <meta name="description" content="Gestiona tus nicks, accesos y clave privada de Minuto 106.">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./site.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -43,12 +43,11 @@
         </div>
 
         <div id="cloudLocalLinkPanel" class="cloud-mode-panel" hidden>
-          <p>Este dispositivo ya tiene una cuenta local. Vincúlala para recuperarla sin depender únicamente de la clave privada.</p>
-          <div class="cloud-provider-grid" aria-label="Vincular proveedor social">
+          <p>Este dispositivo ya tiene una cuenta local. Vincúlala con Google para recuperarla sin depender únicamente de la clave privada.</p>
+          <div class="cloud-provider-grid" aria-label="Vincular con Google">
             <button id="googleSignIn" class="oauth-button" type="button">Vincular Google</button>
-            <button id="facebookSignIn" class="oauth-button" type="button">Vincular Facebook</button>
           </div>
-          <p class="social-reward-note"><strong>+1 intento diario:</strong> la primera vinculación social elegible concede una única bonificación compartida entre Google y Facebook.</p>
+          <p class="social-reward-note"><strong>+1 intento diario:</strong> la primera vinculación elegible con Google concede una única bonificación.</p>
         </div>
 
         <div id="cloudPendingPanel" class="cloud-mode-panel" hidden>
@@ -66,10 +65,9 @@
 
         <div id="cloudAuthenticatedPanel" class="cloud-mode-panel" hidden>
           <div id="cloudAccountIdentity" class="cloud-identity-summary"></div>
-          <p>Los proveedores vinculados recuperan la misma cuenta canónica y todos sus nicks.</p>
-          <div class="cloud-provider-grid" aria-label="Proveedores vinculados">
+          <p>Google recupera la misma cuenta canónica y todos sus nicks.</p>
+          <div class="cloud-provider-grid" aria-label="Acceso con Google">
             <button id="authenticatedGoogle" class="oauth-button" type="button">Vincular Google</button>
-            <button id="authenticatedFacebook" class="oauth-button" type="button">Vincular Facebook</button>
           </div>
           <button id="cloudSignOut" class="ghost cloud-sign-out" type="button">Cerrar sesión en la nube</button>
         </div>
