@@ -54,14 +54,15 @@ describe('parallel player browser workflow', () => {
 
   it('prevents capture workers from recording every test implicitly', () => {
     expect(playwrightConfig).toContain("const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';");
+    expect(playwrightConfig).toContain("const videoDisabled = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1';");
     expect(playwrightConfig).toContain('workers: visualCapture ? 1 : 2');
-    expect(playwrightConfig).toContain("video: visualCapture ? 'off' : 'retain-on-failure'");
+    expect(playwrightConfig).toContain("video: visualCapture || videoDisabled ? 'off' : 'retain-on-failure'");
   });
 
   it('uses Chrome as the existing WebM decoder and keeps GIF encoding dependency-free', () => {
     expect(gifEncoder).toContain("chromium.launch({ channel: 'chrome', headless: true })");
     expect(gifEncoder).toContain("contentType: 'video/webm'");
-    expect(gifEncoder).toContain("context.drawImage(video, 0, 0, width, height)");
+    expect(gifEncoder).toContain('context.drawImage(video, 0, 0, width, height)');
     expect(gifEncoder).toContain("Buffer.from('GIF89a')");
     expect(gifEncoder).toContain("Buffer.from('NETSCAPE2.0')");
     expect(gifEncoder).toContain('encodeRgbFrameLzw');
