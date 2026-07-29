@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation in progress on `agent/fix-google-password-action`. No merge or deployment is authorized.
+Implemented on `agent/fix-google-password-action`; final-head CI and visual-evidence validation are pending on PR #54. No merge or deployment is authorized.
 
 ## Request
 
@@ -10,10 +10,10 @@ A user authenticated through Google must not see or enter the authenticated pass
 
 ## Evidence
 
-- The account UI currently uses `identitySupportsPassword(identity)`, which checks whether any linked provider is `email`.
+- The account UI used `identitySupportsPassword(identity)` to check whether any linked provider was `email`.
 - Supabase `app_metadata.provider` records the first provider used to create the account, while `app_metadata.providers` records all available login providers; neither reliably identifies how the current session authenticated.
 - The access-token `amr` claim records authentication methods such as `password`, `oauth`, `recovery` and `token_refresh`.
-- Therefore an account originally created with email and currently authenticated through Google can expose `Cambiar contraseña` incorrectly.
+- Therefore an account originally created with email and currently authenticated through Google could expose `Cambiar contraseña` incorrectly.
 
 ## Decision
 
@@ -23,6 +23,14 @@ A user authenticated through Google must not see or enter the authenticated pass
 4. Keep recovery-link password reset independent: a valid recovery callback may reset the password without a current-password field.
 5. Apply the same decision to both the account button and direct `restablecer-clave.html?mode=change` access.
 6. Treat JWT parsing as UI capability detection only; no authorization or server trust is delegated to the decoded payload.
+
+## Implementation
+
+- `public/auth-experience-state.js` decodes the JWT payload defensively, normalizes unique `amr` methods and exposes them on the derived authenticated identity.
+- `identitySupportsPassword` now requires an explicit `password` authentication method instead of inferring capability from linked providers.
+- Existing account rendering and direct password-page guards reuse the same centralized decision without duplicated provider logic.
+- Node tests cover malformed JWTs, missing claims, normalization, duplicates, password sessions, OAuth sessions and the linked email/Google regression.
+- Desktop/Mobile Playwright coverage models a Google OAuth session whose `app_metadata.provider` remains `email` and verifies both the hidden action and guarded direct route.
 
 ## Acceptance criteria
 
@@ -37,6 +45,7 @@ A user authenticated through Google must not see or enter the authenticated pass
 
 ## Validation
 
+- Local syntax and focused behavior smoke check completed for JWT method parsing and password capability decisions.
 - `pnpm test:auth-experience:coverage`
 - `pnpm test -- tests/auth-route-and-password-components.test.js`
 - Authentication Quality workflow
@@ -46,7 +55,7 @@ A user authenticated through Google must not see or enter the authenticated pass
 
 ## Risks and rollback
 
-- Older or non-Supabase tokens without `amr` will hide password change rather than guess from account metadata. This is the safer UX because the current-password requirement cannot be established.
+- Older or non-Supabase tokens without `amr` hide password change rather than guessing from account metadata. This is the safer UX because the current-password requirement cannot be established.
 - Recovery remains available from login, so users are not locked out of password management.
 - Rollback is a normal revert; there are no schema, secret or hosted configuration changes.
 
@@ -54,5 +63,5 @@ A user authenticated through Google must not see or enter the authenticated pass
 
 - Branch: `agent/fix-google-password-action`
 - Base: `main` at `12e5946214802a38ce57d65c5a81a501c6cddd07`
-- One normal, non-draft pull request
+- Pull request: #54, normal and non-draft
 - No merge, deployment or remote mutation
