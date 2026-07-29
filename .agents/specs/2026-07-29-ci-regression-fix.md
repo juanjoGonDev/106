@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The functional implementation and PR metadata contract are fixed. Two consecutive complete final-head workflow sets are green after restoring the mandatory visual-evidence marker block. One additional consecutive complete green set is required, followed by a green validation of the final documentation head.
+In progress. Stability count reset after `gameplay-sharing` completed every assertion and artifact upload but reached the three-minute limit during post-job cleanup. The exact 30-second anti-abuse journey has been moved to the measured lower-load `security` domain. Three consecutive complete green workflow sets are required from this final allocation.
 
 ## Request
 
@@ -17,9 +17,9 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - Playwright recordings passed but GIF generation failed because bundled FFmpeg lacked required muxing; installing full FFmpeg exhausted the job budget.
 - PostgREST can briefly reconnect after direct permission probes and requires an explicit readiness boundary.
 - The original Supabase integration was sequential and exceeded six minutes.
-- The first parallel `gameplay-core` allocation completed all assertions but reached the three-minute limit during cleanup.
-- Moving the exact-deadline ready-flow journey into `gameplay-sharing` balanced both domain jobs without modifying assertions or timeouts.
-- A documentation closure removed the mandatory PR visual-evidence marker block. The metadata check correctly failed; the block and complete Desktop/Mobile/GIF evidence area were restored.
+- `gameplay-sharing` with ready-flow finished all tests and uploaded evidence, but its total job duration was exactly three minutes and GitHub cancelled it during cleanup.
+- Measured `security` duration was approximately two minutes including cleanup; moving the 39-second ready-flow journey there preserves a practical margin without adding runners.
+- The mandatory PR visual-evidence marker block is restored and validated.
 
 ## Decisions
 
@@ -29,9 +29,10 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 4. Keep nickname-gate writes idempotent and preserve ownership of competition/quota disabled state.
 5. Validate malformed nicknames and league searches before RPC execution.
 6. Use a bounded PostgREST readiness barrier; do not retry behavioral assertions.
-7. Run Supabase as six isolated parallel domains: `security`, `gameplay-core`, `gameplay-sharing`, `auth-api`, `auth-browser`, `migrations`.
-8. Install pnpm only for the live-auth browser domain and use `node scripts/serve.mjs` directly.
-9. Require three consecutive complete green workflow sets after the final metadata contract is restored.
+7. Keep six isolated Supabase domains: `security`, `gameplay-core`, `gameplay-sharing`, `auth-api`, `auth-browser`, `migrations`.
+8. Treat ready-flow as an anti-abuse/timing security journey and execute it in `security`.
+9. Keep `gameplay-sharing` dedicated to trophies and social-card generation.
+10. Require three consecutive complete green workflow sets from the final allocation.
 
 ## Acceptance criteria
 
@@ -43,31 +44,17 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Supabase domain jobs are parallel and bounded to three minutes.
 - [x] No skip, retry-as-fix, timeout increase or coverage reduction.
 - [x] Mandatory PR visual-evidence marker block restored.
-- [x] Final-head stability execution 1/3 green.
-- [x] Final-head stability execution 2/3 green.
-- [ ] Final-head stability execution 3/3 green.
+- [ ] Final allocation stability execution 1/3 green.
+- [ ] Final allocation stability execution 2/3 green.
+- [ ] Final allocation stability execution 3/3 green.
 
 ## Validation
 
-### Final-head stability execution 1/3
+### Timing evidence
 
-Head: `7ad55950c1e897eb94e5aaacc45d046bedeba864`.
-
-- Pull Request Quality Pipeline `30428298906`: success.
-- Player Pages and Social Cards `30428298968`: success.
-- Authentication Quality `30428299030`: success.
-- Public Asset Audit `30428298901`: success.
-- Pull Request Visual Evidence `30428475565`: success.
-
-### Final-head stability execution 2/3
-
-Head: `e8fdca5d381d308fd25236fa1c5fab2db17c99c0`.
-
-- Pull Request Quality Pipeline `30428616702`: success.
-- Player Pages and Social Cards `30428616651`: success.
-- Authentication Quality `30428616674`: success.
-- Public Asset Audit `30428616680`: success.
-- Pull Request Visual Evidence `30428616652`: success.
+- Previous `gameplay-sharing`: started `06:40:19`, suite finished `06:43:03`, artifact and cleanup finished near `06:43:18`; GitHub cancelled at the three-minute boundary.
+- Previous `security`: started `06:40:23`, completed cleanup near `06:42:24`.
+- Ready-flow assertions consume approximately 39 seconds because they intentionally verify the real two-second lower bound and exact 30-second deadline.
 
 ### Evidence artifact
 
@@ -79,8 +66,8 @@ Head: `e8fdca5d381d308fd25236fa1c5fab2db17c99c0`.
 
 ## Risks
 
-- Isolated Supabase domains use more concurrent runners but reduce wall-clock time and state coupling.
-- RGB332 GIF evidence is intentionally bounded; PNG and WebM remain the full-quality sources.
+- The security domain becomes longer but remains below the three-minute limit based on measured timings.
+- The anti-abuse ready-flow mutates isolated test data and remains assigned exactly once.
 - PR metadata is part of the quality contract and must retain a complete Desktop/Mobile/GIF marker block.
 
 ## Rollback
@@ -91,5 +78,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Current final-head stability: `2/3`.
+- Current final-allocation stability: `0/3`.
 - No merge, deployment, release, production migration or provider configuration is included.
