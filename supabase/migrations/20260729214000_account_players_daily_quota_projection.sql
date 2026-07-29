@@ -33,7 +33,7 @@ as $$
         'nick', player.nick,
         'nickKey', player.nick_key,
         'team', summary.team,
-        'attemptsUsed', coalesce(summary.attempts_used, 0),
+        'lifetimeAttemptsUsed', coalesce(summary.attempts_used, 0),
         'verifiedAttempts', coalesce(summary.verified_attempts, 0),
         'bestDifferenceMs', summary.best_difference_ms,
         'averageDifferenceMs', summary.average_difference_ms,
