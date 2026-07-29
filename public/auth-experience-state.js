@@ -37,6 +37,7 @@ export const AUTH_ROUTE_POLICIES = Object.freeze({
 
 const SOCIAL_PROVIDERS = Object.freeze(['google']);
 const AUTH_ROUTE_NAMES = new Set(Object.values(AUTH_ROUTES));
+const PASSWORD_AUTH_METHOD = 'password';
 
 export function normalizeAuthRoute(value) {
   const pathname = String(value ?? '').split(/[?#]/u)[0];
@@ -70,6 +71,33 @@ export function sessionProviders(session) {
   return Object.freeze(providers);
 }
 
+function decodeJwtPayload(tokenValue) {
+  const parts = String(tokenValue ?? '').split('.');
+  if (parts.length !== 3 || !parts[1]) return null;
+  try {
+    const normalized = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+    const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+    const bytes = Uint8Array.from(atob(`${normalized}${padding}`), (character) => character.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+export function sessionAuthenticationMethods(session) {
+  const payload = decodeJwtPayload(session?.access_token);
+  if (!Array.isArray(payload?.amr)) return Object.freeze([]);
+  const methods = payload.amr
+    .map((entry) => String(entry?.method ?? '').trim().toLowerCase())
+    .filter(Boolean);
+  return Object.freeze([...new Set(methods)]);
+}
+
+export function sessionSupportsPasswordChange(session) {
+  return sessionAuthenticationMethods(session).includes(PASSWORD_AUTH_METHOD);
+}
+
 export function authIdentity(session) {
   const summary = sessionSummary(session);
   if (!summary) return null;
@@ -86,10 +114,6 @@ export function authIdentity(session) {
       && socialProviders.length === 0
       && summary.emailVerified !== true,
   });
-}
-
-export function identitySupportsPassword(identity) {
-  return identity?.providers?.includes('email') === true;
 }
 
 export function localAccountActive({ accountToken, legacyNicks } = {}) {
