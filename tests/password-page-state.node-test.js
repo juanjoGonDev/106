@@ -95,6 +95,12 @@ test('validates shared password policy, exact confirmation and current password 
     mode: PASSWORD_PAGE_MODES.change,
     password: 'Secure123!',
     confirmation: 'Secure123!',
+    currentPassword: null,
+  }), 'Introduce tu contraseña actual.');
+  assert.equal(passwordUpdateProblem({
+    mode: PASSWORD_PAGE_MODES.change,
+    password: 'Secure123!',
+    confirmation: 'Secure123!',
     currentPassword: 'Current123!',
   }), '');
   assert.equal(passwordUpdateProblem({
