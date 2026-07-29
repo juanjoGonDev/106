@@ -99,9 +99,25 @@ probe_edge_function() {
   [[ "$status" -ge 200 && "$status" -lt 500 ]]
 }
 
+warm_auth_api_functions() {
+  local account_auth_pid game_api_pid failed=0
+
+  probe_edge_function "$API_URL/functions/v1/account-auth" '{"action":"session"}' &
+  account_auth_pid=$!
+  probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' &
+  game_api_pid=$!
+
+  wait "$account_auth_pid" || failed=1
+  wait "$game_api_pid" || failed=1
+  return "$failed"
+}
+
 warm_edge_functions_for_suite() {
   case "$SUITE" in
-    auth-api|auth-browser)
+    auth-api)
+      warm_auth_api_functions
+      ;;
+    auth-browser)
       probe_edge_function "$API_URL/functions/v1/account-auth" '{"action":"session"}'
       ;;
     ready-flow)
