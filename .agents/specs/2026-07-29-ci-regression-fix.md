@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The timed ready-flow journey has an isolated seventh Supabase domain. The first complete final-allocation workflow set is green; two additional consecutive green sets are required.
+In progress. The timed ready-flow journey has an isolated seventh Supabase domain. One clean complete final-allocation workflow set is green. A second attempted set was externally cancelled and recovered green, but is not counted; two additional clean consecutive green sets are required.
 
 ## Request
 
@@ -58,6 +58,10 @@ Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`:
 - Public Asset Audit `30432416167`: success.
 - Pull Request Visual Evidence `30432416141`: success.
 
+### External cancellation recovery, not counted
+
+Head `42bbfd0d4f2db97a6c9c2fd4845de166ada8460f` did not move while GitHub cancelled jobs in the quality and player workflows after multiple successful steps. The cancelled jobs were rerun without code changes; all five workflows then concluded `success`. This validates the head but is excluded from the clean consecutive count.
+
 ### Evidence artifact
 
 - `platform-evidence-30427861063`, artifact ID `8714334100`.
@@ -67,6 +71,7 @@ Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`:
 ## Risks
 
 - A seventh isolated Supabase stack increases aggregate runner usage, but keeps wall-clock feedback fast and removes timing coupling between deterministic security checks and the exact-deadline journey.
+- GitHub-hosted runner cancellations can interrupt otherwise green jobs; platform cancellation recovery is documented separately and does not count toward the clean stability gate.
 - PR metadata remains part of CI and must retain its marker block.
 
 ## Rollback
@@ -77,5 +82,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `1/3` on the final seven-domain allocation.
+- Stability: `1/3` clean final-allocation executions.
 - No merge, deployment, release or production migration included.
