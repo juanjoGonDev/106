@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The timed ready-flow journey now has an isolated seventh Supabase domain. Stability is reset to zero; three consecutive complete green workflow sets are required on the final allocation.
+In progress. The timed ready-flow journey has an isolated seventh Supabase domain and its CI contract test is syntactically valid. Stability is reset to zero; three consecutive complete green workflow sets are required on this final head.
 
 ## Request
 
@@ -18,6 +18,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - No existing domain has sufficient worst-case margin for the timed journey.
 - Added the isolated `ready-flow` domain and increased only matrix fan-out from six to seven; no timeout, assertion duration, coverage, retry or browser shard was weakened.
 - Added a CI contract regression requiring the seven-domain matrix, exact single assignment and separation from `security`.
+- Replaced a malformed Unicode regular expression in that regression with deterministic function-block extraction by string boundaries.
 - The mandatory PR Desktop/Mobile/GIF marker block remains restored.
 
 ## Acceptance criteria
@@ -26,9 +27,9 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Every maintained Supabase journey is assigned exactly once.
 - [x] Ready-flow has an isolated local stack.
 - [x] All jobs remain bounded to three minutes or less.
-- [ ] Final allocation stability execution 1/3 green.
-- [ ] Final allocation stability execution 2/3 green.
-- [ ] Final allocation stability execution 3/3 green.
+- [ ] Final stability execution 1/3 green.
+- [ ] Final stability execution 2/3 green.
+- [ ] Final stability execution 3/3 green.
 
 ## Validation
 
@@ -43,11 +44,15 @@ Head `774684886d3980a35d4f15becbd07ddf06c57256`:
 - Pull Request Quality Pipeline `30429781442`: cancelled.
 - `Supabase · security` completed every assertion and printed `Supabase security suite passed`, then was cancelled during cleanup at the unchanged three-minute boundary.
 
+### Rejected contract-test head
+
+Head `d1304e41c1a4b0a9abe17b65e6543ab7f01001b5` correctly launched the seven-domain matrix, but ESLint and Vitest rejected a malformed regular expression in `tests/supabase-ci-sharding.test.js`. The production runner and workflow were not the cause.
+
 ### Final seven-domain allocation
 
-Candidate implementation head before documentation close: `a60c0cec5bdd02b96647cc31156f506c38adae72`.
+Candidate implementation and test head before this documentation close: `639d8eb97aa6dc859ddb8bad26f29a16a23acdc1`.
 
-The final documentation head must pass three complete consecutive workflow sets before delivery.
+This documentation-close head must pass three complete consecutive workflow sets before delivery.
 
 ### Evidence artifact
 
