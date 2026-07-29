@@ -60,7 +60,7 @@ export function passwordPageContent(modeValue) {
       currentPasswordVisible: true,
       submitLabel: 'Cambiar contraseña',
       readyMessage: 'La nueva contraseña cumple todos los requisitos.',
-      successMessage: 'Contraseña cambiada. Tu sesión continúa activa.',
+      successMessage: 'Contraseña actualizada. Tu sesión continúa activa.',
     });
   }
   if (mode === PASSWORD_PAGE_MODES.recovery) {
@@ -71,7 +71,7 @@ export function passwordPageContent(modeValue) {
       currentPasswordVisible: false,
       submitLabel: 'Guardar nueva contraseña',
       readyMessage: 'La nueva contraseña cumple todos los requisitos.',
-      successMessage: 'Contraseña restablecida. Tu sesión ya está activa.',
+      successMessage: 'Contraseña actualizada. Tu sesión ya está activa.',
     });
   }
   return Object.freeze({
