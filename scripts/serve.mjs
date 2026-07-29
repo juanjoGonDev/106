@@ -1,7 +1,10 @@
+import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { buildRuntimeConfig } from './runtime-config.mjs';
 
 const root = fileURLToPath(new URL('../public', import.meta.url));
 const port = Number(process.env.PORT ?? 3000);
@@ -21,14 +24,62 @@ const mime = {
 
 const cleanPublicRoute = /^(?:\/player\/[^/]+(?:\/(?:achievements|trophies))?|\/ligas\/[A-Z0-9]{6})\/?$/i;
 
+function parseEnvironment(source) {
+  const values = {};
+  for (const line of String(source ?? '').split(/\r?\n/)) {
+    const match = line.match(/^([A-Z0-9_]+)=(?:"([^"]*)"|'([^']*)'|(.*))$/);
+    if (match) values[match[1]] = match[2] ?? match[3] ?? match[4] ?? '';
+  }
+  return values;
+}
+
+function localSupabaseEnvironment() {
+  if (process.env.SUPABASE_PUBLISHABLE_KEY) return {};
+  const result = spawnSync('supabase', ['status', '-o', 'env'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  if (result.error || result.status !== 0) return {};
+  const values = parseEnvironment(result.stdout);
+  const supabaseUrl = values.API_URL || values.SUPABASE_URL;
+  const publishableKey = values.ANON_KEY || values.PUBLISHABLE_KEY;
+  if (!supabaseUrl || !publishableKey) return {};
+  return {
+    SUPABASE_URL: supabaseUrl,
+    SUPABASE_FUNCTIONS_URL: `${supabaseUrl.replace(/\/$/, '')}/functions/v1/game-api`,
+    SUPABASE_PUBLISHABLE_KEY: publishableKey,
+  };
+}
+
+const runtimeConfig = buildRuntimeConfig({
+  ...process.env,
+  ...localSupabaseEnvironment(),
+  PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL || `http://localhost:${port}`,
+});
+const runtimeConfigSource = `window.__MINUTO106_CONFIG__=${JSON.stringify(runtimeConfig)};\n`;
+
 async function sendFile(response, path, status = 200) {
   const content = await readFile(path);
   response.writeHead(status, { 'content-type': mime[extname(path).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' });
   response.end(content);
 }
 
+function sendRuntimeConfig(response) {
+  response.writeHead(200, {
+    'content-type': 'text/javascript; charset=utf-8',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+  });
+  response.end(runtimeConfigSource);
+}
+
 createServer(async (request, response) => {
   const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+  if (pathname === '/config.js') {
+    sendRuntimeConfig(response);
+    return;
+  }
   try {
     const relative = normalize(pathname).replace(/^([/\\])+/, '');
     let file = join(root, relative || 'index.html');
@@ -43,4 +94,7 @@ createServer(async (request, response) => {
       response.writeHead(404).end('Not found');
     }
   }
-}).listen(port, () => console.log(`Minuto 106 disponible en http://localhost:${port}`));
+}).listen(port, () => {
+  const authMode = runtimeConfig.supabasePublishableKey ? 'Supabase Auth activo' : 'Supabase Auth sin configurar';
+  console.log(`Minuto 106 disponible en http://localhost:${port} · ${authMode}`);
+});

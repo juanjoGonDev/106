@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,follow">
+  <title>Iniciar sesión — Minuto 106</title>
+  <meta name="description" content="Inicia sesión en Minuto 106 con email, Google o Facebook para recuperar tu progreso.">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./v18.css">
+  <link rel="stylesheet" href="./v20.css">
+  <link rel="stylesheet" href="./v21.css">
+  <link rel="stylesheet" href="./password-visibility.css">
+</head>
+<body data-auth-page="login">
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <header class="site-header"></header>
+  <main class="auth-page" data-auth-shell>
+    <section class="auth-card" aria-labelledby="loginTitle">
+      <p class="eyebrow">RECUPERA TU PROGRESO</p>
+      <h1 id="loginTitle">Iniciar sesión</h1>
+      <p class="auth-lead">Accede a todos tus nicks desde cualquier dispositivo.</p>
+      <p id="authStatus" class="cloud-account-status" role="status" aria-live="polite"></p>
+
+      <div class="oauth-actions" aria-label="Inicio de sesión social">
+        <button id="googleSignIn" class="oauth-button" type="button">Continuar con Google</button>
+        <button id="facebookSignIn" class="oauth-button" type="button">Continuar con Facebook</button>
+      </div>
+
+      <div class="auth-divider"><span>o con email</span></div>
+      <div class="auth-fields">
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" inputmode="email" autocomplete="email" maxlength="320" placeholder="tu@email.com">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" autocomplete="current-password" maxlength="128" placeholder="Tu contraseña">
+      </div>
+      <div id="authCaptcha" class="auth-captcha" hidden></div>
+      <div class="auth-primary-actions">
+        <button id="authSubmit" class="primary" type="button" disabled>Iniciar sesión</button>
+        <button id="authRecovery" class="ghost" type="button" disabled>Enviar recuperación</button>
+      </div>
+      <p class="auth-switch">¿No tienes cuenta? <a href="./registro.html">Crear cuenta</a></p>
+      <p class="auth-switch"><a href="./cuenta.html">Volver a Mi cuenta</a></p>
+    </section>
+  </main>
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./access.js"></script>
+  <script type="module" src="./password-visibility.js"></script>
+  <script type="module" src="./auth-route-entry.js"></script>
+</body>
+</html>

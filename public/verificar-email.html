@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <script src="./privacy-bootstrap.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Verificar email — Minuto 106</title>
+  <meta name="description" content="Verifica tu email de Minuto 106 mediante código o enlace de un solo uso.">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./site.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./v2.css">
+  <link rel="stylesheet" href="./v3.css">
+  <link rel="stylesheet" href="./v4.css">
+  <link rel="stylesheet" href="./v18.css">
+  <link rel="stylesheet" href="./v20.css">
+  <link rel="stylesheet" href="./v21.css">
+</head>
+<body data-auth-page="verify">
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <header class="site-header"></header>
+  <main class="auth-page" data-auth-shell>
+    <section class="auth-card auth-card--verification" aria-labelledby="verifyTitle">
+      <p class="eyebrow">ACTIVACIÓN CON PREMIO</p>
+      <h1 id="verifyTitle">Verifica tu email</h1>
+      <p class="auth-lead">Usa el código de 6 dígitos o abre el enlace recibido. Ambos son de un solo uso y caducan en 1 hora.</p>
+      <aside class="verification-prize" aria-label="Premio por verificar">
+        <strong>+1 intento diario</strong>
+        <span>y logro Cuenta confirmada</span>
+      </aside>
+      <p id="authStatus" class="cloud-account-status" role="status" aria-live="polite"></p>
+      <p id="pendingConfirmationEmail" class="pending-confirmation-email" hidden></p>
+
+      <div class="auth-fields">
+        <label for="authEmail">Email pendiente</label>
+        <input id="authEmail" type="email" autocomplete="email" readonly>
+        <label for="authOtp">Código de verificación</label>
+        <input id="authOtp" class="auth-otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" placeholder="000000" aria-describedby="otpHelp">
+        <p id="otpHelp" class="hint">El código solo contiene números. El enlace del correo confirma automáticamente al abrirse.</p>
+      </div>
+      <div id="authCaptcha" class="auth-captcha" hidden></div>
+      <div class="auth-primary-actions">
+        <button id="verifyEmailCode" class="primary" type="button" disabled>Verificar y recibir +1</button>
+        <button id="emailConfirmationResend" class="secondary" type="button" disabled>Reenviar código y enlace</button>
+      </div>
+      <p id="emailConfirmationResendStatus" class="confirmation-resend-status" role="status" aria-live="polite"></p>
+
+      <section id="verificationSuccess" class="verification-success" hidden aria-labelledby="verificationSuccessTitle">
+        <h2 id="verificationSuccessTitle">Cuenta verificada</h2>
+        <p id="verificationSuccessMessage"></p>
+        <a class="primary" href="./cuenta.html">Ir a Mi cuenta</a>
+      </section>
+
+      <p class="auth-switch"><a href="./cuenta.html">Saltar por ahora e ir a Mi cuenta</a></p>
+    </section>
+  </main>
+  <footer class="site-footer"></footer>
+  <script src="./config.js"></script>
+  <script src="./layout.js"></script>
+  <script src="./access.js"></script>
+  <script type="module" src="./auth-route-entry.js"></script>
+</body>
+</html>

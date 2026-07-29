@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module';
 
+import { openApplicationPage } from './app-navigation.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -150,11 +152,20 @@ async function installAccountApi(page, accounts, captured) {
 }
 
 async function clickCaptcha(page) {
+  const overlay = page.locator('.human-check-overlay');
   const canvas = page.locator('.human-check-canvas');
-  await expect(canvas).toBeVisible();
+  const progress = page.locator('.human-check-progress');
+  await expect(overlay).toHaveAttribute('data-phase', 'solving');
+  await expect(progress).toHaveText(`0 / ${balls.length}`);
   const box = await canvas.boundingBox();
   if (!box) throw new Error('Captcha canvas has no bounding box.');
-  for (const ball of balls) await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+
+  for (const [index, ball] of balls.entries()) {
+    await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+    if (index < balls.length - 1) {
+      await expect(progress).toHaveText(`${index + 1} / ${balls.length}`);
+    }
+  }
 }
 
 async function startWithNick(page, nick) {
@@ -172,18 +183,18 @@ test('one account key protects multiple nicks and can be restored on a fresh dev
   const context = await browser.newContext();
   const page = await context.newPage();
   await installAccountApi(page, accounts, captured);
-  await page.goto('/');
+  await openApplicationPage(page, '/');
 
   await startWithNick(page, 'PrimaryPlayer');
   await expect.poll(() => accounts.nickToAccount.get('PrimaryPlayer')).toBeTruthy();
   const token = accounts.nickToAccount.get('PrimaryPlayer');
   expect(token).toMatch(/^[a-f0-9]{64}$/);
 
-  await page.goto('/');
+  await openApplicationPage(page, '/');
   await startWithNick(page, 'SecondPlayer');
   expect(accounts.nickToAccount.get('SecondPlayer')).toBe(token);
 
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
   await expect(page.locator('#accountPlayers')).toContainText('PrimaryPlayer');
   await expect(page.locator('#accountPlayers')).toContainText('SecondPlayer');
   await page.locator('#showAccountKey').click();
@@ -192,7 +203,7 @@ test('one account key protects multiple nicks and can be restored on a fresh dev
   const restoredContext = await browser.newContext();
   const restoredPage = await restoredContext.newPage();
   await installAccountApi(restoredPage, accounts, captured);
-  await restoredPage.goto('/cuenta.html');
+  await openApplicationPage(restoredPage, '/cuenta.html');
   await restoredPage.locator('#importAccountKey').fill(token);
   await restoredPage.locator('#importAccountButton').click();
   await expect(restoredPage.locator('#accountPlayers')).toContainText('PrimaryPlayer');
@@ -207,7 +218,7 @@ test('a different account learns that a protected nick is occupied before starti
   const ownerContext = await browser.newContext();
   const ownerPage = await ownerContext.newPage();
   await installAccountApi(ownerPage, accounts, []);
-  await ownerPage.goto('/');
+  await openApplicationPage(ownerPage, '/');
   await startWithNick(ownerPage, 'ProtectedPlayer');
   const ownerToken = accounts.nickToAccount.get('ProtectedPlayer');
 
@@ -215,7 +226,7 @@ test('a different account learns that a protected nick is occupied before starti
   const otherContext = await browser.newContext();
   const otherPage = await otherContext.newPage();
   await installAccountApi(otherPage, accounts, otherCalls);
-  await otherPage.goto('/');
+  await openApplicationPage(otherPage, '/');
   await otherPage.locator('#nick').fill('ProtectedPlayer');
   await otherPage.getByRole('button', { name: 'España', exact: true }).click();
   await expect(otherPage.locator('#nickStatus')).toContainText('ocupado');
@@ -237,7 +248,7 @@ test('legacy nickname keys are linked once and removed after a successful migrat
     localStorage.setItem('minuto106:account-access-v1', storedAccountToken);
   }, { legacyKey, accountToken });
   await installAccountApi(page, accounts, captured);
-  await page.goto('/cuenta.html');
+  await openApplicationPage(page, '/cuenta.html');
 
   await expect.poll(() => captured.some((entry) => entry.body.action === 'link-account-player')).toBe(true);
   const link = captured.find((entry) => entry.body.action === 'link-account-player');

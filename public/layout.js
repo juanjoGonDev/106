@@ -24,30 +24,32 @@
     return stylesheet;
   }
 
-  function ensureClassicScript(src, marker, target = document.head) {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      existing.setAttribute(marker, 'true');
-      return existing;
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = false;
-    script.setAttribute(marker, 'true');
-    target.append(script);
-    return script;
-  }
-
   function ensureSharedStylesheet() {
     ensureStylesheet('./v9.css', 'data-minuto106-shared');
   }
 
-  function ensureHonoursEnhancement() {
-    ensureClassicScript('./honours.js', 'data-minuto106-honours');
+  function afterWindowLoad() {
+    if (document.readyState === 'complete') return Promise.resolve();
+    return new Promise((resolve) => {
+      window.addEventListener('load', resolve, { once: true });
+    });
   }
 
-  function ensureComplianceEnhancement() {
-    ensureClassicScript('./compliance.js', 'data-minuto106-compliance', document.body);
+  function loadSharedEnhancements() {
+    if (window.Minuto106EnhancementsReady) return window.Minuto106EnhancementsReady;
+    const ready = afterWindowLoad()
+      .then(() => Promise.all([
+        import('./honours.js'),
+        import('./compliance.js'),
+      ]))
+      .then(() => {
+        document.documentElement.dataset.minuto106Enhancements = 'ready';
+      }).catch((error) => {
+        document.documentElement.dataset.minuto106Enhancements = 'failed';
+        throw error;
+      });
+    window.Minuto106EnhancementsReady = ready;
+    return ready;
   }
 
   function createPrivacyBanner() {
@@ -419,11 +421,10 @@
   }
 
   ensureSharedStylesheet();
-  ensureHonoursEnhancement();
   renderPrivacyComponents();
   renderSiteChrome();
   enhanceDialogs();
   buildGameColumns();
-  ensureComplianceEnhancement();
   document.addEventListener('minuto106:dialog-created', enhanceDialogs);
+  void loadSharedEnhancements();
 })();

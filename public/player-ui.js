@@ -13,7 +13,20 @@
   }
 
   function normalizeNick(value) {
+    const policy = globalThis.Minuto106NicknamePolicy;
+    if (policy) return policy.normalizeNickname(value).slice(0, 24);
     return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').slice(0, 24);
+  }
+
+  function nicknameValidation(value) {
+    const policy = globalThis.Minuto106NicknamePolicy;
+    if (policy) return policy.validateNickname(value);
+    const normalized = normalizeNick(value);
+    return { valid: Array.from(normalized).length >= 3, normalized };
+  }
+
+  function isValidNickname(value) {
+    return nicknameValidation(value).valid === true;
   }
 
   function normalizeSection(value) {
@@ -48,13 +61,6 @@
     return url;
   }
 
-  function playerUrl(nick, section = 'overview', baseHref) {
-    const normalizedNick = normalizeNick(nick);
-    const normalizedSection = normalizeSection(section);
-    const suffix = normalizedSection === 'overview' ? '' : `/${normalizedSection}`;
-    return new URL(`player/${encodeURIComponent(normalizedNick)}${suffix}`, appBaseUrl(baseHref)).toString();
-  }
-
   function playerShellUrl(nick, section = 'overview', baseHref) {
     const url = new URL('player.html', appBaseUrl(baseHref));
     url.searchParams.set('nick', normalizeNick(nick));
@@ -63,11 +69,20 @@
     return url.toString();
   }
 
+  function playerUrl(nick, section = 'overview', baseHref) {
+    const validation = nicknameValidation(nick);
+    const normalizedSection = normalizeSection(section);
+    if (!validation.valid) return playerShellUrl(validation.normalized, normalizedSection, baseHref);
+    const suffix = normalizedSection === 'overview' ? '' : `/${normalizedSection}`;
+    return new URL(`player/${encodeURIComponent(validation.normalized)}${suffix}`, appBaseUrl(baseHref)).toString();
+  }
+
   function parsePlayerLocation(locationLike = globalThis.location) {
     const url = new URL(locationLike?.href ?? String(locationLike ?? 'http://localhost/'));
-    const queryNick = normalizeNick(url.searchParams.get('nick'));
+    const queryValidation = nicknameValidation(url.searchParams.get('nick'));
     const querySection = normalizeSection(url.searchParams.get('section'));
-    if (queryNick) return Object.freeze({ nick: queryNick, section: querySection });
+    if (queryValidation.valid) return Object.freeze({ nick: queryValidation.normalized, section: querySection });
+    if (url.searchParams.has('nick')) return Object.freeze({ nick: '', section: querySection });
 
     const match = url.pathname.match(/\/player\/([^/]+)(?:\/(achievements|trophies))?\/?$/i);
     if (!match) return Object.freeze({ nick: '', section: 'overview' });
@@ -78,7 +93,11 @@
         return match[1];
       }
     })();
-    return Object.freeze({ nick: normalizeNick(decodedNick), section: normalizeSection(match[2]) });
+    const routeValidation = nicknameValidation(decodedNick);
+    return Object.freeze({
+      nick: routeValidation.valid ? routeValidation.normalized : '',
+      section: normalizeSection(match[2]),
+    });
   }
 
   function edgeFunctionBaseUrl(apiBaseUrl, functionName) {
@@ -100,8 +119,10 @@
   function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
     const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
     if (!edgeUrl) return '';
+    const validation = nicknameValidation(nick);
+    if (!validation.valid) return '';
     const normalizedSection = normalizeSection(section);
-    edgeUrl.pathname += `/${encodeURIComponent(normalizeNick(nick))}/${normalizedSection === 'overview' ? 'card' : normalizedSection}.png`;
+    edgeUrl.pathname += `/${encodeURIComponent(validation.normalized)}/${normalizedSection === 'overview' ? 'card' : normalizedSection}.png`;
     edgeUrl.searchParams.set('v', String(normalizeRevision(revision)));
     return edgeUrl.toString();
   }
@@ -128,6 +149,7 @@
     edgeFunctionBaseUrl,
     escapeHtml,
     formatDate,
+    isValidNickname,
     normalizeNick,
     normalizeRevision,
     normalizeSection,

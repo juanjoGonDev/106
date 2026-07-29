@@ -22,7 +22,7 @@ jobs:
     name: 🟢 Build · Prepare workspace
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -57,9 +57,9 @@ jobs:
 
   tests:
     name: 🚧 Tests · Unit & security
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -101,9 +101,9 @@ jobs:
 
   eslint:
     name: 🧹 ESLint · Static analysis
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -145,9 +145,9 @@ jobs:
 
   knip:
     name: 🧩 Knip · Dead code analysis
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -189,9 +189,9 @@ jobs:
 
   security:
     name: 🛡️ Security · Dependency & policy checks
-    needs: build
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -256,43 +256,44 @@ jobs:
           fi
 
   supabase-integration:
-    name: 🧪 Supabase · Local API integration
-    needs: build
+    name: 🧪 Supabase · ${{ matrix.suite }}
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        suite: [security, ready-flow, gameplay-core, gameplay-sharing, auth-api, auth-browser, migrations]
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Set up pnpm
+      - name: Set up pnpm for live browser suite
+        if: matrix.suite == 'auth-browser'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
-      - name: Set up Node.js and pnpm store cache
+      - name: Set up pinned Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install exact dependencies from frozen lockfile
-        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Set up pinned Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      - name: Run local stack, Edge Function and API journey
+      - name: Run isolated local Supabase suite
         id: supabase-suite
         continue-on-error: true
         shell: bash
-        run: bash scripts/run-supabase-ci.sh
+        run: bash scripts/run-supabase-ci.sh "${{ matrix.suite }}"
 
       - name: Upload generated social card previews
-        if: steps.supabase-suite.outcome == 'success'
+        if: matrix.suite == 'gameplay-sharing' && steps.supabase-suite.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: social-card-previews-${{ github.run_id }}
@@ -304,10 +305,12 @@ jobs:
         if: steps.supabase-suite.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: supabase-local-diagnostics-${{ github.run_id }}
+          name: supabase-local-diagnostics-${{ matrix.suite }}-${{ github.run_id }}
           path: |
             supabase-integration.log
             supabase-functions.log
+            playwright-report
+            test-results
           if-no-files-found: ignore
           retention-days: 7
 

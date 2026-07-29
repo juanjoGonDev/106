@@ -9,9 +9,11 @@ Never commit or expose:
 - PostgreSQL password or connection string
 - `HASH_PEPPER`
 - Cloudflare Turnstile secret key
+- Google or Facebook OAuth client secret
+- Brevo SMTP key, SMTP password or provider API key
 - Registry credentials or authentication tokens in `.npmrc`, `pnpm-workspace.yaml` or the lockfile
 
-The browser may receive only the Edge Function URL and the Turnstile site key. Both are public identifiers, not credentials.
+The browser may receive the Edge Function URLs, the Turnstile site key and `SUPABASE_PUBLISHABLE_KEY`. They are public identifiers by design, not privileged credentials. A publishable key must never be treated as authorization: every data decision still requires RLS, restricted grants, a validated user JWT or a server-owned credential boundary.
 
 ## Dependency supply chain
 
@@ -43,11 +45,29 @@ Do not bypass a frozen-lockfile, release-age, integrity or build-script failure 
 
 ## Data access
 
-The frontend must not access `game_challenges`, `game_attempts` or `game_human_checks` through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. All writes go through `game-api` and private RPC functions executed with `service_role`.
+The frontend must not access server-owned `game_*` tables through the Supabase Data API. RLS is enabled and database grants are revoked for `anon` and `authenticated`. Game writes go through `game-api`; authenticated account linking goes through `account-auth`. Both execute private RPC functions with `service_role` only inside Supabase Edge Functions.
+
+CI enumerates every server-owned game table, sequence and privileged function and fails when either `anon` or `authenticated` gains direct DML or execution privileges. It also performs real PostgREST probes with an anonymous key and a signed-in user JWT.
+
+## Supabase Auth boundary
+
+Google, Facebook and email/password are optional recovery credentials for an existing game account. They do not replace the private account key.
+
+- The browser sends a Supabase user JWT only to Supabase Auth and the dedicated `account-auth` Edge Function.
+- `account-auth` validates the JWT against the same Supabase project and uses the immutable `auth.users.id` for authorization.
+- Browser-provided email, provider metadata or account identifiers are never trusted for authorization.
+- The verified email is private contact data and must not appear in rankings, profiles, social cards, analytics, logs or public API responses.
+- Provider access tokens and refresh tokens are not copied into game tables.
+- Existing and newly issued private account keys are stored only in the browser; PostgreSQL receives their peppered hashes.
+- A JWT that maps to a different game account cannot merge it silently with the current private key. The server creates a short-lived impact proposal and requires explicit confirmation.
+- Confirmation locks both accounts, recomputes the impact, rejects stale proposals and records the complete correction snapshot.
+- Old private keys continue resolving to the canonical merged account so a successful merge does not strand devices.
+
+Email registration, password login and recovery use Supabase Auth rate limits and Turnstile when configured. User-visible responses for registration and recovery remain neutral and must not reveal whether an email is registered.
 
 ## CORS origin policy
 
-The Edge Function uses an explicit origin allowlist and never uses `Access-Control-Allow-Origin: *`.
+The Edge Functions use an explicit origin allowlist and never use `Access-Control-Allow-Origin: *`.
 
 - Browser `Origin` values contain only scheme, host and port. Repository paths such as `/106/` are not part of the origin.
 - Production deployment generates `ALLOWED_ORIGINS` with `scripts/build-allowed-origins.mjs`.

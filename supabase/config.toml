@@ -1,5 +1,32 @@
 project_id = "minuto-106"
 
+[auth]
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/cuenta.html",
+  "http://localhost:3000/login.html",
+  "http://localhost:3000/registro.html",
+  "http://localhost:3000/verificar-email.html",
+  "http://localhost:3000/restablecer-clave.html",
+  "http://127.0.0.1:3000/cuenta.html",
+  "http://127.0.0.1:3000/login.html",
+  "http://127.0.0.1:3000/registro.html",
+  "http://127.0.0.1:3000/verificar-email.html",
+  "http://127.0.0.1:3000/restablecer-clave.html"
+]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+max_frequency = "1m"
+otp_expiry = 3600
+
+[auth.email.template.confirmation]
+subject = "Confirma Minuto 106 y gana +1 intento diario"
+content_path = "./supabase/templates/confirmation.html"
+
 [functions.game-api]
 verify_jwt = false
 
@@ -16,4 +43,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.player-context]
+verify_jwt = false
+
+[functions.account-auth]
 verify_jwt = false
