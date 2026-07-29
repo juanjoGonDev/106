@@ -40,6 +40,21 @@ validate_suite() {
   fi
 }
 
+clear_stale_ci_supabase_containers() {
+  if [[ "${GITHUB_ACTIONS:-false}" != 'true' ]]; then
+    return 0
+  fi
+
+  local stale_containers=()
+  mapfile -t stale_containers < <(docker ps --all --quiet --filter 'name=supabase_')
+  if (( ${#stale_containers[@]} == 0 )); then
+    return 0
+  fi
+
+  docker rm --force "${stale_containers[@]}" >/dev/null
+  echo "✓ removed ${#stale_containers[@]} stale Supabase runner container(s)"
+}
+
 load_local_supabase_environment() {
   local key raw value
   while IFS='=' read -r key raw; do
@@ -212,6 +227,7 @@ run_migration_suite() {
 }
 
 validate_suite
+clear_stale_ci_supabase_containers
 
 cat > supabase/functions/.env <<'EOF'
 HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
