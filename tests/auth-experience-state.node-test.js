@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  AUTH_ROUTE_ACCESS,
+  AUTH_ROUTE_POLICIES,
   AUTH_ROUTES,
   authIdentity,
+  authRouteGuardDecision,
+  authRoutePolicy,
   authRouteUrl,
   localAccountActive,
   normalizeAuthRoute,
@@ -31,12 +35,24 @@ test('normalizes known routes and constructs deployment-safe URLs', () => {
   assert.equal(normalizeAuthRoute('/106/login.html?next=x'), AUTH_ROUTES.login);
   assert.equal(normalizeAuthRoute('registro.html#form'), AUTH_ROUTES.register);
   assert.equal(normalizeAuthRoute('/verificar-email.html'), AUTH_ROUTES.verify);
+  assert.equal(normalizeAuthRoute('/restablecer-clave.html'), AUTH_ROUTES.reset);
   assert.equal(normalizeAuthRoute('/unknown'), AUTH_ROUTES.account);
   assert.equal(normalizeAuthRoute(null), AUTH_ROUTES.account);
   assert.equal(authRouteUrl('https://example.com/106/', AUTH_ROUTES.login), 'https://example.com/106/login.html');
   assert.equal(authRouteUrl('', AUTH_ROUTES.register), '/registro.html');
   assert.equal(authRouteUrl(null, 'invalid'), '/cuenta.html');
   assert.ok(Object.isFrozen(AUTH_ROUTES));
+});
+
+test('declares immutable route access policies centrally', () => {
+  assert.ok(Object.isFrozen(AUTH_ROUTE_ACCESS));
+  assert.ok(Object.isFrozen(AUTH_ROUTE_POLICIES));
+  for (const policy of Object.values(AUTH_ROUTE_POLICIES)) assert.ok(Object.isFrozen(policy));
+  assert.equal(authRoutePolicy(AUTH_ROUTES.account).access, AUTH_ROUTE_ACCESS.contextual);
+  assert.equal(authRoutePolicy(AUTH_ROUTES.login).access, AUTH_ROUTE_ACCESS.guestOnly);
+  assert.equal(authRoutePolicy(AUTH_ROUTES.verify).access, AUTH_ROUTE_ACCESS.verification);
+  assert.equal(authRoutePolicy(AUTH_ROUTES.reset).access, AUTH_ROUTE_ACCESS.recoverySession);
+  assert.equal(authRoutePolicy('/unknown').access, AUTH_ROUTE_ACCESS.contextual);
 });
 
 test('derives unique providers from metadata and identities', () => {
@@ -102,6 +118,30 @@ test('detects local account ownership without creating a token', () => {
   assert.equal(localAccountActive({ legacyNicks: 'invalid' }), false);
 });
 
+test('guard decisions protect guest-only routes from cloud and local accounts', () => {
+  assert.deepEqual({ ...authRouteGuardDecision({ route: AUTH_ROUTES.login }) }, {
+    route: AUTH_ROUTES.login,
+    redirect: '',
+    identity: null,
+    pendingEmail: '',
+  });
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.login, session: session({ confirmed: true }) }).redirect, AUTH_ROUTES.account);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.register, hasLocalAccount: true }).redirect, AUTH_ROUTES.account);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.register, pendingEmail: 'USER@example.com' }).redirect, AUTH_ROUTES.verify);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.login, pendingEmail: 'USER@example.com' }).redirect, '');
+});
+
+test('guard decisions protect verification and recovery contexts', () => {
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.verify }).redirect, AUTH_ROUTES.register);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.verify, hasVerificationToken: true }).redirect, '');
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.verify, pendingEmail: 'USER@example.com' }).pendingEmail, 'user@example.com');
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.verify, session: session() }).redirect, '');
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.verify, session: session({ confirmed: true }) }).redirect, AUTH_ROUTES.account);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.reset }).redirect, AUTH_ROUTES.login);
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.reset, session: session({ confirmed: true }) }).redirect, '');
+  assert.equal(authRouteGuardDecision({ route: AUTH_ROUTES.account }).redirect, '');
+});
+
 test('protects login and registration from authenticated and local-account users', () => {
   assert.deepEqual({ ...resolveAuthExperience({ route: AUTH_ROUTES.login }) }, {
     route: AUTH_ROUTES.login,
@@ -124,6 +164,8 @@ test('protects verification and resolves every account mode', () => {
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, pendingEmail: 'USER@example.com' }).pendingEmail, 'user@example.com');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, session: session({ confirmed: true }), hasVerificationToken: true }).redirect, AUTH_ROUTES.account);
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.verify, session: session(), pendingEmail: '' }).mode, 'verify');
+  assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.reset }).redirect, AUTH_ROUTES.login);
+  assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.reset, session: session({ confirmed: true }) }).mode, 'password-reset');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account }).mode, 'guest');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account, hasLocalAccount: true }).mode, 'local-link');
   assert.equal(resolveAuthExperience({ route: AUTH_ROUTES.account, hasLocalAccount: true, pendingEmail: 'user@example.com' }).mode, 'pending-email');
