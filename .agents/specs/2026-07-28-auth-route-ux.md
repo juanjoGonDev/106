@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. The first complete final-candidate workflow set is green; two further consecutive sets are required.
+In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. Two complete final-candidate workflow sets are green; one further consecutive set is required.
 
 ## Request
 
@@ -64,7 +64,7 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - [x] New pure route/password decisions have 100% line/function/branch coverage.
 - [x] Existing backend authorization and real local Auth/API/database journeys remain enabled.
 - [x] Final candidate workflow execution 1/3 green.
-- [ ] Final candidate workflow execution 2/3 green.
+- [x] Final candidate workflow execution 2/3 green.
 - [ ] Final candidate workflow execution 3/3 green.
 - [ ] Final-head platform evidence and PR metadata updated.
 
@@ -87,6 +87,16 @@ Head `fe24aee129b3193eb161b0c937316252733bdf46`:
 - Authentication Quality `30444244898`: success.
 - Public Asset Audit `30444244904`: success.
 - Pull Request Visual Evidence `30444244905`: success.
+
+### Final candidate execution 2/3
+
+Head `352f21c22661e110aca49a64994ddf8ed71ea8d3`:
+
+- Pull Request Quality Pipeline `30444636252`: success.
+- Player Pages and Social Cards `30444636268`: success.
+- Authentication Quality `30444636266`: success.
+- Public Asset Audit `30444636251`: success.
+- Pull Request Visual Evidence `30444636250`: success.
 
 ## Risk analysis
 
@@ -113,5 +123,5 @@ Revert the route-policy/guard, password component, logout cleanup, auth-api read
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `1/3` complete green workflow sets.
+- Stability: `2/3` complete green workflow sets.
 - No merge, deployment, remote migration or provider-secret change is authorized.
