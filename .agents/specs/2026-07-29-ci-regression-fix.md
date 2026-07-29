@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Seven isolated Supabase domains remain bounded to three minutes. Edge Function warm-up is now scoped to each domain after an unrelated multi-function warm-up crashed the local runtime. Stability is reset to zero; three clean complete workflow sets are required on this final candidate.
+In progress. Seven isolated Supabase domains remain bounded to three minutes. Edge Function warm-up is scoped to each domain. The first clean complete workflow set is green; two additional consecutive green sets are required.
 
 ## Request
 
@@ -14,8 +14,8 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - Kept 16 Desktop/Mobile browser shards.
 - Split Supabase integration into seven isolated domains: `security`, `ready-flow`, `gameplay-core`, `gameplay-sharing`, `auth-api`, `auth-browser` and `migrations`.
 - The exact 30-second anti-abuse journey has its own stack; no timeout, assertion duration, coverage, retry or browser shard was weakened.
-- A later `auth-browser` run crashed `supabase-edge-runtime` with bus error exit 135 while the generic warm-up compiled `game-api`, `player-context` and `league-api` before any browser test started.
-- Replaced generic warm-up with suite-specific probes: authentication compiles only `account-auth`; ready-flow compiles `game-ready-api`; other domains load only their required boundaries.
+- A generic warm-up crashed `supabase-edge-runtime` with bus error exit 135 while `auth-browser` compiled unrelated game, player and league functions.
+- Replaced generic warm-up with suite-specific probes: authentication compiles only `account-auth`; ready-flow compiles `game-ready-api`; other domains load only required boundaries.
 - Controlled 4xx responses count as successful warm-up because they prove the function route is compiled and serving while preserving authorization behavior; 5xx and transport errors remain failures.
 - Added CI contract regressions for the seven-domain matrix, exact journey assignment, ready-flow isolation and suite-specific warm-up.
 - The mandatory PR Desktop/Mobile/GIF marker block remains restored.
@@ -27,7 +27,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Ready-flow has an isolated local stack.
 - [x] Edge Function warm-up is domain-specific.
 - [x] All jobs remain bounded to three minutes or less.
-- [ ] Final stability execution 1/3 green.
+- [x] Final stability execution 1/3 green.
 - [ ] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
@@ -39,15 +39,15 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - Initial seven-domain contract test: malformed Unicode regular expression rejected by ESLint/Vitest and replaced with deterministic string-boundary extraction.
 - Generic seven-domain warm-up: `auth-browser` failed before Playwright because `supabase-edge-runtime` crashed with bus error while compiling unrelated functions.
 
-### Prior green evidence before final warm-up change
+### Final stability execution 1/3
 
-- Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`: all five workflows green.
-- Head `2b944231ef94c47c67325b7b920d7638385a1a20`: all five workflows green.
-- These runs validate the seven-domain split but do not count for the final suite-specific warm-up candidate.
+Head `2eced462237420e5d20bb155616cd5a5ef171734`:
 
-### Final candidate
-
-Implementation and contract-test head before documentation close: `46d0f15863c9ad0cc208b7779534a56925b27124`.
+- Pull Request Quality Pipeline `30434509377`: success.
+- Player Pages and Social Cards `30434509260`: success.
+- Authentication Quality `30434509359`: success.
+- Public Asset Audit `30434509161`: success.
+- Pull Request Visual Evidence `30434509262`: success.
 
 ### Evidence artifact
 
@@ -70,5 +70,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `0/3` on the suite-specific warm-up candidate.
+- Stability: `1/3` on the suite-specific warm-up candidate.
 - No merge, deployment, release or production migration included.
