@@ -80,11 +80,25 @@ describe('fast parallel Supabase CI', () => {
     expect(warmup).not.toContain('game, player-context and league Edge Functions are warm');
   });
 
-  it('accepts controlled client errors as proof that an Edge Function is warm', () => {
+  it('allows cold Edge compilation to complete in a bounded probe', () => {
     const probe = shellFunctionBlock('probe_edge_function');
+    const wait = shellFunctionBlock('wait_for_edge_functions');
 
+    expect(runner).toContain('readonly EDGE_WARMUP_ATTEMPTS=3');
+    expect(runner).toContain('readonly EDGE_WARMUP_TIMEOUT_SECONDS=30');
     expect(probe).not.toContain('--fail');
+    expect(probe).toContain('--connect-timeout 2');
+    expect(probe).toContain('--max-time "$EDGE_WARMUP_TIMEOUT_SECONDS"');
     expect(probe).toContain("[[ \"$status\" -ge 200 && \"$status\" -lt 500 ]]");
+    expect(wait).toContain('seq 1 "$EDGE_WARMUP_ATTEMPTS"');
+  });
+
+  it('keeps full local cleanup without spending CI budget on ephemeral containers', () => {
+    const cleanup = shellFunctionBlock('cleanup');
+
+    expect(cleanup).toContain("${GITHUB_ACTIONS:-false}");
+    expect(cleanup).toContain('supabase stop --no-backup');
+    expect(cleanup).toContain('rm -f supabase/functions/.env .supabase-functions.pid');
   });
 
   it('defers migration warm-up until after the reset it validates', () => {
