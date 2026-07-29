@@ -11,7 +11,7 @@ SERVICE_ROLE_KEY=''
 DB_URL=''
 POSTGRES_URL=''
 
-readonly VALID_SUITES='security gameplay auth-api auth-browser migrations'
+readonly VALID_SUITES='security gameplay-core gameplay-sharing auth-api auth-browser migrations'
 
 cleanup() {
   exit_code=$?
@@ -119,13 +119,16 @@ run_security_suite() {
   supabase migration list --local
 }
 
-run_gameplay_suite() {
+run_gameplay_core_suite() {
   node scripts/test-supabase-local.mjs
   node scripts/test-attempt-reservations-local.mjs
   node scripts/test-daily-attempt-limits-local.mjs
   node scripts/test-verified-email-daily-bonus-local.mjs
   node scripts/test-mobile-touch-local.mjs
   node scripts/test-ready-flow-local.mjs
+}
+
+run_gameplay_sharing_suite() {
   node scripts/test-trophies-local.mjs
   node scripts/test-player-share-local.mjs
   node scripts/test-social-share-local.mjs
@@ -144,6 +147,7 @@ run_auth_browser_suite() {
   export SUPABASE_TEST_ANON_KEY="$ANON_KEY"
   export SUPABASE_TEST_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
   export SUPABASE_TEST_DB_URL="${DB_URL:-$POSTGRES_URL}"
+  export PLAYWRIGHT_WEB_SERVER_COMMAND='node scripts/serve.mjs'
   node scripts/run-playwright.mjs --grep @live-auth --project=desktop-chrome
 }
 
@@ -182,8 +186,11 @@ case "$SUITE" in
   security)
     run_security_suite
     ;;
-  gameplay)
-    run_gameplay_suite
+  gameplay-core)
+    run_gameplay_core_suite
+    ;;
+  gameplay-sharing)
+    run_gameplay_sharing_suite
     ;;
   auth-api)
     run_auth_api_suite
