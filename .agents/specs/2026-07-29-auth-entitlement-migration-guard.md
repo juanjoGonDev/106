@@ -26,7 +26,7 @@ Investigate and fix production Supabase deployment run `30452463947`, job `90577
 - [x] Generic unapproved top-level deletes remain rejected.
 - [x] No production deployment, remote migration or secret change is performed.
 - [x] Pull-request CI is green on the functional head.
-- [ ] Pull-request CI is green on the final documentation head.
+- [x] Pull-request CI is green on the validated documentation head.
 
 ## Risks
 
@@ -42,6 +42,14 @@ Functional head `4d99d4116762e0f7e8a5132b25e48708f11bebd2`:
 - Authentication Quality `30454004189`: success.
 - Public Asset Audit `30454004182`: success.
 - Pull Request Visual Evidence `30454004177`: success.
+
+Validated documentation head `c9201991631146f6a808cec589541d859cf45b51`:
+
+- Pull Request Quality Pipeline `30454509560`: success.
+- Player Pages and Social Cards `30454509999`: success.
+- Authentication Quality `30454509514`: success.
+- Public Asset Audit `30454509351`: success.
+- Pull Request Visual Evidence `30454509403`: success.
 - Unit/security tests, ESLint, Knip, build and security checks passed.
 - Supabase `security`, `ready-flow`, `gameplay-core`, `gameplay-sharing`, `auth-api`, `auth-browser` and `migrations` jobs passed.
 - No deployment workflow ran from the task branch.
@@ -59,4 +67,4 @@ Revert the annotation and regression test before the migration is applied. After
 
 ## Status
 
-Implemented and functionally validated. Awaiting final-head CI after this documentation update.
+Done. PR #49 is open and validated; merge and the resulting production deployment remain user-controlled.
