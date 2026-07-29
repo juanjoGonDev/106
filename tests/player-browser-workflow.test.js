@@ -49,6 +49,7 @@ describe('parallel player browser workflow', () => {
     expect(shards).toContain('Set up pinned Node.js');
     expect(shards).toContain('node scripts/run-playwright.mjs');
     expect(shards).not.toContain('pnpm run test:e2e');
+    expect(shards).toContain('PLAYWRIGHT_WEB_SERVER_COMMAND: node scripts/serve.mjs');
   });
 
   it('prevents capture workers from recording every test implicitly', () => {
