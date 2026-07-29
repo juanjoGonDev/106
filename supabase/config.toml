@@ -25,27 +25,27 @@ otp_expiry = 3600
 
 [auth.email.template.confirmation]
 subject = "Confirma Minuto 106 y gana +1 intento diario"
-content_path = "./templates/confirmation.html"
+content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
 subject = "Restablece tu clave de Minuto 106"
-content_path = "./templates/recovery.html"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
 subject = "Tu acceso a Minuto 106"
-content_path = "./templates/magic-link.html"
+content_path = "./supabase/templates/magic-link.html"
 
 [auth.email.template.invite]
 subject = "Te han invitado a Minuto 106"
-content_path = "./templates/invite.html"
+content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.email_change]
 subject = "Confirma tu nuevo email en Minuto 106"
-content_path = "./templates/email-change.html"
+content_path = "./supabase/templates/email-change.html"
 
 [auth.email.template.reauthentication]
 subject = "{{ .Token }} es tu código de seguridad de Minuto 106"
-content_path = "./templates/reauthentication.html"
+content_path = "./supabase/templates/reauthentication.html"
 
 [auth.email.notification.password_changed]
 enabled = true
