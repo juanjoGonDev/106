@@ -9,32 +9,38 @@ Audit the active GitHub Actions setup against `fastypest`, add generic cache and
 - Default branch: `main`.
 - Stack: pnpm, Node.js, Supabase, and Playwright.
 - The repository already has parallel quality, browser, visual-evidence, asset, Pages, and Supabase workflows, but no Dependabot configuration.
-- New automation must remain independent from untrusted checkout and must not extend the existing quality critical path.
+- Dependabot-triggered `pull_request_target` workflows receive a read-only token and no secrets, so privileged Dependabot automation must not depend on repository secrets.
 
 ## Decision
 
 - Add grouped weekly npm and GitHub Actions updates after a seven-day cooldown.
+- Use `pull_request` plus the repository-scoped `GITHUB_TOKEN` for Dependabot approval, labels, and auto-merge; no PR code is checked out.
+- Require a current write-permission maintainer approval for production majors, bound to the current head SHA.
+- Use the scheduled default-branch workflow and `GITHUB_TOKEN` for required-QA branch updates and auto-merge.
 - Add cache-key-independent cleanup through the Actions cache API with manual dry-run by default.
-- Auto-approve patch/minor updates and development-only majors without checking out PR code. Production majors require a current approval from a reviewer with repository write permission.
-- Resolve the default branch dynamically, pin introduced Actions by immutable SHA, and use read-only default permissions.
-- Require `REPOSITORY_AUTOMATION_TOKEN`, with `PAT_FINE` as fallback, only for privileged write operations.
+- Keep dependency automation independent from the application quality critical path.
 - Do not add release automation because delivery follows the existing Pages and Supabase contracts.
 
 ## Acceptance
 
-- [x] No privileged workflow executes pull-request-controlled code.
+- [x] No privileged workflow checks out pull-request-controlled code.
 - [x] Dependency jobs remain outside the application quality pipeline.
 - [x] External or stale approvals cannot unlock production majors.
 - [x] Cache cleanup is global, bounded, and safe for empty/concurrent deletion.
+- [x] No new repository secret or variable is required.
 - [x] No application, database, release, or deployment behavior changes.
 
 ## Validation
 
 The proposed YAML parsed successfully. Existing package scripts and workflow contracts were inspected. Pull-request CI remains the runtime gate.
 
+## Repository settings
+
+Enable repository auto-merge and `Allow GitHub Actions to create and approve pull requests`. Required status checks must remain enforced on `main`.
+
 ## Risks and rollback
 
-Repository auto-merge, branch protection, and an appropriately scoped token are required for writes. Revert the workflow and Dependabot commits to roll back; no runtime data requires recovery.
+The workflows cannot approve or queue pull requests if the repository settings above are disabled. Revert this PR to roll back; no runtime data requires recovery.
 
 ## Delivery
 
