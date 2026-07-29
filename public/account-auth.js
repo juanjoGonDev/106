@@ -35,9 +35,7 @@ const elements = {
   resendStatus: document.querySelector('#emailConfirmationResendStatus'),
   captcha: document.querySelector('#authCaptcha'),
   localGoogle: document.querySelector('#googleSignIn'),
-  localFacebook: document.querySelector('#facebookSignIn'),
   authenticatedGoogle: document.querySelector('#authenticatedGoogle'),
-  authenticatedFacebook: document.querySelector('#authenticatedFacebook'),
   signOut: document.querySelector('#cloudSignOut'),
   mergeDialog: document.querySelector('#accountMergeDialog'),
   mergeSummary: document.querySelector('#accountMergeSummary'),
@@ -73,13 +71,12 @@ function setPanelVisibility(element, visible) {
 }
 
 function providerName(provider) {
-  const names = { facebook: 'Facebook', google: 'Google', email: 'Email' };
-  return names[provider] || names.email;
+  return provider === 'google' ? 'Google' : 'Email';
 }
 
-function renderProviderButton(button, provider, mode, identity) {
+function renderProviderButton(button, mode, identity) {
   if (!button) return;
-  const action = providerAction(provider, mode, identity);
+  const action = providerAction('google', mode, identity);
   button.textContent = action.label;
   button.disabled = busy || !config.available || action.disabled;
 }
@@ -129,10 +126,8 @@ function renderExperience() {
 
   renderPendingConfirmation();
   renderIdentity(identity);
-  renderProviderButton(elements.localGoogle, 'google', 'local-link', identity);
-  renderProviderButton(elements.localFacebook, 'facebook', 'local-link', identity);
-  renderProviderButton(elements.authenticatedGoogle, 'google', 'authenticated', identity);
-  renderProviderButton(elements.authenticatedFacebook, 'facebook', 'authenticated', identity);
+  renderProviderButton(elements.localGoogle, 'local-link', identity);
+  renderProviderButton(elements.authenticatedGoogle, 'authenticated', identity);
   if (elements.signOut) elements.signOut.disabled = busy || !config.available;
 }
 
@@ -229,8 +224,8 @@ async function withOperation(action) {
   }
 }
 
-async function startOAuth(provider) {
-  await client.signInWithOAuth(provider, { returnPage: 'cuenta.html' });
+async function startOAuth() {
+  await client.signInWithOAuth('google', { returnPage: 'cuenta.html' });
 }
 
 async function resendConfirmation() {
@@ -239,8 +234,8 @@ async function resendConfirmation() {
   renderPendingConfirmation();
 }
 
-function bindProvider(button, provider) {
-  button?.addEventListener('click', () => withOperation(() => startOAuth(provider)));
+function bindProvider(button) {
+  button?.addEventListener('click', () => withOperation(startOAuth));
 }
 
 async function initialize() {
@@ -261,13 +256,21 @@ async function initialize() {
   currentSession = await client.exchangeCallback();
   await refreshExperience();
 
+  if (currentSession && !authIdentity(currentSession)) {
+    client.clearSession();
+    currentSession = null;
+    await refreshExperience();
+    setStatus('La sesión guardada usa un proveedor no compatible. Inicia sesión con Google o email.', 'warning');
+    return;
+  }
+
   const snapshot = pendingConfirmationSnapshot(localStorage);
   if (currentSession) {
     await synchronizeAccount();
     return;
   }
   if (currentExperience.mode === 'local-link') {
-    setStatus('Vincula esta cuenta local con Google o Facebook. No necesitas volver a registrarte.');
+    setStatus('Vincula esta cuenta local con Google. No necesitas volver a registrarte.');
     return;
   }
   if (currentExperience.mode === 'pending-email') {
@@ -277,10 +280,8 @@ async function initialize() {
   setStatus('Inicia sesión o crea una cuenta para recuperar tus nicks en otros dispositivos.');
 }
 
-bindProvider(elements.localGoogle, 'google');
-bindProvider(elements.localFacebook, 'facebook');
-bindProvider(elements.authenticatedGoogle, 'google');
-bindProvider(elements.authenticatedFacebook, 'facebook');
+bindProvider(elements.localGoogle);
+bindProvider(elements.authenticatedGoogle);
 
 elements.resend?.addEventListener('click', () => withOperation(resendConfirmation));
 
