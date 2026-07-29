@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Ready for review.
 
 ## Request
 
@@ -10,7 +10,7 @@ Prevent every semantic-version major Dependabot update from being approved or qu
 
 ## Evidence
 
-The current workflow marks development-only major updates as eligible. Open GitHub Actions majors demonstrate that dependency type is not a sufficient risk boundary.
+The previous workflow marked development-only major updates as eligible. Open GitHub Actions majors demonstrate that dependency type is not a sufficient risk boundary.
 
 ## Decision
 
@@ -26,11 +26,18 @@ Classify only patch and minor updates as eligible. Classify every major update a
 
 ## Validation
 
-Pending workflow syntax review, pull-request checks and runtime evidence from the next Dependabot event.
+- Public Asset Audit run `30471193449`: success.
+- Pull Request Visual Evidence run `30471200397`: success.
+- Authentication Quality run `30471192899`: success.
+- Player Pages and Social Cards run `30471187792`: success.
+- Pull Request Quality Pipeline run `30471187717`: success after one evidence-based retry of a local PostgREST readiness failure.
+- The Dependabot job is skipped as expected because this corrective PR is owner-authored.
+- Existing major PRs are labeled `requires-manual-qa`; stale automated approvals on majors were dismissed.
 
 ## Delivery
 
 Branch: `agent/fix-dependabot-major-policy`.
+Pull request: `#51`.
 
 ## Rollback
 
