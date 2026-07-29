@@ -39,12 +39,15 @@ describe('parallel player browser workflow', () => {
     expect(playwrightConfig).toContain("video: visualCapture ? 'off' : 'retain-on-failure'");
   });
 
-  it('uses the bundled decoder and a dependency-free GIF encoder', () => {
-    expect(gifEncoder).toContain("'-f', 'rawvideo'");
+  it('uses Chrome as the existing WebM decoder and keeps GIF encoding dependency-free', () => {
+    expect(gifEncoder).toContain("chromium.launch({ channel: 'chrome', headless: true })");
+    expect(gifEncoder).toContain("contentType: 'video/webm'");
+    expect(gifEncoder).toContain("context.drawImage(video, 0, 0, width, height)");
     expect(gifEncoder).toContain("Buffer.from('GIF89a')");
     expect(gifEncoder).toContain("Buffer.from('NETSCAPE2.0')");
     expect(gifEncoder).toContain('encodeRgbFrameLzw');
     expect(gifEncoder).toContain('createRgb332Palette');
+    expect(gifEncoder).not.toContain('rawvideo');
     expect(gifEncoder).not.toContain('apt-get');
     expect(gifEncoder).not.toContain('sudo');
     expect(gifEncoder).not.toContain('palettegen');
