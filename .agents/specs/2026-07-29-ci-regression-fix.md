@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. The first clean complete workflow set is green; two further consecutive sets are required.
+In progress. Seven isolated Supabase domains remain bounded to three minutes. Cold Edge compilation uses bounded long-lived probes, migrations removes redundant pre-reset warm-up, and ephemeral GitHub runners omit unnecessary container shutdown. Two clean complete workflow sets are green; one further consecutive set is required.
 
 ## Request
 
@@ -31,7 +31,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Local cleanup remains complete; ephemeral CI cleanup does not consume the assertion budget.
 - [x] All jobs remain bounded to three minutes or less.
 - [x] Final stability execution 1/3 green.
-- [ ] Final stability execution 2/3 green.
+- [x] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
 ## Validation history
@@ -52,6 +52,16 @@ Head `5d39e6bed34f537e8e7c6fffee22ef58193eb208`:
 - Authentication Quality `30436091587`: success.
 - Public Asset Audit `30436091638`: success.
 - Pull Request Visual Evidence `30436091610`: success.
+
+### Final stability execution 2/3
+
+Head `25e630a6f57f895b83477ad34c20578987a1dd6e`:
+
+- Pull Request Quality Pipeline `30436387247`: success.
+- Player Pages and Social Cards `30436386922`: success.
+- Authentication Quality `30436386667`: success.
+- Public Asset Audit `30436387873`: success.
+- Pull Request Visual Evidence `30436386271`: success.
 
 ### Evidence artifact
 
@@ -74,5 +84,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `1/3` on the bounded cold-compilation candidate.
+- Stability: `2/3` on the bounded cold-compilation candidate.
 - No merge, deployment, release or production migration included.
