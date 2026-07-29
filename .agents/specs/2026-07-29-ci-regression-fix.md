@@ -2,7 +2,7 @@
 
 ## Status
 
-Stability validation in progress. The functional fix is complete, the first full CI execution is green, and two additional consecutive executions of the unchanged functional tree are required before closure.
+Stability validation in progress. The functional fix is complete and two consecutive full CI executions are green. One final consecutive execution of the unchanged functional tree is required before closure.
 
 ## Request
 
@@ -64,7 +64,7 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 - [x] Supabase domain suites run in parallel and remain bounded to three minutes per job.
 - [x] No retry, skip, timeout increase or browser-shard reduction is introduced.
 - [x] First complete stability execution is green.
-- [ ] Second complete stability execution is green.
+- [x] Second complete stability execution is green.
 - [ ] Third complete stability execution is green.
 - [x] The canonical platform evidence ZIP is complete and bound to a validated candidate head.
 
@@ -80,6 +80,15 @@ Functional fix head: `f759657f9b16fe310540d60b94dbc5d35a5d718b`.
 - Public Asset Audit `30427221764`: success.
 - Pull Request Visual Evidence `30427221726`: success.
 - Sixteen Playwright capture/encoding shards and every isolated Supabase domain completed without retries, reduced coverage or timeout increases.
+
+### Stability execution 2/3
+
+- Pull Request Quality Pipeline `30427557353`: success.
+- Player Pages and Social Cards `30427557557`: success.
+- Authentication Quality `30427557508`: success.
+- Public Asset Audit `30427557346`: success.
+- Pull Request Visual Evidence `30427557379`: success.
+- The same functional tree completed the full workflow set again without retries, reduced coverage or timeout increases.
 
 ### Supporting validation
 
@@ -108,5 +117,5 @@ Revert the commits from this specification. Do not restore the observer feedback
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability count: `1/3` complete green executions.
+- Stability count: `2/3` complete green executions.
 - No merge, deployment, release, production migration or provider configuration is included.
