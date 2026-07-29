@@ -115,6 +115,7 @@ run_security_suite() {
   node scripts/test-database-permissions-local.mjs
   node scripts/test-input-security-local.mjs
   node scripts/test-migration-compatibility-local.mjs
+  node scripts/test-ready-flow-local.mjs
   supabase db lint --level error
   supabase migration list --local
 }
@@ -128,7 +129,6 @@ run_gameplay_core_suite() {
 }
 
 run_gameplay_sharing_suite() {
-  node scripts/test-ready-flow-local.mjs
   node scripts/test-trophies-local.mjs
   node scripts/test-player-share-local.mjs
   node scripts/test-social-share-local.mjs
