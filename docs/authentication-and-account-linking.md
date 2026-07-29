@@ -92,7 +92,9 @@ The browser additionally requires lowercase, uppercase, number and symbol. Regis
 
 The signup confirmation link is one use and expires after one hour. `cuenta.html` keeps a neutral pending state and can call Supabase `/auth/v1/resend` with type `signup`. The page shows a local one-minute cooldown; Supabase rate limits remain authoritative. Responses never reveal whether an email exists.
 
-For hosted Supabase, configure the one-hour expiry and email template in the dashboard. `supabase/config.toml` and `supabase/templates/confirmation.html` configure the local stack and provide the maintained production template source, but do not automatically change hosted Auth settings.
+For hosted Supabase, configure the one-hour expiry and the complete maintained email catalogue in the dashboard or Management API. `supabase/config.toml` and `supabase/templates/` configure the local stack and provide production template sources, but they do not automatically change hosted Auth settings.
+
+The source of truth, generation commands, hosted payload and verification checklist are documented in `docs/auth-email-templates.md`.
 
 Confirmation email subject:
 
@@ -100,7 +102,7 @@ Confirmation email subject:
 Confirma Minuto 106 y gana +1 intento diario
 ```
 
-The hosted template should use the maintained file `supabase/templates/confirmation.html`, including `{{ .ConfirmationURL }}`.
+The confirmation template uses `{{ .Token }}` for the visible OTP and constructs the application verification link from `{{ .RedirectTo }}` plus `{{ .TokenHash }}`. Other action templates use the flow-specific `{{ .ConfirmationURL }}` supplied by Supabase.
 
 ## Authentication incentive
 
@@ -137,7 +139,7 @@ The current free setup uses Brevo SMTP with a verified sender:
 - Password: a dedicated Brevo SMTP key.
 - Sender: the exact verified sender.
 
-Do not place SMTP credentials in GitHub. Keep Auth rate limits conservative and enable Turnstile before public registration.
+Do not place SMTP credentials in GitHub. Keep Auth rate limits conservative and enable Turnstile before public registration. Disable SMTP click tracking for Auth emails so verification URLs are not rewritten.
 
 ## Browser flow
 
@@ -189,19 +191,19 @@ bash scripts/run-supabase-ci.sh
 PR_VISUAL_CAPTURE=1 pnpm test:e2e
 ```
 
-Local integration covers email reward grant/replay/future nick, pending email, Google reward deduplication, email-origin exclusion, account recovery, merge lifecycle, provider rejection and role isolation.
+Local integration covers email reward grant/replay/future nick, pending email, Google reward deduplication, email-origin exclusion, account recovery, merge lifecycle, provider rejection, role isolation and linked-player daily quota projection.
 
 ## Production activation order
 
 1. Merge the required PR after final CI approval.
 2. Apply production database migrations.
 3. Set `HASH_PEPPER` and deploy `account-auth`.
-4. Configure hosted Auth URLs, email policy, one-hour expiry and template.
-5. Confirm Brevo SMTP delivery.
+4. Apply the complete hosted Auth email catalogue and one-hour expiry.
+5. Confirm Brevo SMTP delivery and disable link tracking.
 6. Enable Google and disable every other social provider in Supabase.
 7. Deploy GitHub Pages with `SUPABASE_PUBLISHABLE_KEY`.
-8. Run real smoke tests for email confirmation/resend, Google linking and clean-device recovery.
+8. Run real smoke tests for email confirmation/resend, recovery, security notifications, Google linking and clean-device recovery.
 
 ## Rollback
 
-Migrations are additive. A frontend or Edge Function regression can be reverted while identity, origin, entitlement and merge-audit rows remain dormant. Never rewrite an applied migration; production corrections require a new forward migration.
+Migrations are additive. A frontend or Edge Function regression can be reverted while identity, origin, entitlement and merge-audit rows remain dormant. Never rewrite an applied migration; production corrections require a new forward migration. Hosted email configuration has an independent rollback payload documented in `docs/auth-email-templates.md`.

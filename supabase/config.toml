@@ -27,6 +27,61 @@ otp_expiry = 3600
 subject = "Confirma Minuto 106 y gana +1 intento diario"
 content_path = "./supabase/templates/confirmation.html"
 
+[auth.email.template.recovery]
+subject = "Restablece tu clave de Minuto 106"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Tu acceso a Minuto 106"
+content_path = "./supabase/templates/magic-link.html"
+
+[auth.email.template.invite]
+subject = "Te han invitado a Minuto 106"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Confirma tu nuevo email en Minuto 106"
+content_path = "./supabase/templates/email-change.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} es tu código de seguridad de Minuto 106"
+content_path = "./supabase/templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Tu contraseña de Minuto 106 ha cambiado"
+content_path = "./templates/notifications/password-changed.html"
+
+[auth.email.notification.email_changed]
+enabled = true
+subject = "El email de tu cuenta de Minuto 106 ha cambiado"
+content_path = "./templates/notifications/email-changed.html"
+
+[auth.email.notification.phone_changed]
+enabled = true
+subject = "El teléfono de tu cuenta de Minuto 106 ha cambiado"
+content_path = "./templates/notifications/phone-changed.html"
+
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+subject = "Se ha añadido una verificación a tu cuenta de Minuto 106"
+content_path = "./templates/notifications/mfa-factor-enrolled.html"
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
+subject = "Se ha eliminado una verificación de tu cuenta de Minuto 106"
+content_path = "./templates/notifications/mfa-factor-unenrolled.html"
+
+[auth.email.notification.identity_linked]
+enabled = true
+subject = "Se ha vinculado un acceso a tu cuenta de Minuto 106"
+content_path = "./templates/notifications/identity-linked.html"
+
+[auth.email.notification.identity_unlinked]
+enabled = true
+subject = "Se ha desvinculado un acceso de tu cuenta de Minuto 106"
+content_path = "./templates/notifications/identity-unlinked.html"
+
 [functions.game-api]
 verify_jwt = false
 
