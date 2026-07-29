@@ -142,7 +142,7 @@ test('pending email activation can be resent after reload and clearly expires af
     && entry.body.email === 'pending@example.com')).toBe(true);
 });
 
-test('a signed-in Google account can still start Facebook linking without stacking the reward', async ({ page }) => {
+test('a signed-in Google account exposes no alternative social linking control', async ({ page }) => {
   const accountLog = [];
   await installPage(page, {
     provider: 'google',
@@ -161,26 +161,23 @@ test('a signed-in Google account can still start Facebook linking without stacki
 
   await expect(page.locator('#cloudAccountIdentity')).toContainText('google@example.com');
   await expect(page.locator('#cloudAccountIdentity')).toContainText('Acceso: Google');
-  await expect(page.locator('#cloudAccountStatus')).toContainText('se comparte entre Google y Facebook');
+  await expect(page.locator('#cloudAccountStatus')).toContainText('por Google sigue activa');
   await expect(page.getByRole('button', { name: 'Google vinculado' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Vincular Facebook' })).toBeEnabled();
+  await expect(page.locator('#cloudAuthenticatedPanel .oauth-button')).toHaveCount(1);
   expect(accountLog.some((entry) => entry.action === 'sync-account')).toBe(true);
-
-  await page.getByRole('button', { name: 'Vincular Facebook' }).click();
-  await expect(page).toHaveURL(/\/auth\/v1\/authorize\?.*provider=facebook/);
 });
 
-test('social-origin reward is granted once and has no email-confirmation achievement', async ({ page }) => {
+test('Google-origin reward is granted once and has no email-confirmation achievement', async ({ page }) => {
   await installPage(page, {
-    provider: 'facebook',
-    storedSession: authSession('facebook'),
+    provider: 'google',
+    storedSession: authSession('google'),
     reward: {
       eligible: true,
       active: true,
       granted: true,
       dailyAttemptBonus: 1,
       source: 'social_link',
-      provider: 'facebook',
+      provider: 'google',
       achievementCode: null,
       achievementTitle: null,
       achievementsGranted: 0,
@@ -188,9 +185,9 @@ test('social-origin reward is granted once and has no email-confirmation achieve
   });
   await page.goto('/cuenta.html');
 
-  await expect(page.locator('#cloudAccountStatus')).toContainText('vinculada con Facebook');
-  await expect(page.locator('#cloudAccountStatus')).toContainText('no acumula otra bonificación');
+  await expect(page.locator('#cloudAccountStatus')).toContainText('vinculada con Google');
+  await expect(page.locator('#cloudAccountStatus')).toContainText('Has recibido +1 intento diario');
   await expect(page.locator('#cloudPendingPanel')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Facebook vinculado' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Vincular Google' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Google vinculado' })).toBeDisabled();
+  await expect(page.locator('#cloudAuthenticatedPanel .oauth-button')).toHaveCount(1);
 });
