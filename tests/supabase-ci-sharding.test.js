@@ -70,14 +70,30 @@ describe('fast parallel Supabase CI', () => {
 
   it('warms only the Edge Functions required by each domain', () => {
     const warmup = shellFunctionBlock('warm_edge_functions_for_suite');
+    const authApiWarmup = shellFunctionBlock('warm_auth_api_functions');
 
-    expect(warmup).toContain('auth-api|auth-browser)');
+    expect(warmup).toContain('auth-api)');
+    expect(warmup).toContain('warm_auth_api_functions');
+    expect(warmup).toContain('auth-browser)');
     expect(warmup).toContain('functions/v1/account-auth');
     expect(warmup).toContain('ready-flow)');
     expect(warmup).toContain('functions/v1/game-ready-api');
     expect(warmup).toContain('gameplay-sharing|migrations)');
     expect(warmup).toContain('functions/v1/game-api');
     expect(warmup).not.toContain('game, player-context and league Edge Functions are warm');
+
+    expect(authApiWarmup).toContain('functions/v1/account-auth');
+    expect(authApiWarmup).toContain('functions/v1/game-api');
+    expect(authApiWarmup).toContain('account_auth_pid=$!');
+    expect(authApiWarmup).toContain('game_api_pid=$!');
+    expect(authApiWarmup).toContain('wait "$account_auth_pid" || failed=1');
+    expect(authApiWarmup).toContain('wait "$game_api_pid" || failed=1');
+    expect(authApiWarmup.indexOf('account_auth_pid=$!')).toBeLessThan(
+      authApiWarmup.indexOf('wait "$account_auth_pid"'),
+    );
+    expect(authApiWarmup.indexOf('game_api_pid=$!')).toBeLessThan(
+      authApiWarmup.indexOf('wait "$game_api_pid"'),
+    );
   });
 
   it('allows cold Edge compilation to complete in a bounded probe', () => {
