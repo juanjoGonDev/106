@@ -94,26 +94,28 @@ export function sessionAuthenticationMethods(session) {
   return Object.freeze([...new Set(methods)]);
 }
 
-export function sessionSupportsPasswordChange(session) {
-  return sessionAuthenticationMethods(session).includes(PASSWORD_AUTH_METHOD);
-}
-
 export function authIdentity(session) {
   const summary = sessionSummary(session);
   if (!summary) return null;
   const providers = sessionProviders(session);
   const socialProviders = providers.filter((provider) => SOCIAL_PROVIDERS.includes(provider));
   const primaryProvider = providers[0] || summary.provider;
+  const authenticationMethods = sessionAuthenticationMethods(session);
   return Object.freeze({
     email: summary.email,
     emailVerified: summary.emailVerified,
     primaryProvider,
     providers,
     socialProviders: Object.freeze(socialProviders),
+    authenticationMethods,
     verificationEligible: primaryProvider === 'email'
       && socialProviders.length === 0
       && summary.emailVerified !== true,
   });
+}
+
+export function identitySupportsPassword(identity) {
+  return identity?.authenticationMethods?.includes(PASSWORD_AUTH_METHOD) === true;
 }
 
 export function localAccountActive({ accountToken, legacyNicks } = {}) {
