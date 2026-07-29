@@ -11,7 +11,7 @@ SERVICE_ROLE_KEY=''
 DB_URL=''
 POSTGRES_URL=''
 
-readonly VALID_SUITES='security gameplay-core gameplay-sharing auth-api auth-browser migrations'
+readonly VALID_SUITES='security ready-flow gameplay-core gameplay-sharing auth-api auth-browser migrations'
 
 cleanup() {
   exit_code=$?
@@ -115,9 +115,12 @@ run_security_suite() {
   node scripts/test-database-permissions-local.mjs
   node scripts/test-input-security-local.mjs
   node scripts/test-migration-compatibility-local.mjs
-  node scripts/test-ready-flow-local.mjs
   supabase db lint --level error
   supabase migration list --local
+}
+
+run_ready_flow_suite() {
+  node scripts/test-ready-flow-local.mjs
 }
 
 run_gameplay_core_suite() {
@@ -185,6 +188,9 @@ echo "::group::Run Supabase ${SUITE} suite"
 case "$SUITE" in
   security)
     run_security_suite
+    ;;
+  ready-flow)
+    run_ready_flow_suite
     ;;
   gameplay-core)
     run_gameplay_core_suite
