@@ -12,8 +12,8 @@ export function hostedAuthEmailSyncEnvironment(environment = process.env) {
     environment.SUPABASE_PROJECT_ID || environment.PROJECT_ID,
   );
   const accessToken = normalizedEnvironmentValue(environment.SUPABASE_ACCESS_TOKEN);
-  if (!projectId) throw new Error('Missing SUPABASE_PROJECT_ID or PROJECT_ID.');
-  if (!accessToken) throw new Error('Missing SUPABASE_ACCESS_TOKEN.');
+  if (!projectId) throw new Error('Missing Supabase project ID (SUPABASE_PROJECT_ID or PROJECT_ID).');
+  if (!accessToken) throw new Error('Missing Supabase access token (SUPABASE_ACCESS_TOKEN).');
   return Object.freeze({ projectId, accessToken });
 }
 
