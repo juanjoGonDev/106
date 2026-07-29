@@ -48,7 +48,7 @@ describe('authentication reward migrations', () => {
     expect(config).toContain('otp_expiry = 3600');
     expect(config).toContain('max_frequency = "1m"');
     expect(config).toContain('enable_confirmations = true');
-    expect(config).toContain('content_path = "./supabase/templates/confirmation.html"');
+    expect(config).toContain('content_path = "./templates/confirmation.html"');
     expect(template).toContain('+1 intento diario');
     expect(template).toContain('El enlace y el código caducan en <strong>1 hora</strong>');
     expect(template).toContain('minuto-106-social-preview.jpg');
