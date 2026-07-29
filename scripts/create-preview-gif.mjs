@@ -1,36 +1,37 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import {
   closeSync,
   existsSync,
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
+  unlinkSync,
   writeSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const outputDirectory = resolve('.tmp/pr-previews');
-const FRAME_RATE = 12;
+const FRAME_RATE = 8;
 const DESKTOP_WIDTH = 1280;
 const MOBILE_WIDTH = 720;
 const GIF_CLEAR_CODE = 256;
 const GIF_END_CODE = 257;
 const GIF_DICTIONARY_RESET_CODE = 511;
 const GIF_CODE_SIZE = 9;
+const EVIDENCE_ORIGIN = 'https://evidence.local';
 
-function cacheRoots() {
+function playwrightCacheRoots() {
   return [
-    process.env.PLAYWRIGHT_BROWSERS_PATH,
-    process.env.XDG_CACHE_HOME ? join(process.env.XDG_CACHE_HOME, 'ms-playwright') : '',
-    join(homedir(), '.cache', 'ms-playwright'),
-    join(homedir(), 'Library', 'Caches', 'ms-playwright'),
+    process.env.XDG_CACHE_HOME ? join(process.env.XDG_CACHE_HOME, 'pnpm', 'dlx') : '',
+    join(homedir(), '.cache', 'pnpm', 'dlx'),
   ].filter((value, index, values) => value && values.indexOf(value) === index && existsSync(value));
 }
 
-function findFfmpeg(root) {
+function findPlaywrightPackageJson(root) {
   const pending = [root];
   while (pending.length) {
     const directory = pending.pop();
@@ -40,38 +41,33 @@ function findFfmpeg(root) {
     } catch {
       continue;
     }
+
     for (const entry of entries) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
         pending.push(path);
         continue;
       }
-      if (entry.isFile() && /^ffmpeg(?:-|\.exe$|$)/i.test(entry.name)) return path;
+      if (!entry.isFile() || entry.name !== 'package.json' || !path.includes(join('node_modules', '@playwright', 'test'))) {
+        continue;
+      }
+      try {
+        const packageJson = JSON.parse(readFileSync(path, 'utf8'));
+        if (packageJson.name === '@playwright/test' && packageJson.version === '1.60.0') return path;
+      } catch {
+        // Ignore incomplete or unrelated package metadata in the dlx cache.
+      }
     }
   }
   return null;
 }
 
-function commandOutput(command, arguments_) {
-  const result = spawnSync(command, arguments_, {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error) return '';
-  return `${result.stdout || ''}\n${result.stderr || ''}`;
-}
-
-function resolveFfmpeg() {
-  const candidates = [
-    ...cacheRoots().map(findFfmpeg).filter(Boolean),
-    'ffmpeg',
-  ];
-  const ffmpeg = candidates.find((candidate) => /ffmpeg version/i.test(commandOutput(candidate, ['-version'])));
-  if (!ffmpeg) {
-    throw new Error('Playwright FFmpeg is missing. Run the browser installation before generating GIF evidence.');
+function resolvePlaywrightRuntimePath() {
+  const packageJsonPath = playwrightCacheRoots().map(findPlaywrightPackageJson).find(Boolean);
+  if (!packageJsonPath) {
+    throw new Error('Unable to locate @playwright/test@1.60.0 in the pnpm dlx cache. Run the browser journey before GIF generation.');
   }
-  return ffmpeg;
+  return dirname(packageJsonPath);
 }
 
 function recordingFiles() {
@@ -86,17 +82,9 @@ function outputWidth(name) {
   return name.endsWith('-mobile') ? MOBILE_WIDTH : DESKTOP_WIDTH;
 }
 
-function sourceDimensions(ffmpeg, recording) {
-  const output = commandOutput(ffmpeg, ['-hide_banner', '-i', recording]);
-  const match = output.match(/Stream[^\n]*Video:[^\n]*?\b(\d{2,5})x(\d{2,5})\b/i);
-  if (!match) throw new Error(`Unable to read video dimensions from ${recording}.`);
-  return { width: Number(match[1]), height: Number(match[2]) };
-}
-
-function targetDimensions(ffmpeg, recording, name) {
-  const source = sourceDimensions(ffmpeg, recording);
+function targetDimensions(sourceWidth, sourceHeight, name) {
   const width = outputWidth(name);
-  const scaledHeight = Math.max(2, Math.round(source.height * width / source.width));
+  const scaledHeight = Math.max(2, Math.round(sourceHeight * width / sourceWidth));
   const height = scaledHeight % 2 === 0 ? scaledHeight : scaledHeight + 1;
   return { width, height };
 }
@@ -200,7 +188,7 @@ export function writeGifHeader(fileDescriptor, width, height) {
   writeBuffer(fileDescriptor, Buffer.from([0x03, 0x01, 0x00, 0x00, 0x00]));
 }
 
-export function writeGifFrame(fileDescriptor, frame, width, height, delayCentiseconds) {
+function writeEncodedGifFrame(fileDescriptor, encodedFrame, width, height, delayCentiseconds) {
   writeBuffer(fileDescriptor, Buffer.from([
     0x21, 0xf9, 0x04, 0x00,
     delayCentiseconds & 0xff,
@@ -211,86 +199,206 @@ export function writeGifFrame(fileDescriptor, frame, width, height, delayCentise
   writeBuffer(fileDescriptor, littleEndian16(width));
   writeBuffer(fileDescriptor, littleEndian16(height));
   writeBuffer(fileDescriptor, Buffer.from([0x00, 0x08]));
-  writeSubBlocks(fileDescriptor, encodeRgbFrameLzw(frame));
+  writeSubBlocks(fileDescriptor, encodedFrame);
+}
+
+export function writeGifFrame(fileDescriptor, frame, width, height, delayCentiseconds) {
+  writeEncodedGifFrame(
+    fileDescriptor,
+    encodeRgbFrameLzw(frame),
+    width,
+    height,
+    delayCentiseconds,
+  );
 }
 
 function writeGifTrailer(fileDescriptor) {
   writeBuffer(fileDescriptor, Buffer.from([0x3b]));
 }
 
-function decodeFrames(ffmpeg, recording, dimensions, onFrame) {
-  const frameSize = dimensions.width * dimensions.height * 3;
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(ffmpeg, [
-      '-hide_banner',
-      '-loglevel', 'error',
-      '-i', recording,
-      '-vf', `fps=${FRAME_RATE},scale=${dimensions.width}:${dimensions.height}:flags=lanczos`,
-      '-an',
-      '-pix_fmt', 'rgb24',
-      '-f', 'rawvideo',
-      'pipe:1',
-    ], {
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'inherit'],
+async function openVideo(page, recording) {
+  await page.route(`${EVIDENCE_ORIGIN}/**`, async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/video.webm') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'video/webm',
+        headers: { 'cache-control': 'no-store' },
+        path: recording,
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><html><body><video id="source" muted playsinline></video><canvas id="frame"></canvas></body></html>',
     });
+  });
+  await page.goto(`${EVIDENCE_ORIGIN}/player`, { waitUntil: 'domcontentloaded' });
 
-    let chunks = [];
-    let bufferedBytes = 0;
-    let frameCount = 0;
-
-    child.stdout.on('data', (chunk) => {
-      let offset = 0;
-      while (offset < chunk.length) {
-        const required = frameSize - bufferedBytes;
-        const length = Math.min(required, chunk.length - offset);
-        chunks.push(chunk.subarray(offset, offset + length));
-        bufferedBytes += length;
-        offset += length;
-
-        if (bufferedBytes === frameSize) {
-          onFrame(Buffer.concat(chunks, frameSize), frameCount);
-          frameCount += 1;
-          chunks = [];
-          bufferedBytes = 0;
-        }
-      }
+  return await page.evaluate(async () => {
+    const response = await fetch('/video.webm', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Unable to load recording: HTTP ${response.status}`);
+    const blob = await response.blob();
+    const video = document.querySelector('#source');
+    video.src = URL.createObjectURL(blob);
+    await new Promise((resolvePromise, rejectPromise) => {
+      video.addEventListener('loadeddata', resolvePromise, { once: true });
+      video.addEventListener('error', () => rejectPromise(new Error('Chrome could not decode the WebM recording.')), { once: true });
     });
-    child.once('error', rejectPromise);
-    child.once('close', (code) => {
-      if (code !== 0) {
-        rejectPromise(new Error(`FFmpeg failed to decode ${recording} with exit code ${code ?? 1}.`));
-        return;
-      }
-      if (bufferedBytes !== 0) {
-        rejectPromise(new Error(`FFmpeg returned an incomplete RGB frame for ${recording}.`));
-        return;
-      }
-      if (frameCount === 0) {
-        rejectPromise(new Error(`FFmpeg returned no frames for ${recording}.`));
-        return;
-      }
-      resolvePromise(frameCount);
-    });
+    if (!Number.isFinite(video.duration) || video.duration <= 0) {
+      throw new Error(`Invalid recording duration: ${video.duration}`);
+    }
+    return {
+      duration: video.duration,
+      width: video.videoWidth,
+      height: video.videoHeight,
+    };
   });
 }
 
-async function generateGif(ffmpeg, recording) {
+async function encodeVideoFrames(page, dimensions, duration, delayCentiseconds) {
+  return await page.evaluate(async ({ width, height, frameRate, durationSeconds, delay }) => {
+    const clearCode = 256;
+    const endCode = 257;
+    const dictionaryResetCode = 511;
+    const codeSize = 9;
+    const video = document.querySelector('#source');
+    const canvas = document.querySelector('#frame');
+    const context = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    if (!context) throw new Error('Canvas 2D context is unavailable.');
+    canvas.width = width;
+    canvas.height = height;
+
+    function encodeRgbaFrame(frame) {
+      let dictionary = new Map();
+      let nextCode = endCode + 1;
+      let bitBuffer = 0;
+      let bitCount = 0;
+      const bytes = [];
+
+      const emit = (code) => {
+        bitBuffer |= code << bitCount;
+        bitCount += codeSize;
+        while (bitCount >= 8) {
+          bytes.push(bitBuffer & 0xff);
+          bitBuffer >>>= 8;
+          bitCount -= 8;
+        }
+      };
+      const resetDictionary = () => {
+        dictionary = new Map();
+        nextCode = endCode + 1;
+      };
+      const symbolAt = (pixelIndex) => {
+        const offset = pixelIndex * 4;
+        return (frame[offset] & 0xe0)
+          | ((frame[offset + 1] & 0xe0) >>> 3)
+          | (frame[offset + 2] >>> 6);
+      };
+
+      emit(clearCode);
+      const pixelCount = frame.length / 4;
+      let prefix = symbolAt(0);
+      for (let pixelIndex = 1; pixelIndex < pixelCount; pixelIndex += 1) {
+        const symbol = symbolAt(pixelIndex);
+        const key = prefix * 256 + symbol;
+        const existing = dictionary.get(key);
+        if (existing !== undefined) {
+          prefix = existing;
+          continue;
+        }
+
+        emit(prefix);
+        if (nextCode < dictionaryResetCode) {
+          dictionary.set(key, nextCode);
+          nextCode += 1;
+        } else {
+          emit(clearCode);
+          resetDictionary();
+        }
+        prefix = symbol;
+      }
+      emit(prefix);
+      emit(endCode);
+      if (bitCount > 0) bytes.push(bitBuffer & 0xff);
+      return new Uint8Array(bytes);
+    }
+
+    function base64(bytes) {
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+      }
+      return btoa(binary);
+    }
+
+    async function seek(time) {
+      if (Math.abs(video.currentTime - time) < 0.0005 && video.readyState >= 2) return;
+      await new Promise((resolvePromise, rejectPromise) => {
+        const timeout = setTimeout(() => rejectPromise(new Error(`Timed out seeking to ${time.toFixed(3)}s.`)), 5_000);
+        video.addEventListener('seeked', () => {
+          clearTimeout(timeout);
+          resolvePromise();
+        }, { once: true });
+        video.addEventListener('error', () => {
+          clearTimeout(timeout);
+          rejectPromise(new Error(`Video decode failed while seeking to ${time.toFixed(3)}s.`));
+        }, { once: true });
+        video.currentTime = time;
+      });
+    }
+
+    const frameCount = Math.max(1, Math.ceil(durationSeconds * frameRate));
+    for (let index = 0; index < frameCount; index += 1) {
+      const time = Math.min(index / frameRate, Math.max(0, durationSeconds - 0.001));
+      await seek(time);
+      context.drawImage(video, 0, 0, width, height);
+      const pixels = context.getImageData(0, 0, width, height).data;
+      await window.emitGifFrame(base64(encodeRgbaFrame(pixels)), delay);
+    }
+    return frameCount;
+  }, {
+    width: dimensions.width,
+    height: dimensions.height,
+    frameRate: FRAME_RATE,
+    durationSeconds: duration,
+    delay: delayCentiseconds,
+  });
+}
+
+async function generateGif(browser, recording) {
   const name = basename(recording, extname(recording));
   const output = join(outputDirectory, `${name}.gif`);
-  const dimensions = targetDimensions(ffmpeg, recording, name);
-  const delay = Math.max(1, Math.round(100 / FRAME_RATE));
-  const fileDescriptor = openSync(output, 'w');
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let fileDescriptor = null;
 
   try {
+    const metadata = await openVideo(page, recording);
+    const dimensions = targetDimensions(metadata.width, metadata.height, name);
+    const delay = Math.max(1, Math.round(100 / FRAME_RATE));
+    fileDescriptor = openSync(output, 'w');
     writeGifHeader(fileDescriptor, dimensions.width, dimensions.height);
-    const frameCount = await decodeFrames(ffmpeg, recording, dimensions, (frame) => {
-      writeGifFrame(fileDescriptor, frame, dimensions.width, dimensions.height, delay);
+    await page.exposeFunction('emitGifFrame', async (encodedBase64, frameDelay) => {
+      writeEncodedGifFrame(
+        fileDescriptor,
+        Buffer.from(encodedBase64, 'base64'),
+        dimensions.width,
+        dimensions.height,
+        frameDelay,
+      );
     });
+    const frameCount = await encodeVideoFrames(page, dimensions, metadata.duration, delay);
     writeGifTrailer(fileDescriptor);
-    process.stdout.write(`Generated ${output} with ${frameCount} frame(s) using the bundled decoder and deterministic Node GIF encoder.\n`);
+    process.stdout.write(`Generated ${output} with ${frameCount} frame(s) using Chrome WebM decoding and deterministic GIF encoding.\n`);
+  } catch (error) {
+    if (existsSync(output)) unlinkSync(output);
+    throw error;
   } finally {
-    closeSync(fileDescriptor);
+    if (fileDescriptor !== null) closeSync(fileDescriptor);
+    await context.close();
   }
 }
 
@@ -298,8 +406,16 @@ export async function main() {
   mkdirSync(outputDirectory, { recursive: true });
   const recordings = recordingFiles();
   if (!recordings.length) throw new Error(`No WebM viewport recordings found in ${outputDirectory}.`);
-  const ffmpeg = resolveFfmpeg();
-  for (const recording of recordings) await generateGif(ffmpeg, recording);
+
+  const runtimePath = resolvePlaywrightRuntimePath();
+  const require = createRequire(import.meta.url);
+  const { chromium } = require(runtimePath);
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    for (const recording of recordings) await generateGif(browser, recording);
+  } finally {
+    await browser.close();
+  }
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
