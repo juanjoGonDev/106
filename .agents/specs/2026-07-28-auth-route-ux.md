@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Follow-up UX hardening is being implemented for immediate sign-out state invalidation, centralized route guards and reusable password visibility controls.
+In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. The first complete final-candidate workflow set is green; two further consecutive sets are required.
 
 ## Request
 
@@ -28,76 +28,90 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 
 ## Evidence
 
-- `cuenta.html` currently contains contextual cloud-account panels, private-key management and nick management.
-- `account-auth.js` signs out the Supabase session and recalculates the experience, but leaves `minuto106:pending-email-confirmation-v1` and its resend timestamp in local storage. The stale values select `pending-email` again after logout.
-- `login.html`, `registro.html` and `restablecer-clave.html` contain five password inputs without a shared visibility control.
-- `resolveAuthExperience` already centralizes most redirect decisions, but route policy is implicit in condition ordering and controllers still compose experience plus redirect separately.
-- A static multipage application cannot use Angular Router, but it can expose the same `canActivate` model through a declarative route-policy table and one guard function executed before page initialization.
-- Frontend route guards cannot protect data because browser code can be bypassed. Server authorization and row/function permissions remain mandatory.
-- `SupabaseAuthClient` supports PKCE, password sign-in, signup, resend, recovery, OAuth and session persistence.
-- A local private account token is only created after a protected game/account action, so its presence is a reliable signal that the browser owns or has imported game-account state.
+- `account-auth.js` recalculated the experience after sign-out but stale pending-confirmation storage selected `pending-email` again.
+- Login, registration and password reset contained five password inputs without a shared visibility control.
+- A static multipage application cannot use Angular Router, but it can implement the same `canActivate` model through a declarative route-policy table and one browser guard.
+- Frontend route guards are bypassable and cannot replace Edge Function, PostgreSQL or RLS authorization.
+- The first CI candidate exposed that `auth-api` warmed `account-auth` but later invoked a cold `game-api`; that request reached its 15-second behavioral timeout.
+- The final candidate warms only the two functions genuinely used by `auth-api`, concurrently inside the existing bounded 30-second readiness window. No behavioral timeout or retry was increased.
 
 ## Decisions
 
 1. Keep explicit routes: `login.html`, `registro.html`, `verificar-email.html`, `restablecer-clave.html` and `cuenta.html`.
-2. `cuenta.html` remains the only account-management route. It contains no email/password login or registration form.
-3. Define one immutable route-policy table with contextual/public, guest-only, verification and recovery-session policies.
-4. Resolve route activation through one pure guard decision used by the browser guard. Page controllers consume the guard result instead of repeating redirect composition.
-5. Hide auth-route content until its guard resolves, preventing unauthorized or incompatible form flashes before navigation.
-6. Login and registration redirect to `cuenta.html` when a cloud session exists or a local game account is active. Registration with a pending confirmation redirects to `verificar-email.html`.
-7. Verification requires an unconfirmed email session, a pending email or a valid verification token. Confirmed/social sessions redirect to `cuenta.html`; missing context redirects to registration.
-8. Password recovery accepts a valid recovery callback or an existing recovery/auth session; an unauthenticated direct visit redirects to login.
-9. `Mi cuenta` renders one of four modes: guest, local-link, pending-email or authenticated.
-10. Cloud sign-out clears the persisted pending-confirmation email and resend deadline before recalculating the account experience.
-11. Add one progressive-enhancement password visibility component loaded from the shared layout. It wraps every password input once and creates a type `button` eye control with `aria-controls`, `aria-pressed`, an adaptive accessible label and preserved input focus/selection.
-12. Keep the icon and component styles shared. Do not add separate click handlers to login, registration or recovery controllers.
-13. Provider buttons remain shared. Labels are contextual: `Continuar con`, `Crear con`, `Vincular` or `Vinculado`.
-14. Email verification eligibility requires email origin, no social provider and an unconfirmed email. Any social provider suppresses the verification CTA.
-15. Preserve the private-key recovery path, cross-account merge confirmation and existing server-side authorization.
-16. Do not add Apple, X, magic-link-only login or anonymous Supabase users.
+2. Define one immutable route-policy table with contextual, guest-only, verification and recovery-session policies.
+3. Resolve route activation through one pure guard decision and conceal guarded content until that decision completes.
+4. Login and registration redirect to `cuenta.html` for cloud or local accounts. Registration with a pending confirmation redirects to verification.
+5. Verification requires an eligible unconfirmed email session, pending email or valid verification token. Confirmed/social sessions redirect to `cuenta.html`.
+6. Password recovery requires a resolved recovery/auth session; direct unauthenticated access redirects to login.
+7. Cloud sign-out clears the persisted pending email and resend deadline before recalculating account mode.
+8. Use one idempotent progressive-enhancement password component for every password input.
+9. The eye button is type `button`, owns `aria-controls`, `aria-pressed` and an adaptive accessible name, and preserves input value, focus and selection.
+10. Keep all backend authorization unchanged.
+11. Warm `account-auth` and `game-api` concurrently for the coupled auth API journey, while `auth-browser` continues warming only `account-auth`.
 
 ## Acceptance criteria
 
-1. Closing the cloud session removes both pending-confirmation storage values before the account experience is recalculated.
-2. After logout, the left panel becomes `guest` when no local account exists or `local-link` when a local account remains; it never displays the signed-out email.
-3. The logout behavior is correct immediately without reload, cache clearing or manual local-storage deletion.
-4. Every maintained password input receives exactly one eye toggle and no page owns duplicate visibility logic.
-5. The toggle changes `password` to `text` and back, updates `aria-pressed` and its accessible name, preserves the value, input focus and selection, and works by mouse, touch and keyboard.
-6. Login, registration and password-reset layouts remain responsive with no horizontal overflow in Desktop and Mobile.
-7. Route policies are immutable, explicit and covered for guest-only, local-account, authenticated, pending-verification, verified/social and recovery-context states.
-8. Auth pages remain visually hidden only while the guard is unresolved and are revealed on allowed/config-unavailable paths.
-9. Authenticated users cannot remain on login/register/verification routes.
-10. Browsers with an active local account cannot remain on login/register; `Mi cuenta` presents linking language.
-11. A direct unauthenticated visit to the recovery page cannot expose the password form as an active route.
-12. Client route guards are not used as authorization evidence; existing API, database and RLS/function checks remain unchanged.
-13. New pure route/password-state decisions have 100% line/function/branch coverage.
-14. Desktop and Mobile Playwright reproduce cloud logout with stale pending state, verify all password toggles, keyboard behavior, final UI, storage cleanup, route redirects, page errors and responsive overflow.
-15. Final-head lint, Knip, unit/coverage, security, Playwright, visual-evidence and quality workflows are green.
+- [x] Sign-out removes both pending-confirmation values before experience recalculation.
+- [x] The left panel immediately becomes guest or local-link and never displays the signed-out email.
+- [x] No reload, cache clear or manual storage deletion is needed.
+- [x] Every maintained password input receives exactly one shared eye toggle.
+- [x] Toggle state, accessible name, value, focus and selection are preserved by mouse/touch/keyboard activation.
+- [x] Desktop and Mobile have no horizontal overflow in the changed routes.
+- [x] Route policies are immutable and cover guest, local-account, authenticated, verification and recovery contexts.
+- [x] Guarded content remains concealed until activation resolves.
+- [x] Authenticated/local-account users cannot remain on guest-only routes.
+- [x] Direct unauthenticated recovery access redirects to login.
+- [x] New pure route/password decisions have 100% line/function/branch coverage.
+- [x] Existing backend authorization and real local Auth/API/database journeys remain enabled.
+- [x] Final candidate workflow execution 1/3 green.
+- [ ] Final candidate workflow execution 2/3 green.
+- [ ] Final candidate workflow execution 3/3 green.
+- [ ] Final-head platform evidence and PR metadata updated.
+
+## Validation history
+
+### Rejected candidate
+
+Head `0ef426ecaccebbf06f89e7bd16a2ffc3812b6e42`:
+
+- Authentication Quality, browser shards, asset audit and visual contract passed.
+- `auth-api` timed out on its first cold `game-api` request after its `account-auth` checks had passed.
+- No retry or timeout increase was accepted as a fix.
+
+### Final candidate execution 1/3
+
+Head `fe24aee129b3193eb161b0c937316252733bdf46`:
+
+- Pull Request Quality Pipeline `30444244934`: success.
+- Player Pages and Social Cards `30444244890`: success.
+- Authentication Quality `30444244898`: success.
+- Public Asset Audit `30444244904`: success.
+- Pull Request Visual Evidence `30444244905`: success.
 
 ## Risk analysis
 
-- Route loops: guard redirects compare normalized current and target URLs before navigation.
-- Content flash: guarded shells stay hidden until the centralized guard allows the route.
-- Stale local session: session refresh failure clears the session and resolves the guest/local-link state.
-- Stale confirmation state: logout explicitly clears both confirmation keys; verification completion already uses the same shared clearing function.
-- Recovery callbacks: the guard must recognize PKCE query callbacks and implicit token hashes without logging or persisting URL secrets longer than required.
-- Password-manager compatibility: the component keeps the original input, name/id, autocomplete and value; it only wraps and toggles `type`.
-- Accessibility: the button must be keyboard reachable, have a changing accessible name and not rely on the icon alone.
-- Security misconception: client guards are bypassable and never replace backend authorization.
-- Duplicate enhancement: each input carries an idempotent readiness marker.
+- Route loops are prevented by comparing normalized current and target URLs.
+- Browser guards are UX controls, never authorization evidence.
+- The component retains original password inputs and autocomplete contracts.
+- Concurrent warm-up is limited to the two coupled functions used by the auth API integration journey and remains bounded to the existing readiness window.
+- Each password input carries an idempotent readiness marker.
 
 ## Validation
 
-- Node coverage for route policies, guard decisions, browser context and password visibility state.
-- Contract tests for shared component loading, route-shell hiding and package syntax/asset ownership.
-- Desktop/Mobile Playwright for stale pending-email logout, guest/local-link outcomes, password toggling, keyboard operation and responsive health.
-- Existing real local Auth/Edge Function/database journeys remain unchanged and must pass.
-- Full platform evidence regenerated from the final head; changed-area Desktop/Mobile/GIF evidence linked in PR #39.
+- 100% Node coverage for route policies, browser guard context and password visibility state.
+- Contract tests for shared entry modules, route-shell concealment and password component wiring.
+- Desktop/Mobile Playwright for stale pending-email logout, all five password fields, keyboard activation, storage cleanup, recovery redirect, page errors and overflow.
+- Real local Auth, Edge Function and PostgreSQL journeys.
+- Three consecutive complete workflow sets on the final functional tree.
+- Full platform evidence from the final head.
 
 ## Rollback
 
-Revert the route-policy/guard, password component, logout cleanup and related tests as one follow-up unit. Do not remove server authorization, restore stale pending state, duplicate visibility handlers in page controllers or expose guarded shells before resolution.
+Revert the route-policy/guard, password component, logout cleanup, auth-api readiness boundary and related tests as one follow-up unit. Do not remove server authorization, restore stale pending state, duplicate page handlers or increase behavioral timeouts.
 
 ## Delivery
 
-Continue on `agent/feat-supabase-auth-account-linking` and PR #39. No merge, deployment, remote migration or provider-secret change is authorized.
+- Branch: `agent/feat-supabase-auth-account-linking`.
+- Pull request: `#39`.
+- Stability: `1/3` complete green workflow sets.
+- No merge, deployment, remote migration or provider-secret change is authorized.
