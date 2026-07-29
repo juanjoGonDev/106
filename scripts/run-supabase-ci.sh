@@ -5,6 +5,7 @@ exec > >(tee supabase-integration.log) 2>&1
 
 SUITE=${1:-${SUPABASE_CI_SUITE:-}}
 FUNCTION_PID=''
+PLAYWRIGHT_PREP_PID=''
 API_URL=''
 ANON_KEY=''
 SERVICE_ROLE_KEY=''
@@ -19,6 +20,11 @@ cleanup() {
   exit_code=$?
   trap - EXIT INT TERM
 
+  if [[ -n "$PLAYWRIGHT_PREP_PID" ]]; then
+    kill "$PLAYWRIGHT_PREP_PID" 2>/dev/null || true
+    wait "$PLAYWRIGHT_PREP_PID" 2>/dev/null || true
+  fi
+
   if [[ -n "$FUNCTION_PID" ]]; then
     kill "$FUNCTION_PID" 2>/dev/null || true
     wait "$FUNCTION_PID" 2>/dev/null || true
@@ -27,7 +33,7 @@ cleanup() {
   if [[ "${GITHUB_ACTIONS:-false}" != 'true' ]]; then
     supabase stop --no-backup >/dev/null 2>&1 || true
   fi
-  rm -f supabase/functions/.env .supabase-functions.pid
+  rm -f supabase/functions/.env .supabase-functions.pid playwright-prepare.log
 
   exit "$exit_code"
 }
@@ -53,6 +59,31 @@ clear_stale_ci_supabase_containers() {
 
   docker rm --force "${stale_containers[@]}" >/dev/null
   echo "✓ removed ${#stale_containers[@]} stale Supabase runner container(s)"
+}
+
+prepare_auth_browser_runtime() {
+  if [[ "$SUITE" != 'auth-browser' ]]; then
+    return 0
+  fi
+
+  PLAYWRIGHT_PREPARE_ONLY=1 PLAYWRIGHT_DISABLE_VIDEO=1 \
+    node scripts/run-playwright.mjs > playwright-prepare.log 2>&1 &
+  PLAYWRIGHT_PREP_PID=$!
+  echo '✓ Playwright runtime preparation started alongside Supabase startup'
+}
+
+wait_for_auth_browser_runtime() {
+  if [[ -z "$PLAYWRIGHT_PREP_PID" ]]; then
+    return 0
+  fi
+
+  if ! wait "$PLAYWRIGHT_PREP_PID"; then
+    echo 'Playwright runtime preparation failed.' >&2
+    cat playwright-prepare.log >&2 || true
+    return 1
+  fi
+  PLAYWRIGHT_PREP_PID=''
+  echo '✓ Playwright runtime is ready for the live authentication suite'
 }
 
 load_local_supabase_environment() {
@@ -209,6 +240,7 @@ run_auth_api_suite() {
 }
 
 run_auth_browser_suite() {
+  wait_for_auth_browser_runtime
   load_local_supabase_environment
   export SUPABASE_AUTH_LIVE=1
   export SUPABASE_TEST_URL="$API_URL"
@@ -216,6 +248,8 @@ run_auth_browser_suite() {
   export SUPABASE_TEST_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
   export SUPABASE_TEST_DB_URL="${DB_URL:-$POSTGRES_URL}"
   export PLAYWRIGHT_WEB_SERVER_COMMAND='node scripts/serve.mjs'
+  export PLAYWRIGHT_DISABLE_VIDEO=1
+  export PLAYWRIGHT_RUNTIME_PREPARED=1
   node scripts/run-playwright.mjs --grep @live-auth --project=desktop-chrome
 }
 
@@ -228,6 +262,7 @@ run_migration_suite() {
 
 validate_suite
 clear_stale_ci_supabase_containers
+prepare_auth_browser_runtime
 
 cat > supabase/functions/.env <<'EOF'
 HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
