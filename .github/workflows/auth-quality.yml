@@ -20,7 +20,7 @@ jobs:
     name: 🔐 Auth · Syntax and 100% coverage
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -49,14 +49,19 @@ jobs:
           node --check public/auth-experience-state.js
           node --check public/auth-page-controller.js
           node --check public/auth-pending-confirmation.js
+          node --check public/auth-route-entry.js
           node --check public/cloud-account-service.js
           node --check public/account-auth-bootstrap.js
+          node --check public/account-auth-entry.js
           node --check public/account-auth.js
           node --check public/password-reset.js
+          node --check public/password-visibility-state.js
+          node --check public/password-visibility.js
           node --check public/supabase-auth-client.js
           node --check supabase/functions/account-auth/core.js
           node --check scripts/auth-entrypoints.mjs
           node --check tests/e2e/account-auth-live.e2e.js
+          node --check tests/e2e/auth-session-ux.e2e.js
 
       - name: Enforce auth state coverage
         run: node --test --experimental-test-coverage --test-coverage-include=public/auth-account-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-account-state.node-test.js
@@ -66,6 +71,9 @@ jobs:
 
       - name: Enforce browser route context coverage
         run: node --test --experimental-test-coverage --test-coverage-include=public/auth-browser-context.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-browser-context.node-test.js
+
+      - name: Enforce password visibility state coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/password-visibility-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/password-visibility-state.node-test.js
 
       - name: Enforce pending confirmation coverage
         run: node --test --experimental-test-coverage --test-coverage-include=public/auth-pending-confirmation.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-pending-confirmation.node-test.js
