@@ -349,7 +349,9 @@ export class SupabaseAuthClient {
     } finally {
       this.clearAuthenticationState();
     }
-    if (remoteError && options.suppressRemoteError !== true) throw remoteError;
-    return Object.freeze({ remoteRevoked: remoteError === null });
+    const suppressRemoteError = options.suppressRemoteError === true;
+    if (remoteError && !suppressRemoteError) throw remoteError;
+    if (suppressRemoteError) return Object.freeze({ remoteRevoked: remoteError === null });
+    return undefined;
   }
 }
