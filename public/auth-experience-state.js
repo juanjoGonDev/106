@@ -35,7 +35,7 @@ export const AUTH_ROUTE_POLICIES = Object.freeze({
   }),
 });
 
-const SOCIAL_PROVIDERS = Object.freeze(['google', 'facebook']);
+const SOCIAL_PROVIDERS = Object.freeze(['google']);
 const AUTH_ROUTE_NAMES = new Set(Object.values(AUTH_ROUTES));
 
 export function normalizeAuthRoute(value) {
@@ -196,11 +196,10 @@ export function resolveAuthExperience(input = {}) {
 export function providerAction(providerValue, mode, identity = null) {
   const provider = normalizeProvider(providerValue);
   if (!provider) return Object.freeze({ provider: '', disabled: true, label: 'Proveedor no disponible' });
-  const name = provider === 'facebook' ? 'Facebook' : 'Google';
   const linked = identity?.providers?.includes(provider) === true;
-  if (linked) return Object.freeze({ provider, disabled: true, label: `${name} vinculado` });
+  if (linked) return Object.freeze({ provider, disabled: true, label: 'Google vinculado' });
   const prefix = mode === 'register' ? 'Crear con' : mode === 'local-link' || mode === 'authenticated' ? 'Vincular' : 'Continuar con';
-  return Object.freeze({ provider, disabled: false, label: `${prefix} ${name}` });
+  return Object.freeze({ provider, disabled: false, label: `${prefix} Google` });
 }
 
 export function shouldShowEmailVerification(experience) {
