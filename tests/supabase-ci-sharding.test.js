@@ -73,7 +73,7 @@ describe('fast parallel Supabase CI', () => {
 
     expect(warmup).toContain('auth-api|auth-browser)');
     expect(warmup).toContain('functions/v1/account-auth');
-    expect(warmup).toContain("ready-flow)");
+    expect(warmup).toContain('ready-flow)');
     expect(warmup).toContain('functions/v1/game-ready-api');
     expect(warmup).toContain('gameplay-sharing|migrations)');
     expect(warmup).toContain('functions/v1/game-api');
@@ -85,6 +85,17 @@ describe('fast parallel Supabase CI', () => {
 
     expect(probe).not.toContain('--fail');
     expect(probe).toContain("[[ \"$status\" -ge 200 && \"$status\" -lt 500 ]]");
+  });
+
+  it('defers migration warm-up until after the reset it validates', () => {
+    const migrationSuite = shellFunctionBlock('run_migration_suite');
+
+    expect(runner).toContain("if [[ \"$SUITE\" == 'migrations' ]]; then");
+    expect(runner).toContain('migrations defers Edge Function warm-up until after database reset');
+    expect(migrationSuite).toContain('supabase db reset');
+    expect(migrationSuite.indexOf('supabase db reset')).toBeLessThan(
+      migrationSuite.indexOf('wait_for_edge_functions'),
+    );
   });
 
   it('avoids dependency installation in isolated Supabase runners', () => {
