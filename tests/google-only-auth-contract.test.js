@@ -16,12 +16,13 @@ function filesBelow(path) {
 function textFiles(paths) {
   return paths
     .flatMap(filesBelow)
-    .filter((path) => /\.(?:html|js|ts|md)$/u.test(path));
+    .filter((path) => /\.(?:html|js|mjs|ts|md)$/u.test(path));
 }
 
 const maintainedTextFiles = textFiles([
   'public',
   'docs',
+  'scripts',
   'README.md',
   'SECURITY.md',
   'supabase/functions',
