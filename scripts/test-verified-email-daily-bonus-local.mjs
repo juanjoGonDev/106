@@ -100,7 +100,7 @@ assert.equal(psql(databaseUrl, `
   where account_id = ${literal(accountId)}::uuid
     and entitlement_code = 'auth_identity_daily_attempt';
 `), '1');
-process.stdout.write('✓ repeated Google/Facebook/email reward processing cannot stack the entitlement\n');
+process.stdout.write('✓ repeated Google or email reward processing cannot stack the entitlement\n');
 
 psql(databaseUrl, `
   update public.game_player_bonus
