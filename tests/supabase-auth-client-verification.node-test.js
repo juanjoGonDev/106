@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import './supabase-auth-client-account-security.node-test.js';
 import { AUTH_SESSION_STORAGE_KEY } from '../public/auth-account-state.js';
 import { SupabaseAuthClient } from '../public/supabase-auth-client.js';
 
