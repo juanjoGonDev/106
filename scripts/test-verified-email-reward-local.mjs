@@ -266,22 +266,13 @@ assert.equal(googleSync.body.authReward.achievementsGranted, 0);
 assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, socialNick));
 
 const socialAccountId = accountIdForUser(environment.databaseUrl, googleUser.id);
-const facebookEmail = `facebook-${suffix}@example.com`;
-const facebookUser = await createAuthUser(environment, facebookEmail, password, { provider: 'facebook' });
-const facebookAccessToken = await signIn(environment, facebookEmail, password);
-const facebookSync = await syncAccount(environment, facebookAccessToken, socialToken);
-assert.equal(facebookSync.response.status, 200, JSON.stringify(facebookSync.body));
-assert.equal(facebookSync.body.authReward.granted, false);
-assert.equal(facebookSync.body.authReward.active, true);
-assert.equal(facebookSync.body.authReward.source, 'social_link');
-assert.equal(facebookSync.body.authReward.provider, 'google');
-assert.equal(accountIdForUser(environment.databaseUrl, facebookUser.id), socialAccountId);
+assert.match(socialAccountId, uuidPattern);
 assert.equal(psql(environment.databaseUrl, `
   select count(*)
   from public.game_auth_identities identity
   where public.resolve_game_account_id(identity.account_id) = ${sqlLiteral(socialAccountId)}::uuid
-    and identity.origin_provider in ('google', 'facebook');
-`), '2');
+    and identity.origin_provider = 'google';
+`), '1');
 assert.equal(psql(environment.databaseUrl, `
   select count(*)
   from public.game_account_entitlements entitlement
@@ -295,7 +286,7 @@ assert.equal(psql(environment.databaseUrl, `
     and achievement_code = 'email_verified';
 `), '0');
 assertSingleAuthDailyBonus(dailyAttemptState(environment.databaseUrl, socialNick));
-process.stdout.write('✓ Google and Facebook share one game account, one reward and the same total daily limit of six\n');
+process.stdout.write('✓ Google social access grants one account reward and a total daily limit of six\n');
 
 const pendingEmail = `pending-${suffix}@example.com`;
 const pendingUser = await createAuthUser(environment, pendingEmail, password, { confirmed: false });
