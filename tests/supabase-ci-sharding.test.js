@@ -68,6 +68,25 @@ describe('fast parallel Supabase CI', () => {
     expect(readyFlowSuite).toContain('node scripts/test-ready-flow-local.mjs');
   });
 
+  it('warms only the Edge Functions required by each domain', () => {
+    const warmup = shellFunctionBlock('warm_edge_functions_for_suite');
+
+    expect(warmup).toContain('auth-api|auth-browser)');
+    expect(warmup).toContain('functions/v1/account-auth');
+    expect(warmup).toContain("ready-flow)");
+    expect(warmup).toContain('functions/v1/game-ready-api');
+    expect(warmup).toContain('gameplay-sharing|migrations)');
+    expect(warmup).toContain('functions/v1/game-api');
+    expect(warmup).not.toContain('game, player-context and league Edge Functions are warm');
+  });
+
+  it('accepts controlled client errors as proof that an Edge Function is warm', () => {
+    const probe = shellFunctionBlock('probe_edge_function');
+
+    expect(probe).not.toContain('--fail');
+    expect(probe).toContain("[[ \"$status\" -ge 200 && \"$status\" -lt 500 ]]");
+  });
+
   it('avoids dependency installation in isolated Supabase runners', () => {
     const block = jobBlock('supabase-integration', 'quality-gate');
     expect(block).not.toContain('pnpm install');
