@@ -131,6 +131,7 @@ export function resolveAuthExperience(input = {}) {
   const currentRoute = guard.route;
   const identity = guard.identity;
   const pending = guard.pendingEmail;
+  const hasLocalAccount = input.hasLocalAccount === true;
 
   if (guard.redirect) {
     return Object.freeze({
