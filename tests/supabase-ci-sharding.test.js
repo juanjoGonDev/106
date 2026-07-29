@@ -117,6 +117,19 @@ describe('fast parallel Supabase CI', () => {
     expect(cleanup).toContain('rm -f supabase/functions/.env .supabase-functions.pid');
   });
 
+  it('removes stale Supabase containers only on ephemeral CI before startup', () => {
+    const preflight = shellFunctionBlock('clear_stale_ci_supabase_containers');
+    const preflightCall = runner.indexOf('\nclear_stale_ci_supabase_containers\n');
+    const start = runner.indexOf('\nsupabase start \\\n');
+
+    expect(preflight).toContain("${GITHUB_ACTIONS:-false}");
+    expect(preflight).toContain("docker ps --all --quiet --filter 'name=supabase_'");
+    expect(preflight).toContain('docker rm --force "${stale_containers[@]}"');
+    expect(preflightCall).toBeGreaterThan(-1);
+    expect(start).toBeGreaterThan(-1);
+    expect(preflightCall).toBeLessThan(start);
+  });
+
   it('defers migration warm-up until after the reset it validates', () => {
     const migrationSuite = shellFunctionBlock('run_migration_suite');
 
