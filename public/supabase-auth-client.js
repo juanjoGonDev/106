@@ -339,12 +339,17 @@ export class SupabaseAuthClient {
     return payload;
   }
 
-  async signOut() {
+  async signOut(options = {}) {
     const session = this.readSession();
+    let remoteError = null;
     try {
       if (session) await this.request('/logout', { session, body: {} });
+    } catch (error) {
+      remoteError = error;
     } finally {
       this.clearAuthenticationState();
     }
+    if (remoteError && options.suppressRemoteError !== true) throw remoteError;
+    return Object.freeze({ remoteRevoked: remoteError === null });
   }
 }
