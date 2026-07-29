@@ -3,12 +3,15 @@ set -Eeuo pipefail
 
 exec > >(tee supabase-integration.log) 2>&1
 
+SUITE=${1:-${SUPABASE_CI_SUITE:-}}
 FUNCTION_PID=''
 API_URL=''
 ANON_KEY=''
 SERVICE_ROLE_KEY=''
 DB_URL=''
 POSTGRES_URL=''
+
+readonly VALID_SUITES='security gameplay auth-api auth-browser migrations'
 
 cleanup() {
   exit_code=$?
@@ -25,6 +28,13 @@ cleanup() {
   exit "$exit_code"
 }
 trap cleanup EXIT INT TERM
+
+validate_suite() {
+  if [[ -z "$SUITE" || " $VALID_SUITES " != *" $SUITE "* ]]; then
+    echo "Expected one Supabase CI suite: $VALID_SUITES. Received: ${SUITE:-<empty>}" >&2
+    return 1
+  fi
+}
 
 load_local_supabase_environment() {
   local key raw value
@@ -48,7 +58,7 @@ wait_for_auth_database() {
   load_local_supabase_environment
 
   local attempt
-  for attempt in $(seq 1 60); do
+  for attempt in $(seq 1 45); do
     if curl --silent --show-error --fail --max-time 3 \
       --header "apikey: $SERVICE_ROLE_KEY" \
       --header "authorization: Bearer $SERVICE_ROLE_KEY" \
@@ -60,7 +70,7 @@ wait_for_auth_database() {
     sleep 1
   done
 
-  echo 'Local Auth did not become database-ready within 60 seconds.' >&2
+  echo 'Local Auth did not become database-ready within 45 seconds.' >&2
   return 1
 }
 
@@ -80,7 +90,7 @@ wait_for_edge_functions() {
   load_local_supabase_environment
 
   local attempt
-  for attempt in $(seq 1 45); do
+  for attempt in $(seq 1 30); do
     if [[ -n "$FUNCTION_PID" ]] && ! kill -0 "$FUNCTION_PID" 2>/dev/null; then
       echo 'The local Edge Function runtime exited before becoming ready.' >&2
       cat supabase-functions.log >&2 || true
@@ -96,18 +106,38 @@ wait_for_edge_functions() {
     sleep 1
   done
 
-  echo 'Local Edge Functions did not become ready within 45 seconds.' >&2
+  echo 'Local Edge Functions did not become ready within 30 seconds.' >&2
   cat supabase-functions.log >&2 || true
   return 1
 }
 
-run_auth_integration() {
+run_security_suite() {
+  node scripts/test-database-permissions-local.mjs
+  node scripts/test-input-security-local.mjs
+  node scripts/test-migration-compatibility-local.mjs
+  supabase db lint --level error
+  supabase migration list --local
+}
+
+run_gameplay_suite() {
+  node scripts/test-supabase-local.mjs
+  node scripts/test-attempt-reservations-local.mjs
+  node scripts/test-daily-attempt-limits-local.mjs
+  node scripts/test-verified-email-daily-bonus-local.mjs
+  node scripts/test-mobile-touch-local.mjs
+  node scripts/test-ready-flow-local.mjs
+  node scripts/test-trophies-local.mjs
+  node scripts/test-player-share-local.mjs
+  node scripts/test-social-share-local.mjs
+}
+
+run_auth_api_suite() {
   node scripts/test-account-auth-local.mjs
   node scripts/test-verified-email-reward-local.mjs
   node scripts/test-account-auth-concurrency-local.mjs
 }
 
-run_live_auth_playwright() {
+run_auth_browser_suite() {
   load_local_supabase_environment
   export SUPABASE_AUTH_LIVE=1
   export SUPABASE_TEST_URL="$API_URL"
@@ -117,19 +147,28 @@ run_live_auth_playwright() {
   node scripts/run-playwright.mjs --grep @live-auth --project=desktop-chrome
 }
 
+run_migration_suite() {
+  supabase db reset
+  wait_for_auth_database
+  wait_for_edge_functions
+  node scripts/wait-for-postgrest-local.mjs
+}
+
+validate_suite
+
 cat > supabase/functions/.env <<'EOF'
 HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
 ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 TURNSTILE_SECRET_KEY=
 EOF
 
-echo '::group::Start local Supabase stack'
+echo "::group::Start local Supabase stack for ${SUITE}"
 supabase start \
   -x studio,imgproxy,realtime,storage-api,postgres-meta,logflare,vector,supavisor
 wait_for_auth_database
 echo '::endgroup::'
 
-echo '::group::Serve and warm all Edge Functions in the local runtime'
+echo "::group::Serve and warm Edge Functions for ${SUITE}"
 supabase functions serve \
   --env-file supabase/functions/.env \
   > supabase-functions.log 2>&1 &
@@ -138,32 +177,24 @@ echo "$FUNCTION_PID" > .supabase-functions.pid
 wait_for_edge_functions
 echo '::endgroup::'
 
-echo '::group::Run complete API and persistence journey'
-pnpm test:supabase
-run_auth_integration
+echo "::group::Run Supabase ${SUITE} suite"
+case "$SUITE" in
+  security)
+    run_security_suite
+    ;;
+  gameplay)
+    run_gameplay_suite
+    ;;
+  auth-api)
+    run_auth_api_suite
+    ;;
+  auth-browser)
+    run_auth_browser_suite
+    ;;
+  migrations)
+    run_migration_suite
+    ;;
+esac
 echo '::endgroup::'
 
-echo '::group::Run real browser authentication journeys'
-run_live_auth_playwright
-echo '::endgroup::'
-
-echo '::group::Lint PostgreSQL functions and schema'
-supabase db lint --level error
-echo '::endgroup::'
-
-echo '::group::Verify migration history'
-supabase migration list --local
-echo '::endgroup::'
-
-echo '::group::Rebuild database entirely from migrations'
-supabase db reset
-wait_for_auth_database
-wait_for_edge_functions
-echo '::endgroup::'
-
-echo '::group::Re-run API smoke checks after database rebuild'
-SUPABASE_SMOKE_ONLY=true pnpm test:supabase
-node scripts/test-account-auth-local.mjs
-echo '::endgroup::'
-
-echo 'Local Supabase stack, Edge Functions, migrations, browser authentication and integration journey passed.'
+echo "Supabase ${SUITE} suite passed."
