@@ -251,7 +251,7 @@ async function confirmCompleteSignOut() {
 
 async function completeSignOut() {
   if (!await confirmCompleteSignOut()) return;
-  const result = await client.signOut();
+  const result = await client.signOut({ suppressRemoteError: true });
   clearPendingConfirmation(localStorage);
   window.Minuto106Access?.clearAccountSession?.();
   currentSession = null;
