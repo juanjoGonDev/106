@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
 const runner = readFileSync('scripts/run-supabase-ci.sh', 'utf8');
 const playwrightConfig = readFileSync('playwright.config.js', 'utf8');
+const playwrightRunner = readFileSync('scripts/run-playwright.mjs', 'utf8');
 const suites = [
   'security',
   'ready-flow',
@@ -105,16 +106,17 @@ describe('fast parallel Supabase CI', () => {
     expect(probe).not.toContain('--fail');
     expect(probe).toContain('--connect-timeout 2');
     expect(probe).toContain('--max-time "$EDGE_WARMUP_TIMEOUT_SECONDS"');
-    expect(probe).toContain("[[ \"$status\" -ge 200 && \"$status\" -lt 500 ]]");
+    expect(probe).toContain('[[ "$status" -ge 200 && "$status" -lt 500 ]]');
     expect(wait).toContain('seq 1 "$EDGE_WARMUP_ATTEMPTS"');
   });
 
   it('keeps full local cleanup without spending CI budget on ephemeral containers', () => {
     const cleanup = shellFunctionBlock('cleanup');
 
-    expect(cleanup).toContain("${GITHUB_ACTIONS:-false}");
+    expect(cleanup).toContain('${GITHUB_ACTIONS:-false}');
     expect(cleanup).toContain('supabase stop --no-backup');
-    expect(cleanup).toContain('rm -f supabase/functions/.env .supabase-functions.pid');
+    expect(cleanup).toContain('kill "$PLAYWRIGHT_PREP_PID"');
+    expect(cleanup).toContain('rm -f supabase/functions/.env .supabase-functions.pid playwright-prepare.log');
   });
 
   it('removes stale Supabase containers only on ephemeral CI before startup', () => {
@@ -122,7 +124,7 @@ describe('fast parallel Supabase CI', () => {
     const preflightCall = runner.indexOf('\nclear_stale_ci_supabase_containers\n');
     const start = runner.indexOf('\nsupabase start \\\n');
 
-    expect(preflight).toContain("${GITHUB_ACTIONS:-false}");
+    expect(preflight).toContain('${GITHUB_ACTIONS:-false}');
     expect(preflight).toContain("docker ps --all --quiet --filter 'name=supabase_'");
     expect(preflight).toContain('docker rm --force "${stale_containers[@]}"');
     expect(preflightCall).toBeGreaterThan(-1);
@@ -133,7 +135,7 @@ describe('fast parallel Supabase CI', () => {
   it('defers migration warm-up until after the reset it validates', () => {
     const migrationSuite = shellFunctionBlock('run_migration_suite');
 
-    expect(runner).toContain("if [[ \"$SUITE\" == 'migrations' ]]; then");
+    expect(runner).toContain('if [[ "$SUITE" == \'migrations\' ]]; then');
     expect(runner).toContain('migrations defers Edge Function warm-up until after database reset');
     expect(migrationSuite).toContain('supabase db reset');
     expect(migrationSuite.indexOf('supabase db reset')).toBeLessThan(
@@ -156,6 +158,33 @@ describe('fast parallel Supabase CI', () => {
     );
     expect(playwrightConfig).toContain('command: webServerCommand');
     expect(runner).toContain("export PLAYWRIGHT_WEB_SERVER_COMMAND='node scripts/serve.mjs'");
+  });
+
+  it('prepares the live browser runtime concurrently without weakening diagnostics', () => {
+    const prepare = shellFunctionBlock('prepare_auth_browser_runtime');
+    const wait = shellFunctionBlock('wait_for_auth_browser_runtime');
+    const authBrowser = shellFunctionBlock('run_auth_browser_suite');
+    const prepareCall = runner.indexOf('\nprepare_auth_browser_runtime\n');
+    const start = runner.indexOf('\nsupabase start \\\n');
+
+    expect(prepare).toContain('PLAYWRIGHT_PREPARE_ONLY=1 PLAYWRIGHT_DISABLE_VIDEO=1');
+    expect(prepare).toContain('node scripts/run-playwright.mjs > playwright-prepare.log 2>&1 &');
+    expect(wait).toContain('wait "$PLAYWRIGHT_PREP_PID"');
+    expect(wait).toContain('cat playwright-prepare.log');
+    expect(prepareCall).toBeGreaterThan(-1);
+    expect(prepareCall).toBeLessThan(start);
+    expect(authBrowser.indexOf('wait_for_auth_browser_runtime')).toBeLessThan(
+      authBrowser.indexOf('node scripts/run-playwright.mjs'),
+    );
+    expect(authBrowser).toContain('export PLAYWRIGHT_DISABLE_VIDEO=1');
+    expect(authBrowser).toContain('export PLAYWRIGHT_RUNTIME_PREPARED=1');
+    expect(playwrightRunner).toContain("const prepareOnly = process.env.PLAYWRIGHT_PREPARE_ONLY === '1'");
+    expect(playwrightRunner).toContain("const runtimePrepared = process.env.PLAYWRIGHT_RUNTIME_PREPARED === '1'");
+    expect(playwrightRunner).toContain('if (!runtimePrepared && !videoDisabled)');
+    expect(playwrightConfig).toContain("const videoDisabled = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1'");
+    expect(playwrightConfig).toContain("video: visualCapture || videoDisabled ? 'off' : 'retain-on-failure'");
+    expect(playwrightConfig).toContain("trace: 'retain-on-failure'");
+    expect(playwrightConfig).toContain("screenshot: 'only-on-failure'");
   });
 
   it('does not reintroduce the six-minute monolithic journey', () => {
