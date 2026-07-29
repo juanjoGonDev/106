@@ -325,7 +325,7 @@ export class SupabaseAuthClient {
 
   async updatePassword(password, options = {}) {
     const session = await this.currentSession();
-    if (!session) throw new Error('La sesión para cambiar la contraseña no es válida.');
+    if (!session) throw new Error('La sesión de recuperación o cambio de contraseña no es válida.');
     const currentPassword = String(options.currentPassword ?? '');
     const body = { password };
     if (currentPassword) body.current_password = currentPassword;
@@ -341,14 +341,10 @@ export class SupabaseAuthClient {
 
   async signOut() {
     const session = this.readSession();
-    let remoteRevoked = true;
     try {
       if (session) await this.request('/logout', { session, body: {} });
-    } catch {
-      remoteRevoked = false;
     } finally {
       this.clearAuthenticationState();
     }
-    return Object.freeze({ remoteRevoked });
   }
 }
