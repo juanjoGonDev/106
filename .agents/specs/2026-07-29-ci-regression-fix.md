@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation complete. Final delivery is gated by the new head CI and the canonical platform-evidence artifact.
+Complete. The functional candidate head `3b176d8b4e63686446c5664e88a19f98ba46bd19` passed every required workflow and produced a canonical evidence artifact. This documentation-only closure commit must preserve those results on the final PR head.
 
 ## Request
 
@@ -56,20 +56,31 @@ Fix the failing CI on PR #39 without weakening validation, removing browser jour
 - [x] GIF generation requires no package installation and remains inside the existing parallel shard.
 - [x] PostgREST readiness is bounded and isolated from behavioral assertions.
 - [x] No retry, skip, timeout increase or browser-shard reduction is introduced.
-- [ ] Pull Request Quality Pipeline is green on the final head.
-- [ ] Player Pages and Social Cards is green on the final head.
-- [ ] The final platform evidence ZIP is complete and bound to the final head.
+- [x] Pull Request Quality Pipeline is green on the validated candidate head.
+- [x] Player Pages and Social Cards is green on the validated candidate head.
+- [x] The canonical platform evidence ZIP is complete and bound to the validated candidate head.
 
 ## Validation
 
-- `node --check public/nickname-input-guard.js`
+Validated candidate head: `3b176d8b4e63686446c5664e88a19f98ba46bd19`.
+
+- Pull Request Quality Pipeline `30409965771`: success.
+- Player Pages and Social Cards `30409965744`: success.
+- Authentication Quality `30409965729`: success.
+- Public Asset Audit `30409965825`: success.
+- Pull Request Visual Evidence `30409965739`: success.
+- Sixteen Playwright capture/encoding shards plus the canonical merge completed within their enforced three-minute job limits, with no retries and no reduced browser coverage.
+- `node --check public/nickname-input-guard.js`.
 - Vitest regressions for observer stability, external start-button ownership, GIF LZW output and PostgREST readiness.
 - Security contract assertions for shared profile and league-search validation.
 - Local Supabase input-security journey with real Edge Functions, PostgREST and PostgreSQL.
-- ESLint over repository JavaScript.
+- ESLint and Knip over repository JavaScript.
 - Full Desktop/Mobile Playwright browser matrix with no retries.
 - In-shard Chrome WebM decoding/GIF encoding and final fragment inventory merge.
-- Final workflow run IDs, job durations and evidence digest must be recorded after CI completes.
+- Canonical artifact `platform-evidence-30409965744`, artifact ID `8708032167`, size `155432629` bytes.
+- Artifact SHA-256: `1a2bff0c9104ea54a9b523303207e48097deb2e84f44de8fcb9fdd6906d4362b`.
+- Manifest commit: `3b176d8b4e63686446c5664e88a19f98ba46bd19`.
+- Manifest inventory: 72 PNG, 36 WebM, 18 GIF, one `manifest.json`; 36 snapshot areas and nine interaction areas.
 
 ## Risks
 
@@ -85,6 +96,7 @@ Revert the commits from this specification. Do not restore the observer feedback
 
 ## Delivery
 
-- Branch: `agent/feat-supabase-auth-account-linking`
-- Pull request: `#39`
+- Branch: `agent/feat-supabase-auth-account-linking`.
+- Pull request: `#39`.
+- Functional candidate checks and evidence are complete; the documentation-only closure commit requires the same final-head CI confirmation.
 - No merge, deployment, release, production migration or provider configuration is included.
