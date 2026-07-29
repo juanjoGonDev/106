@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Logout invalidation, centralized route guards, reusable password visibility controls and CI runner isolation are implemented. The first complete final-candidate workflow set is green; two further consecutive sets are required.
+In progress. Logout invalidation, centralized route guards, reusable password visibility controls, CI runner isolation and dependency-free visual shard bootstrap are implemented. Stability is reset to zero; three complete green workflow sets are required on this final candidate.
 
 ## Request
 
@@ -34,7 +34,9 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - Frontend route guards are bypassable and cannot replace Edge Function, PostgreSQL or RLS authorization.
 - An early CI candidate warmed `account-auth` but later invoked a cold `game-api`; that request reached its 15-second behavioral timeout.
 - The auth API candidate now warms only the two functions genuinely used by its journey, concurrently inside the existing 30-second readiness window.
-- After two green sets, a GitHub-hosted migrations runner inherited `supabase_db_minuto-106` with port `54322` occupied. The final candidate removes stale `supabase_*` containers only on ephemeral GitHub runners before startup.
+- A GitHub-hosted migrations runner inherited `supabase_db_minuto-106` with port `54322` occupied. The candidate removes stale `supabase_*` containers only on ephemeral GitHub runners before startup.
+- A mobile visual shard spent 1 minute 25 seconds installing 134 project packages and another ~47 seconds resolving Playwright, starting tests after the three-minute boundary. Visual shards do not import the project lint/test toolchain.
+- The final candidate keeps package-policy validation, exact Node/pnpm/Playwright versions, 16 shards and all evidence, but skips the unrelated project dependency install inside capture shards.
 - No behavioral timeout, assertion, browser shard, coverage threshold or test retry was weakened.
 
 ## Decisions
@@ -51,6 +53,8 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 10. Keep all backend authorization unchanged.
 11. Warm `account-auth` and `game-api` concurrently for the coupled auth API journey, while `auth-browser` continues warming only `account-auth`.
 12. Before `supabase start`, remove stale Supabase containers only when `GITHUB_ACTIONS=true`; local developer stacks are never touched by the preflight.
+13. Browser capture shards validate the lock/package policy and execute the pinned Playwright launcher directly without installing unrelated ESLint, Knip and Vitest dependencies.
+14. Coverage jobs continue using the frozen full project installation; only isolated visual capture shards omit it.
 
 ## Acceptance criteria
 
@@ -67,7 +71,8 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - [x] New pure route/password decisions have 100% line/function/branch coverage.
 - [x] Existing backend authorization and real local Auth/API/database journeys remain enabled.
 - [x] Stale CI Supabase containers are removed before startup without affecting local execution.
-- [x] Final candidate workflow execution 1/3 green.
+- [x] Visual shards retain 16-way parallelism and avoid project dependency installation.
+- [ ] Final candidate workflow execution 1/3 green.
 - [ ] Final candidate workflow execution 2/3 green.
 - [ ] Final candidate workflow execution 3/3 green.
 - [ ] Final-head platform evidence and PR metadata updated.
@@ -82,21 +87,11 @@ Head `0ef426ecaccebbf06f89e7bd16a2ffc3812b6e42`:
 - `auth-api` timed out on its first cold `game-api` request after `account-auth` checks passed.
 - No retry or timeout increase was accepted.
 
-### Superseded preflight candidate
+### Superseded runner-isolated candidate
 
-- Heads `fe24aee129b3193eb161b0c937316252733bdf46` and `352f21c22661e110aca49a64994ddf8ed71ea8d3` completed all five workflows successfully.
-- Head `82437390dba4c0faff901c7e23caa9f3e7a3004d` had four green workflows; migrations failed before suite execution because port `54322` was held by a stale Supabase container.
-- These sets do not count toward the final runner-isolated candidate.
-
-### Final candidate execution 1/3
-
-Head `c002295afb1cc77e2773160834e7e7f8c85e2a1c`:
-
-- Pull Request Quality Pipeline `30445590917`: success.
-- Player Pages and Social Cards `30445590852`: success.
-- Authentication Quality `30445590869`: success.
-- Public Asset Audit `30445590933`: success.
-- Pull Request Visual Evidence `30445590957`: success.
+- Head `c002295afb1cc77e2773160834e7e7f8c85e2a1c` completed all five workflows successfully.
+- Head `7454200b39041943c82117ad9d59f5945efa2522` had four green workflows; `mobile-chrome 4/8` was cancelled after project installation consumed 1 minute 25 seconds and the tests started after the three-minute job boundary.
+- These sets do not count after changing visual shard bootstrap.
 
 ## Risk analysis
 
@@ -105,12 +100,13 @@ Head `c002295afb1cc77e2773160834e7e7f8c85e2a1c`:
 - The component retains original password inputs and autocomplete contracts.
 - Concurrent warm-up is limited to the two coupled functions used by the auth API journey.
 - CI preflight runs only on ephemeral GitHub runners and removes only containers whose names match `supabase_`.
+- Visual shards use built-in Node scripts plus the exact Playwright package; the full dependency graph remains installed and tested in coverage/quality jobs.
 - Each password input carries an idempotent readiness marker.
 
 ## Validation
 
 - 100% Node coverage for route policies, browser guard context and password visibility state.
-- Contract tests for shared entry modules, route-shell concealment, password component wiring, auth warm-up and runner preflight ordering.
+- Contract tests for shared entry modules, route-shell concealment, password component wiring, auth warm-up, runner preflight ordering and visual shard bootstrap.
 - Desktop/Mobile Playwright for stale pending-email logout, all five password fields, keyboard activation, storage cleanup, recovery redirect, page errors and overflow.
 - Real local Auth, Edge Function and PostgreSQL journeys.
 - Three consecutive complete workflow sets on the final candidate.
@@ -118,11 +114,11 @@ Head `c002295afb1cc77e2773160834e7e7f8c85e2a1c`:
 
 ## Rollback
 
-Revert the route-policy/guard, password component, logout cleanup, auth-api readiness boundary, runner preflight and related tests as one unit. Do not remove server authorization, restore stale pending state, duplicate page handlers or increase behavioral timeouts.
+Revert the route-policy/guard, password component, logout cleanup, auth-api readiness boundary, runner preflight, visual shard bootstrap and related tests as one unit. Do not remove server authorization, restore stale pending state, duplicate page handlers or increase behavioral timeouts.
 
 ## Delivery
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `1/3` on the final runner-isolated candidate.
+- Stability: `0/3` on the final dependency-light visual candidate.
 - No merge, deployment, remote migration or provider-secret change is authorized.
