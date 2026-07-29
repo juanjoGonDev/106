@@ -23,6 +23,7 @@ test('detects recovery callbacks from every supported URL shape', () => {
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#access_token=abc'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#type=recovery'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html?type=email'), false);
+  assert.equal(hasPasswordCallback(null), false);
   assert.equal(hasPasswordCallback(invalidUrlValue), false);
 });
 
@@ -30,6 +31,7 @@ test('detects only explicit authenticated password change requests', () => {
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=change'), true);
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=recovery'), false);
   assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html'), false);
+  assert.equal(isPasswordChangeRequest(null), false);
   assert.equal(isPasswordChangeRequest(invalidUrlValue), false);
 });
 
