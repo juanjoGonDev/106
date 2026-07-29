@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The timed ready-flow journey has an isolated seventh Supabase domain. Two clean complete final-allocation workflow sets are green; one additional clean consecutive green set is required.
+In progress. Seven isolated Supabase domains remain bounded to three minutes. Edge Function warm-up is now scoped to each domain after an unrelated multi-function warm-up crashed the local runtime. Stability is reset to zero; three clean complete workflow sets are required on this final candidate.
 
 ## Request
 
@@ -12,13 +12,12 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 
 - Fixed malformed-input HTTP 500 boundaries, nickname observer feedback, CAPTCHA/consent races, PostgREST readiness and GIF generation without system packages.
 - Kept 16 Desktop/Mobile browser shards.
-- Split Supabase integration into isolated domains so each stack can run concurrently under the three-minute job limit.
-- The exact 30-second anti-abuse journey first made `gameplay-sharing` reach three minutes during cleanup.
-- Moving ready-flow to `security` passed once, but a slower Edge Function warm-up made that job finish its suite at 2:49 and get cancelled during cleanup.
-- No existing domain has sufficient worst-case margin for the timed journey.
-- Added the isolated `ready-flow` domain and increased only matrix fan-out from six to seven; no timeout, assertion duration, coverage, retry or browser shard was weakened.
-- Added a CI contract regression requiring the seven-domain matrix, exact single assignment and separation from `security`.
-- Replaced a malformed Unicode regular expression in that regression with deterministic function-block extraction by string boundaries.
+- Split Supabase integration into seven isolated domains: `security`, `ready-flow`, `gameplay-core`, `gameplay-sharing`, `auth-api`, `auth-browser` and `migrations`.
+- The exact 30-second anti-abuse journey has its own stack; no timeout, assertion duration, coverage, retry or browser shard was weakened.
+- A later `auth-browser` run crashed `supabase-edge-runtime` with bus error exit 135 while the generic warm-up compiled `game-api`, `player-context` and `league-api` before any browser test started.
+- Replaced generic warm-up with suite-specific probes: authentication compiles only `account-auth`; ready-flow compiles `game-ready-api`; other domains load only their required boundaries.
+- Controlled 4xx responses count as successful warm-up because they prove the function route is compiled and serving while preserving authorization behavior; 5xx and transport errors remain failures.
+- Added CI contract regressions for the seven-domain matrix, exact journey assignment, ready-flow isolation and suite-specific warm-up.
 - The mandatory PR Desktop/Mobile/GIF marker block remains restored.
 
 ## Acceptance criteria
@@ -26,51 +25,29 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Functional and security regressions pass.
 - [x] Every maintained Supabase journey is assigned exactly once.
 - [x] Ready-flow has an isolated local stack.
+- [x] Edge Function warm-up is domain-specific.
 - [x] All jobs remain bounded to three minutes or less.
-- [x] Final stability execution 1/3 green.
-- [x] Final stability execution 2/3 green.
+- [ ] Final stability execution 1/3 green.
+- [ ] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
-## Validation
+## Validation history
 
-### Rejected six-domain allocation
+### Rejected allocations and regressions
 
-Head `774684886d3980a35d4f15becbd07ddf06c57256`:
+- Six-domain allocation: `security` completed assertions but crossed the three-minute boundary during cleanup.
+- Initial seven-domain contract test: malformed Unicode regular expression rejected by ESLint/Vitest and replaced with deterministic string-boundary extraction.
+- Generic seven-domain warm-up: `auth-browser` failed before Playwright because `supabase-edge-runtime` crashed with bus error while compiling unrelated functions.
 
-- Authentication Quality `30429783408`: success.
-- Public Asset Audit `30429781640`: success.
-- Pull Request Visual Evidence `30429782051`: success.
-- Player Pages and Social Cards `30429781433`: success.
-- Pull Request Quality Pipeline `30429781442`: cancelled.
-- `Supabase · security` completed every assertion and printed `Supabase security suite passed`, then was cancelled during cleanup at the unchanged three-minute boundary.
+### Prior green evidence before final warm-up change
 
-### Rejected contract-test head
+- Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`: all five workflows green.
+- Head `2b944231ef94c47c67325b7b920d7638385a1a20`: all five workflows green.
+- These runs validate the seven-domain split but do not count for the final suite-specific warm-up candidate.
 
-Head `d1304e41c1a4b0a9abe17b65e6543ab7f01001b5` correctly launched the seven-domain matrix, but ESLint and Vitest rejected a malformed regular expression in `tests/supabase-ci-sharding.test.js`. The production runner and workflow were not the cause.
+### Final candidate
 
-### Final stability execution 1/3
-
-Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`:
-
-- Pull Request Quality Pipeline `30432416134`: success.
-- Player Pages and Social Cards `30432416132`: success.
-- Authentication Quality `30432416137`: success.
-- Public Asset Audit `30432416167`: success.
-- Pull Request Visual Evidence `30432416141`: success.
-
-### External cancellation recovery, not counted
-
-Head `42bbfd0d4f2db97a6c9c2fd4845de166ada8460f` did not move while GitHub cancelled jobs in the quality and player workflows after multiple successful steps. The cancelled jobs were rerun without code changes; all five workflows then concluded `success`. This validates the head but is excluded from the clean consecutive count.
-
-### Final stability execution 2/3
-
-Head `2b944231ef94c47c67325b7b920d7638385a1a20`:
-
-- Pull Request Quality Pipeline `30433388054`: success.
-- Player Pages and Social Cards `30433388622`: success.
-- Authentication Quality `30433387949`: success.
-- Public Asset Audit `30433387939`: success.
-- Pull Request Visual Evidence `30433386952`: success.
+Implementation and contract-test head before documentation close: `46d0f15863c9ad0cc208b7779534a56925b27124`.
 
 ### Evidence artifact
 
@@ -80,17 +57,18 @@ Head `2b944231ef94c47c67325b7b920d7638385a1a20`:
 
 ## Risks
 
-- A seventh isolated Supabase stack increases aggregate runner usage, but keeps wall-clock feedback fast and removes timing coupling between deterministic security checks and the exact-deadline journey.
-- GitHub-hosted runner cancellations can interrupt otherwise green jobs; platform cancellation recovery is documented separately and does not count toward the clean stability gate.
+- Seven isolated stacks increase aggregate runner usage, but minimize wall-clock feedback and state coupling.
+- Domain-specific warm-up intentionally avoids compiling unrelated functions; each maintained journey still invokes its actual production boundaries.
+- GitHub-hosted runner cancellations remain external and do not count toward the clean stability gate.
 - PR metadata remains part of CI and must retain its marker block.
 
 ## Rollback
 
-Revert the CI-hardening commits as a unit. Do not restore the observer loop, suppress validation, install full FFmpeg, increase timeouts or recombine ready-flow with a domain that lacks cleanup margin.
+Revert the CI-hardening commits as a unit. Do not restore the observer loop, suppress validation, install full FFmpeg, increase timeouts, recombine ready-flow with another domain or restore generic multi-function warm-up for authentication jobs.
 
 ## Delivery
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `2/3` clean final-allocation executions.
+- Stability: `0/3` on the suite-specific warm-up candidate.
 - No merge, deployment, release or production migration included.
