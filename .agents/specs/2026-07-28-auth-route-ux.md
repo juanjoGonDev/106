@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. Two complete final-candidate workflow sets are green; one further consecutive set is required.
+In progress. Logout invalidation, centralized route guards and reusable password visibility controls are implemented. The runner now clears stale Supabase containers before startup. Stability is reset to zero; three complete green workflow sets are required on this final candidate.
 
 ## Request
 
@@ -32,8 +32,10 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - Login, registration and password reset contained five password inputs without a shared visibility control.
 - A static multipage application cannot use Angular Router, but it can implement the same `canActivate` model through a declarative route-policy table and one browser guard.
 - Frontend route guards are bypassable and cannot replace Edge Function, PostgreSQL or RLS authorization.
-- The first CI candidate exposed that `auth-api` warmed `account-auth` but later invoked a cold `game-api`; that request reached its 15-second behavioral timeout.
-- The final candidate warms only the two functions genuinely used by `auth-api`, concurrently inside the existing bounded 30-second readiness window. No behavioral timeout or retry was increased.
+- An early CI candidate warmed `account-auth` but later invoked a cold `game-api`; that request reached its 15-second behavioral timeout.
+- The auth API candidate now warms only the two functions genuinely used by its journey, concurrently inside the existing 30-second readiness window.
+- After two green sets, a GitHub-hosted migrations runner inherited `supabase_db_minuto-106` with port `54322` occupied. The suite never started. The final candidate removes stale `supabase_*` containers only on ephemeral GitHub runners before startup.
+- No behavioral timeout, assertion, browser shard, coverage threshold or test retry was weakened.
 
 ## Decisions
 
@@ -48,6 +50,7 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 9. The eye button is type `button`, owns `aria-controls`, `aria-pressed` and an adaptive accessible name, and preserves input value, focus and selection.
 10. Keep all backend authorization unchanged.
 11. Warm `account-auth` and `game-api` concurrently for the coupled auth API journey, while `auth-browser` continues warming only `account-auth`.
+12. Before `supabase start`, remove stale Supabase containers only when `GITHUB_ACTIONS=true`; local developer stacks are never touched by the preflight.
 
 ## Acceptance criteria
 
@@ -63,65 +66,53 @@ Centralize decisions and shared UI behavior. Avoid duplicating provider, CAPTCHA
 - [x] Direct unauthenticated recovery access redirects to login.
 - [x] New pure route/password decisions have 100% line/function/branch coverage.
 - [x] Existing backend authorization and real local Auth/API/database journeys remain enabled.
-- [x] Final candidate workflow execution 1/3 green.
-- [x] Final candidate workflow execution 2/3 green.
+- [x] Stale CI Supabase containers are removed before startup without affecting local execution.
+- [ ] Final candidate workflow execution 1/3 green.
+- [ ] Final candidate workflow execution 2/3 green.
 - [ ] Final candidate workflow execution 3/3 green.
 - [ ] Final-head platform evidence and PR metadata updated.
 
 ## Validation history
 
-### Rejected candidate
+### Rejected auth API candidate
 
 Head `0ef426ecaccebbf06f89e7bd16a2ffc3812b6e42`:
 
-- Authentication Quality, browser shards, asset audit and visual contract passed.
-- `auth-api` timed out on its first cold `game-api` request after its `account-auth` checks had passed.
-- No retry or timeout increase was accepted as a fix.
+- Four workflows passed.
+- `auth-api` timed out on its first cold `game-api` request after `account-auth` checks passed.
+- No retry or timeout increase was accepted.
 
-### Final candidate execution 1/3
+### Superseded preflight candidate
 
-Head `fe24aee129b3193eb161b0c937316252733bdf46`:
-
-- Pull Request Quality Pipeline `30444244934`: success.
-- Player Pages and Social Cards `30444244890`: success.
-- Authentication Quality `30444244898`: success.
-- Public Asset Audit `30444244904`: success.
-- Pull Request Visual Evidence `30444244905`: success.
-
-### Final candidate execution 2/3
-
-Head `352f21c22661e110aca49a64994ddf8ed71ea8d3`:
-
-- Pull Request Quality Pipeline `30444636252`: success.
-- Player Pages and Social Cards `30444636268`: success.
-- Authentication Quality `30444636266`: success.
-- Public Asset Audit `30444636251`: success.
-- Pull Request Visual Evidence `30444636250`: success.
+- Heads `fe24aee129b3193eb161b0c937316252733bdf46` and `352f21c22661e110aca49a64994ddf8ed71ea8d3` completed all five workflows successfully.
+- Head `82437390dba4c0faff901c7e23caa9f3e7a3004d` had four green workflows; migrations failed before suite execution because port `54322` was held by a stale Supabase container on the hosted runner.
+- These sets do not count toward the final candidate after adding runner preflight cleanup.
 
 ## Risk analysis
 
 - Route loops are prevented by comparing normalized current and target URLs.
 - Browser guards are UX controls, never authorization evidence.
 - The component retains original password inputs and autocomplete contracts.
-- Concurrent warm-up is limited to the two coupled functions used by the auth API integration journey and remains bounded to the existing readiness window.
+- Concurrent warm-up is limited to the two coupled functions used by the auth API journey.
+- CI preflight runs only on ephemeral GitHub runners and removes only containers whose names match `supabase_`.
 - Each password input carries an idempotent readiness marker.
 
 ## Validation
 
 - 100% Node coverage for route policies, browser guard context and password visibility state.
-- Contract tests for shared entry modules, route-shell concealment and password component wiring.
+- Contract tests for shared entry modules, route-shell concealment, password component wiring, auth warm-up and runner preflight ordering.
 - Desktop/Mobile Playwright for stale pending-email logout, all five password fields, keyboard activation, storage cleanup, recovery redirect, page errors and overflow.
 - Real local Auth, Edge Function and PostgreSQL journeys.
-- Three consecutive complete workflow sets on the final functional tree.
+- Three consecutive complete workflow sets on the final candidate.
 - Full platform evidence from the final head.
 
 ## Rollback
 
-Revert the route-policy/guard, password component, logout cleanup, auth-api readiness boundary and related tests as one follow-up unit. Do not remove server authorization, restore stale pending state, duplicate page handlers or increase behavioral timeouts.
+Revert the route-policy/guard, password component, logout cleanup, auth-api readiness boundary, runner preflight and related tests as one unit. Do not remove server authorization, restore stale pending state, duplicate page handlers or increase behavioral timeouts.
 
 ## Delivery
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `2/3` complete green workflow sets.
+- Stability: `0/3` on the final runner-isolated candidate.
 - No merge, deployment, remote migration or provider-secret change is authorized.
