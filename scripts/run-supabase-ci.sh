@@ -77,13 +77,43 @@ wait_for_auth_database() {
 probe_edge_function() {
   local endpoint=$1
   local payload=$2
-  curl --silent --show-error --fail --max-time 5 \
+  local status
+
+  if ! status=$(curl --silent --show-error --max-time 8 \
+    --output /dev/null \
+    --write-out '%{http_code}' \
     --request POST \
     --header 'content-type: application/json' \
     --header 'origin: http://127.0.0.1:3000' \
     --data "$payload" \
-    "$endpoint" \
-    >/dev/null
+    "$endpoint"); then
+    return 1
+  fi
+
+  [[ "$status" -ge 200 && "$status" -lt 500 ]]
+}
+
+warm_edge_functions_for_suite() {
+  case "$SUITE" in
+    auth-api|auth-browser)
+      probe_edge_function "$API_URL/functions/v1/account-auth" '{"action":"session"}'
+      ;;
+    ready-flow)
+      probe_edge_function "$API_URL/functions/v1/game-ready-api" '{"action":"health"}'
+      ;;
+    gameplay-core)
+      probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' \
+        && probe_edge_function "$API_URL/functions/v1/game-ready-api" '{"action":"health"}'
+      ;;
+    security)
+      probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' \
+        && probe_edge_function "$API_URL/functions/v1/player-context" '{"action":"player-context","nick":"Warmup106"}' \
+        && probe_edge_function "$API_URL/functions/v1/league-api" '{"action":"list-leagues","search":"","visibility":"all"}'
+      ;;
+    gameplay-sharing|migrations)
+      probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}'
+      ;;
+  esac
 }
 
 wait_for_edge_functions() {
@@ -92,21 +122,19 @@ wait_for_edge_functions() {
   local attempt
   for attempt in $(seq 1 30); do
     if [[ -n "$FUNCTION_PID" ]] && ! kill -0 "$FUNCTION_PID" 2>/dev/null; then
-      echo 'The local Edge Function runtime exited before becoming ready.' >&2
+      echo "The local Edge Function runtime for ${SUITE} exited before becoming ready." >&2
       cat supabase-functions.log >&2 || true
       return 1
     fi
 
-    if probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' \
-      && probe_edge_function "$API_URL/functions/v1/player-context" '{"action":"player-context","nick":"Warmup106"}' \
-      && probe_edge_function "$API_URL/functions/v1/league-api" '{"action":"list-leagues","search":"","visibility":"all"}'; then
-      echo "✓ game, player-context and league Edge Functions are warm after ${attempt} probe(s)"
+    if warm_edge_functions_for_suite; then
+      echo "✓ ${SUITE} Edge Functions are warm after ${attempt} probe(s)"
       return 0
     fi
     sleep 1
   done
 
-  echo 'Local Edge Functions did not become ready within 30 seconds.' >&2
+  echo "Local Edge Functions for ${SUITE} did not become ready within 30 seconds." >&2
   cat supabase-functions.log >&2 || true
   return 1
 }
