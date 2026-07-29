@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The timed ready-flow journey has an isolated seventh Supabase domain. One clean complete final-allocation workflow set is green. A second attempted set was externally cancelled and recovered green, but is not counted; two additional clean consecutive green sets are required.
+In progress. The timed ready-flow journey has an isolated seventh Supabase domain. Two clean complete final-allocation workflow sets are green; one additional clean consecutive green set is required.
 
 ## Request
 
@@ -28,7 +28,7 @@ Fix PR #39 CI without weakening validation, removing journeys, adding behavioral
 - [x] Ready-flow has an isolated local stack.
 - [x] All jobs remain bounded to three minutes or less.
 - [x] Final stability execution 1/3 green.
-- [ ] Final stability execution 2/3 green.
+- [x] Final stability execution 2/3 green.
 - [ ] Final stability execution 3/3 green.
 
 ## Validation
@@ -62,6 +62,16 @@ Head `d6d849cfdce08d0f2805bcf14ec11140728e1292`:
 
 Head `42bbfd0d4f2db97a6c9c2fd4845de166ada8460f` did not move while GitHub cancelled jobs in the quality and player workflows after multiple successful steps. The cancelled jobs were rerun without code changes; all five workflows then concluded `success`. This validates the head but is excluded from the clean consecutive count.
 
+### Final stability execution 2/3
+
+Head `2b944231ef94c47c67325b7b920d7638385a1a20`:
+
+- Pull Request Quality Pipeline `30433388054`: success.
+- Player Pages and Social Cards `30433388622`: success.
+- Authentication Quality `30433387949`: success.
+- Public Asset Audit `30433387939`: success.
+- Pull Request Visual Evidence `30433386952`: success.
+
 ### Evidence artifact
 
 - `platform-evidence-30427861063`, artifact ID `8714334100`.
@@ -82,5 +92,5 @@ Revert the CI-hardening commits as a unit. Do not restore the observer loop, sup
 
 - Branch: `agent/feat-supabase-auth-account-linking`.
 - Pull request: `#39`.
-- Stability: `1/3` clean final-allocation executions.
+- Stability: `2/3` clean final-allocation executions.
 - No merge, deployment, release or production migration included.
