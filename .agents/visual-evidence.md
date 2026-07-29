@@ -4,10 +4,12 @@
 
 Visual evidence is a required acceptance artifact for frontend and UX work. It must let a reviewer inspect the final pull-request head from a phone without cloning the repository or starting the application.
 
-The evidence has two layers:
+The browser evidence has two layers:
 
-1. **Full-platform baseline:** all maintained screens and visual states are captured in Desktop and Mobile PNG files on every frontend PR.
-2. **Changed-area evidence:** each changed interaction or visual area is embedded in the PR as Desktop PNG, Mobile PNG and GIF, while the corresponding WebM remains in the platform artifact.
+1. **Full-platform baseline:** all maintained browser screens and visual states are captured in Desktop and Mobile PNG files on every browser frontend PR.
+2. **Changed-area evidence:** each changed browser interaction or visual area is embedded in the PR as Desktop PNG, Mobile PNG and GIF, while the corresponding WebM remains in the platform artifact.
+
+Supabase Auth email templates are non-browser delivery surfaces. They are excluded from the browser viewport/GIF metadata contract because they are rendered by external email clients after hosted Auth configuration. Email changes instead require deterministic generated HTML, template-variable and layout contracts, local Supabase startup, and real hosted smoke messages in Gmail desktop/mobile plus at least one non-Gmail client before production activation. This exception does not apply to web pages that preview or manage emails.
 
 ## Canonical command
 
@@ -76,13 +78,21 @@ GitHub Actions uploads `.tmp/pr-previews/` as `platform-evidence-<run-id>` with 
 
 ## Pull-request requirements
 
-For a frontend PR:
+For a browser frontend PR:
 
 1. Wait for the browser workflow to create the platform artifact.
 2. Update the same PR body with the canonical artifact URL.
 3. Add one `<details>` group per changed area containing matching Desktop, Mobile and GIF evidence.
 4. Keep the WebM recordings and complete platform inventory in the artifact ZIP.
 5. Verify the PR metadata workflow, full browser workflow and quality pipeline are green.
+
+For an email-template-only visual change:
+
+1. Keep all templates generated from one reviewed renderer and enforce zero stale generated files.
+2. Validate local Supabase can load every configured authentication and security-notification template.
+3. Document the hosted configuration boundary and rollback payload.
+4. After hosted activation approval, send and inspect real messages in Gmail desktop/mobile and at least one non-Gmail client before production completion.
+5. Do not fabricate browser screenshots or static GIFs for an external email-client surface.
 
 Do not create `pr-evidence/*` branches or a second PR. Evidence URLs from such branches are rejected.
 
@@ -93,7 +103,8 @@ The user-facing completion report must include:
 - the PR URL;
 - the final commit SHA;
 - verified checks;
-- a link to the downloadable platform evidence ZIP;
+- a link to the downloadable platform evidence ZIP for browser frontend changes;
+- the hosted email-client smoke status for email-template changes;
 - exact blockers when any check or artifact is incomplete.
 
-A frontend task is not complete without the final-head artifact and a green evidence contract.
+A browser frontend task is not complete without the final-head artifact and a green evidence contract. An email-template task is not production-complete until the hosted templates and real-client smoke checks are explicitly approved and executed.
