@@ -9,9 +9,13 @@ export const PASSWORD_PAGE_MODES = Object.freeze({
   unavailable: 'unavailable',
 });
 
+function passwordUrl(urlValue) {
+  return new URL(String(urlValue ?? ''), 'http://localhost');
+}
+
 export function hasPasswordCallback(urlValue) {
   try {
-    const url = new URL(String(urlValue ?? ''), 'http://localhost');
+    const url = passwordUrl(urlValue);
     const hash = new URLSearchParams(url.hash.replace(/^#/u, ''));
     return Boolean(
       url.searchParams.get('code')
@@ -25,10 +29,23 @@ export function hasPasswordCallback(urlValue) {
   }
 }
 
-export function resolvePasswordPageMode({ hadSessionBeforeExchange = false, callbackPresent = false, session = null } = {}) {
+export function isPasswordChangeRequest(urlValue) {
+  try {
+    return passwordUrl(urlValue).searchParams.get('mode') === PASSWORD_PAGE_MODES.change;
+  } catch {
+    return false;
+  }
+}
+
+export function resolvePasswordPageMode({
+  hadSessionBeforeExchange = false,
+  callbackPresent = false,
+  changeRequested = false,
+  session = null,
+} = {}) {
   if (!session) return PASSWORD_PAGE_MODES.unavailable;
-  if (callbackPresent || !hadSessionBeforeExchange) return PASSWORD_PAGE_MODES.recovery;
-  return PASSWORD_PAGE_MODES.change;
+  if (changeRequested && hadSessionBeforeExchange && !callbackPresent) return PASSWORD_PAGE_MODES.change;
+  return PASSWORD_PAGE_MODES.recovery;
 }
 
 export function passwordPageContent(modeValue) {
