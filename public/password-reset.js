@@ -8,6 +8,7 @@ import { guardAuthRoute, markAuthRouteReady } from './auth-browser-context.js';
 import {
   PASSWORD_PAGE_MODES,
   hasPasswordCallback,
+  isPasswordChangeRequest,
   passwordPageContent,
   passwordUpdateProblem,
   resolvePasswordPageMode,
@@ -108,6 +109,7 @@ async function initialize() {
   client = new SupabaseAuthClient(config);
   const hadSessionBeforeExchange = Boolean(client.readSession());
   const callbackPresent = hasPasswordCallback(window.location.href);
+  const changeRequested = isPasswordChangeRequest(window.location.href);
   const session = await client.exchangeCallback();
   const guard = await guardAuthRoute({
     client,
@@ -120,7 +122,12 @@ async function initialize() {
   });
   if (guard.redirected) return;
 
-  mode = resolvePasswordPageMode({ hadSessionBeforeExchange, callbackPresent, session });
+  mode = resolvePasswordPageMode({
+    hadSessionBeforeExchange,
+    callbackPresent,
+    changeRequested,
+    session,
+  });
   renderMode();
   if (mode === PASSWORD_PAGE_MODES.unavailable) {
     submit.disabled = true;
