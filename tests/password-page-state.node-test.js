@@ -62,9 +62,10 @@ test('provides complete mode-specific copy and safe fallback content', () => {
     currentPasswordVisible: true,
     submitLabel: 'Cambiar contraseña',
     readyMessage: 'La nueva contraseña cumple todos los requisitos.',
-    successMessage: 'Contraseña cambiada. Tu sesión continúa activa.',
+    successMessage: 'Contraseña actualizada. Tu sesión continúa activa.',
   });
   assert.equal(passwordPageContent(PASSWORD_PAGE_MODES.recovery).currentPasswordVisible, false);
+  assert.equal(passwordPageContent(PASSWORD_PAGE_MODES.recovery).successMessage, 'Contraseña actualizada. Tu sesión ya está activa.');
   assert.equal(passwordPageContent('invalid').title, 'Contraseña no disponible');
   assert.equal(passwordPageContent(PASSWORD_PAGE_MODES.unavailable).successMessage, '');
 });
