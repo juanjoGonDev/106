@@ -104,18 +104,13 @@ jobs:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
 
-      - name: Set up Node.js and pnpm cache
+      - name: Set up pinned Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Validate package policy before installation
+      - name: Validate package policy without installing project dependencies
         run: node scripts/check-package-policy.mjs
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run isolated responsive journey and encode its evidence
         shell: bash
