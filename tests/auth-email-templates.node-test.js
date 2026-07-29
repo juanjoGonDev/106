@@ -99,7 +99,8 @@ test('configures every local Supabase email source', () => {
     const section = definition.kind === 'authentication'
       ? `[auth.email.template.${definition.type}]`
       : `[auth.email.notification.${definition.type}]`;
+    const contentPath = definition.outputPath.replace('supabase/', './');
     assert.match(config, new RegExp(section.replaceAll(/[.[\]]/g, '\\$&')));
-    assert.match(config, new RegExp(definition.outputPath.replace('supabase/', './supabase/').replaceAll(/[.-]/g, '\\$&')));
+    assert.match(config, new RegExp(contentPath.replaceAll(/[.-]/g, '\\$&')));
   }
 });
