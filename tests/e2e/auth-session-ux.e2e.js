@@ -11,8 +11,19 @@ const applicationUrl = 'http://127.0.0.1:3000';
 const publishableKey = `sb_publishable_${'a'.repeat(32)}`;
 const accountToken = 'b'.repeat(64);
 const storedConsent = JSON.stringify({ analytics: false, ads: false, updatedAt: '2026-07-29T00:00:00.000Z' });
+const authStorageKeys = [
+  'minuto106:supabase-session-v1',
+  'minuto106:supabase-pkce-v1',
+  'minuto106:supabase-return-v1',
+  'minuto106:pending-email-confirmation-v1',
+  'minuto106:email-resend-available-at-v1',
+  'minuto106:account-access-v1',
+  'minuto106:account-nicks-v1',
+  'minuto106:player-access-v1',
+  'minuto106:nick',
+];
 
-function cloudSession() {
+function cloudSession(provider = 'email') {
   return {
     access_token: 'access-token',
     refresh_token: 'refresh-token',
@@ -22,8 +33,8 @@ function cloudSession() {
       id: '11111111-1111-4111-8111-111111111111',
       email: 'player@example.com',
       email_confirmed_at: '2026-07-29T00:00:00.000Z',
-      app_metadata: { provider: 'email', providers: ['email'] },
-      identities: [{ provider: 'email' }],
+      app_metadata: { provider, providers: [provider] },
+      identities: [{ provider }],
     },
   };
 }
@@ -36,7 +47,7 @@ function requestBody(request) {
   }
 }
 
-async function installRuntime(page) {
+async function installRuntime(page, { logoutStatus = 204, authLog = [] } = {}) {
   await page.route('**/config.js', (route) => route.fulfill({
     status: 200,
     contentType: 'application/javascript',
@@ -53,8 +64,20 @@ async function installRuntime(page) {
   await page.route('**/auth/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const body = requestBody(request);
+    authLog.push({ path: url.pathname, search: url.search, method: request.method(), body });
     if (url.pathname.endsWith('/logout')) {
-      await route.fulfill({ status: 204, body: '' });
+      await route.fulfill(logoutStatus === 204
+        ? { status: 204, body: '' }
+        : { status: logoutStatus, contentType: 'application/json', body: JSON.stringify({ message: 'logout unavailable' }) });
+      return;
+    }
+    if (url.pathname.endsWith('/token') && ['password', 'pkce'].includes(url.searchParams.get('grant_type'))) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(cloudSession()) });
+      return;
+    }
+    if (url.pathname.endsWith('/recover')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
       return;
     }
     if (url.pathname.endsWith('/user') && request.method() === 'GET') {
@@ -95,8 +118,8 @@ async function installRuntime(page) {
   });
 }
 
-async function installStorage(page, { session = null, pendingEmail = '', token = '' } = {}) {
-  await page.addInitScript(({ consent, storedSession, email, accountKey }) => {
+async function installStorage(page, { session = null, pendingEmail = '', token = '', complete = false } = {}) {
+  await page.addInitScript(({ consent, storedSession, email, accountKey, includeCompleteState }) => {
     localStorage.setItem('minuto106:consent-v1', consent);
     if (storedSession) localStorage.setItem('minuto106:supabase-session-v1', JSON.stringify(storedSession));
     if (email) {
@@ -104,11 +127,19 @@ async function installStorage(page, { session = null, pendingEmail = '', token =
       localStorage.setItem('minuto106:email-resend-available-at-v1', '2000000000000');
     }
     if (accountKey) localStorage.setItem('minuto106:account-access-v1', accountKey);
+    if (includeCompleteState) {
+      localStorage.setItem('minuto106:supabase-pkce-v1', 'stale-pkce');
+      localStorage.setItem('minuto106:supabase-return-v1', 'registro.html');
+      localStorage.setItem('minuto106:account-nicks-v1', JSON.stringify({ crono: 'Crono' }));
+      localStorage.setItem('minuto106:player-access-v1', JSON.stringify({ crono: 'legacy-key' }));
+      localStorage.setItem('minuto106:nick', 'Crono');
+    }
   }, {
     consent: storedConsent,
     storedSession: session,
     email: pendingEmail,
     accountKey: token,
+    includeCompleteState: complete,
   });
 }
 
@@ -117,44 +148,97 @@ async function assertNoHorizontalOverflow(page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-test('cloud sign-out clears stale activation state and rerenders without reload', async ({ page }) => {
+test('zero-player email account signs out completely and can register or log in again', async ({ page }) => {
+  const authLog = [];
   const errors = [];
   const failedRequests = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('response', (response) => {
     if (response.status() >= 400) failedRequests.push(`${response.status()} ${response.url()}`);
   });
-  await installRuntime(page);
+  await installRuntime(page, { authLog });
   await installStorage(page, {
     session: cloudSession(),
     pendingEmail: 'stale@example.com',
+    token: accountToken,
+    complete: true,
   });
   await openApplicationPage(page, '/cuenta.html');
 
   await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
-  await expect(page.locator('#cloudAccountIdentity')).toContainText('player@example.com');
+  await expect(page.locator('#accountPlayersStatus')).toContainText('todavía no tiene nicks');
+  await expect(page.locator('#changePasswordLink')).toBeVisible();
   await page.locator('#cloudSignOut').click();
+  await expect(page.locator('#appMessageDialog')).toBeVisible();
+  await page.locator('#appMessageDialog .app-message-accept').click();
 
   await expect(page.locator('#cloudAuthenticatedPanel')).toBeHidden();
-  await expect(page.locator('#cloudPendingPanel')).toBeHidden();
-  await expect(page.locator('#cloudLocalLinkPanel')).toBeVisible();
-  await expect(page.locator('#cloudAccountStatus')).toContainText('Sesión en la nube cerrada');
-  await expect(page.locator('#cloudAccountPanel')).not.toContainText('stale@example.com');
-  await expect.poll(() => page.evaluate(() => ({
-    pending: localStorage.getItem('minuto106:pending-email-confirmation-v1'),
-    resend: localStorage.getItem('minuto106:email-resend-available-at-v1'),
-  }))).toEqual({ pending: null, resend: null });
+  await expect(page.locator('#cloudGuestPanel')).toBeVisible();
+  await expect(page.locator('#cloudAccountStatus')).toContainText('Sesión cerrada por completo');
+  await expect.poll(() => page.evaluate((keys) => Object.fromEntries(keys.map((key) => [key, localStorage.getItem(key)])), authStorageKeys))
+    .toEqual(Object.fromEntries(authStorageKeys.map((key) => [key, null])));
+  expect(authLog.filter((entry) => entry.path.endsWith('/logout'))).toHaveLength(1);
+
+  await openApplicationPage(page, '/registro.html');
+  await expect(page.locator('#authSubmit')).toBeVisible();
+  await openApplicationPage(page, '/login.html');
+  await page.locator('#authEmail').fill('player@example.com');
+  await page.locator('#authPassword').fill('Current123!');
+  await page.locator('#authSubmit').click();
   await expect(page).toHaveURL(`${applicationUrl}/cuenta.html`);
+  await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
   await assertNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
   expect(failedRequests).toEqual([]);
+});
+
+test('remote logout failure still clears every local credential and reports the risk', async ({ page }) => {
+  await installRuntime(page, { logoutStatus: 503 });
+  await installStorage(page, { session: cloudSession(), token: accountToken, complete: true });
+  await openApplicationPage(page, '/cuenta.html');
+  await page.locator('#cloudSignOut').click();
+  await page.locator('#appMessageDialog .app-message-accept').click();
+  await expect(page.locator('#cloudGuestPanel')).toBeVisible();
+  await expect(page.locator('#cloudAccountStatus')).toContainText('No se pudo confirmar la revocación remota');
+  await expect.poll(() => page.evaluate((keys) => keys.every((key) => localStorage.getItem(key) === null), authStorageKeys)).toBe(true);
+});
+
+test('authenticated email change and recovery link reuse the same password page safely', async ({ browser }) => {
+  for (const scenario of [
+    { mode: 'change', initialSession: cloudSession(), path: '/restablecer-clave.html', currentVisible: true },
+    { mode: 'recovery', initialSession: null, path: '/restablecer-clave.html?code=recovery&type=recovery', currentVisible: false },
+  ]) {
+    const context = await browser.newContext({ baseURL: applicationUrl });
+    const page = await context.newPage();
+    const authLog = [];
+    await installRuntime(page, { authLog });
+    await installStorage(page, { session: scenario.initialSession });
+    if (scenario.mode === 'recovery') {
+      await page.addInitScript(() => localStorage.setItem('minuto106:supabase-pkce-v1', 'recovery-verifier'));
+    }
+    await openApplicationPage(page, scenario.path);
+
+    await expect(page.locator('[data-password-mode]')).toHaveAttribute('data-password-mode', scenario.mode);
+    await expect(page.locator('#currentPasswordField')).toBeVisible({ visible: scenario.currentVisible });
+    if (scenario.currentVisible) await page.locator('#currentPassword').fill('Current123!');
+    await page.locator('#newPassword').fill('NewSecure1!');
+    await page.locator('#confirmNewPassword').fill('NewSecure1!');
+    await expect(page.locator('#updatePassword')).toBeEnabled();
+    await page.locator('#updatePassword').click();
+    await expect(page.locator('#passwordResetStatus')).toContainText(scenario.mode === 'change' ? 'Contraseña cambiada' : 'Contraseña restablecida');
+    const update = authLog.find((entry) => entry.path.endsWith('/user') && entry.method === 'PUT');
+    expect(update?.body.password).toBe('NewSecure1!');
+    expect(update?.body.current_password).toBe(scenario.currentVisible ? 'Current123!' : undefined);
+    await assertNoHorizontalOverflow(page);
+    await context.close();
+  }
 });
 
 test('all password routes use one accessible eye control without changing values', async ({ browser }) => {
   for (const { path, inputs, session } of [
     { path: '/login.html', inputs: ['authPassword'], session: null },
     { path: '/registro.html', inputs: ['authPassword', 'authPasswordConfirmation'], session: null },
-    { path: '/restablecer-clave.html', inputs: ['newPassword', 'confirmNewPassword'], session: cloudSession() },
+    { path: '/restablecer-clave.html', inputs: ['currentPassword', 'newPassword', 'confirmNewPassword'], session: cloudSession() },
   ]) {
     const context = await browser.newContext({ baseURL: applicationUrl });
     const page = await context.newPage();
@@ -197,7 +281,7 @@ test('all password routes use one accessible eye control without changing values
   }
 });
 
-test('direct password recovery access without a cloud session is guarded', async ({ page }) => {
+test('direct password management access without a cloud session is guarded', async ({ page }) => {
   await installRuntime(page);
   await installStorage(page);
   await openApplicationPage(page, '/restablecer-clave.html');
