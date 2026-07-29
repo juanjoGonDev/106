@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   PASSWORD_PAGE_MODES,
   hasPasswordCallback,
+  isPasswordChangeRequest,
   passwordPageContent,
   passwordUpdateProblem,
   resolvePasswordPageMode,
@@ -16,15 +17,32 @@ test('detects recovery callbacks from every supported URL shape', () => {
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#access_token=abc'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html#type=recovery'), true);
   assert.equal(hasPasswordCallback('https://example.com/restablecer-clave.html?type=email'), false);
-  assert.equal(hasPasswordCallback('not a url'), false);
+  assert.equal(hasPasswordCallback(Symbol('invalid')), false);
 });
 
-test('distinguishes authenticated change, recovery and unavailable modes', () => {
+test('detects only explicit authenticated password change requests', () => {
+  assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=change'), true);
+  assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html?mode=recovery'), false);
+  assert.equal(isPasswordChangeRequest('https://example.com/restablecer-clave.html'), false);
+  assert.equal(isPasswordChangeRequest(Symbol('invalid')), false);
+});
+
+test('distinguishes explicit authenticated change, recovery and unavailable modes', () => {
   const session = { user: { id: 'user' } };
-  assert.equal(resolvePasswordPageMode({ hadSessionBeforeExchange: true, session }), PASSWORD_PAGE_MODES.change);
-  assert.equal(resolvePasswordPageMode({ hadSessionBeforeExchange: true, callbackPresent: true, session }), PASSWORD_PAGE_MODES.recovery);
+  assert.equal(resolvePasswordPageMode({
+    hadSessionBeforeExchange: true,
+    changeRequested: true,
+    session,
+  }), PASSWORD_PAGE_MODES.change);
+  assert.equal(resolvePasswordPageMode({
+    hadSessionBeforeExchange: true,
+    callbackPresent: true,
+    changeRequested: true,
+    session,
+  }), PASSWORD_PAGE_MODES.recovery);
+  assert.equal(resolvePasswordPageMode({ hadSessionBeforeExchange: true, session }), PASSWORD_PAGE_MODES.recovery);
   assert.equal(resolvePasswordPageMode({ hadSessionBeforeExchange: false, session }), PASSWORD_PAGE_MODES.recovery);
-  assert.equal(resolvePasswordPageMode({ hadSessionBeforeExchange: true, callbackPresent: true }), PASSWORD_PAGE_MODES.unavailable);
+  assert.equal(resolvePasswordPageMode({ changeRequested: true }), PASSWORD_PAGE_MODES.unavailable);
   assert.equal(resolvePasswordPageMode(), PASSWORD_PAGE_MODES.unavailable);
 });
 
