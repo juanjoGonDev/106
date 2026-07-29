@@ -251,18 +251,19 @@ async function assertNoHorizontalOverflow(page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-test('login, registration and local linking expose only Google and Facebook with contextual labels', async ({ browser }) => {
-  for (const [path, label, provider, initial] of [
-    ['login.html', 'Continuar con Google', 'google', {}],
-    ['registro.html', 'Crear con Facebook', 'facebook', {}],
-    ['cuenta.html', 'Vincular Google', 'google', { accountToken }],
+test('login, registration and local linking expose only Google with contextual labels', async ({ browser }) => {
+  for (const [path, label, initial] of [
+    ['login.html', 'Continuar con Google', {}],
+    ['registro.html', 'Crear con Google', {}],
+    ['cuenta.html', 'Vincular Google', { accountToken }],
   ]) {
     const context = await browser.newContext({ baseURL: applicationUrl });
     const page = await context.newPage();
     await installPage(page, { initial });
     await openApplicationPage(page, `/${path}`);
+    await expect(page.locator('.oauth-button:visible')).toHaveCount(1);
     await page.getByRole('button', { name: label }).click();
-    await expect(page).toHaveURL(new RegExp(`/auth/v1/authorize[?].*provider=${provider}`));
+    await expect(page).toHaveURL(/\/auth\/v1\/authorize[?].*provider=google/u);
     expect(new URL(page.url()).searchParams.get('redirect_to')).toBe(`${applicationUrl}/cuenta.html`);
     expect(new URL(page.url()).searchParams.get('code_challenge_method')).toBe('s256');
     await context.close();
@@ -344,7 +345,7 @@ test('records the contextual authenticated account on desktop and mobile', async
   await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
   await expect(page.locator('#cloudAccountIdentity')).toContainText('player@example.com');
   await expect(page.getByRole('button', { name: 'Google vinculado' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Vincular Facebook' })).toBeEnabled();
+  await expect(page.locator('#cloudAuthenticatedPanel .oauth-button')).toHaveCount(1);
   await expect(page.locator('#emailConfirmationPanel')).toHaveCount(0);
   await expect(page.locator('#accountPlayers')).toContainText('CronoMaster');
   await assertNoHorizontalOverflow(page);

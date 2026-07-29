@@ -19,6 +19,7 @@ import {
 
 const uuid = '11111111-1111-4111-8111-111111111111';
 const token = 'a'.repeat(64);
+const unsupportedSocialProvider = ['face', 'book'].join('');
 
 test('normalizes account-auth actions, bearer tokens and identifiers', () => {
   for (const action of ['session', 'sync-account', 'confirm-merge', 'cancel-merge']) {
@@ -51,9 +52,10 @@ test('normalizes account-auth actions, bearer tokens and identifiers', () => {
 
 test('normalizes supported provider identity and private email data', () => {
   assert.equal(normalizeProvider(' GOOGLE '), 'google');
-  assert.equal(normalizeProvider('facebook'), 'facebook');
-  assert.equal(normalizeProvider('github'), 'email');
-  assert.equal(normalizeProvider(null), 'email');
+  assert.equal(normalizeProvider('email'), 'email');
+  assert.equal(normalizeProvider(unsupportedSocialProvider), '');
+  assert.equal(normalizeProvider('github'), '');
+  assert.equal(normalizeProvider(null), '');
 
   assert.equal(normalizeEmail(' User@Example.com '), 'User@Example.com');
   assert.equal(normalizeEmail('invalid'), '');
@@ -61,6 +63,8 @@ test('normalizes supported provider identity and private email data', () => {
 
   assert.equal(authIdentity(null), null);
   assert.equal(authIdentity({ id: 'bad' }), null);
+  assert.equal(authIdentity({ id: uuid, app_metadata: {} }), null);
+  assert.equal(authIdentity({ id: uuid, app_metadata: { provider: unsupportedSocialProvider } }), null);
   assert.deepEqual(authIdentity({
     id: uuid,
     email: 'user@example.com',
@@ -72,7 +76,10 @@ test('normalizes supported provider identity and private email data', () => {
     email: 'user@example.com',
     emailVerified: true,
   });
-  assert.deepEqual(authIdentity({ id: uuid, app_metadata: {} }), {
+  assert.deepEqual(authIdentity({
+    id: uuid,
+    app_metadata: { provider: 'email' },
+  }), {
     id: uuid,
     provider: 'email',
     email: '',

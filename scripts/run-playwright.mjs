@@ -7,6 +7,9 @@ const PLAYWRIGHT_VERSION = '1.60.0';
 const PLAYWRIGHT_PACKAGE = `@playwright/test@${PLAYWRIGHT_VERSION}`;
 const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
 const playwrightArguments = process.argv.slice(2);
+const prepareOnly = process.env.PLAYWRIGHT_PREPARE_ONLY === '1';
+const runtimePrepared = process.env.PLAYWRIGHT_RUNTIME_PREPARED === '1';
+const videoDisabled = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1';
 
 function runCommand(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
@@ -101,11 +104,15 @@ function findPackageJson(root) {
   return null;
 }
 
-runPnpm(['dlx', PLAYWRIGHT_PACKAGE, '--version']);
+if (!runtimePrepared) runPnpm(['dlx', PLAYWRIGHT_PACKAGE, '--version']);
 const packageJsonPath = cacheRoots().map(findPackageJson).find(Boolean);
 if (!packageJsonPath) throw new Error(`Unable to locate ${PLAYWRIGHT_PACKAGE} in the pnpm dlx cache.`);
 
-runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'install', 'ffmpeg']);
+if (!runtimePrepared && !videoDisabled) {
+  runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'install', 'ffmpeg']);
+}
+if (prepareOnly) process.exit(0);
+
 runPnpm(['dlx', PLAYWRIGHT_PACKAGE, 'test', ...playwrightArguments], {
   env: {
     ...process.env,

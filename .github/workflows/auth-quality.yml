@@ -64,31 +64,31 @@ jobs:
           node --check tests/e2e/auth-session-ux.e2e.js
 
       - name: Enforce auth state coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-account-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-account-state.node-test.js
+        run: pnpm test:auth-state:coverage
 
       - name: Enforce route experience coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-experience-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-experience-state.node-test.js
+        run: pnpm test:auth-experience:coverage
 
       - name: Enforce browser route context coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-browser-context.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-browser-context.node-test.js
+        run: pnpm test:auth-browser-context:coverage
 
       - name: Enforce password visibility state coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/password-visibility-state.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/password-visibility-state.node-test.js
+        run: pnpm test:password-visibility:coverage
 
       - name: Enforce pending confirmation coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-pending-confirmation.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-pending-confirmation.node-test.js
+        run: pnpm test:auth-pending:coverage
 
       - name: Enforce captcha coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/auth-captcha.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/auth-captcha.node-test.js tests/auth-captcha-defaults.node-test.js
+        run: pnpm test:auth-captcha:coverage
 
       - name: Enforce cloud account service coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/cloud-account-service.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/cloud-account-service.node-test.js tests/cloud-account-service-defaults.node-test.js
+        run: pnpm test:cloud-account:coverage
 
       - name: Enforce pending activation bootstrap coverage
         run: node --test --experimental-test-coverage --test-coverage-include=public/account-auth-bootstrap.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/account-auth-bootstrap.node-test.js
 
       - name: Enforce Supabase Auth client coverage
-        run: node --test --experimental-test-coverage --test-coverage-include=public/supabase-auth-client.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/supabase-auth-client.node-test.js tests/supabase-auth-client-resend.node-test.js tests/supabase-auth-client-verification.node-test.js
+        run: pnpm test:supabase-auth-client:coverage
 
       - name: Enforce Edge boundary coverage
         run: node --test --experimental-test-coverage --test-coverage-include=supabase/functions/account-auth/core.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/account-auth-core.node-test.js

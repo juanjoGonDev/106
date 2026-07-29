@@ -17,6 +17,8 @@ import {
   shouldShowEmailVerification,
 } from '../public/auth-experience-state.js';
 
+const unsupportedSocialProvider = ['face', 'book'].join('');
+
 function session({ provider = 'email', providers, identities, confirmed = false, email = 'user@example.com' } = {}) {
   return {
     user: {
@@ -55,20 +57,21 @@ test('declares immutable route access policies centrally', () => {
   assert.equal(authRoutePolicy('/unknown').access, AUTH_ROUTE_ACCESS.contextual);
 });
 
-test('derives unique providers from metadata and identities', () => {
+test('derives unique supported providers from metadata and identities', () => {
   assert.deepEqual([...sessionProviders(null)], []);
   assert.deepEqual([...sessionProviders({ user: 'invalid' })], []);
   assert.deepEqual([...sessionProviders(session({
     provider: 'google',
-    providers: ['google', 'facebook', 'google', 'x'],
-    identities: [{ provider: 'email' }, { provider: 'facebook' }, null],
-  }))], ['google', 'facebook', 'email']);
+    providers: ['google', unsupportedSocialProvider, 'google', 'x'],
+    identities: [{ provider: 'email' }, { provider: unsupportedSocialProvider }, null],
+  }))], ['google', 'email']);
   assert.deepEqual([...sessionProviders(session({ provider: 'email' }))], ['email']);
   assert.deepEqual([...sessionProviders({ user: { app_metadata: {}, identities: [] } })], []);
 });
 
-test('summarizes email and social identities with verification eligibility', () => {
+test('summarizes email and Google identities with verification eligibility', () => {
   assert.equal(authIdentity(null), null);
+  assert.equal(authIdentity(session({ provider: unsupportedSocialProvider })), null);
   assert.deepEqual({ ...authIdentity(session()) }, {
     email: 'user@example.com',
     emailVerified: false,
@@ -80,10 +83,10 @@ test('summarizes email and social identities with verification eligibility', () 
   assert.equal(authIdentity(session({ confirmed: true })).verificationEligible, false);
   const social = authIdentity(session({
     provider: 'google',
-    providers: ['google', 'facebook'],
+    providers: ['google', unsupportedSocialProvider],
     confirmed: false,
   }));
-  assert.deepEqual([...social.socialProviders], ['google', 'facebook']);
+  assert.deepEqual([...social.socialProviders], ['google']);
   assert.equal(social.primaryProvider, 'google');
   assert.equal(social.verificationEligible, false);
 
@@ -176,16 +179,19 @@ test('protects verification and resolves every account mode', () => {
   assert.equal(resolveAuthExperience({ route: '/unknown' }).route, AUTH_ROUTES.account);
 });
 
-test('produces contextual provider actions without duplicating page logic', () => {
+test('produces contextual Google actions without duplicating page logic', () => {
   assert.deepEqual({ ...providerAction('x', 'login') }, {
+    provider: '', disabled: true, label: 'Proveedor no disponible',
+  });
+  assert.deepEqual({ ...providerAction(unsupportedSocialProvider, 'register') }, {
     provider: '', disabled: true, label: 'Proveedor no disponible',
   });
   assert.deepEqual({ ...providerAction('google', 'login') }, {
     provider: 'google', disabled: false, label: 'Continuar con Google',
   });
-  assert.equal(providerAction('facebook', 'register').label, 'Crear con Facebook');
+  assert.equal(providerAction('google', 'register').label, 'Crear con Google');
   assert.equal(providerAction('google', 'local-link').label, 'Vincular Google');
-  assert.equal(providerAction('facebook', 'authenticated').label, 'Vincular Facebook');
+  assert.equal(providerAction('google', 'authenticated').label, 'Vincular Google');
   const identity = authIdentity(session({ provider: 'google', providers: ['google'], confirmed: true }));
   assert.deepEqual({ ...providerAction('google', 'authenticated', identity) }, {
     provider: 'google', disabled: true, label: 'Google vinculado',

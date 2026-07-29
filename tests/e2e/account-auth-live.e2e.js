@@ -316,6 +316,9 @@ test.describe('real Supabase account authentication @live-auth', () => {
     const expired = await request.get(directVerifyUrl(expiredToken), { maxRedirects: 0 });
     const expiredLocation = expired.headers().location || '';
     expect(expired.status() >= 400 || /error/iu.test(expiredLocation)).toBe(true);
+    expect(entitlementState(id)).toBe('0|');
+    expect(achievementCount(nick)).toBe(0);
+    expectDailyState(nick, 0);
 
     await page.evaluate(() => localStorage.setItem('minuto106:email-resend-available-at-v1', '0'));
     await page.reload();
@@ -362,11 +365,10 @@ test.describe('real Supabase account authentication @live-auth', () => {
     await assertProtectedRoute(browser, 'registro.html', { accountToken: token });
   });
 
-  test('Google then Facebook share one reward and recover the same nicks from clean browsers', async ({ browser, request }) => {
+  test('Google grants one reward and recovers the same nicks from clean browsers without stacking', async ({ browser, request }) => {
     const token = randomBytes(32).toString('hex');
     const nick = `Social${suffix}`.slice(0, 24);
     const googleEmail = `google-${suffix}@example.com`;
-    const facebookEmail = `facebook-${suffix}@example.com`;
     await createAnonymousPlayer(request, token, nick);
 
     await createProviderUser(request, 'google', googleEmail);
@@ -375,45 +377,35 @@ test.describe('real Supabase account authentication @live-auth', () => {
     await linkSession(browser, googleSession, token, nick);
     const id = accountId(token);
     expect(entitlementState(id)).toBe('1|social_link');
-    expectDailyState(nick, 1);
-
-    await createProviderUser(request, 'facebook', facebookEmail);
-    const facebookSession = await signIn(request, facebookEmail);
-    expect(facebookSession.user.app_metadata.provider).toBe('facebook');
-    await linkSession(browser, facebookSession, token, nick);
-    expect(entitlementState(id)).toBe('1|social_link');
-    expect(identityProviders(id)).toBe('facebook,google');
+    expect(identityProviders(id)).toBe('google');
     expect(achievementCount(nick)).toBe(0);
     expectDailyState(nick, 1);
 
-    const recoveredIds = [];
-    for (const session of [googleSession, facebookSession]) {
-      const clean = await openAccount(browser, { session });
-      await expect(clean.page.locator('#accountPlayers')).toContainText(nick);
-      recoveredIds.push(accountId(await recoveredToken(clean.page)));
-      clean.assertNoErrors();
-      await clean.context.close();
-    }
-    expect(recoveredIds).toEqual([id, id]);
+    await linkSession(browser, googleSession, token, nick);
+    expect(entitlementState(id)).toBe('1|social_link');
+    expect(identityProviders(id)).toBe('google');
+    expectDailyState(nick, 1);
+
+    const clean = await openAccount(browser, { session: googleSession });
+    await expect(clean.page.locator('#accountPlayers')).toContainText(nick);
+    expect(accountId(await recoveredToken(clean.page))).toBe(id);
+    clean.assertNoErrors();
+    await clean.context.close();
 
     socialOrigin.googleSession = googleSession;
   });
 
-  test('an email-origin account can add both social providers without stacking its daily reward', async ({ browser, request }) => {
+  test('an email-origin account can add Google without stacking its daily reward', async ({ browser, request }) => {
     expect(emailOrigin.accountId).toBeTruthy();
     const googleEmail = `email-google-${suffix}@example.com`;
-    const facebookEmail = `email-facebook-${suffix}@example.com`;
     await createProviderUser(request, 'google', googleEmail);
-    await createProviderUser(request, 'facebook', facebookEmail);
 
     const googleSession = await signIn(request, googleEmail);
-    const facebookSession = await signIn(request, facebookEmail);
     await linkSession(browser, googleSession, emailOrigin.token, emailOrigin.nick);
-    await linkSession(browser, facebookSession, emailOrigin.token, emailOrigin.nick);
 
     expect(entitlementState(emailOrigin.accountId)).toBe('1|email_confirmation');
     expect(achievementCount(emailOrigin.nick)).toBe(1);
-    expect(identityProviders(emailOrigin.accountId)).toBe('email,facebook,google');
+    expect(identityProviders(emailOrigin.accountId)).toBe('email,google');
     expectDailyState(emailOrigin.nick, 1);
   });
 

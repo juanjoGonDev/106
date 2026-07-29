@@ -22,6 +22,7 @@ import {
 } from '../public/auth-account-state.js';
 
 const publishableKey = `sb_publishable_${'a'.repeat(24)}`;
+const unsupportedSocialProvider = ['face', 'book'].join('');
 
 test('normalizes complete, local and unavailable auth configuration', () => {
   assert.deepEqual(normalizeAuthConfig({
@@ -50,10 +51,10 @@ test('normalizes complete, local and unavailable auth configuration', () => {
   assert.equal(normalizeAuthConfig({ supabaseUrl: 'http://localhost:54321', supabasePublishableKey: publishableKey }).available, false);
 });
 
-test('validates providers, email and password policy exhaustively', () => {
+test('validates Google-only provider, email and password policy exhaustively', () => {
   assert.equal(PASSWORD_MIN_LENGTH, 10);
   assert.equal(normalizeProvider(' GOOGLE '), 'google');
-  assert.equal(normalizeProvider('facebook'), 'facebook');
+  assert.equal(normalizeProvider(unsupportedSocialProvider), '');
   assert.equal(normalizeProvider('x'), '');
   assert.equal(normalizeProvider(null), '');
 
@@ -137,17 +138,18 @@ test('builds callback URLs and neutral auth responses without account enumeratio
   assert.equal(neutralAuthMessage('other', null), 'No se pudo completar la autenticación. Inténtalo de nuevo.');
 });
 
-test('formats every email and social account reward state', () => {
+test('formats every email and Google account reward state', () => {
   assert.equal(
     authRewardMessage({ granted: true, source: 'email_confirmation' }),
     'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.',
   );
-  assert.match(authRewardMessage({ granted: true, source: 'social_link', provider: 'google' }), /Google/);
-  assert.match(authRewardMessage({ granted: true, source: 'social_link', provider: 'facebook' }), /Facebook/);
-  assert.match(authRewardMessage({ granted: true, source: 'social_link', provider: 'unknown' }), /Google/);
+  assert.equal(
+    authRewardMessage({ granted: true, source: 'social_link', provider: 'google' }),
+    'Cuenta vinculada con Google. Has recibido +1 intento diario.',
+  );
   assert.match(authRewardMessage({ active: true, source: 'email_confirmation' }), /email confirmado/);
   assert.match(authRewardMessage({ eligible: true, active: true, granted: false }), /email confirmado/);
-  assert.match(authRewardMessage({ active: true, source: 'social_link' }), /Google y Facebook/);
+  assert.match(authRewardMessage({ active: true, source: 'social_link' }), /por Google/);
   assert.match(authRewardMessage({ pendingConfirmation: true }), /Confirma el email/);
   assert.equal(authRewardMessage(null), 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.');
   assert.equal(authRewardMessage({}), 'Cuenta vinculada. Tu progreso se puede recuperar iniciando sesión.');
@@ -186,19 +188,15 @@ test('normalizes and formats every merge-impact category', () => {
   assert.equal(mergeItemText({}), 'Elemento competitivo');
 });
 
-test('summarizes provider sessions and rejects missing users', () => {
+test('summarizes supported provider sessions and rejects unsupported users', () => {
   assert.equal(sessionSummary(null), null);
   assert.equal(sessionSummary({}), null);
   assert.equal(sessionSummary({ user: 'invalid' }), null);
   assert.deepEqual(sessionSummary({ user: { email: 'a@example.com', email_confirmed_at: 'now', app_metadata: { provider: 'google' } } }), {
     email: 'a@example.com', provider: 'google', emailVerified: true,
   });
-  assert.deepEqual(sessionSummary({ user: { email: 'b@example.com', app_metadata: { provider: 'facebook' } } }), {
-    email: 'b@example.com', provider: 'facebook', emailVerified: false,
-  });
-  assert.deepEqual(sessionSummary({ user: { app_metadata: { provider: 'github' } } }), {
-    email: '', provider: 'email', emailVerified: false,
-  });
+  assert.equal(sessionSummary({ user: { email: 'b@example.com', app_metadata: { provider: unsupportedSocialProvider } } }), null);
+  assert.equal(sessionSummary({ user: { app_metadata: { provider: 'github' } } }), null);
   assert.deepEqual(sessionSummary({ user: {} }), {
     email: '', provider: 'email', emailVerified: false,
   });

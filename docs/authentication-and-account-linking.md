@@ -5,13 +5,12 @@ Minuto 106 supports optional recovery through Supabase Auth while preserving ano
 ## Supported methods
 
 - Google OAuth.
-- Facebook OAuth.
 - Confirmed email and password.
 - Existing anonymous private key.
 
-The game account remains the canonical aggregate. A Supabase user is a credential pointing to that account; it is not the source of nicknames, attempts, leagues, trophies or achievements.
+Google is the only social authentication provider. The game account remains the canonical aggregate. A Supabase user is a credential pointing to that account; it is not the source of nicknames, attempts, leagues, trophies or achievements.
 
-One game account may contain multiple Supabase identities. Google and Facebook can therefore both be linked to the same game account. Their provider buttons remain available after linking one provider. The private key or the explicit merge flow proves which game account receives the new identity.
+One game account may contain an email identity and a Google identity. The private key or the explicit merge flow proves which game account receives the new identity.
 
 ## Public runtime configuration
 
@@ -41,7 +40,6 @@ The development server reads only the local public `API_URL` and `ANON_KEY` from
 These values stay in Supabase or protected GitHub environments and never reach Pages:
 
 - Google OAuth client secret.
-- Facebook app secret.
 - Brevo SMTP key.
 - Supabase secret/service-role key.
 - `HASH_PEPPER`.
@@ -74,19 +72,7 @@ Create a Google OAuth Web application with:
 - Authorized redirect URI: `https://imtitjwgiemlaabpioed.supabase.co/auth/v1/callback`
 - Scopes: `openid`, email and profile only.
 
-Paste the client ID and secret into Authentication → Sign In / Providers → Google.
-
-## Facebook
-
-Create a Meta app with Facebook Login and:
-
-- Site URL: `https://juanjogondev.github.io/106`
-- Valid OAuth redirect URI: `https://imtitjwgiemlaabpioed.supabase.co/auth/v1/callback`
-- Permissions: `public_profile` and `email`.
-- Privacy policy: `https://juanjogondev.github.io/106/privacidad.html`
-- Terms: `https://juanjogondev.github.io/106/legal.html`
-
-Paste the app ID and app secret into Authentication → Sign In / Providers → Facebook. Development-mode apps admit only configured administrators, developers and testers.
+Paste the client ID and secret into Authentication → Sign In / Providers → Google. Disable every unused social provider in the hosted Supabase project.
 
 ## Email and password
 
@@ -131,16 +117,15 @@ The entitlement is unique at account level, canonical across merges and protecte
 - Before confirmation: no bonus.
 - After opening the one-use link: +1 daily attempt.
 - Unlocks `Cuenta confirmada`, worth 10 points, for every current and future nick.
-- Linking Google or Facebook later is allowed but grants no social bonus.
+- Linking Google later is allowed but grants no additional bonus.
 
-### Account first linked through Google or Facebook
+### Account first linked through Google
 
-- First successful social link: +1 daily attempt.
-- Linking the other social provider later is allowed.
-- Google and Facebook share the same single social bonus.
+- First successful Google link: +1 daily attempt.
+- Repeated login and account recovery reuse the same entitlement.
 - No `Cuenta confirmada` achievement is created because no normal-email activation was completed.
 
-The first cloud identity linked to the game account fixes its reward origin. Replaying callbacks, repeated login, multiple tabs, adding another identity or merging accounts cannot stack rewards. The bonus remains inside the absolute daily limit ceiling of 10.
+The first cloud identity linked to the game account fixes its reward origin. Replaying callbacks, repeated login, multiple tabs, adding an email identity or merging accounts cannot stack rewards. The bonus remains inside the absolute daily limit ceiling of 10.
 
 ## SMTP
 
@@ -157,9 +142,9 @@ Do not place SMTP credentials in GitHub. Keep Auth rate limits conservative and 
 ## Browser flow
 
 1. Anonymous play creates or reuses the local private key.
-2. The user signs in through Google, Facebook or email.
+2. The user signs in through Google or email.
 3. The browser sends the validated Supabase JWT and current private key, when present, to `account-auth`.
-4. `account-auth` validates the JWT and hashes the private key with the server pepper.
+4. `account-auth` validates the JWT, rejects unsupported identity providers and hashes the private key with the server pepper.
 5. A service-role-only RPC links the Supabase UUID to the game account.
 6. The database records the immutable origin provider for that identity.
 7. When no merge is pending, the database grants or reuses the one account-level authentication entitlement.
@@ -193,6 +178,8 @@ All `game_*` tables remain server-owned:
 
 `pnpm test:supabase` enumerates the schema and performs real PostgREST probes with anonymous and authenticated JWTs. Adding a table, sequence or privileged function without the same boundary fails CI.
 
+Provider constraints use forward-only migrations. Historical rows are not rewritten during deployment, while new inserts and updates accept only email and Google identities.
+
 ## Local validation
 
 ```bash
@@ -202,18 +189,18 @@ bash scripts/run-supabase-ci.sh
 PR_VISUAL_CAPTURE=1 pnpm test:e2e
 ```
 
-Local integration covers email reward grant/replay/future nick, pending email, Google then Facebook on one game account, social deduplication, email-origin exclusion, account recovery, merge lifecycle and role isolation.
+Local integration covers email reward grant/replay/future nick, pending email, Google reward deduplication, email-origin exclusion, account recovery, merge lifecycle, provider rejection and role isolation.
 
 ## Production activation order
 
-1. Merge the required PRs after final CI approval.
+1. Merge the required PR after final CI approval.
 2. Apply production database migrations.
 3. Set `HASH_PEPPER` and deploy `account-auth`.
 4. Configure hosted Auth URLs, email policy, one-hour expiry and template.
 5. Confirm Brevo SMTP delivery.
-6. Enable Google and Facebook with their provider secrets in Supabase.
+6. Enable Google and disable every other social provider in Supabase.
 7. Deploy GitHub Pages with `SUPABASE_PUBLISHABLE_KEY`.
-8. Run real smoke tests for email confirmation/resend, Google, Facebook, second-provider linking and clean-device recovery.
+8. Run real smoke tests for email confirmation/resend, Google linking and clean-device recovery.
 
 ## Rollback
 

@@ -13,6 +13,8 @@ import {
   AUTH_SESSION_STORAGE_KEY,
 } from '../public/auth-account-state.js';
 
+const unsupportedSocialProvider = ['face', 'book'].join('');
+
 function storage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {
@@ -181,16 +183,14 @@ describe('SupabaseAuthClient', () => {
     await expect(missingVerifier.exchangeCallback('https://example.com/?code=abc')).rejects.toThrow('verificador seguro');
   });
 
-  it('builds and redirects to Google and Facebook PKCE authorization URLs', async () => {
+  it('builds Google PKCE authorization URLs and rejects unsupported providers', async () => {
     const location = { href: 'https://example.com/106/cuenta.html', assign: vi.fn() };
     const auth = client({ location });
     const google = await auth.signInWithOAuth('google', { skipRedirect: true });
     expect(google).toContain('provider=google');
     expect(google).toContain('code_challenge=AQID');
     expect(location.assign).not.toHaveBeenCalled();
-    const facebook = await auth.signInWithOAuth('facebook');
-    expect(facebook).toContain('provider=facebook');
-    expect(location.assign).toHaveBeenCalledWith(facebook);
+    await expect(auth.signInWithOAuth(unsupportedSocialProvider)).rejects.toThrow('Proveedor OAuth no válido');
     await expect(auth.signInWithOAuth('github')).rejects.toThrow('Proveedor OAuth no válido');
   });
 

@@ -7,7 +7,7 @@ export const AUTH_CONFIRMATION_LINK_TTL_SECONDS = 60 * 60;
 export const AUTH_RESEND_COOLDOWN_SECONDS = 60;
 export const PASSWORD_MIN_LENGTH = 10;
 
-const PROVIDERS = new Set(['google', 'facebook']);
+const PROVIDERS = new Set(['google']);
 const PASSWORD_REQUIREMENT_DEFINITIONS = Object.freeze([
   Object.freeze({ code: 'length', label: `Al menos ${PASSWORD_MIN_LENGTH} caracteres`, test: (value) => value.length >= PASSWORD_MIN_LENGTH }),
   Object.freeze({ code: 'lowercase', label: 'Una letra minúscula', test: (value) => /[a-z]/.test(value) }),
@@ -123,19 +123,17 @@ export function neutralAuthMessage(operation, errorCode = '') {
 export function authRewardMessage(reward) {
   const input = reward && typeof reward === 'object' ? reward : {};
   const source = String(input.source || (input.eligible === true && input.active === true ? 'email_confirmation' : ''));
-  const provider = String(input.provider ?? '');
   if (input.granted === true && source === 'email_confirmation') {
     return 'Cuenta confirmada y vinculada. Has recibido +1 intento diario y el logro Cuenta confirmada.';
   }
   if (input.granted === true && source === 'social_link') {
-    const providerName = provider === 'facebook' ? 'Facebook' : 'Google';
-    return `Cuenta vinculada con ${providerName}. Has recibido +1 intento diario; vincular el otro proveedor no acumula otra bonificación.`;
+    return 'Cuenta vinculada con Google. Has recibido +1 intento diario.';
   }
   if (input.active === true && source === 'email_confirmation') {
     return 'Cuenta vinculada. Tu bonificación de +1 intento diario por email confirmado sigue activa.';
   }
   if (input.active === true && source === 'social_link') {
-    return 'Cuenta vinculada. Tu bonificación social de +1 intento diario sigue activa y se comparte entre Google y Facebook.';
+    return 'Cuenta vinculada. Tu bonificación de +1 intento diario por Google sigue activa.';
   }
   if (input.pendingConfirmation === true) {
     return 'Cuenta vinculada. Confirma el email desde el enlace de un solo uso para recibir +1 intento diario y el logro Cuenta confirmada.';
@@ -178,10 +176,12 @@ export function mergeItemText(item) {
 export function sessionSummary(session) {
   const user = session?.user;
   if (!user || typeof user !== 'object') return null;
-  const provider = String(user.app_metadata?.provider || 'email').toLowerCase();
+  const rawProvider = String(user.app_metadata?.provider || 'email').toLowerCase();
+  const provider = rawProvider === 'email' ? 'email' : normalizeProvider(rawProvider);
+  if (!provider) return null;
   return {
     email: String(user.email ?? ''),
-    provider: ['google', 'facebook'].includes(provider) ? provider : 'email',
+    provider,
     emailVerified: Boolean(user.email_confirmed_at),
   };
 }

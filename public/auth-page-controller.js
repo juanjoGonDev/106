@@ -37,7 +37,6 @@ const elements = {
   submit: document.querySelector('#authSubmit'),
   recovery: document.querySelector('#authRecovery'),
   google: document.querySelector('#googleSignIn'),
-  facebook: document.querySelector('#facebookSignIn'),
   captcha: document.querySelector('#authCaptcha'),
   otp: document.querySelector('#authOtp'),
   verify: document.querySelector('#verifyEmailCode'),
@@ -118,7 +117,6 @@ function refreshResend() {
 function refreshControls() {
   const unavailable = !config.available;
   if (elements.google) elements.google.disabled = busy || unavailable;
-  if (elements.facebook) elements.facebook.disabled = busy || unavailable;
 
   if (pageMode === 'login') {
     const email = normalizeEmail(elements.email?.value);
@@ -143,13 +141,11 @@ function refreshControls() {
   }
 }
 
-function renderProviderButtons(mode, identity = null) {
-  for (const [provider, button] of [['google', elements.google], ['facebook', elements.facebook]]) {
-    if (!button) continue;
-    const action = providerAction(provider, mode, identity);
-    button.textContent = action.label;
-    button.disabled = action.disabled || busy || !config.available;
-  }
+function renderProviderButton(mode, identity = null) {
+  if (!elements.google) return;
+  const action = providerAction('google', mode, identity);
+  elements.google.textContent = action.label;
+  elements.google.disabled = action.disabled || busy || !config.available;
 }
 
 async function withOperation(operation, action) {
@@ -167,8 +163,8 @@ async function withOperation(operation, action) {
   }
 }
 
-async function startOAuth(provider) {
-  await client.signInWithOAuth(provider, {
+async function startOAuth() {
+  await client.signInWithOAuth('google', {
     returnPage: AUTH_ROUTES.account,
     redirectTo: authRouteUrl(config.publicSiteUrl, AUTH_ROUTES.account),
   });
@@ -239,8 +235,7 @@ async function resendConfirmation() {
 }
 
 function bindEvents() {
-  elements.google?.addEventListener('click', () => withOperation('oauth', () => startOAuth('google')));
-  elements.facebook?.addEventListener('click', () => withOperation('oauth', () => startOAuth('facebook')));
+  elements.google?.addEventListener('click', () => withOperation('oauth', startOAuth));
   elements.submit?.addEventListener('click', () => withOperation(pageMode === 'register' ? 'signup' : 'signin', pageMode === 'register' ? register : signIn));
   elements.recovery?.addEventListener('click', () => withOperation('recovery', recoverPassword));
   elements.verify?.addEventListener('click', () => withOperation('verify', verifyCode));
@@ -278,7 +273,7 @@ async function initialize() {
   });
   if (redirectToAuthRoute(experience, window.__MINUTO106_CONFIG__)) return;
 
-  renderProviderButtons(experience.mode, experience.identity);
+  renderProviderButton(experience.mode, experience.identity);
   if (pageMode === 'verify') {
     const snapshot = pendingState();
     if (elements.email) elements.email.value = snapshot.email;
@@ -293,7 +288,7 @@ async function initialize() {
       setStatus('Introduce el código de 6 dígitos o abre el enlace recibido. Al verificar ganas +1 intento diario y el logro Cuenta confirmada.');
     }
   } else if (pageMode === 'login') {
-    setStatus('Accede con email, Google o Facebook.');
+    setStatus('Accede con email o Google.');
   } else {
     setStatus('Crea tu cuenta. Después podrás confirmar el email con un código o enlace de un solo uso.');
   }
