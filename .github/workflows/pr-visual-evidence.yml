@@ -36,12 +36,15 @@ jobs:
 
           frontend_extensions = {'.css', '.gif', '.html', '.jpeg', '.jpg', '.png', '.svg', '.webp'}
           frontend_prefixes = ('public/', 'supabase/functions/player-share/')
+          non_browser_visual_prefixes = ('supabase/templates/',)
           start_marker = '<!-- visual-evidence:start -->'
           end_marker = '<!-- visual-evidence:end -->'
           placeholder = re.compile(r'(paste|pega|replace|placeholder|todo|example\.com|github\.com/OWNER)', re.I)
 
           def is_frontend(path):
               normalized = path.replace('\\', '/')
+              if normalized.startswith(non_browser_visual_prefixes):
+                  return False
               if normalized in {'index.html', 'playwright.config.js'}:
                   return True
               if normalized.startswith(frontend_prefixes):
@@ -71,7 +74,7 @@ jobs:
 
           frontend = sorted({path for path in changed if is_frontend(path)})
           if not frontend:
-              print('No frontend changes detected; visual evidence is not required.')
+              print('No browser frontend changes detected; platform visual evidence is not required.')
               sys.exit(0)
 
           body = os.environ.get('PR_BODY', '')
