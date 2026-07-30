@@ -9,7 +9,7 @@ const AUTH_EMAIL_SECTION = 'auth.email';
 const DEFAULT_CONFIG_URL = new URL('../supabase/config.toml', import.meta.url);
 
 function normalizedSettingValue(value) {
-  return String(value ?? '').trim();
+  return String(value).trim();
 }
 
 export function parseSupabaseAuthEmailPolicy(sourceValue) {
