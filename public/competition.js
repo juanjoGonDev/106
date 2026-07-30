@@ -1,3 +1,5 @@
+import { resolveDailyAttemptState } from './daily-attempt-limit.js';
+
 (() => {
   const config = window.__MINUTO106_CONFIG__ ?? {};
   const gameApiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
@@ -22,6 +24,14 @@
 
   function currentNick() {
     return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
+  }
+
+  function accountDailyAttemptPolicy() {
+    return window.Minuto106Access?.getAccountDailyAttemptPolicy?.() ?? null;
+  }
+
+  function globalAttemptState() {
+    return resolveDailyAttemptState(context.profile, accountDailyAttemptPolicy());
   }
 
   function leaguePublicUrl(publicId) {
@@ -49,15 +59,15 @@
       });
     }
 
-    const profile = context.profile;
+    const state = globalAttemptState();
     return Object.freeze({
       type: 'global',
       publicId: '',
       competitionCode: '',
       name: 'Ranking global',
-      attemptsLeft: Number(profile?.attemptsLeft ?? 5),
-      maxAttempts: Number(profile?.maxAttempts ?? 5),
-      available: context.availability !== 'occupied' && Number(profile?.attemptsLeft ?? 5) > 0,
+      attemptsLeft: state.attemptsLeft,
+      maxAttempts: state.maxAttempts,
+      available: context.availability !== 'occupied' && state.attemptsLeft > 0,
       waiting: false,
       finished: false,
     });
@@ -114,11 +124,10 @@
     if (!section || !select) return;
 
     const globalOption = document.createElement('option');
+    const globalState = globalAttemptState();
     globalOption.value = 'global';
-    const globalLeft = Number(context.profile?.attemptsLeft ?? 5);
-    const globalMax = Number(context.profile?.maxAttempts ?? 5);
-    globalOption.textContent = `Global · ${globalLeft}/${globalMax} tiros`;
-    globalOption.disabled = context.availability === 'occupied' || globalLeft <= 0;
+    globalOption.textContent = `Global · ${globalState.attemptsLeft}/${globalState.maxAttempts} tiros`;
+    globalOption.disabled = context.availability === 'occupied' || globalState.attemptsLeft <= 0;
 
     const leagueOptions = context.leagues.map((league) => {
       const option = document.createElement('option');
