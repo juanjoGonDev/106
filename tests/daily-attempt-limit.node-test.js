@@ -9,6 +9,7 @@ import {
   formatDailyCountdown,
   millisecondsUntilReset,
   normalizeDailyAttemptProfile,
+  resolveDailyAttemptState,
 } from '../public/daily-attempt-limit.js';
 
 test('normalizes missing, malformed and bounded daily profile values', () => {
@@ -62,6 +63,50 @@ test('normalizes missing, malformed and bounded daily profile values', () => {
     exhausted: false,
     atCeiling: false,
   });
+});
+
+test('resolves player state before account policy and falls back safely', () => {
+  const accountPolicy = {
+    attemptsLeft: 6,
+    maxAttempts: 6,
+    bonusAttempts: 1,
+    completedReferrals: 0,
+    dailyResetAt: '2026-07-31T00:00:00.000Z',
+  };
+  assert.deepEqual(resolveDailyAttemptState(null, accountPolicy), {
+    attemptsUsed: 0,
+    attemptsReserved: 0,
+    attemptsLeft: 6,
+    maxAttempts: 6,
+    bonusAttempts: 1,
+    completedReferrals: 0,
+    resetAt: '2026-07-31T00:00:00.000Z',
+    exhausted: false,
+    atCeiling: false,
+  });
+  assert.deepEqual(resolveDailyAttemptState({ nick: '  ', maxAttempts: 9 }, accountPolicy), resolveDailyAttemptState(null, accountPolicy));
+  assert.deepEqual(resolveDailyAttemptState([], accountPolicy), resolveDailyAttemptState(null, accountPolicy));
+
+  assert.deepEqual(resolveDailyAttemptState({
+    nick: 'Player',
+    attemptsUsed: 3,
+    dailyAttemptsReserved: 1,
+    attemptsLeft: 2,
+    maxAttempts: 6,
+    bonusAttempts: 1,
+  }, accountPolicy), {
+    attemptsUsed: 3,
+    attemptsReserved: 1,
+    attemptsLeft: 2,
+    maxAttempts: 6,
+    bonusAttempts: 1,
+    completedReferrals: 0,
+    resetAt: '',
+    exhausted: false,
+    atCeiling: false,
+  });
+
+  assert.deepEqual(resolveDailyAttemptState(null, '{invalid'), normalizeDailyAttemptProfile(null));
 });
 
 test('formats reset time without trusting invalid clocks', () => {
