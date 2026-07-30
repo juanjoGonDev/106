@@ -77,6 +77,8 @@ assert.equal(noPlayerPolicy.attemptsLeft, 6, JSON.stringify(noPlayerPolicy));
 assert.equal(noPlayerPolicy.maxAttempts, 6, JSON.stringify(noPlayerPolicy));
 assert.equal(noPlayerPolicy.bonusAttempts, 1, JSON.stringify(noPlayerPolicy));
 assert.equal(noPlayerPolicy.authRewardBonus, 1, JSON.stringify(noPlayerPolicy));
+const noPlayerTokenPolicy = json(databaseUrl, `public.get_game_account_daily_attempt_policy_by_token(${literal(noPlayerTokenHash)}, clock_timestamp())`);
+assert.deepEqual(noPlayerTokenPolicy, noPlayerPolicy);
 assert.equal(psql(databaseUrl, `
   select count(*)
   from public.game_account_players player
