@@ -132,16 +132,13 @@ async function accountDailyAttemptPolicy(request: Request) {
 }
 
 async function loadPlayerContext(request: Request, key: string) {
-  const [profile, dailyAttemptPolicy] = await Promise.all([
-    rpc('get_game_player_profile', { p_nick_key: key }) as Promise<JsonObject>,
-    accountDailyAttemptPolicy(request),
-  ]);
+  const profile = await rpc('get_game_player_profile', { p_nick_key: key }) as JsonObject;
   if (!profile?.nick) {
     return {
       availability: 'available',
       profile: null,
       leagues: [],
-      dailyAttemptPolicy,
+      dailyAttemptPolicy: await accountDailyAttemptPolicy(request),
     };
   }
 
@@ -151,7 +148,6 @@ async function loadPlayerContext(request: Request, key: string) {
       availability: 'occupied',
       profile,
       leagues: [],
-      dailyAttemptPolicy,
     };
   }
 
@@ -160,7 +156,6 @@ async function loadPlayerContext(request: Request, key: string) {
     availability: 'owned',
     profile,
     leagues: Array.isArray(leagues) ? leagues : [],
-    dailyAttemptPolicy,
   };
 }
 
@@ -212,7 +207,6 @@ Deno.serve(async (request) => {
           availability: `invalid-${reason}`,
           profile: null,
           leagues: [],
-          dailyAttemptPolicy: await accountDailyAttemptPolicy(request),
           validation,
         });
       }
