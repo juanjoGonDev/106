@@ -47,7 +47,7 @@ async function capture(page, testInfo) {
   await page.screenshot({ path: resolve(directory, `player-navigation-${device}.png`), animations: 'disabled', fullPage: true });
 }
 
-test('player clean routes keep home navigation anchored and explain impact progression', async ({ page }, testInfo) => {
+test('player clean routes keep home navigation anchored and explain every radar statistic', async ({ page }, testInfo) => {
   await installMocks(page);
   const pageErrors = [];
   const consoleErrors = [];
@@ -67,8 +67,35 @@ test('player clean routes keep home navigation anchored and explain impact progr
 
   await page.goto('/player/Vieucirst');
   await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
-  await expect(page.getByText('Cómo subir Impacto')).toBeVisible();
-  await expect(page.locator('#playerRadarExplanation')).toHaveText('Impacto 8/100 · 0 referidos completados · +1 intento diario adicional. Cada referido completado suma 20 puntos y cada intento diario adicional suma 8.');
+  await expect(page.getByRole('heading', { level: 3, name: 'Cómo se calcula cada estadística' })).toBeVisible();
+
+  const explanations = page.locator('#playerRadarExplanations details');
+  await expect(explanations).toHaveCount(5);
+  for (const [key, label, score] of [
+    ['precision', 'Precisión', '100/100'],
+    ['consistency', 'Regularidad', '83/100'],
+    ['experience', 'Experiencia', '85/100'],
+    ['reliability', 'Fiabilidad', '100/100'],
+    ['impact', 'Impacto', '8/100'],
+  ]) {
+    const explanation = page.locator(`details[data-stat-key="${key}"]`);
+    await expect(explanation.locator('summary')).toContainText(label);
+    await expect(explanation.locator('summary')).toContainText(score);
+  }
+
+  const precision = page.locator('details[data-stat-key="precision"]');
+  await precision.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(precision).toHaveAttribute('open', '');
+  await expect(precision).toContainText('Solo mejora cuando superas tu mejor diferencia.');
+  await page.keyboard.press('Enter');
+  await expect(precision).not.toHaveAttribute('open', '');
+
+  const impact = page.locator('details[data-stat-key="impact"]');
+  await impact.locator('summary').click();
+  await expect(impact).toHaveAttribute('open', '');
+  await expect(impact).toContainText('Cada referido completado suma 20 puntos y cada intento diario adicional suma 8');
+  await expect(impact).toContainText('Las partidas, los trofeos y los logros no lo aumentan directamente.');
 
   const brand = page.locator('.site-header .brand');
   const firstNavigationLink = page.locator('.site-navigation a').first();
