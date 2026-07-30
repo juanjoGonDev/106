@@ -13,6 +13,10 @@ const spainResetMigration = readFileSync(
   join(migrationDirectory, '20260731003000_spain_daily_reset.sql'),
   'utf8',
 );
+const lifetimeProfileMigration = readFileSync(
+  join(migrationDirectory, '20260731020000_lifetime_profile_attempts.sql'),
+  'utf8',
+);
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -31,7 +35,7 @@ describe('daily attempt and account referral limits', () => {
     ]);
   });
 
-  it('pins global challenges and attempts to a quota day with a forward Spain-time correction', () => {
+  it('pins global challenges and attempts to a quota day with forward Spain-time corrections', () => {
     expect(migration).toContain('add column if not exists quota_day date');
     expect(migration).toContain('game_challenges_global_quota_day_check');
     expect(migration).toContain('game_attempts_global_quota_day_check');
@@ -45,6 +49,18 @@ describe('daily attempt and account referral limits', () => {
     expect(spainResetMigration).toContain('set quota_day = public.game_server_day(created_at)');
     expect(spainResetMigration).toContain('where league_id is null');
     expect(spainResetMigration).not.toMatch(/update public\.game_(?:challenges|attempts)[\s\S]*where league_id is not null/i);
+  });
+
+  it('keeps lifetime profile attempts separate from the current-day quota overlay', () => {
+    expect(lifetimeProfileMigration).toContain('public.get_game_player_profile_without_daily_limits(p_nick_key)');
+    expect(lifetimeProfileMigration).toContain("'lifetimeAttemptsUsed'");
+    expect(lifetimeProfileMigration).toContain("payload->>'attemptsUsed'");
+    expect(lifetimeProfileMigration.indexOf("'lifetimeAttemptsUsed'"))
+      .toBeLessThan(lifetimeProfileMigration.indexOf('public.get_game_daily_attempt_state'));
+    expect(lifetimeProfileMigration).toContain('revoke all on function public.get_game_player_profile(text)');
+    expect(lifetimeProfileMigration).toContain('grant execute on function public.get_game_player_profile(text)');
+    expect(lifetimeProfileMigration).toContain('to service_role');
+    expect(lifetimeProfileMigration).not.toMatch(/grant execute[\s\S]*to (anon|authenticated)/i);
   });
 
   it('serializes reservations, midnight activation and referral completion', () => {
