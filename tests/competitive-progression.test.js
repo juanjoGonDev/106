@@ -102,10 +102,11 @@ describe('deterministic global ranking', () => {
 describe('single player context and attempt gating', () => {
   it('registers a dedicated context function that checks ownership without creating an account', () => {
     expect(config).toContain('[functions.player-context]');
-    expect(playerContext).toContain("const ACTIONS = new Set(['player-context', 'set-featured-achievements'])");
+    expect(playerContext).toContain("const ACTIONS = new Set(['account-context', 'player-context', 'set-featured-achievements'])");
     expect(playerContext).toContain("rpc('get_game_player_profile'");
     expect(playerContext).toContain("rpc('get_game_account_players'");
     expect(playerContext).toContain("rpc('get_game_player_leagues'");
+    expect(playerContext).toContain("rpc('get_game_account_daily_attempt_policy_by_token'");
     expect(playerContext).not.toContain('ensure_game_account_player');
     expect(playerContext).not.toContain('create_game_account');
   });
@@ -115,7 +116,8 @@ describe('single player context and attempt gating', () => {
     expect(honours).not.toContain("request('profile'");
     expect(honours).not.toContain('MutationObserver');
     expect(honours).toContain("document.addEventListener('minuto106:player-context'");
-    expect(competition).toContain("body: JSON.stringify({ action: 'player-context', nick })");
+    expect(competition).toContain("return requestContext('player-context', nick)");
+    expect(competition).toContain("return requestContext('account-context')");
     expect(competition).toContain('if (sequence !== requestSequence || nick !== currentNick())');
     expect(competition).toContain('window.clearTimeout(debounceTimer)');
     expect(competition).toContain('}, 350)');

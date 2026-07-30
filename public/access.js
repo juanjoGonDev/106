@@ -1,6 +1,7 @@
 const LEGACY_ACCESS_STORAGE_KEY = 'minuto106:player-access-v1';
 const ACCOUNT_STORAGE_KEY = 'minuto106:account-access-v1';
 const ACCOUNT_NICKS_STORAGE_KEY = 'minuto106:account-nicks-v1';
+const ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY = 'minuto106:account-daily-attempt-policy-v1';
 const ACTIVE_NICK_STORAGE_KEY = 'minuto106:nick';
 const protectedActions = new Set([
   'start',
@@ -33,14 +34,51 @@ function readJsonStorage(key, fallback) {
   }
 }
 
+function isRecord(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function dispatchAccountUpdated() {
+  document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+}
+
 function readLegacyAccessMap() {
   const value = readJsonStorage(LEGACY_ACCESS_STORAGE_KEY, {});
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return isRecord(value) ? value : {};
 }
 
 function generatePrivateKey() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizeAccountToken(token) {
+  const normalizedToken = String(token ?? '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalizedToken)) {
+    throw new Error('La clave de cuenta debe contener 64 caracteres hexadecimales.');
+  }
+  return normalizedToken;
+}
+
+function writeAccountDailyAttemptPolicy(policy) {
+  if (!isRecord(policy)) {
+    localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
+    return null;
+  }
+  try {
+    const normalized = JSON.parse(JSON.stringify(policy));
+    if (!isRecord(normalized)) throw new Error('invalid policy');
+    localStorage.setItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY, JSON.stringify(normalized));
+    return normalized;
+  } catch {
+    localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
+    return null;
+  }
+}
+
+function getAccountDailyAttemptPolicy() {
+  const policy = readJsonStorage(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY, null);
+  return isRecord(policy) ? policy : null;
 }
 
 function getAccountToken(create = false) {
@@ -49,32 +87,47 @@ function getAccountToken(create = false) {
   if (!token && create) {
     token = generatePrivateKey();
     localStorage.setItem(ACCOUNT_STORAGE_KEY, token);
-    document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+    localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
+    dispatchAccountUpdated();
   }
   return token;
 }
 
 function setAccountToken(token) {
-  const normalizedToken = String(token ?? '').trim().toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(normalizedToken)) {
-    throw new Error('La clave de cuenta debe contener 64 caracteres hexadecimales.');
-  }
+  const normalizedToken = normalizeAccountToken(token);
   localStorage.setItem(ACCOUNT_STORAGE_KEY, normalizedToken);
-  document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+  localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
+  dispatchAccountUpdated();
+  return normalizedToken;
+}
+
+function setAccountDailyAttemptPolicy(policy) {
+  const normalized = writeAccountDailyAttemptPolicy(policy);
+  dispatchAccountUpdated();
+  return normalized;
+}
+
+function setAccountSession(token, policy) {
+  const normalizedToken = normalizeAccountToken(token);
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, normalizedToken);
+  writeAccountDailyAttemptPolicy(policy);
+  dispatchAccountUpdated();
   return normalizedToken;
 }
 
 function clearAccountToken() {
   localStorage.removeItem(ACCOUNT_STORAGE_KEY);
-  document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+  localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
+  dispatchAccountUpdated();
 }
 
 function clearAccountSession() {
   localStorage.removeItem(ACCOUNT_STORAGE_KEY);
   localStorage.removeItem(ACCOUNT_NICKS_STORAGE_KEY);
+  localStorage.removeItem(ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY);
   localStorage.removeItem(LEGACY_ACCESS_STORAGE_KEY);
   localStorage.removeItem(ACTIVE_NICK_STORAGE_KEY);
-  document.dispatchEvent(new CustomEvent('minuto106:account-updated'));
+  dispatchAccountUpdated();
 }
 
 function getLegacyPlayerKey(nick) {
@@ -102,14 +155,14 @@ function rememberAccountNick(nick) {
   const key = normalizeAccessNick(normalized);
   if (!key) return;
   const entries = readJsonStorage(ACCOUNT_NICKS_STORAGE_KEY, {});
-  const map = entries && typeof entries === 'object' && !Array.isArray(entries) ? entries : {};
+  const map = isRecord(entries) ? entries : {};
   map[key] = normalized;
   localStorage.setItem(ACCOUNT_NICKS_STORAGE_KEY, JSON.stringify(map));
 }
 
 function getRememberedNicks() {
   const entries = readJsonStorage(ACCOUNT_NICKS_STORAGE_KEY, {});
-  return entries && typeof entries === 'object' && !Array.isArray(entries) ? Object.values(entries) : [];
+  return isRecord(entries) ? Object.values(entries) : [];
 }
 
 window.Minuto106Access = {
@@ -117,12 +170,15 @@ window.Minuto106Access = {
   clearAccountToken,
   forgetLegacyPlayerKey,
   generatePrivateKey,
+  getAccountDailyAttemptPolicy,
   getAccountToken,
   getLegacyLocalNicks,
   getLegacyPlayerKey,
   getRememberedNicks,
   normalizeAccessNick,
   rememberAccountNick,
+  setAccountDailyAttemptPolicy,
+  setAccountSession,
   setAccountToken,
 };
 

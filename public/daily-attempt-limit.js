@@ -11,6 +11,15 @@ function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function hasPlayerProfile(profile) {
+  return Boolean(
+    profile
+    && typeof profile === 'object'
+    && !Array.isArray(profile)
+    && String(profile.nick ?? '').trim(),
+  );
+}
+
 export function normalizeDailyAttemptProfile(profile) {
   const source = profile && typeof profile === 'object' ? profile : {};
   const bonusAttempts = clamp(
@@ -48,6 +57,10 @@ export function normalizeDailyAttemptProfile(profile) {
     exhausted: attemptsLeft === 0,
     atCeiling: maxAttempts === DAILY_ATTEMPT_CEILING,
   });
+}
+
+export function resolveDailyAttemptState(profile, accountPolicy) {
+  return normalizeDailyAttemptProfile(hasPlayerProfile(profile) ? profile : accountPolicy);
 }
 
 export function millisecondsUntilReset(resetAt, nowMs = Date.now()) {

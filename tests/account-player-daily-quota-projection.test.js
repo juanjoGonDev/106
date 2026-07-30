@@ -6,21 +6,22 @@ const migrationFile = '20260729214000_account_players_daily_quota_projection.sql
 const migration = readFileSync(`${migrationDirectory}/${migrationFile}`, 'utf8');
 const normalized = migration.replaceAll(/\s+/g, ' ').toLowerCase();
 
-function version(file) {
-  return file.slice(0, 14);
-}
-
 describe('linked-player daily quota projection', () => {
-  it('ships as the final forward-only account projection correction', () => {
+  it('remains the forward-only owner of the account player projection', () => {
     const migrations = readdirSync(migrationDirectory)
       .filter((file) => file.endsWith('.sql'))
       .sort();
+    const laterMigrations = migrations
+      .filter((file) => file > migrationFile)
+      .map((file) => readFileSync(`${migrationDirectory}/${file}`, 'utf8').replaceAll(/\s+/g, ' ').toLowerCase());
 
     expect(migrations).toContain(migrationFile);
-    expect(version(migrationFile)).toBe(version(migrations.at(-1)));
     expect(normalized).toContain('create or replace function public.get_game_account_players(p_account_token_hash text)');
     expect(normalized).not.toContain('alter function public.get_game_account_players');
     expect(normalized).not.toContain('rename to');
+    for (const laterMigration of laterMigrations) {
+      expect(laterMigration).not.toContain('create or replace function public.get_game_account_players(');
+    }
   });
 
   it('preserves lifetime metrics and overlays the authoritative server-day state', () => {

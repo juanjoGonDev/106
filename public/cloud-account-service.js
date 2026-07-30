@@ -49,14 +49,24 @@ export class CloudAccountService {
     return payload;
   }
 
-  async synchronize() {
-    const result = await this.request('sync-account');
-    if (result.accountToken) this.access?.setAccountToken?.(result.accountToken);
+  applyAccountState(result) {
+    const accountToken = String(result?.accountToken || '');
+    const policy = result?.dailyAttemptPolicy;
+    if (accountToken && this.access?.setAccountSession) {
+      this.access.setAccountSession(accountToken, policy);
+      return result;
+    }
+    if (accountToken) this.access?.setAccountToken?.(accountToken);
+    if (policy) this.access?.setAccountDailyAttemptPolicy?.(policy);
     return result;
   }
 
+  async synchronize() {
+    return this.applyAccountState(await this.request('sync-account'));
+  }
+
   async confirmMerge(proposal) {
-    return this.request('confirm-merge', proposal);
+    return this.applyAccountState(await this.request('confirm-merge', proposal));
   }
 
   async cancelMerge(proposalId) {
