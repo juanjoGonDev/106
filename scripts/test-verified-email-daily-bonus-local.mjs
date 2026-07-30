@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 function environment() {
@@ -55,6 +55,36 @@ function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
 
 const { databaseUrl } = environment();
 const suffix = Date.now().toString(36);
+
+const noPlayerAuthUserId = randomUUID();
+const noPlayerTokenHash = randomBytes(32).toString('hex');
+const preparedAccount = json(databaseUrl, `public.prepare_game_auth_link(
+  ${literal(noPlayerAuthUserId)}::uuid,
+  'email',
+  ${literal(`no-player-${suffix}@example.com`)},
+  true,
+  null,
+  ${literal(noPlayerTokenHash)}
+)`);
+assert.equal(preparedAccount.created, true, JSON.stringify(preparedAccount));
+json(databaseUrl, `public.record_game_auth_origin(${literal(noPlayerAuthUserId)}::uuid, 'email')`);
+const noPlayerReward = json(databaseUrl, `public.grant_game_auth_link_reward(${literal(noPlayerAuthUserId)}::uuid)`);
+assert.equal(noPlayerReward.dailyAttemptBonus, 1, JSON.stringify(noPlayerReward));
+const noPlayerPolicy = json(databaseUrl, `public.get_game_auth_daily_attempt_policy(${literal(noPlayerAuthUserId)}::uuid, clock_timestamp())`);
+assert.equal(noPlayerPolicy.attemptsUsed, 0, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.dailyAttemptsReserved, 0, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.attemptsLeft, 6, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.maxAttempts, 6, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.bonusAttempts, 1, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.authRewardBonus, 1, JSON.stringify(noPlayerPolicy));
+assert.equal(psql(databaseUrl, `
+  select count(*)
+  from public.game_account_players player
+  join public.game_auth_identities identity on identity.account_id = player.account_id
+  where identity.auth_user_id = ${literal(noPlayerAuthUserId)}::uuid;
+`), '0');
+process.stdout.write('✓ confirmed authentication policy exposes six daily attempts before a nick exists\n');
+
 const tokenHash = randomBytes(32).toString('hex');
 const deviceHash = `auth-device-${suffix}-${'d'.repeat(40)}`;
 const ipHash = `auth-ip-${suffix}-${'i'.repeat(44)}`;
@@ -86,6 +116,9 @@ for (const nickKey of [firstKey, secondKey]) {
   assert.equal(state.emailVerificationBonus, 1, JSON.stringify(state));
   assert.equal(state.bonusAttempts, 1, JSON.stringify(state));
   assert.equal(state.maxAttempts, 6, JSON.stringify(state));
+  const policy = json(databaseUrl, `public.get_game_account_daily_attempt_policy(${literal(accountId)}::uuid, clock_timestamp())`);
+  assert.equal(policy.maxAttempts, state.maxAttempts, JSON.stringify({ policy, state }));
+  assert.equal(policy.bonusAttempts, state.bonusAttempts, JSON.stringify({ policy, state }));
 }
 process.stdout.write('✓ one authentication entitlement adds one daily attempt to every nick on the account\n');
 
