@@ -71,7 +71,11 @@ function jsonPsql(databaseUrl, expression) {
 }
 
 function scalarPsql(databaseUrl, expression) {
-  return runPsql(databaseUrl, `select (${expression})::text;`).split(/\r?\n/).filter(Boolean).at(-1);
+  const source = String(expression).trim();
+  const statement = /\sfrom\s/i.test(source)
+    ? `select ${source};`
+    : `select (${source})::text;`;
+  return runPsql(databaseUrl, statement).split(/\r?\n/).filter(Boolean).at(-1);
 }
 
 function utcInstant(databaseUrl, expression) {
