@@ -12,15 +12,15 @@ function profile() {
   return {
     nick: 'Vieucirst',
     team: 'spain',
-    attemptsUsed: 5,
-    verifiedAttempts: 5,
+    attemptsUsed: 17,
+    verifiedAttempts: 17,
     averageDifferenceMs: 250,
     bestDifferenceMs: 4,
     globalRankBest: 1,
-    completedReferrals: 2,
+    completedReferrals: 0,
     bonusAttempts: 1,
-    trophies: { total: 3, days: 2, goldenBoot: 1, goldenGlove: 1, goldenBall: 1, leagueChampion: 0, history: [] },
-    achievements: { total: 3, points: 60, items: [], featured: [] },
+    trophies: { total: 4, days: 2, goldenBoot: 1, goldenGlove: 1, goldenBall: 1, leagueChampion: 1, history: [] },
+    achievements: { total: 12, points: 291, items: [], featured: [] },
     honoursProgress: { today: {} },
     history: [],
   };
@@ -47,10 +47,21 @@ async function capture(page, testInfo) {
   await page.screenshot({ path: resolve(directory, `player-navigation-${device}.png`), animations: 'disabled', fullPage: true });
 }
 
-test('player clean routes keep home navigation anchored to the application root', async ({ page }, testInfo) => {
+test('player clean routes keep home navigation anchored and explain impact progression', async ({ page }, testInfo) => {
   await installMocks(page);
+  const pageErrors = [];
+  const consoleErrors = [];
+  const failedRequests = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('requestfailed', (request) => failedRequests.push(`${request.method()} ${request.url()}`));
+
   await page.goto('/player/Vieucirst');
   await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
+  await expect(page.getByText('Cómo subir Impacto')).toBeVisible();
+  await expect(page.locator('#playerRadarExplanation')).toHaveText('Impacto 8/100 · 0 referidos completados · +1 intento diario adicional. Cada referido completado suma 20 puntos y cada intento diario adicional suma 8.');
 
   const brand = page.locator('.site-header .brand');
   const firstNavigationLink = page.locator('.site-navigation a').first();
@@ -59,6 +70,10 @@ test('player clean routes keep home navigation anchored to the application root'
 
   expect(new URL(brandHref, page.url()).pathname).toBe('/');
   expect(new URL(firstNavigationHref, page.url()).pathname).toBe('/');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  expect(failedRequests).toEqual([]);
   await capture(page, testInfo);
 
   await brand.click();
