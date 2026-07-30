@@ -9,6 +9,7 @@ import { browserAuthExperience } from './auth-browser-context.js';
 import { AuthCaptcha } from './auth-captcha.js';
 import {
   authIdentity,
+  identitySupportsPassword,
   providerAction,
   shouldShowEmailVerification,
 } from './auth-experience-state.js';
@@ -36,6 +37,7 @@ const elements = {
   captcha: document.querySelector('#authCaptcha'),
   localGoogle: document.querySelector('#googleSignIn'),
   authenticatedGoogle: document.querySelector('#authenticatedGoogle'),
+  changePassword: document.querySelector('#changePasswordLink'),
   signOut: document.querySelector('#cloudSignOut'),
   mergeDialog: document.querySelector('#accountMergeDialog'),
   mergeSummary: document.querySelector('#accountMergeSummary'),
@@ -128,6 +130,10 @@ function renderExperience() {
   renderIdentity(identity);
   renderProviderButton(elements.localGoogle, 'local-link', identity);
   renderProviderButton(elements.authenticatedGoogle, 'authenticated', identity);
+  if (elements.changePassword) {
+    elements.changePassword.hidden = mode !== 'authenticated' || !identitySupportsPassword(identity);
+    elements.changePassword.setAttribute('aria-disabled', String(busy));
+  }
   if (elements.signOut) elements.signOut.disabled = busy || !config.available;
 }
 
@@ -234,6 +240,30 @@ async function resendConfirmation() {
   renderPendingConfirmation();
 }
 
+async function confirmCompleteSignOut() {
+  return window.Minuto106UI?.ask({
+    title: 'Cerrar sesión en este dispositivo',
+    message: 'Se cerrará la sesión en la nube y se eliminarán de este navegador la clave privada y los accesos locales. Podrás volver a entrar con email o Google.',
+    acceptLabel: 'Cerrar sesión',
+    cancelLabel: 'Cancelar',
+  }) ?? false;
+}
+
+async function completeSignOut() {
+  if (!await confirmCompleteSignOut()) return;
+  const result = await client.signOut({ suppressRemoteError: true });
+  clearPendingConfirmation(localStorage);
+  window.Minuto106Access?.clearAccountSession?.();
+  currentSession = null;
+  await refreshExperience();
+  document.dispatchEvent(new CustomEvent('minuto106:cloud-account-synced'));
+  if (result.remoteRevoked) {
+    setStatus('Sesión cerrada por completo. Ya puedes iniciar sesión o crear otra cuenta.', 'success');
+    return;
+  }
+  setStatus('Sesión local cerrada. No se pudo confirmar la revocación remota; cambia la contraseña si sospechas que otra persona conserva acceso.', 'warning');
+}
+
 function bindProvider(button) {
   button?.addEventListener('click', () => withOperation(startOAuth));
 }
@@ -257,7 +287,7 @@ async function initialize() {
   await refreshExperience();
 
   if (currentSession && !authIdentity(currentSession)) {
-    client.clearSession();
+    client.clearAuthenticationState();
     currentSession = null;
     await refreshExperience();
     setStatus('La sesión guardada usa un proveedor no compatible. Inicia sesión con Google o email.', 'warning');
@@ -284,13 +314,7 @@ bindProvider(elements.localGoogle);
 bindProvider(elements.authenticatedGoogle);
 
 elements.resend?.addEventListener('click', () => withOperation(resendConfirmation));
-
-elements.signOut?.addEventListener('click', () => withOperation(async () => {
-  await client.signOut();
-  currentSession = null;
-  await refreshExperience();
-  setStatus('Sesión en la nube cerrada. La clave privada de este dispositivo sigue activa.', 'success');
-}));
+elements.signOut?.addEventListener('click', () => withOperation(completeSignOut));
 
 elements.mergeConfirm?.addEventListener('click', () => withOperation(async () => {
   if (!pendingMerge) return;

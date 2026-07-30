@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path) => readFileSync(path, 'utf8');
 const authEntry = read('public/auth-route-entry.js');
 const accountEntry = read('public/account-auth-entry.js');
+const accountController = read('public/account-auth.js');
 const passwordComponent = read('public/password-visibility.js');
 const passwordStyles = read('public/password-visibility.css');
 const authStyles = read('public/v21.css');
@@ -29,14 +30,16 @@ describe('authentication route guard wiring', () => {
     expect(authStyles).toContain('body[data-auth-page]:not([data-auth-route-ready=true]) [data-auth-shell]{visibility:hidden}');
   });
 
-  it('guards recovery and clears pending confirmation before account sign-out refresh', () => {
+  it('guards recovery and clears pending confirmation inside the account controller before refresh', () => {
     expect(pages.reset).toContain('data-auth-page="reset"');
     expect(pages.reset).toContain('data-auth-shell');
     expect(read('public/password-reset.js')).toContain('guardAuthRoute({');
     expect(pages.account).toContain('src="./account-auth-entry.js"');
     expect(pages.account).not.toContain('src="./account-auth.js"');
-    expect(accountEntry).toContain('clearPendingConfirmation(window.localStorage)');
-    expect(accountEntry).toContain("await import('./account-auth.js')");
+    expect(accountEntry.trim()).toBe("await import('./account-auth.js');");
+    expect(accountController).toContain('clearPendingConfirmation(localStorage);');
+    expect(accountController.indexOf('clearPendingConfirmation(localStorage);'))
+      .toBeLessThan(accountController.indexOf('await refreshExperience();', accountController.indexOf('async function completeSignOut')));
   });
 });
 

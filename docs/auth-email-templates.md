@@ -41,52 +41,75 @@ pnpm test:auth-email-templates:coverage
 
 ## Hosted Supabase rollout
 
-Repository files and `supabase/config.toml` do **not** mutate the hosted project's Auth configuration. After the pull request is approved and merged, an authorized operator must apply the maintained subjects, HTML bodies and notification flags in one of two ways.
+Repository files and `supabase/config.toml` do **not** mutate the hosted project. They configure local Auth and provide the maintained source used by the existing protected `Deploy Supabase backend safely` workflow.
 
-### Dashboard
+On a push to `main` that changes maintained email sources, generated templates, Auth configuration or the synchronization scripts, the production workflow:
 
-1. Open the hosted project.
-2. Go to Authentication → Email Templates.
-3. Copy each subject and generated HTML body from the corresponding repository file.
-4. Enable the maintained security notifications.
-5. Save and send real confirmation, recovery and security smoke emails.
+1. Reads the current hosted Auth configuration through the Supabase Management API.
+2. Compares only the maintained `mailer_*` keys with the generated catalogue.
+3. Skips PATCH when no managed value has drifted.
+4. PATCHes the complete maintained payload when drift exists.
+5. Reads the hosted configuration again and fails unless every managed key matches exactly.
+6. Runs this gate before database migration or Edge Function deployment.
 
-### Management API payload
+The workflow uses the protected `production` environment with:
 
-Generate the complete credential-free request body:
+- `SUPABASE_ACCESS_TOKEN` as an Actions secret;
+- `SUPABASE_PROJECT_ID` as an Actions variable.
+
+No HTML body, access token or SMTP credential is printed. Failures report managed key names, HTTP status and a bounded Management API response.
+
+### Operator commands
+
+Generate the complete credential-free hosted payload for review:
 
 ```bash
 mkdir -p .tmp
 pnpm auth:emails:hosted > .tmp/auth-email-config.json
 ```
 
-Inspect the payload before applying it. Then use an operator-owned Supabase access token from a protected shell:
+Check whether the hosted project matches without modifying it:
 
 ```bash
-curl --fail-with-body --request PATCH \
-  "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/config/auth" \
-  --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-  --header "Content-Type: application/json" \
-  --data-binary @.tmp/auth-email-config.json
+SUPABASE_PROJECT_ID=your-project-ref \
+SUPABASE_ACCESS_TOKEN=your-operator-token \
+pnpm auth:emails:sync
 ```
 
-Never commit `.tmp/auth-email-config.json`, an access token, SMTP key, secret key or service-role credential. The generated JSON contains no credentials, but it is still an operational configuration artifact and should be reviewed before use.
+Apply and verify manually only from an authorized protected shell:
+
+```bash
+SUPABASE_PROJECT_ID=your-project-ref \
+SUPABASE_ACCESS_TOKEN=your-operator-token \
+node scripts/sync-hosted-auth-email-templates.mjs --apply
+```
+
+Never commit `.tmp/auth-email-config.json`, an access token, SMTP key, secret key or service-role credential. The generated JSON contains no credentials, but it remains an operational configuration artifact.
+
+### Supabase plan and SMTP restrictions
+
+A newly created Free project using Supabase's default SMTP provider may reject custom Auth templates. In that case the synchronization gate fails instead of silently continuing with the old/default message. Configure custom SMTP or use an eligible plan, then rerun the protected production deployment. Minuto 106 currently expects its external SMTP provider to remain configured and healthy.
 
 ## Verification checklist
 
-1. Confirm the hosted subject is Spanish and branded rather than the Supabase default.
-2. Confirm the hero image loads from the canonical Pages asset and meaningful text remains when images are blocked.
-3. Confirm signup displays both the OTP and verification button.
-4. Confirm the button reaches `verificar-email.html` and a manual OTP succeeds.
-5. Confirm recovery reaches `restablecer-clave.html` and cannot be replayed.
-6. Confirm Gmail desktop/mobile and at least one non-Gmail client preserve hierarchy, contrast, wrapping and the plain-link fallback.
-7. Confirm security notifications contain the expected event variable without exposing credentials.
-8. Disable click tracking in the SMTP provider for Auth messages so verification links are not rewritten.
+Repository tests cannot replace real confirmation, recovery and security smoke emails from the hosted project. Produce that evidence after hosted synchronization.
+
+1. Confirm the protected Supabase deployment reports hosted Auth synchronization and exact post-PATCH verification.
+2. Confirm the hosted subject is Spanish and branded rather than the Supabase default.
+3. Confirm the hero image loads from the canonical Pages asset and meaningful text remains when images are blocked.
+4. Confirm signup displays both the OTP and verification button.
+5. Confirm the button reaches `verificar-email.html` and a manual OTP succeeds.
+6. Confirm recovery reaches `restablecer-clave.html` and cannot be replayed.
+7. Confirm Gmail desktop/mobile and at least one non-Gmail client preserve hierarchy, contrast, wrapping and the plain-link fallback.
+8. Confirm security notifications contain the expected event variable without exposing credentials.
+9. Disable click tracking in the SMTP provider for Auth messages so verification links are not rewritten.
 
 ## Default-template fallback
 
-A plain Supabase email after hosted synchronization is not acceptable evidence that the repository source is active. Check hosted Auth logs for template parse failures and verify that only supported Go-template variables are present. Supabase can fall back to a default message when the hosted template is missing or invalid.
+A plain Supabase email after a successful repository merge is expected until the protected Supabase production workflow has synchronized the hosted project. A plain email after that workflow reports successful post-PATCH verification is a defect.
+
+Check hosted Auth logs for template parse failures, verify the project is using the intended SMTP provider and confirm that only supported Go-template variables are present. A hosted template that is missing, rejected or invalid can result in Supabase sending its default message.
 
 ## Rollback
 
-Before changing hosted configuration, export its current `mailer_*` values. Restore that payload through the dashboard or Management API if delivery or rendering regresses. Repository changes and hosted Auth configuration are independent rollback boundaries.
+Before changing hosted configuration manually, export its current `mailer_*` values. Restore that payload through the dashboard or Management API if delivery or rendering regresses. Repository changes and hosted Auth configuration remain independent rollback boundaries. A workflow rollback must use a normal revert and must not expose or rotate credentials in source.
