@@ -1,27 +1,44 @@
+create or replace function public.game_account_daily_bonus(p_account_id uuid)
+returns integer
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_account_id uuid := public.daily_game_account_id(p_account_id);
+begin
+  if v_account_id is null then return 0; end if;
+
+  return least(
+    5,
+    greatest(0, public.game_account_referral_bonus(v_account_id))
+      + greatest(0, public.game_account_auth_daily_bonus(v_account_id))
+  );
+end;
+$$;
+
 create or replace function public.get_game_account_daily_attempt_policy(
   p_account_id uuid,
   p_at timestamptz default clock_timestamp()
 ) returns jsonb
 language plpgsql
-volatile
+stable
 security definer
 set search_path = public, pg_temp
 as $$
 declare
   v_day date := public.game_server_day(p_at);
   v_account_id uuid := public.daily_game_account_id(p_account_id);
-  v_referral_bonus integer := 0;
   v_auth_bonus integer := 0;
   v_bonus integer := 0;
   v_completed_referrals integer := 0;
 begin
   if v_account_id is not null then
-    v_referral_bonus := public.game_account_referral_bonus(v_account_id);
     v_auth_bonus := public.game_account_auth_daily_bonus(v_account_id);
+    v_bonus := public.game_account_daily_bonus(v_account_id);
     v_completed_referrals := public.game_account_completed_referrals(v_account_id);
   end if;
-
-  v_bonus := least(5, greatest(0, v_referral_bonus) + greatest(0, v_auth_bonus));
 
   return jsonb_build_object(
     'attemptsUsed', 0,
@@ -46,7 +63,7 @@ create or replace function public.get_game_auth_daily_attempt_policy(
   p_at timestamptz default clock_timestamp()
 ) returns jsonb
 language plpgsql
-volatile
+stable
 security definer
 set search_path = public, pg_temp
 as $$
@@ -80,19 +97,13 @@ as $$
       ) as historical_referral_bonus
     from (select 1) seed
     left join public.game_player_bonus bonus on bonus.nick_key = p_nick_key
-  ), account_policy as (
-    select coalesce(
-      (public.get_game_account_daily_attempt_policy(selected.account_id)->>'bonusAttempts')::integer,
-      0
-    ) as account_bonus
-    from selected
   )
   select least(
     5,
-    account_policy.account_bonus
+    public.game_account_daily_bonus(selected.account_id)
       + greatest(0, legacy.total_bonus - legacy.historical_referral_bonus)
   )::integer
-  from account_policy cross join legacy;
+  from selected cross join legacy;
 $$;
 
 create or replace function public.get_game_daily_attempt_state(
@@ -146,11 +157,13 @@ begin
 end;
 $$;
 
+revoke all on function public.game_account_daily_bonus(uuid) from public, anon, authenticated;
 revoke all on function public.get_game_account_daily_attempt_policy(uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.get_game_auth_daily_attempt_policy(uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.game_player_daily_bonus(text) from public, anon, authenticated;
 revoke all on function public.get_game_daily_attempt_state(text, timestamptz) from public, anon, authenticated;
 
+grant execute on function public.game_account_daily_bonus(uuid) to service_role;
 grant execute on function public.get_game_account_daily_attempt_policy(uuid, timestamptz) to service_role;
 grant execute on function public.get_game_auth_daily_attempt_policy(uuid, timestamptz) to service_role;
 grant execute on function public.game_player_daily_bonus(text) to service_role;
