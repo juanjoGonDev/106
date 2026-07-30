@@ -70,6 +70,21 @@ function jsonPsql(databaseUrl, expression) {
   return JSON.parse(output.split(/\r?\n/).filter(Boolean).at(-1));
 }
 
+function scalarPsql(databaseUrl, expression) {
+  const source = String(expression).trim();
+  const statement = /\sfrom\s/i.test(source)
+    ? `select ${source};`
+    : `select (${source})::text;`;
+  return runPsql(databaseUrl, statement).split(/\r?\n/).filter(Boolean).at(-1);
+}
+
+function utcInstant(databaseUrl, expression) {
+  return runPsql(
+    databaseUrl,
+    `select to_char((${expression}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');`,
+  ).split(/\r?\n/).filter(Boolean).at(-1);
+}
+
 function createPlayer(databaseUrl, { nick, tokenHash, deviceHash, ipHash }) {
   const key = nick.toLocaleLowerCase('es');
   const result = jsonPsql(databaseUrl, `public.ensure_game_account_player(
@@ -116,9 +131,37 @@ const { databaseUrl } = readLocalEnvironment();
 const suffix = Date.now().toString(36);
 const token = () => randomBytes(32).toString('hex');
 const hash = (label) => `${label}-${suffix}-${'x'.repeat(48)}`;
-const today = runPsql(databaseUrl, 'select public.game_server_day(clock_timestamp())::text;').split(/\r?\n/).at(-1);
-const yesterday = runPsql(databaseUrl, 'select (public.game_server_day(clock_timestamp()) - 1)::text;').split(/\r?\n/).at(-1);
-const tomorrow = runPsql(databaseUrl, 'select (public.game_server_day(clock_timestamp()) + 1)::text;').split(/\r?\n/).at(-1);
+
+assert.equal(
+  scalarPsql(databaseUrl, "public.game_server_day('2026-07-31T21:59:59Z'::timestamptz)"),
+  '2026-07-31',
+);
+assert.equal(
+  scalarPsql(databaseUrl, "public.game_server_day('2026-07-31T22:00:00Z'::timestamptz)"),
+  '2026-08-01',
+);
+assert.equal(
+  utcInstant(databaseUrl, "public.game_server_reset_at('2026-07-31'::date)"),
+  '2026-07-31T22:00:00Z',
+);
+assert.equal(
+  scalarPsql(databaseUrl, "public.game_server_day('2026-12-31T22:59:59Z'::timestamptz)"),
+  '2026-12-31',
+);
+assert.equal(
+  scalarPsql(databaseUrl, "public.game_server_day('2026-12-31T23:00:00Z'::timestamptz)"),
+  '2027-01-01',
+);
+assert.equal(
+  utcInstant(databaseUrl, "public.game_server_reset_at('2026-12-31'::date)"),
+  '2026-12-31T23:00:00Z',
+);
+process.stdout.write('✓ Spain midnight is canonical across summer and winter daylight-saving offsets\n');
+
+const today = scalarPsql(databaseUrl, 'public.game_server_day(clock_timestamp())');
+const yesterday = scalarPsql(databaseUrl, 'public.game_server_day(clock_timestamp()) - 1');
+const tomorrow = scalarPsql(databaseUrl, 'public.game_server_day(clock_timestamp()) + 1');
+const expectedResetAt = utcInstant(databaseUrl, `public.game_server_reset_at(${sqlLiteral(today)}::date)`);
 
 const referrerToken = token();
 const referrerNickA = `DailyRefA${suffix}`.slice(0, 24);
@@ -153,8 +196,8 @@ state = jsonPsql(databaseUrl, `public.get_game_daily_attempt_state(
 assert.equal(state.attemptsUsed, 5, JSON.stringify(state));
 assert.equal(state.attemptsLeft, 0, JSON.stringify(state));
 assert.equal(state.maxAttempts, 5, JSON.stringify(state));
-assert.equal(state.dailyResetAt, `${tomorrow}T00:00:00+00:00`);
-process.stdout.write('✓ five current-day attempts exhaust the base quota with an exact UTC reset\n');
+assert.equal(Date.parse(state.dailyResetAt), Date.parse(expectedResetAt));
+process.stdout.write('✓ five current-day attempts exhaust the base quota with an exact Spain-midnight reset\n');
 
 const referredToken = token();
 const referredNickA = `DailyNewA${suffix}`.slice(0, 24);
@@ -167,7 +210,7 @@ const referredKeyA = createPlayer(databaseUrl, {
 const referredKeyB = createPlayer(databaseUrl, {
   nick: referredNickB, tokenHash: referredToken, deviceHash: referredDevice, ipHash: referredIp,
 });
-const referralCode = runPsql(databaseUrl, `select referral_code::text from public.game_players where nick_key = ${sqlLiteral(referrerKeyA)};`).split(/\r?\n/).at(-1);
+const referralCode = scalarPsql(databaseUrl, `referral_code from public.game_players where nick_key = ${sqlLiteral(referrerKeyA)}`);
 
 const registered = jsonPsql(databaseUrl, `public.register_game_account_referral(
   ${sqlLiteral(referralCode)}::uuid, ${sqlLiteral(referredKeyA)},
@@ -196,7 +239,7 @@ insertVerifiedAttempts(databaseUrl, {
   nick: referredNickB, nickKey: referredKeyB, deviceHash: referredDevice, ipHash: referredIp,
   day: today, count: 2,
 });
-const referredAccountId = runPsql(databaseUrl, `select public.game_account_id_for_nick(${sqlLiteral(referredKeyA)})::text;`).split(/\r?\n/).at(-1);
+const referredAccountId = scalarPsql(databaseUrl, `public.game_account_id_for_nick(${sqlLiteral(referredKeyA)})`);
 const completionSql = `select public.complete_game_account_referral(${sqlLiteral(referredAccountId)}::uuid, clock_timestamp())::text;`;
 const completions = await Promise.all([
   runPsqlAsync(databaseUrl, completionSql),
@@ -216,7 +259,7 @@ for (const nickKey of [referrerKeyA, referrerKeyB]) {
 }
 process.stdout.write('✓ the referral bonus increases every nick on the referrer account\n');
 
-const referrerAccountId = runPsql(databaseUrl, `select public.game_account_id_for_nick(${sqlLiteral(referrerKeyA)})::text;`).split(/\r?\n/).at(-1);
+const referrerAccountId = scalarPsql(databaseUrl, `public.game_account_id_for_nick(${sqlLiteral(referrerKeyA)})`);
 runPsql(databaseUrl, `
   do $block$
   declare

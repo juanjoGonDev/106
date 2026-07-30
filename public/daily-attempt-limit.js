@@ -97,9 +97,8 @@ export function dailyReferralProgress(state) {
   });
 }
 
-export function exhaustedDailyLimitCopy(profile, nowMs = Date.now()) {
+export function exhaustedDailyLimitCopy(profile) {
   const state = normalizeDailyAttemptProfile(profile);
   if (!state.exhausted) return '';
-  const countdown = formatDailyCountdown(millisecondsUntilReset(state.resetAt, nowMs));
-  return `Has agotado tus ${state.maxAttempts} intentos globales de hoy. Se reinician en ${countdown}, según la hora del servidor.`;
+  return `Has agotado tus ${state.maxAttempts} intentos globales de hoy.`;
 }

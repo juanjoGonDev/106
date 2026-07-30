@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="./v11.css">
   <link rel="stylesheet" href="./v15.css">
   <link rel="stylesheet" href="./v16.css">
+  <link rel="stylesheet" href="./v20.css?v=20260731-stat-accordion">
 </head>
 <body>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -69,7 +70,17 @@
             <h3>Historial conseguido</h3><ol id="playerTrophies" class="player-list"></ol>
           </section>
         </div>
-        <aside class="player-panel"><p class="eyebrow">PENTÁGONO DE ESTADÍSTICAS</p><h2>Perfil de juego</h2><div id="playerRadar"></div><img id="playerCardPreview" class="player-card-preview" width="1200" height="630" decoding="async" alt="Vista previa completa de la tarjeta social dinámica"></aside>
+        <aside class="player-panel">
+          <p class="eyebrow">PENTÁGONO DE ESTADÍSTICAS</p>
+          <h2>Perfil de juego</h2>
+          <div id="playerRadar"></div>
+          <section class="player-radar-guide" aria-labelledby="playerRadarGuideTitle">
+            <h3 id="playerRadarGuideTitle">Cómo se calcula cada estadística</h3>
+            <p class="player-radar-guide__intro">Abre cada apartado para consultar qué mide, el cálculo exacto y cómo mejorar su puntuación.</p>
+            <div id="playerRadarExplanations" class="player-radar-accordion" aria-live="polite"></div>
+          </section>
+          <img id="playerCardPreview" class="player-card-preview" width="1200" height="630" decoding="async" alt="Vista previa completa de la tarjeta social dinámica">
+        </aside>
       </div>
     </div>
   </main>
@@ -78,8 +89,8 @@
   <script src="./layout.js"></script>
   <script src="./access.js"></script>
   <script src="./nickname-policy.js"></script>
-  <script src="./player-ui.js"></script>
-  <script src="./player-stats.js"></script>
+  <script src="./player-ui.js?v=20260731-clean-route"></script>
+  <script src="./player-stats.js?v=20260731-stat-accordion"></script>
   <script src="./honours-catalog.js"></script>
   <script src="./profile-card-highlights.js"></script>
   <script src="./profile-share.js" data-minuto106-profile-share></script>

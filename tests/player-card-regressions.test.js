@@ -10,11 +10,13 @@ const edgeRadarElement = edgeCard.slice(edgeCard.indexOf('function radarElement'
 
 describe('player card radar parity', () => {
   it('uses the browser impact inputs instead of achievement points', () => {
-    for (const source of [browserRadar, edgeRadarStats]) {
-      expect(source).toContain('completedReferrals');
-      expect(source).toContain('bonusAttempts');
-      expect(source).toContain('completedReferrals * 20 + bonusAttempts * 8');
-    }
+    expect(browserRadar).toContain('impactPointsPerReferral: 20');
+    expect(browserRadar).toContain('impactPointsPerBonusAttempt: 8');
+    expect(browserRadar).toContain('completedReferrals * RADAR_POLICY.impactPointsPerReferral');
+    expect(browserRadar).toContain('bonusAttempts * RADAR_POLICY.impactPointsPerBonusAttempt');
+    expect(edgeRadarStats).toContain('completedReferrals');
+    expect(edgeRadarStats).toContain('bonusAttempts');
+    expect(edgeRadarStats).toContain('completedReferrals * 20 + bonusAttempts * 8');
     expect(edgeRadarStats).not.toContain('achievements');
   });
 

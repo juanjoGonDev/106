@@ -61,6 +61,11 @@
     return url;
   }
 
+  function normalizeDocumentAssets() {
+    const favicon = globalThis.document?.querySelector?.('link[rel~="icon"]');
+    if (favicon) favicon.href = new URL('assets/favicon.svg', appBaseUrl()).toString();
+  }
+
   function playerShellUrl(nick, section = 'overview', baseHref) {
     const url = new URL('player.html', appBaseUrl(baseHref));
     url.searchParams.set('nick', normalizeNick(nick));
@@ -161,4 +166,6 @@
     shareUrl,
     teamHtml,
   });
+
+  normalizeDocumentAssets();
 })();

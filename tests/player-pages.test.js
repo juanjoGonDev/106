@@ -68,6 +68,21 @@ describe('player pages and ranking links', () => {
     expect(server).toContain('/ligas\\/[A-Z0-9]{6}');
   });
 
+  it('renders one accessible native accordion entry for every radar statistic', () => {
+    const html = read('public/player.html');
+    const script = read('public/player-stats.js');
+    const styles = read('public/v20.css');
+    expect(html).toContain('Cómo se calcula cada estadística');
+    expect(html).toContain('id="playerRadarExplanations"');
+    expect(html).not.toContain('id="playerRadarExplanation"');
+    expect(script).toContain("document.createElement('details')");
+    expect(script).toContain('details.dataset.statKey = explanation.key');
+    expect(script).toContain("summary.setAttribute('aria-label'");
+    expect(script).toContain('renderStatExplanations(document.querySelector');
+    expect(styles).toContain('.player-radar-stat[open]');
+    expect(styles).toContain('.player-radar-stat summary:focus-visible');
+  });
+
   it('separates achievement descriptions and dates into semantic elements', () => {
     const honours = read('public/honours.js');
     const player = read('public/player.js');
@@ -78,12 +93,13 @@ describe('player pages and ranking links', () => {
     expect(styles).toContain('.player-list__copy time');
   });
 
-  it('audits pointer cursors for anchors and enabled controls globally', () => {
+  it('audits pointer cursors and clean-route-safe shared assets globally', () => {
     const styles = read('public/v11.css');
     const honours = read('public/honours.js');
     expect(styles).toContain('a[href],button:not(:disabled)');
     expect(styles).toContain('[role="button"]:not([aria-disabled="true"])');
-    expect(honours).toContain("stylesheet.href = './v11.css'");
+    expect(honours).toContain("stylesheet.href = appAssetUrl('v11.css')");
+    expect(honours).toContain("script.src = appAssetUrl('share-actions.js')");
   });
 });
 
