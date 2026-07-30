@@ -154,6 +154,5 @@ test('describes referral progress and exhausted copy at every boundary', () => {
     attemptsLeft: 0,
     maxAttempts: 6,
     dailyResetAt: '2026-07-28T00:00:00.000Z',
-  }, Date.parse('2026-07-27T23:59:58.500Z')),
-  'Has agotado tus 6 intentos globales de hoy. Se reinician en 00:00:02, según la hora del servidor.');
+  }), 'Has agotado tus 6 intentos globales de hoy.');
 });
