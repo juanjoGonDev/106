@@ -73,7 +73,8 @@ test('resolves player state before account policy and falls back safely', () => 
     completedReferrals: 0,
     dailyResetAt: '2026-07-31T00:00:00.000Z',
   };
-  assert.deepEqual(resolveDailyAttemptState(null, accountPolicy), {
+  const accountState = resolveDailyAttemptState(null, accountPolicy);
+  assert.deepEqual(accountState, {
     attemptsUsed: 0,
     attemptsReserved: 0,
     attemptsLeft: 6,
@@ -84,8 +85,9 @@ test('resolves player state before account policy and falls back safely', () => 
     exhausted: false,
     atCeiling: false,
   });
-  assert.deepEqual(resolveDailyAttemptState({ nick: '  ', maxAttempts: 9 }, accountPolicy), resolveDailyAttemptState(null, accountPolicy));
-  assert.deepEqual(resolveDailyAttemptState([], accountPolicy), resolveDailyAttemptState(null, accountPolicy));
+  assert.deepEqual(resolveDailyAttemptState({}, accountPolicy), accountState);
+  assert.deepEqual(resolveDailyAttemptState({ nick: '  ', maxAttempts: 9 }, accountPolicy), accountState);
+  assert.deepEqual(resolveDailyAttemptState([], accountPolicy), accountState);
 
   assert.deepEqual(resolveDailyAttemptState({
     nick: 'Player',
