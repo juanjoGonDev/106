@@ -1,10 +1,22 @@
 import { buildHostedAuthEmailConfig } from './auth-email-templates.mjs';
+import { SUPABASE_AUTH_EMAIL_POLICY } from './supabase-auth-email-policy.mjs';
 
 const DEFAULT_API_BASE_URL = 'https://api.supabase.com/v1/projects';
 const MAX_ERROR_BODY_LENGTH = 600;
 
 function normalizedEnvironmentValue(value) {
   return String(value ?? '').trim();
+}
+
+export function buildHostedAuthConfiguration({
+  emailConfig = buildHostedAuthEmailConfig(),
+  authEmailPolicy = SUPABASE_AUTH_EMAIL_POLICY,
+} = {}) {
+  return Object.freeze({
+    ...emailConfig,
+    mailer_otp_length: authEmailPolicy.otpLength,
+    mailer_otp_exp: authEmailPolicy.otpExpirySeconds,
+  });
 }
 
 export function hostedAuthEmailSyncEnvironment(environment = process.env) {
@@ -64,7 +76,7 @@ export async function synchronizeHostedAuthEmails({
   projectId,
   accessToken,
   apply = false,
-  expected = buildHostedAuthEmailConfig(),
+  expected = buildHostedAuthConfiguration(),
   apiBaseUrl = DEFAULT_API_BASE_URL,
 } = {}) {
   if (typeof fetchFn !== 'function') throw new Error('A fetch implementation is required.');

@@ -21,23 +21,25 @@ describe('hosted Supabase Auth email deployment', () => {
     expect(workflow).not.toContain('pull_request_target');
   });
 
-  it('triggers when maintained email source or generated templates change', () => {
+  it('triggers when maintained email policy, source or generated templates change', () => {
     for (const path of [
       "'supabase/templates/**'",
       "'supabase/config.toml'",
       "'scripts/auth-email-templates.mjs'",
       "'scripts/generate-auth-email-templates.mjs'",
+      "'scripts/supabase-auth-email-policy.mjs'",
       "'scripts/hosted-auth-email-sync.mjs'",
       "'scripts/sync-hosted-auth-email-templates.mjs'",
     ]) expect(workflow).toContain(`      - ${path}`);
   });
 
-  it('applies and verifies the catalogue before backend mutation', () => {
-    const synchronization = stepBlock('Synchronize and verify hosted Auth email templates');
+  it('applies and verifies the complete email policy before backend mutation', () => {
+    const stepName = 'Synchronize and verify hosted Auth email policy';
+    const synchronization = stepBlock(stepName);
     expect(synchronization).toContain('node scripts/sync-hosted-auth-email-templates.mjs --apply');
-    expect(workflow.indexOf('Synchronize and verify hosted Auth email templates'))
+    expect(workflow.indexOf(stepName))
       .toBeLessThan(workflow.indexOf('Apply additive database migrations'));
-    expect(workflow.indexOf('Synchronize and verify hosted Auth email templates'))
+    expect(workflow.indexOf(stepName))
       .toBeLessThan(workflow.indexOf('Deploy Edge Functions'));
   });
 });

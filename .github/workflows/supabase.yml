@@ -10,6 +10,7 @@ on:
       - 'supabase/config.toml'
       - 'scripts/auth-email-templates.mjs'
       - 'scripts/generate-auth-email-templates.mjs'
+      - 'scripts/supabase-auth-email-policy.mjs'
       - 'scripts/hosted-auth-email-sync.mjs'
       - 'scripts/sync-hosted-auth-email-templates.mjs'
       - 'scripts/check-production-migrations.mjs'
@@ -82,7 +83,7 @@ jobs:
             echo '::warning::ALLOWED_ORIGINS contains a wildcard. It is ignored and will not be deployed.'
           fi
 
-      - name: Synchronize and verify hosted Auth email templates
+      - name: Synchronize and verify hosted Auth email policy
         run: node scripts/sync-hosted-auth-email-templates.mjs --apply
 
       - name: Guard against destructive migrations

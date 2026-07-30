@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildHostedAuthConfiguration,
   hostedAuthEmailDrift,
   hostedAuthEmailSyncEnvironment,
   synchronizeHostedAuthEmails,
@@ -34,6 +35,24 @@ function createFetch(...responses) {
   fetchFn.calls = calls;
   return fetchFn;
 }
+
+test('builds one hosted payload containing templates and canonical OTP policy', () => {
+  const config = buildHostedAuthConfiguration({
+    emailConfig: { subject: 'Hola' },
+    authEmailPolicy: { otpLength: 8, otpExpirySeconds: 3600 },
+  });
+  assert.deepEqual(config, {
+    subject: 'Hola',
+    mailer_otp_length: 8,
+    mailer_otp_exp: 3600,
+  });
+  assert.ok(Object.isFrozen(config));
+
+  const canonical = buildHostedAuthConfiguration();
+  assert.equal(canonical.mailer_otp_length, 8);
+  assert.equal(canonical.mailer_otp_exp, 3600);
+  assert.match(canonical.mailer_templates_confirmation_content, /MINUTO 106/u);
+});
 
 test('reads protected environment values and rejects missing configuration', () => {
   assert.deepEqual(hostedAuthEmailSyncEnvironment({

@@ -3,6 +3,8 @@ window.__MINUTO106_CONFIG__ = {
   accountAuthApiUrl: 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/account-auth',
   supabaseUrl: 'https://imtitjwgiemlaabpioed.supabase.co',
   supabasePublishableKey: '',
+  authEmailOtpLength: 8,
+  authEmailOtpExpirySeconds: 3600,
   turnstileSiteKey: '',
   googleAnalyticsId: '',
   adSenseClient: '',

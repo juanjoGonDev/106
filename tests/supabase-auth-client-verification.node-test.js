@@ -45,6 +45,8 @@ function clientWithResponses(...payloads) {
     supabaseUrl: 'https://project.supabase.co',
     publishableKey: 'sb_publishable_key',
     publicSiteUrl: 'https://example.com/106',
+    authEmailOtpLength: 8,
+    authEmailOtpExpirySeconds: 3600,
   }, {
     fetch,
     storage: memory,
@@ -58,25 +60,35 @@ function clientWithResponses(...payloads) {
   return { client, calls, memory, location };
 }
 
-test('verifies a six-digit signup code and persists the confirmed session', async () => {
+test('verifies the configured eight-digit signup code and persists the confirmed session', async () => {
   const expected = session('otp-access');
   const { client, calls, memory } = clientWithResponses(expected);
-  assert.deepEqual(await client.verifyEmailOtp(' User@Example.com ', ' 123456 '), expected);
+  assert.deepEqual(await client.verifyEmailOtp(' User@Example.com ', ' 12345678 '), expected);
   assert.equal(calls[0][0], 'https://project.supabase.co/auth/v1/verify');
   assert.deepEqual(JSON.parse(calls[0][1].body), {
     email: 'user@example.com',
-    token: '123456',
+    token: '12345678',
     type: 'email',
   });
   assert.deepEqual(JSON.parse(memory.values.get(AUTH_SESSION_STORAGE_KEY)), expected);
 });
 
-test('rejects missing email and every malformed verification code before requesting', async () => {
+test('rejects missing email and every malformed configured verification code before requesting', async () => {
   const { client, calls } = clientWithResponses();
-  await assert.rejects(client.verifyEmailOtp('invalid', '123456'), /email pendiente/);
-  for (const token of ['', '12345', '1234567', '12a456', null]) {
-    await assert.rejects(client.verifyEmailOtp('user@example.com', token), /6 dígitos/);
+  await assert.rejects(client.verifyEmailOtp('invalid', '12345678'), /email pendiente/);
+  for (const token of ['', '1234567', '123456789', '1234a678', null]) {
+    await assert.rejects(client.verifyEmailOtp('user@example.com', token), /8 dígitos/);
   }
+  assert.equal(calls.length, 0);
+});
+
+test('fails closed when the generated code policy is missing', async () => {
+  const { client, calls } = clientWithResponses();
+  client.authEmailOtpLength = 0;
+  await assert.rejects(
+    client.verifyEmailOtp('user@example.com', '12345678'),
+    /no está configurada.*enlace/u,
+  );
   assert.equal(calls.length, 0);
 });
 
