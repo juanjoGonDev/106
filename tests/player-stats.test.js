@@ -46,4 +46,33 @@ describe('player radar statistics', () => {
     });
     expect(stats.reliability).toBe(80);
   });
+
+  it('explains the reported low-impact profile and exact progression inputs', () => {
+    expect(globalThis.window.Minuto106PlayerStats.impactExplanation({
+      completedReferrals: 0,
+      bonusAttempts: 1,
+    })).toEqual({
+      impact: 8,
+      completedReferrals: 0,
+      bonusAttempts: 1,
+      copy: 'Impacto 8/100 · 0 referidos completados · +1 intento diario adicional. Cada referido completado suma 20 puntos y cada intento diario adicional suma 8.',
+    });
+  });
+
+  it('uses singular referral copy and normalizes malformed negative values', () => {
+    expect(globalThis.window.Minuto106PlayerStats.impactExplanation({
+      completedReferrals: 1,
+      bonusAttempts: 2,
+    }).copy).toContain('1 referido completado · +2 intentos diarios adicionales');
+
+    expect(globalThis.window.Minuto106PlayerStats.impactExplanation({
+      completedReferrals: -10,
+      bonusAttempts: 'invalid',
+    })).toEqual({
+      impact: 0,
+      completedReferrals: 0,
+      bonusAttempts: 0,
+      copy: 'Impacto 0/100 · 0 referidos completados · +0 intentos diarios adicionales. Cada referido completado suma 20 puntos y cada intento diario adicional suma 8.',
+    });
+  });
 });
