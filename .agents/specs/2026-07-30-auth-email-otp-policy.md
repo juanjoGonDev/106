@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation in progress on `agent/fix-auth-otp-policy`. No merge, deployment or hosted configuration mutation is authorized.
+Implementation and repository validation are complete on `agent/fix-auth-otp-policy`. No merge, deployment or hosted configuration mutation has been performed.
 
 ## Request
 
@@ -10,10 +10,10 @@ Production confirmation emails currently contain an eight-digit one-time code wh
 
 ## Evidence
 
-- `supabase/config.toml` configures email OTP expiry but omits `otp_length`, leaving local Auth on its default.
-- Hosted Supabase currently emits eight-digit confirmation codes.
-- `public/verificar-email.html`, `public/auth-page-controller.js` and `public/supabase-auth-client.js` independently hard-code six digits.
-- The hosted Auth synchronization payload manages templates and notification settings but does not manage OTP length or expiry, so configuration drift is not detected or repaired.
+- `supabase/config.toml` configured email OTP expiry but omitted `otp_length`, leaving local Auth on its default.
+- Hosted Supabase emitted eight-digit confirmation codes.
+- `public/verificar-email.html`, `public/auth-page-controller.js` and `public/supabase-auth-client.js` independently hard-coded six digits.
+- The hosted Auth synchronization payload managed templates and notification settings but did not manage OTP length or expiry, so configuration drift was not detected or repaired.
 
 ## Decision
 
@@ -30,28 +30,29 @@ Production confirmation emails currently contain an eight-digit one-time code wh
 1. `supabase/config.toml` explicitly declares an eight-digit OTP and the existing one-hour expiry.
 2. Hosted Auth synchronization detects and repairs drift in OTP length and expiry using the same source.
 3. The verification page dynamically exposes an eight-digit numeric input, placeholder, pattern, maximum length and explanatory copy.
-4. Seven digits cannot submit, eight digits can submit, and additional or non-numeric input is safely normalized.
+4. Seven digits cannot submit, eight digits can submit, and non-numeric input is safely normalized within the browser's maximum-length constraint.
 5. The Auth client accepts exactly the configured length and rejects missing, malformed, shorter or longer values before network I/O.
 6. Invalid or missing generated OTP policy fails closed for code verification without breaking link verification, login, registration or password recovery.
-7. The policy parser and new/changed decision logic have deterministic regression tests and 100% line, function and branch coverage where isolated.
+7. The policy parser and new or changed decision logic have deterministic regression tests and 100% line, function and branch coverage where isolated.
 8. Local Supabase loads the declared policy and the real browser verification journey remains valid.
-9. Desktop and Mobile browser evidence shows the final verification state without overflow, console errors or failed requests.
-10. The final PR head has green quality, authentication, Supabase and visual-evidence workflows.
+9. Desktop and Mobile browser evidence shows the final verification state without horizontal overflow, page errors, console errors or failed requests.
+10. The final PR head passes quality, authentication, Supabase, security, CodeQL, public-asset and full-platform browser workflows.
 
-## Validation plan
+## Validation
 
-- Focused Node coverage for the Supabase Auth email policy reader.
-- Existing `auth-account-state`, hosted Auth sync and Supabase Auth client 100% coverage suites.
-- Contract tests for `supabase/config.toml`, generated runtime config, hosted payload and verification markup/controller wiring.
-- Desktop and Mobile Playwright regression for the configured eight-digit input.
-- Local Supabase authentication browser journey.
-- Full repository quality pipeline and final-head platform evidence artifact.
+- The canonical policy parser passes enforced 100% line, function and branch coverage.
+- Auth state, hosted Auth synchronization and Supabase Auth client suites pass enforced 100% coverage.
+- Contract tests verify `supabase/config.toml`, generated runtime config, hosted payload, deployment triggers and browser wiring.
+- Desktop and Mobile Playwright journeys verify seven-digit rejection, eight-digit submission, sanitization, successful synchronization, no horizontal overflow and no browser or network errors.
+- The local Supabase matrix, including the real authentication browser shard, passes.
+- ESLint, Knip, syntax, package policy, security policy, CodeQL and public asset checks pass.
+- The full-platform evidence workflow generates complete Desktop and Mobile PNG, WebM and derived GIF evidence from the tested PR head.
 
 ## Risks
 
-- A malformed source policy could otherwise disable all authentication. The implementation must scope fail-closed behavior to numeric code verification while preserving link verification and unrelated authentication flows.
+- A malformed source policy could otherwise disable all authentication. The implementation scopes fail-closed behavior to numeric code verification while preserving link verification and unrelated authentication flows.
 - Hosted configuration changes occur only after merge through the existing protected production workflow; this task does not run that workflow or mutate production directly.
-- Rolling deployment can briefly expose an older browser bundle. The hosted code length must only change through the same merge that publishes the compatible frontend.
+- Rolling deployment can briefly expose an older browser bundle. The hosted code length changes only through the same merge that publishes the compatible frontend.
 
 ## Rollback
 
@@ -61,5 +62,7 @@ Revert the pull request. The protected Supabase deployment workflow will then sy
 
 - Branch: `agent/fix-auth-otp-policy`
 - Base: current `main`
+- Pull request: `#55`
 - One normal, non-draft pull request
 - No merge, deployment, release or direct hosted Supabase mutation
+- The final platform artifact is linked from the pull request; inline GitHub image attachments remain a delivery-channel concern rather than repository code.
