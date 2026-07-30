@@ -1,14 +1,19 @@
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 
 import { openApplicationPage } from './app-navigation.js';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
-const { expect, test } = require(runtimePath);
+const { devices, expect, test } = require(runtimePath);
 
 const applicationUrl = 'http://127.0.0.1:3000';
+const previewDirectory = '.tmp/pr-previews';
 const publishableKey = `sb_publishable_${'a'.repeat(32)}`;
+const captureEvidence = process.env.PR_VISUAL_CAPTURE === '1';
+mkdirSync(previewDirectory, { recursive: true });
 
 function verifiedSession() {
   return {
@@ -32,6 +37,20 @@ function requestBody(request) {
   } catch {
     return {};
   }
+}
+
+function recordingContextOptions(isMobile) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    recordVideo: {
+      dir: join(previewDirectory, 'recordings'),
+      size: isMobile ? { ...device.viewport } : { width: 1280, height: 800 },
+    },
+  };
 }
 
 async function installRuntime(page, authLog) {
@@ -80,12 +99,34 @@ async function installPendingEmail(page) {
   });
 }
 
+async function saveScreenshot(page, isMobile) {
+  if (!captureEvidence) return;
+  await page.screenshot({
+    path: join(previewDirectory, `email-verification-${isMobile ? 'mobile' : 'desktop'}.png`),
+    animations: 'disabled',
+    fullPage: true,
+  });
+}
+
+async function saveVideo(context, page, isMobile) {
+  if (!captureEvidence) {
+    await context.close();
+    return;
+  }
+  const video = page.video();
+  if (!video) throw new Error('Playwright did not create the email verification recording.');
+  await context.close();
+  await video.saveAs(join(previewDirectory, `email-verification-${isMobile ? 'mobile' : 'desktop'}.webm`));
+}
+
 async function assertNoHorizontalOverflow(page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-test('email verification consumes the generated eight-digit OTP policy', async ({ page }) => {
+test('email verification consumes the generated eight-digit OTP policy', async ({ browser, isMobile }) => {
+  const context = await browser.newContext(recordingContextOptions(isMobile));
+  const page = await context.newPage();
   const authLog = [];
   const pageErrors = [];
   const consoleErrors = [];
@@ -119,6 +160,8 @@ test('email verification consumes the generated eight-digit OTP policy', async (
   await expect(verify).toBeDisabled();
   await otp.fill('12345678');
   await expect(verify).toBeEnabled();
+  await assertNoHorizontalOverflow(page);
+  await saveScreenshot(page, isMobile);
   await verify.click();
 
   await expect(page.locator('#verificationSuccess')).toBeVisible();
@@ -128,4 +171,5 @@ test('email verification consumes the generated eight-digit OTP policy', async (
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(failedRequests).toEqual([]);
+  await saveVideo(context, page, isMobile);
 });
