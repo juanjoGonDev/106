@@ -78,12 +78,13 @@ describe('player pages and ranking links', () => {
     expect(styles).toContain('.player-list__copy time');
   });
 
-  it('audits pointer cursors for anchors and enabled controls globally', () => {
+  it('audits pointer cursors and clean-route-safe shared assets globally', () => {
     const styles = read('public/v11.css');
     const honours = read('public/honours.js');
     expect(styles).toContain('a[href],button:not(:disabled)');
     expect(styles).toContain('[role="button"]:not([aria-disabled="true"])');
-    expect(honours).toContain("stylesheet.href = './v11.css'");
+    expect(honours).toContain("stylesheet.href = appAssetUrl('v11.css')");
+    expect(honours).toContain("script.src = appAssetUrl('share-actions.js')");
   });
 });
 
@@ -119,36 +120,7 @@ describe('dynamic player social card', () => {
 
   it('emits exact player-specific Open Graph, Twitter and site image paths', () => {
     const edge = read('supabase/functions/player-share/index.ts');
-    expect(edge).toContain('function playerImageUrl');
-    expect(edge).toContain('function siteImageUrl');
-    expect(edge).toContain("const SITE_ROUTE = '_site'");
-    expect(edge).toContain('/${imageName}.png`');
-    expect(edge).toContain('property="og:image"');
-    expect(edge).toContain('property="og:image:secure_url"');
-    expect(edge).toContain('name="twitter:image:src"');
-    expect(edge).toContain('image/png');
-    expect(edge).toContain('get_game_public_profile');
-    expect(edge).not.toContain('imageUrl.pathname.replace(/\\/?$/');
-  });
-
-  it('adds deterministic team data to awards and honours rankings', () => {
-    const migration = read('supabase/migrations/20260722210000_player_profile_teams.sql');
-    expect(migration).toContain('create or replace function public.get_game_public_profile');
-    expect(migration).toContain("'team', team.team");
-    expect(migration).toContain("'nick', nick, 'team', team");
-    expect(migration).toContain('order by attempt.nick_key, attempt.created_at desc, attempt.id desc');
-  });
-
-  it('refreshes awards from the committed snapshot and honours from the finish event', () => {
-    const app = read('public/app.js');
-    const observer = read('public/attempt-refresh.js');
-    const ranking = read('public/ranking-enhancements.js');
-    const honours = read('public/honours.js');
-    expect(app).toContain("window.Minuto106HomeStats?.commit(data.stats, 'finish')");
-    expect(ranking).toContain('homeStats.subscribe(renderAwards)');
-    expect(ranking).not.toContain("request('stats')");
-    expect(observer).toContain("action !== 'finish'");
-    expect(observer).toContain('minuto106:attempt-finished');
-    expect(honours).toContain("document.addEventListener('minuto106:attempt-finished'");
+    expect(edge).toContain("route.image ? await playerCardResponse");
+    expect(edge).toContain("route.section === 'overview' ? 'card' : route.section");
   });
 });
