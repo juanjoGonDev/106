@@ -9,12 +9,16 @@ const dailyMigrationFiles = readdirSync(migrationDirectory)
 const migration = dailyMigrationFiles
   .map((file) => readFileSync(join(migrationDirectory, file), 'utf8'))
   .join('\n');
+const spainResetMigration = readFileSync(
+  join(migrationDirectory, '20260731003000_spain_daily_reset.sql'),
+  'utf8',
+);
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
 
 describe('daily attempt and account referral limits', () => {
-  it('keeps the migration split into cohesive ordered stages', () => {
+  it('keeps the original rollout split into cohesive ordered stages', () => {
     expect(dailyMigrationFiles).toEqual([
       '20260727150000_daily_attempt_schema.sql',
       '20260727150050_daily_quota_defaults.sql',
@@ -27,14 +31,20 @@ describe('daily attempt and account referral limits', () => {
     ]);
   });
 
-  it('pins global challenges and attempts to a UTC quota day', () => {
-    expect(migration).toContain("(p_at at time zone 'UTC')::date");
+  it('pins global challenges and attempts to a quota day with a forward Spain-time correction', () => {
     expect(migration).toContain('add column if not exists quota_day date');
-    expect(migration).toContain("alter column quota_day set default ((clock_timestamp() at time zone 'UTC')::date)");
     expect(migration).toContain('game_challenges_global_quota_day_check');
     expect(migration).toContain('game_attempts_global_quota_day_check');
     expect(migration).toContain('attempt.quota_day = v_challenge.quota_day');
     expect(migration).toContain('challenge.quota_day = v_current_day');
+
+    expect(spainResetMigration).toContain("p_at at time zone 'Europe/Madrid'");
+    expect(spainResetMigration).toContain("timestamp at time zone 'Europe/Madrid'");
+    expect(spainResetMigration).toContain('alter column quota_day set default public.game_server_day(clock_timestamp())');
+    expect(spainResetMigration).toContain('set quota_day = public.game_server_day(started_at)');
+    expect(spainResetMigration).toContain('set quota_day = public.game_server_day(created_at)');
+    expect(spainResetMigration).toContain('where league_id is null');
+    expect(spainResetMigration).not.toMatch(/update public\.game_(?:challenges|attempts)[\s\S]*where league_id is not null/i);
   });
 
   it('serializes reservations, midnight activation and referral completion', () => {
@@ -66,7 +76,7 @@ describe('daily attempt and account referral limits', () => {
   it('ships the countdown UX and mandatory validation commands', () => {
     expect(ui).toContain("section.id = 'dailyLimitCard'");
     expect(ui).toContain("section.setAttribute('aria-labelledby', 'dailyLimitTitle')");
-    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js')");
+    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js?v=20260731-spain-reset')");
     expect(ui).toContain("window.Minuto106Competition?.refresh?.('daily-limit-reset')");
     expect(packageJson.scripts['test:daily-attempts:coverage']).toContain('--test-coverage-branches=100');
     expect(packageJson.scripts['test:supabase']).toContain('test-daily-attempt-limits-local.mjs');
