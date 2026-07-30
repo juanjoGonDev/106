@@ -13,7 +13,7 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
     || '',
   ).trim().toUpperCase();
 
-  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+  let context = emptyContext();
   let selectedValue = 'global';
   let contextPending = false;
   let debounceTimer = 0;
@@ -22,12 +22,20 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
 
   localStorage.setItem(deviceKey, deviceId);
 
+  function emptyContext(accountPolicy = null) {
+    return Object.freeze({ availability: 'unknown', profile: null, leagues: [], accountPolicy });
+  }
+
   function currentNick() {
     return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
   }
 
+  function localAccountToken() {
+    return window.Minuto106Access?.getAccountToken?.(false) || '';
+  }
+
   function accountDailyAttemptPolicy() {
-    return window.Minuto106Access?.getAccountDailyAttemptPolicy?.() ?? null;
+    return context.accountPolicy ?? window.Minuto106Access?.getAccountDailyAttemptPolicy?.() ?? null;
   }
 
   function globalAttemptState() {
@@ -87,6 +95,7 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
         availability: context.availability,
         profile: context.profile,
         leagues: context.leagues,
+        dailyAttemptPolicy: accountDailyAttemptPolicy(),
         selected: selectedScope(),
         canStart: canStart(),
         pending: contextPending,
@@ -214,18 +223,66 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
       : `${scope.attemptsLeft} de ${scope.maxAttempts} intentos disponibles en “${scope.name}”.`;
   }
 
-  async function requestPlayerContext(nick) {
+  async function requestContext(action, nick = '') {
     if (!playerContextUrl || playerContextUrl === gameApiUrl) {
       throw new Error('No se pudo preparar la comprobación del jugador.');
     }
+    const headers = { 'content-type': 'application/json' };
+    const accountToken = localAccountToken();
+    if (accountToken) headers['x-account-token'] = accountToken;
+    const body = nick ? { action, nick } : { action };
     const response = await fetch(playerContextUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'player-context', nick }),
+      headers,
+      body: JSON.stringify(body),
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'No se pudo comprobar el jugador.');
-    return body;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'No se pudo comprobar el jugador.');
+    return payload;
+  }
+
+  function requestPlayerContext(nick) {
+    return requestContext('player-context', nick);
+  }
+
+  function requestAccountContext() {
+    return requestContext('account-context');
+  }
+
+  async function syncAccountContext(sequence, source) {
+    selectedValue = 'global';
+    if (!localAccountToken()) {
+      contextPending = false;
+      context = emptyContext();
+      renderSelector();
+      renderStatus();
+      notify(source);
+      return context;
+    }
+
+    contextPending = true;
+    renderSelector();
+    renderStatus();
+    notify(`${source}:pending`);
+
+    try {
+      const response = await requestAccountContext();
+      if (sequence !== requestSequence || currentNick().length >= 2) return context;
+      context = emptyContext(response.dailyAttemptPolicy ?? null);
+      return context;
+    } catch {
+      if (sequence !== requestSequence || currentNick().length >= 2) return context;
+      context = emptyContext();
+      notify(`${source}:error`);
+      return context;
+    } finally {
+      if (sequence === requestSequence && currentNick().length < 2) {
+        contextPending = false;
+        renderSelector();
+        renderStatus();
+        notify(`${source}:settled`);
+      }
+    }
   }
 
   async function syncPlayerContext(source = 'manual') {
@@ -233,15 +290,7 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
     const sequence = ++requestSequence;
     window.clearTimeout(debounceTimer);
 
-    if (nick.length < 2) {
-      contextPending = false;
-      context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
-      selectedValue = 'global';
-      renderSelector();
-      renderStatus();
-      notify(source);
-      return context;
-    }
+    if (nick.length < 2) return syncAccountContext(sequence, source);
 
     contextPending = true;
     renderStatus();
@@ -254,6 +303,7 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
         availability: String(response.availability || 'unknown'),
         profile: response.profile?.nick ? response.profile : null,
         leagues: Object.freeze(Array.isArray(response.leagues) ? response.leagues : []),
+        accountPolicy: response.dailyAttemptPolicy ?? null,
       });
       renderSelector();
       renderStatus();
@@ -261,7 +311,7 @@ import { resolveDailyAttemptState } from './daily-attempt-limit.js';
       return context;
     } catch (error) {
       if (sequence !== requestSequence || nick !== currentNick()) return context;
-      context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+      context = emptyContext();
       const status = document.querySelector('#nickStatus');
       if (status) status.textContent = error instanceof Error ? error.message : 'No se pudo comprobar el jugador.';
       notify(`${source}:error`);
