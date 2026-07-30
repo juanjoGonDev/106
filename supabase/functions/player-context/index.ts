@@ -33,7 +33,7 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const ACHIEVEMENT_CODE = /^[a-z0-9_]{1,120}$/;
 const MAX_FEATURED_ACHIEVEMENTS = 3;
-const ACTIONS = new Set(['player-context', 'set-featured-achievements']);
+const ACTIONS = new Set(['account-context', 'player-context', 'set-featured-achievements']);
 
 type JsonObject = Record<string, unknown>;
 
@@ -108,23 +108,40 @@ function playerBelongsToAccount(value: unknown, expectedKey: string) {
   });
 }
 
-async function accountOwnership(request: Request, key: string) {
+async function accountTokenHash(request: Request) {
   const rawAccountToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
-  if (!PRIVATE_TOKEN.test(rawAccountToken)) return false;
-  const accountTokenHash = await sha256(`account:${rawAccountToken}`);
+  if (!PRIVATE_TOKEN.test(rawAccountToken)) return '';
+  return sha256(`account:${rawAccountToken}`);
+}
+
+async function accountOwnership(request: Request, key: string) {
+  const tokenHash = await accountTokenHash(request);
+  if (!tokenHash) return false;
   const account = await rpc('get_game_account_players', {
-    p_account_token_hash: accountTokenHash,
+    p_account_token_hash: tokenHash,
   });
   return playerBelongsToAccount(account, key);
 }
 
+async function accountDailyAttemptPolicy(request: Request) {
+  const tokenHash = await accountTokenHash(request);
+  if (!tokenHash) return null;
+  return rpc('get_game_account_daily_attempt_policy_by_token', {
+    p_account_token_hash: tokenHash,
+  });
+}
+
 async function loadPlayerContext(request: Request, key: string) {
-  const profile = await rpc('get_game_player_profile', { p_nick_key: key }) as JsonObject;
+  const [profile, dailyAttemptPolicy] = await Promise.all([
+    rpc('get_game_player_profile', { p_nick_key: key }) as Promise<JsonObject>,
+    accountDailyAttemptPolicy(request),
+  ]);
   if (!profile?.nick) {
     return {
       availability: 'available',
       profile: null,
       leagues: [],
+      dailyAttemptPolicy,
     };
   }
 
@@ -134,6 +151,7 @@ async function loadPlayerContext(request: Request, key: string) {
       availability: 'occupied',
       profile,
       leagues: [],
+      dailyAttemptPolicy,
     };
   }
 
@@ -142,6 +160,7 @@ async function loadPlayerContext(request: Request, key: string) {
     availability: 'owned',
     profile,
     leagues: Array.isArray(leagues) ? leagues : [],
+    dailyAttemptPolicy,
   };
 }
 
@@ -175,6 +194,12 @@ Deno.serve(async (request) => {
       return jsonResponse(origin, { error: 'Acción desconocida.' }, 404);
     }
 
+    if (action === 'account-context') {
+      return jsonResponse(origin, {
+        dailyAttemptPolicy: await accountDailyAttemptPolicy(request),
+      });
+    }
+
     const moderation = moderateNickname(body.nick);
     if (!moderation.allowed) {
       const reason = String(moderation.reason ?? 'invalid');
@@ -187,6 +212,7 @@ Deno.serve(async (request) => {
           availability: `invalid-${reason}`,
           profile: null,
           leagues: [],
+          dailyAttemptPolicy: await accountDailyAttemptPolicy(request),
           validation,
         });
       }
