@@ -23,9 +23,20 @@ const authStorageKeys = [
   'minuto106:nick',
 ];
 
-function cloudSession(provider = 'email') {
+function accessToken(authenticationMethod) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({
+    amr: [{ method: authenticationMethod, timestamp: 1_722_470_400 }],
+  })}.signature`;
+}
+
+function cloudSession(provider = 'email', options = {}) {
+  const metadataProvider = options.metadataProvider ?? provider;
+  const providers = options.providers ?? [provider];
+  const authenticationMethod = options.authenticationMethod ?? (provider === 'email' ? 'password' : 'oauth');
+  const identities = options.identities ?? providers.map((identityProvider) => ({ provider: identityProvider }));
   return {
-    access_token: 'access-token',
+    access_token: accessToken(authenticationMethod),
     refresh_token: 'refresh-token',
     expires_at: 2_000_000_000,
     token_type: 'bearer',
@@ -33,8 +44,8 @@ function cloudSession(provider = 'email') {
       id: '11111111-1111-4111-8111-111111111111',
       email: 'player@example.com',
       email_confirmed_at: '2026-07-29T00:00:00.000Z',
-      app_metadata: { provider, providers: [provider] },
-      identities: [{ provider }],
+      app_metadata: { provider: metadataProvider, providers },
+      identities,
     },
   };
 }
@@ -293,11 +304,30 @@ test('direct password management access without a cloud session is guarded', asy
   await expect(page.locator('#loginTitle')).toBeVisible();
 });
 
-test('Google-only accounts cannot enter the email password change mode directly', async ({ page }) => {
-  await installRuntime(page);
-  await installStorage(page, { session: cloudSession('google') });
-  await openApplicationPage(page, '/restablecer-clave.html?mode=change');
-  await expect(page).toHaveURL(`${applicationUrl}/cuenta.html`);
-  await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
-  await expect(page.locator('#changePasswordLink')).toBeHidden();
+test('Google-authenticated sessions cannot change a password even when an email identity is linked', async ({ browser }) => {
+  for (const session of [
+    cloudSession('google'),
+    cloudSession('google', {
+      metadataProvider: 'email',
+      providers: ['email', 'google'],
+      identities: [{ provider: 'email' }, { provider: 'google' }],
+      authenticationMethod: 'oauth',
+    }),
+  ]) {
+    const context = await browser.newContext({ baseURL: applicationUrl });
+    const page = await context.newPage();
+    await installRuntime(page);
+    await installStorage(page, { session });
+
+    await openApplicationPage(page, '/cuenta.html');
+    await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
+    await expect(page.locator('#changePasswordLink')).toBeHidden();
+    await assertNoHorizontalOverflow(page);
+
+    await openApplicationPage(page, '/restablecer-clave.html?mode=change');
+    await expect(page).toHaveURL(`${applicationUrl}/cuenta.html`);
+    await expect(page.locator('#cloudAuthenticatedPanel')).toBeVisible();
+    await expect(page.locator('#changePasswordLink')).toBeHidden();
+    await context.close();
+  }
 });

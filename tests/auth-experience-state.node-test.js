@@ -14,14 +14,35 @@ import {
   normalizeAuthRoute,
   providerAction,
   resolveAuthExperience,
+  sessionAuthenticationMethods,
   sessionProviders,
   shouldShowEmailVerification,
 } from '../public/auth-experience-state.js';
 
 const unsupportedSocialProvider = ['face', 'book'].join('');
 
-function session({ provider = 'email', providers, identities, confirmed = false, email = 'user@example.com' } = {}) {
+function accessTokenFromPayload(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.signature`;
+}
+
+function accessToken(methods) {
+  return accessTokenFromPayload({
+    amr: methods.map((method) => ({ method, timestamp: 1_722_470_400 })),
+  });
+}
+
+function session({
+  provider = 'email',
+  providers,
+  identities,
+  confirmed = false,
+  email = 'user@example.com',
+  authenticationMethods,
+} = {}) {
+  const methods = authenticationMethods ?? [provider === 'email' ? 'password' : 'oauth'];
   return {
+    access_token: accessToken(methods),
     user: {
       email,
       email_confirmed_at: confirmed ? '2026-07-28T00:00:00.000Z' : null,
@@ -70,6 +91,27 @@ test('derives unique supported providers from metadata and identities', () => {
   assert.deepEqual([...sessionProviders({ user: { app_metadata: {}, identities: [] } })], []);
 });
 
+test('derives authentication methods from the current JWT and fails closed on malformed claims', () => {
+  assert.deepEqual([...sessionAuthenticationMethods(null)], []);
+  assert.deepEqual([...sessionAuthenticationMethods({ access_token: 'not-a-jwt' })], []);
+  assert.deepEqual([...sessionAuthenticationMethods({ access_token: 'header..signature' })], []);
+  assert.deepEqual([...sessionAuthenticationMethods({ access_token: 'header.invalid.signature' })], []);
+  assert.deepEqual([...sessionAuthenticationMethods({ access_token: accessTokenFromPayload(null) })], []);
+  assert.deepEqual([...sessionAuthenticationMethods({ access_token: accessTokenFromPayload({}) })], []);
+  assert.deepEqual([...sessionAuthenticationMethods({
+    access_token: accessTokenFromPayload({
+      amr: [
+        { method: ' PASSWORD ' },
+        { method: 'oauth' },
+        { method: 'password' },
+        null,
+        {},
+        { method: '' },
+      ],
+    }),
+  })], ['password', 'oauth']);
+});
+
 test('summarizes email and Google identities with verification eligibility', () => {
   assert.equal(authIdentity(null), null);
   assert.equal(authIdentity(session({ provider: unsupportedSocialProvider })), null);
@@ -79,6 +121,7 @@ test('summarizes email and Google identities with verification eligibility', () 
     primaryProvider: 'email',
     providers: ['email'],
     socialProviders: [],
+    authenticationMethods: ['password'],
     verificationEligible: true,
   });
   assert.equal(authIdentity(session({ confirmed: true })).verificationEligible, false);
@@ -88,6 +131,7 @@ test('summarizes email and Google identities with verification eligibility', () 
     confirmed: false,
   }));
   assert.deepEqual([...social.socialProviders], ['google']);
+  assert.deepEqual([...social.authenticationMethods], ['oauth']);
   assert.equal(social.primaryProvider, 'google');
   assert.equal(social.verificationEligible, false);
 
@@ -109,15 +153,28 @@ test('summarizes email and Google identities with verification eligibility', () 
   });
   assert.equal(legacy.primaryProvider, 'email');
   assert.deepEqual([...legacy.providers], []);
+  assert.deepEqual([...legacy.authenticationMethods], []);
   assert.equal(legacy.verificationEligible, true);
 });
 
-test('detects whether an authenticated identity owns an email password', () => {
+test('allows password change only when the current session authenticated with a password', () => {
   assert.equal(identitySupportsPassword(null), false);
-  assert.equal(identitySupportsPassword({ providers: [] }), false);
-  assert.equal(identitySupportsPassword({ providers: ['google'] }), false);
-  assert.equal(identitySupportsPassword({ providers: ['google', 'email'] }), true);
+  assert.equal(identitySupportsPassword({}), false);
+  assert.equal(identitySupportsPassword({ authenticationMethods: [] }), false);
+  assert.equal(identitySupportsPassword({ authenticationMethods: ['oauth'] }), false);
+  assert.equal(identitySupportsPassword({ authenticationMethods: ['password'] }), true);
   assert.equal(identitySupportsPassword(authIdentity(session({ confirmed: true }))), true);
+
+  const linkedGoogleSession = authIdentity(session({
+    provider: 'email',
+    providers: ['email', 'google'],
+    identities: [{ provider: 'email' }, { provider: 'google' }],
+    confirmed: true,
+    authenticationMethods: ['oauth'],
+  }));
+  assert.equal(linkedGoogleSession.primaryProvider, 'email');
+  assert.deepEqual([...linkedGoogleSession.providers], ['email', 'google']);
+  assert.equal(identitySupportsPassword(linkedGoogleSession), false);
 });
 
 test('detects local account credentials without treating remembered display names as authentication', () => {
