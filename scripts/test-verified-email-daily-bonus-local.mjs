@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+
+const origin = 'http://127.0.0.1:3000';
+const hashPepper = 'ci-local-only-pepper-106-do-not-use-in-production';
 
 function environment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], {
@@ -14,9 +17,11 @@ function environment() {
     const match = line.match(/^([A-Z0-9_]+)=(?:"([^"]*)"|'([^']*)'|(.*))$/);
     if (match) values[match[1]] = match[2] ?? match[3] ?? match[4] ?? '';
   }
+  const apiUrl = values.API_URL || 'http://127.0.0.1:54321';
+  const anonKey = values.ANON_KEY;
   const databaseUrl = values.DB_URL || values.POSTGRES_URL;
-  if (!databaseUrl) throw new Error('Local Supabase database URL is unavailable.');
-  return { databaseUrl };
+  if (!anonKey || !databaseUrl) throw new Error('Local Supabase environment is unavailable.');
+  return { apiUrl, anonKey, databaseUrl };
 }
 
 function literal(value) {
@@ -43,6 +48,26 @@ function json(databaseUrl, expression) {
   return JSON.parse(psql(databaseUrl, `select (${expression})::text;`));
 }
 
+async function jsonRequest(url, options = {}) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      origin,
+      apikey: options.anonKey,
+      'content-type': 'application/json',
+      'x-account-token': options.accountToken,
+    },
+    body: JSON.stringify(options.body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json();
+  return { response, body };
+}
+
+function accountHash(token) {
+  return createHash('sha256').update(`${hashPepper}:account:${token}`).digest('hex');
+}
+
 function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
   const nickKey = nick.toLowerCase();
   const result = json(databaseUrl, `public.ensure_game_account_player(
@@ -53,11 +78,12 @@ function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
   return nickKey;
 }
 
-const { databaseUrl } = environment();
+const { apiUrl, anonKey, databaseUrl } = environment();
 const suffix = Date.now().toString(36);
 
 const noPlayerAuthUserId = randomUUID();
-const noPlayerTokenHash = randomBytes(32).toString('hex');
+const noPlayerToken = randomBytes(32).toString('hex');
+const noPlayerTokenHash = accountHash(noPlayerToken);
 const preparedAccount = json(databaseUrl, `public.prepare_game_auth_link(
   ${literal(noPlayerAuthUserId)}::uuid,
   'email',
@@ -79,6 +105,13 @@ assert.equal(noPlayerPolicy.bonusAttempts, 1, JSON.stringify(noPlayerPolicy));
 assert.equal(noPlayerPolicy.authRewardBonus, 1, JSON.stringify(noPlayerPolicy));
 const noPlayerTokenPolicy = json(databaseUrl, `public.get_game_account_daily_attempt_policy_by_token(${literal(noPlayerTokenHash)}, clock_timestamp())`);
 assert.deepEqual(noPlayerTokenPolicy, noPlayerPolicy);
+const accountContext = await jsonRequest(`${apiUrl}/functions/v1/player-context`, {
+  anonKey,
+  accountToken: noPlayerToken,
+  body: { action: 'account-context' },
+});
+assert.equal(accountContext.response.status, 200, JSON.stringify(accountContext.body));
+assert.deepEqual(accountContext.body.dailyAttemptPolicy, noPlayerPolicy);
 assert.equal(psql(databaseUrl, `
   select count(*)
   from public.game_account_players player
