@@ -78,6 +78,23 @@ begin
 end;
 $$;
 
+create or replace function public.get_game_account_daily_attempt_policy_by_token(
+  p_account_token_hash text,
+  p_at timestamptz default clock_timestamp()
+) returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_account_id uuid;
+begin
+  v_account_id := public.resolve_game_account_token(p_account_token_hash);
+  return public.get_game_account_daily_attempt_policy(v_account_id, p_at);
+end;
+$$;
+
 create or replace function public.game_player_daily_bonus(p_nick_key text)
 returns integer
 language sql
@@ -160,11 +177,13 @@ $$;
 revoke all on function public.game_account_daily_bonus(uuid) from public, anon, authenticated;
 revoke all on function public.get_game_account_daily_attempt_policy(uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.get_game_auth_daily_attempt_policy(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function public.get_game_account_daily_attempt_policy_by_token(text, timestamptz) from public, anon, authenticated;
 revoke all on function public.game_player_daily_bonus(text) from public, anon, authenticated;
 revoke all on function public.get_game_daily_attempt_state(text, timestamptz) from public, anon, authenticated;
 
 grant execute on function public.game_account_daily_bonus(uuid) to service_role;
 grant execute on function public.get_game_account_daily_attempt_policy(uuid, timestamptz) to service_role;
 grant execute on function public.get_game_auth_daily_attempt_policy(uuid, timestamptz) to service_role;
+grant execute on function public.get_game_account_daily_attempt_policy_by_token(text, timestamptz) to service_role;
 grant execute on function public.game_player_daily_bonus(text) to service_role;
 grant execute on function public.get_game_daily_attempt_state(text, timestamptz) to service_role;
