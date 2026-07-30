@@ -68,6 +68,21 @@ describe('player pages and ranking links', () => {
     expect(server).toContain('/ligas\\/[A-Z0-9]{6}');
   });
 
+  it('renders one accessible native accordion entry for every radar statistic', () => {
+    const html = read('public/player.html');
+    const script = read('public/player-stats.js');
+    const styles = read('public/v20.css');
+    expect(html).toContain('Cómo se calcula cada estadística');
+    expect(html).toContain('id="playerRadarExplanations"');
+    expect(html).not.toContain('id="playerRadarExplanation"');
+    expect(script).toContain("document.createElement('details')");
+    expect(script).toContain('details.dataset.statKey = explanation.key');
+    expect(script).toContain("summary.setAttribute('aria-label'");
+    expect(script).toContain('renderStatExplanations(document.querySelector');
+    expect(styles).toContain('.player-radar-stat[open]');
+    expect(styles).toContain('.player-radar-stat summary:focus-visible');
+  });
+
   it('separates achievement descriptions and dates into semantic elements', () => {
     const honours = read('public/honours.js');
     const player = read('public/player.js');
