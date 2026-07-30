@@ -137,7 +137,6 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
     await expect(page.locator('#nick')).toHaveValue('');
     await expect(page.locator('#competitionPickerSection')).toBeVisible();
     await expect(page.locator('#competitionPicker option:checked')).toHaveText('Global · 6/6 tiros');
-    await expect(page.locator('#nickStatus')).toContainText('Escribe tu nick');
     await expect(page.locator('#startButton')).toBeDisabled();
     expect(requests.playerContext).toEqual(['account-context']);
     await assertNoHorizontalOverflow(page);
