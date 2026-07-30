@@ -114,8 +114,10 @@ test('email verification consumes the generated eight-digit OTP policy', async (
 
   await otp.fill('1234567');
   await expect(verify).toBeDisabled();
-  await otp.fill('12a34567890');
-  await expect(otp).toHaveValue('12345678');
+  await otp.fill('12a34567');
+  await expect(otp).toHaveValue('1234567');
+  await expect(verify).toBeDisabled();
+  await otp.fill('12345678');
   await expect(verify).toBeEnabled();
   await verify.click();
 
