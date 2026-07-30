@@ -62,6 +62,8 @@ async function installRuntimeConfig(page) {
       accountAuthApiUrl: 'https://project.supabase.co/functions/v1/account-auth',
       supabaseUrl: 'https://project.supabase.co',
       supabasePublishableKey: publishableKey,
+      authEmailOtpLength: 8,
+      authEmailOtpExpirySeconds: 3600,
       turnstileSiteKey: '',
       publicSiteUrl: applicationUrl,
     })};`,
@@ -306,8 +308,8 @@ test('verification accepts a numeric code, synchronizes once and hides resend co
     initial: { accountToken, pendingEmail: 'player@example.com' },
   });
   await openApplicationPage(page, '/verificar-email.html');
-  await page.locator('#authOtp').fill('12a34-56');
-  await expect(page.locator('#authOtp')).toHaveValue('123456');
+  await page.locator('#authOtp').fill('12a34-567890');
+  await expect(page.locator('#authOtp')).toHaveValue('12345678');
   await expect(page.locator('#verifyEmailCode')).toBeEnabled();
   await page.locator('#verifyEmailCode').click();
   await expect(page.locator('#verificationSuccess')).toBeVisible();
