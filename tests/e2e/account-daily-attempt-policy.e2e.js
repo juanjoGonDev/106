@@ -139,7 +139,6 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
         animations: 'disabled',
         fullPage: true,
       });
-      await page.waitForTimeout(800);
     }
 
     expect(pageErrors).toEqual([]);
