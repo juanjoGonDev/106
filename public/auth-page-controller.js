@@ -1,11 +1,14 @@
 import {
+  authEmailOtpExpiryLabel,
   authRewardMessage,
   neutralAuthMessage,
   normalizeAuthConfig,
+  normalizeAuthEmailOtp,
   normalizeEmail,
   passwordConfirmationProblem,
   passwordRequirements,
   registrationReadiness,
+  sanitizeAuthEmailOtp,
 } from './auth-account-state.js';
 import { AuthCaptcha } from './auth-captcha.js';
 import { browserAuthExperience, redirectToAuthRoute } from './auth-browser-context.js';
@@ -28,6 +31,7 @@ const config = normalizeAuthConfig(window.__MINUTO106_CONFIG__);
 const pageMode = String(document.body.dataset.authPage || '');
 const elements = {
   shell: document.querySelector('[data-auth-shell]'),
+  lead: document.querySelector('#authLead'),
   status: document.querySelector('#authStatus'),
   email: document.querySelector('#authEmail'),
   password: document.querySelector('#authPassword'),
@@ -39,6 +43,7 @@ const elements = {
   google: document.querySelector('#googleSignIn'),
   captcha: document.querySelector('#authCaptcha'),
   otp: document.querySelector('#authOtp'),
+  otpHelp: document.querySelector('#otpHelp'),
   verify: document.querySelector('#verifyEmailCode'),
   resend: document.querySelector('#emailConfirmationResend'),
   resendStatus: document.querySelector('#emailConfirmationResendStatus'),
@@ -67,6 +72,38 @@ function setBusy(value) {
 
 function pendingState() {
   return pendingConfirmationSnapshot(localStorage);
+}
+
+function emailOtpPolicyAvailable() {
+  return config.authEmailOtpLength > 0 && config.authEmailOtpExpirySeconds > 0;
+}
+
+function configureEmailOtpInput() {
+  if (pageMode !== 'verify' || !elements.otp) return;
+  if (!emailOtpPolicyAvailable()) {
+    elements.otp.disabled = true;
+    elements.otp.removeAttribute('pattern');
+    elements.otp.removeAttribute('minlength');
+    elements.otp.removeAttribute('maxlength');
+    elements.otp.removeAttribute('placeholder');
+    if (elements.lead) elements.lead.textContent = 'Abre el enlace de un solo uso recibido por email para verificar la cuenta.';
+    if (elements.otpHelp) elements.otpHelp.textContent = 'La entrada manual de códigos no está disponible en esta publicación.';
+    return;
+  }
+
+  const length = config.authEmailOtpLength;
+  const expiry = authEmailOtpExpiryLabel(config.authEmailOtpExpirySeconds);
+  elements.otp.disabled = false;
+  elements.otp.pattern = `[0-9]{${length}}`;
+  elements.otp.minLength = length;
+  elements.otp.maxLength = length;
+  elements.otp.placeholder = '0'.repeat(length);
+  if (elements.lead) {
+    elements.lead.textContent = `Usa el código de ${length} dígitos o abre el enlace recibido. Ambos son de un solo uso y caducan en ${expiry}.`;
+  }
+  if (elements.otpHelp) {
+    elements.otpHelp.textContent = `Introduce exactamente ${length} números. El enlace del correo confirma automáticamente al abrirse.`;
+  }
 }
 
 function refreshPasswordFeedback() {
@@ -135,8 +172,14 @@ function refreshControls() {
   }
 
   if (pageMode === 'verify') {
-    const code = String(elements.otp?.value || '').replace(/\D/gu, '');
-    if (elements.verify) elements.verify.disabled = busy || unavailable || code.length !== 6 || !pendingState().email;
+    const code = normalizeAuthEmailOtp(elements.otp?.value, config.authEmailOtpLength);
+    if (elements.verify) {
+      elements.verify.disabled = busy
+        || unavailable
+        || !emailOtpPolicyAvailable()
+        || !code
+        || !pendingState().email;
+    }
     refreshResend();
   }
 }
@@ -219,7 +262,7 @@ async function finishVerification(session) {
 
 async function verifyCode() {
   const snapshot = pendingState();
-  const code = String(elements.otp.value || '').replace(/\D/gu, '');
+  const code = normalizeAuthEmailOtp(elements.otp.value, config.authEmailOtpLength);
   const session = await client.verifyEmailOtp(snapshot.email, code);
   await finishVerification(session);
 }
@@ -250,12 +293,13 @@ function bindEvents() {
     refreshControls();
   });
   elements.otp?.addEventListener('input', () => {
-    elements.otp.value = elements.otp.value.replace(/\D/gu, '').slice(0, 6);
+    elements.otp.value = sanitizeAuthEmailOtp(elements.otp.value, config.authEmailOtpLength);
     refreshControls();
   });
 }
 
 async function initialize() {
+  configureEmailOtpInput();
   if (!config.available) {
     setStatus('La autenticación no está configurada en este entorno.', 'warning');
     refreshPasswordFeedback();
@@ -284,8 +328,10 @@ async function initialize() {
       url.searchParams.delete('type');
       history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
       await withOperation('verify', () => verifyLinkToken(hash));
+    } else if (emailOtpPolicyAvailable()) {
+      setStatus(`Introduce el código de ${config.authEmailOtpLength} dígitos o abre el enlace recibido. Al verificar ganas +1 intento diario y el logro Cuenta confirmada.`);
     } else {
-      setStatus('Introduce el código de 6 dígitos o abre el enlace recibido. Al verificar ganas +1 intento diario y el logro Cuenta confirmada.');
+      setStatus('Abre el enlace recibido por email. La verificación manual mediante código no está disponible.', 'warning');
     }
   } else if (pageMode === 'login') {
     setStatus('Accede con email o Google.');
