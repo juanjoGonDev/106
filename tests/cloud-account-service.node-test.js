@@ -103,36 +103,61 @@ test('requires a session and preserves structured backend errors', async () => {
   await assert.rejects(() => invalidJson.request('sync-account'), /No se pudo vincular la cuenta/);
 });
 
-test('synchronizes tokens and wraps merge operations', async () => {
+test('synchronizes account tokens and daily attempt policy atomically', async () => {
   const actions = [];
-  const tokens = [];
+  const sessions = [];
+  const policies = [];
+  const policy = { attemptsLeft: 6, maxAttempts: 6, bonusAttempts: 1 };
   const service = new CloudAccountService(config, { currentSession: async () => session }, {
+    storage: storage(),
+    crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
+    access: {
+      getAccountToken: () => '',
+      setAccountSession: (token, value) => sessions.push({ token, policy: value }),
+      setAccountDailyAttemptPolicy: (value) => policies.push(value),
+    },
+    fetch: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      actions.push(body);
+      if (body.action === 'sync-account') {
+        return response(200, { accountToken: 'c'.repeat(64), dailyAttemptPolicy: policy });
+      }
+      if (body.action === 'confirm-merge') return response(200, { action: body.action, dailyAttemptPolicy: policy });
+      return response(200, { action: body.action });
+    },
+  });
+
+  assert.equal((await service.synchronize()).accountToken, 'c'.repeat(64));
+  assert.deepEqual(sessions, [{ token: 'c'.repeat(64), policy }]);
+  assert.deepEqual(await service.confirmMerge({ proposalId: 'p1', fingerprint: 'f1' }), {
+    action: 'confirm-merge',
+    dailyAttemptPolicy: policy,
+  });
+  assert.deepEqual(policies, [policy]);
+  assert.deepEqual(await service.cancelMerge('p1'), { action: 'cancel-merge' });
+  assert.equal(await service.cancelMerge(''), null);
+  assert.deepEqual(actions.map((entry) => entry.action), ['sync-account', 'confirm-merge', 'cancel-merge']);
+});
+
+test('preserves rolling compatibility with older access and backend contracts', async () => {
+  const tokens = [];
+  const legacy = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     access: {
       getAccountToken: () => '',
       setAccountToken: (value) => tokens.push(value),
     },
-    fetch: async (_url, options) => {
-      const body = JSON.parse(options.body);
-      actions.push(body);
-      if (body.action === 'sync-account') return response(200, { accountToken: 'c'.repeat(64) });
-      return response(200, { action: body.action });
-    },
+    fetch: async () => response(200, { accountToken: 'd'.repeat(64) }),
   });
+  assert.equal((await legacy.synchronize()).accountToken, 'd'.repeat(64));
+  assert.deepEqual(tokens, ['d'.repeat(64)]);
 
-  assert.equal((await service.synchronize()).accountToken, 'c'.repeat(64));
-  assert.deepEqual(tokens, ['c'.repeat(64)]);
-  assert.deepEqual(await service.confirmMerge({ proposalId: 'p1', fingerprint: 'f1' }), { action: 'confirm-merge' });
-  assert.deepEqual(await service.cancelMerge('p1'), { action: 'cancel-merge' });
-  assert.equal(await service.cancelMerge(''), null);
-  assert.deepEqual(actions.map((entry) => entry.action), ['sync-account', 'confirm-merge', 'cancel-merge']);
-
-  const noToken = new CloudAccountService(config, { currentSession: async () => session }, {
+  const noState = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     access: { getAccountToken: () => '', setAccountToken: () => { throw new Error('must not set'); } },
     fetch: async () => response(200, {}),
   });
-  assert.deepEqual(await noToken.synchronize(), {});
+  assert.deepEqual(await noState.synchronize(), {});
 });
