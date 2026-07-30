@@ -26,7 +26,7 @@
     <section class="auth-card auth-card--verification" aria-labelledby="verifyTitle">
       <p class="eyebrow">ACTIVACIÓN CON PREMIO</p>
       <h1 id="verifyTitle">Verifica tu email</h1>
-      <p class="auth-lead">Usa el código de 6 dígitos o abre el enlace recibido. Ambos son de un solo uso y caducan en 1 hora.</p>
+      <p id="authLead" class="auth-lead">Usa el código o abre el enlace recibido. Ambos son de un solo uso.</p>
       <aside class="verification-prize" aria-label="Premio por verificar">
         <strong>+1 intento diario</strong>
         <span>y logro Cuenta confirmada</span>
@@ -38,8 +38,8 @@
         <label for="authEmail">Email pendiente</label>
         <input id="authEmail" type="email" autocomplete="email" readonly>
         <label for="authOtp">Código de verificación</label>
-        <input id="authOtp" class="auth-otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" placeholder="000000" aria-describedby="otpHelp">
-        <p id="otpHelp" class="hint">El código solo contiene números. El enlace del correo confirma automáticamente al abrirse.</p>
+        <input id="authOtp" class="auth-otp" type="text" inputmode="numeric" autocomplete="one-time-code" aria-describedby="otpHelp">
+        <p id="otpHelp" class="hint">Introduce el código numérico recibido. El enlace confirma automáticamente al abrirse.</p>
       </div>
       <div id="authCaptcha" class="auth-captcha" hidden></div>
       <div class="auth-primary-actions">
