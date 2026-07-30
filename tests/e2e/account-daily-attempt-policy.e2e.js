@@ -44,7 +44,6 @@ function contextOptions(isMobile) {
             value: JSON.stringify({ analytics: false, ads: false, updatedAt: '2026-07-30T15:00:00.000Z' }),
           },
           { name: 'minuto106:account-access-v1', value: accountToken },
-          { name: 'minuto106:account-daily-attempt-policy-v1', value: JSON.stringify(accountPolicy) },
         ],
       }],
     },
@@ -80,11 +79,21 @@ function stats() {
 
 async function installMocks(page, requests) {
   await page.route('**/functions/v1/player-context', async (route) => {
-    requests.playerContext += 1;
+    const body = requestBody(route.request());
+    requests.playerContext.push(body.action);
+    expect(route.request().headers()['x-account-token']).toBe(accountToken);
+    if (body.action === 'account-context') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ dailyAttemptPolicy: accountPolicy }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ availability: 'available', profile: null, leagues: [] }),
+      body: JSON.stringify({ availability: 'available', profile: null, leagues: [], dailyAttemptPolicy: accountPolicy }),
     });
   });
   await page.route('**/functions/v1/game-api', async (route) => {
@@ -114,7 +123,7 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
-  const requests = { gameApi: [], playerContext: 0 };
+  const requests = { gameApi: [], playerContext: [] };
 
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
@@ -130,7 +139,7 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
     await expect(page.locator('#competitionPicker option:checked')).toHaveText('Global · 6/6 tiros');
     await expect(page.locator('#nickStatus')).toContainText('Escribe tu nick');
     await expect(page.locator('#startButton')).toBeDisabled();
-    expect(requests.playerContext).toBe(0);
+    expect(requests.playerContext).toEqual(['account-context']);
     await assertNoHorizontalOverflow(page);
 
     if (captureEvidence) {
