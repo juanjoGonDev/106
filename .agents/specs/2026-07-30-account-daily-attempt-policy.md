@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and regression coverage are complete on `agent/fix-account-daily-attempt-policy`. Repository, local Supabase and browser validation are pending on the pull request head. No merge, deployment or production migration has been performed.
+Implementation and regression coverage are complete on `agent/fix-account-daily-attempt-policy` and delivered through PR #56. The substantive code head passed repository, local Supabase, security and browser validation; the final documentation-only head must retain those gates before merge. No merge, deployment or production migration has been performed.
 
 ## Request
 
@@ -43,14 +43,19 @@ A newly confirmed account receives the authentication entitlement that raises it
 11. Desktop and Mobile Playwright prove the no-nickname selector state without pre-seeded policy storage, no horizontal overflow, and no page, console or failed-request errors.
 12. Existing daily-limit, authentication, account-linking, reservation, league and anti-abuse tests remain green.
 
-## Validation plan
+## Validation
 
-- Enforce `daily-attempt-limit.js` coverage for account-policy fallback and player-profile precedence.
-- Cover account storage and cloud account service persistence, invalidation and rolling compatibility.
-- Run migration contract tests and local PostgreSQL assertions for account policy, private-token lookup and nickname policy parity.
-- Probe the real local `player-context` account boundary before nickname creation.
-- Run Desktop and Mobile Playwright regression and generate PNG, WebM and GIF evidence for the confirmed no-nickname state.
-- Run syntax, ESLint, Knip, security, unit, coverage, full local Supabase matrix, authentication quality, browser quality and platform evidence workflows.
+Substantive code head `827bb8b85e9e7705b7699e4d86aabe5e9fdfdf71` passed:
+
+- Pull Request Quality Pipeline #1211, including the full local Supabase matrix and real `player-context` account-context probe.
+- Authentication Quality #392.
+- CodeQL Advanced #25.
+- Public Asset Audit #884.
+- Player Pages and Social Cards #943, including enforced 100% coverage and Desktop/Mobile browser shards.
+- Desktop and Mobile evidence showing `Global · 6/6 tiros` with no horizontal overflow, page errors, console errors or failed requests.
+- Platform artifact `platform-evidence-30562017008`, digest `sha256:e342e132e6e69fe3bf8d880c990d026a03d44e29e101c94afe6f7d0a106084e2`.
+
+The final head differs only by this task record and remains subject to the same required checks before merge.
 
 ## Risks
 
@@ -68,5 +73,6 @@ Revert the frontend and Edge Function changes. If the migration has reached prod
 
 - Branch: `agent/fix-account-daily-attempt-policy`
 - Base: current `main`
+- Pull request: `#56`
 - One normal, non-draft pull request
 - No merge, deployment, release or direct production mutation without explicit approval
