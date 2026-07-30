@@ -57,7 +57,7 @@ export class CloudAccountService {
       return result;
     }
     if (accountToken) this.access?.setAccountToken?.(accountToken);
-    if (policy && !accountToken) this.access?.setAccountDailyAttemptPolicy?.(policy);
+    if (policy) this.access?.setAccountDailyAttemptPolicy?.(policy);
     return result;
   }
 
