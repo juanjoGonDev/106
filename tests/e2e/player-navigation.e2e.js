@@ -52,11 +52,18 @@ test('player clean routes keep home navigation anchored and explain impact progr
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
+  const cleanRouteAssetLeaks = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => failedRequests.push(`${request.method()} ${request.url()}`));
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith('/player/assets/') || pathname === '/player/share-actions.js') {
+      cleanRouteAssetLeaks.push(pathname);
+    }
+  });
 
   await page.goto('/player/Vieucirst');
   await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
@@ -71,6 +78,7 @@ test('player clean routes keep home navigation anchored and explain impact progr
   expect(new URL(brandHref, page.url()).pathname).toBe('/');
   expect(new URL(firstNavigationHref, page.url()).pathname).toBe('/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  expect(cleanRouteAssetLeaks).toEqual([]);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(failedRequests).toEqual([]);
