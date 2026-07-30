@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const origin = 'http://127.0.0.1:3000';
@@ -19,9 +19,10 @@ function environment() {
   }
   const apiUrl = values.API_URL || 'http://127.0.0.1:54321';
   const anonKey = values.ANON_KEY;
+  const serviceRoleKey = values.SERVICE_ROLE_KEY;
   const databaseUrl = values.DB_URL || values.POSTGRES_URL;
-  if (!anonKey || !databaseUrl) throw new Error('Local Supabase environment is unavailable.');
-  return { apiUrl, anonKey, databaseUrl };
+  if (!anonKey || !serviceRoleKey || !databaseUrl) throw new Error('Local Supabase environment is unavailable.');
+  return { apiUrl, anonKey, serviceRoleKey, databaseUrl };
 }
 
 function literal(value) {
@@ -46,6 +47,27 @@ function psql(databaseUrl, sql) {
 
 function json(databaseUrl, expression) {
   return JSON.parse(psql(databaseUrl, `select (${expression})::text;`));
+}
+
+async function createConfirmedAuthUser(apiUrl, serviceRoleKey, email) {
+  const response = await fetch(`${apiUrl}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      authorization: `Bearer ${serviceRoleKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password: `Local-${randomBytes(18).toString('base64url')}!1aA`,
+      email_confirm: true,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.match(String(body.id || ''), /^[a-f0-9-]{36}$/i);
+  return body.id;
 }
 
 async function jsonRequest(url, options = {}) {
@@ -78,16 +100,17 @@ function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
   return nickKey;
 }
 
-const { apiUrl, anonKey, databaseUrl } = environment();
+const { apiUrl, anonKey, serviceRoleKey, databaseUrl } = environment();
 const suffix = Date.now().toString(36);
 
-const noPlayerAuthUserId = randomUUID();
+const noPlayerEmail = `no-player-${suffix}@example.com`;
+const noPlayerAuthUserId = await createConfirmedAuthUser(apiUrl, serviceRoleKey, noPlayerEmail);
 const noPlayerToken = randomBytes(32).toString('hex');
 const noPlayerTokenHash = accountHash(noPlayerToken);
 const preparedAccount = json(databaseUrl, `public.prepare_game_auth_link(
   ${literal(noPlayerAuthUserId)}::uuid,
   'email',
-  ${literal(`no-player-${suffix}@example.com`)},
+  ${literal(noPlayerEmail)},
   true,
   null,
   ${literal(noPlayerTokenHash)}
