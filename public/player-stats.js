@@ -27,8 +27,15 @@
     return `±${Math.round(Math.abs(Number(value))).toLocaleString('es-ES')} ms`;
   };
 
+  function resolveLifetimeAttemptsUsed(profile = {}) {
+    const source = Object.prototype.hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')
+      ? profile.lifetimeAttemptsUsed
+      : profile.attemptsUsed;
+    return nonNegativeInteger(source);
+  }
+
   function buildRadarStats(profile = {}) {
-    const attemptsUsed = Math.max(0, Number(profile.attemptsUsed) || 0);
+    const lifetimeAttemptsUsed = resolveLifetimeAttemptsUsed(profile);
     const verifiedAttempts = Math.max(0, Number(profile.verifiedAttempts) || 0);
     const completedReferrals = Math.max(0, Number(profile.completedReferrals) || 0);
     const bonusAttempts = Math.max(0, Number(profile.bonusAttempts) || 0);
@@ -36,7 +43,7 @@
       precision: inverseScore(profile.bestDifferenceMs, RADAR_POLICY.precisionMaximumDifferenceMs),
       consistency: inverseScore(profile.averageDifferenceMs, RADAR_POLICY.consistencyMaximumDifferenceMs),
       experience: clamp((verifiedAttempts / RADAR_POLICY.experienceMaximumVerifiedAttempts) * 100),
-      reliability: attemptsUsed > 0 ? clamp((verifiedAttempts / attemptsUsed) * 100) : 0,
+      reliability: lifetimeAttemptsUsed > 0 ? clamp((verifiedAttempts / lifetimeAttemptsUsed) * 100) : 0,
       impact: clamp(
         completedReferrals * RADAR_POLICY.impactPointsPerReferral
           + bonusAttempts * RADAR_POLICY.impactPointsPerBonusAttempt,
@@ -46,15 +53,15 @@
 
   function statExplanations(profile = {}) {
     const stats = buildRadarStats(profile);
-    const attemptsUsed = nonNegativeInteger(profile.attemptsUsed);
+    const lifetimeAttemptsUsed = resolveLifetimeAttemptsUsed(profile);
     const verifiedAttempts = nonNegativeInteger(profile.verifiedAttempts);
     const completedReferrals = nonNegativeInteger(profile.completedReferrals);
     const bonusAttempts = nonNegativeInteger(profile.bonusAttempts);
     const referralLabel = completedReferrals === 1 ? 'referido completado' : 'referidos completados';
     const attemptLabel = bonusAttempts === 1 ? 'intento diario adicional' : 'intentos diarios adicionales';
-    const reliabilityCurrent = attemptsUsed > 0
-      ? `${formatInteger(verifiedAttempts)} intentos válidos de ${formatInteger(attemptsUsed)} usados.`
-      : 'Aún no hay intentos usados para calcular el porcentaje.';
+    const reliabilityCurrent = lifetimeAttemptsUsed > 0
+      ? `${formatInteger(verifiedAttempts)} intentos válidos de ${formatInteger(lifetimeAttemptsUsed)} intentos históricos.`
+      : 'Aún no hay intentos históricos para calcular el porcentaje.';
 
     return Object.freeze([
       Object.freeze({
@@ -89,9 +96,9 @@
         label: 'Fiabilidad',
         score: stats.reliability,
         current: reliabilityCurrent,
-        measure: 'Mide qué proporción de tus intentos usados termina siendo válida.',
-        calculation: 'Divide los intentos válidos entre todos los intentos usados y redondea el porcentaje a una puntuación sobre 100.',
-        improve: 'Evita intentos excluidos o inválidos. Con todos tus intentos válidos mantienes 100/100.',
+        measure: 'Mide qué proporción de tus intentos globales históricos termina siendo válida.',
+        calculation: 'Divide los intentos válidos entre todos tus intentos globales históricos y redondea el porcentaje a una puntuación sobre 100.',
+        improve: 'Evita intentos excluidos o inválidos. El reinicio diario no borra el historial usado por esta estadística.',
       }),
       Object.freeze({
         key: 'impact',
@@ -249,6 +256,7 @@
     policy: RADAR_POLICY,
     renderPlayerRadar,
     renderStatExplanations,
+    resolveLifetimeAttemptsUsed,
     statExplanations,
   };
 })();
