@@ -8,8 +8,9 @@ import {
 const AUTH_EMAIL_SECTION = 'auth.email';
 const DEFAULT_CONFIG_URL = new URL('../supabase/config.toml', import.meta.url);
 
-function normalizedSettingValue(value) {
-  return String(value).trim();
+function lineWithoutComment(rawLine) {
+  const commentIndex = rawLine.indexOf('#');
+  return (commentIndex === -1 ? rawLine : rawLine.slice(0, commentIndex)).trim();
 }
 
 export function parseSupabaseAuthEmailPolicy(sourceValue) {
@@ -18,19 +19,20 @@ export function parseSupabaseAuthEmailPolicy(sourceValue) {
   let section = '';
 
   for (const rawLine of source.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
+    const line = lineWithoutComment(rawLine);
+    if (!line) continue;
 
-    const sectionMatch = line.match(/^\[([^\]]+)\](?:\s+#.*)?$/u);
-    if (sectionMatch) {
-      section = sectionMatch[1].trim();
+    if (line[0] === '[' && line.at(-1) === ']') {
+      section = line.slice(1, -1).trim();
       continue;
     }
     if (section !== AUTH_EMAIL_SECTION) continue;
 
-    const settingMatch = line.match(/^([a-z_]+)\s*=\s*([^#]+?)(?:\s+#.*)?$/u);
-    if (!settingMatch) continue;
-    settings.set(settingMatch[1], normalizedSettingValue(settingMatch[2]));
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex < 1) continue;
+    const key = line.slice(0, separatorIndex).trim();
+    if (!/^[a-z_]+$/u.test(key)) continue;
+    settings.set(key, line.slice(separatorIndex + 1).trim());
   }
 
   const otpLength = normalizeAuthEmailOtpLength(settings.get('otp_length'));
