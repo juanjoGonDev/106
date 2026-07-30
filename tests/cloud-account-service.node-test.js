@@ -141,17 +141,21 @@ test('synchronizes account tokens and daily attempt policy atomically', async ()
 
 test('preserves rolling compatibility with older access and backend contracts', async () => {
   const tokens = [];
+  const policies = [];
+  const policy = { attemptsLeft: 6, maxAttempts: 6, bonusAttempts: 1 };
   const legacy = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
     crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     access: {
       getAccountToken: () => '',
       setAccountToken: (value) => tokens.push(value),
+      setAccountDailyAttemptPolicy: (value) => policies.push(value),
     },
-    fetch: async () => response(200, { accountToken: 'd'.repeat(64) }),
+    fetch: async () => response(200, { accountToken: 'd'.repeat(64), dailyAttemptPolicy: policy }),
   });
   assert.equal((await legacy.synchronize()).accountToken, 'd'.repeat(64));
   assert.deepEqual(tokens, ['d'.repeat(64)]);
+  assert.deepEqual(policies, [policy]);
 
   const noState = new CloudAccountService(config, { currentSession: async () => session }, {
     storage: storage(),
