@@ -93,9 +93,14 @@ async function installRuntime(page, authLog) {
 
 async function installPendingEmail(page) {
   await page.addInitScript(() => {
-    localStorage.setItem('minuto106:consent-v1', JSON.stringify({ analytics: false, ads: false }));
+    localStorage.setItem('minuto106:consent-v1', JSON.stringify({
+      analytics: false,
+      ads: false,
+      policyVersion: 2,
+      updatedAt: new Date().toISOString(),
+    }));
     localStorage.setItem('minuto106:pending-email-confirmation-v1', 'otp@example.com');
-    localStorage.setItem('minuto106:email-resend-available-at-v1', '2000000000000');
+    localStorage.setItem('minuto106:email-resend-available-at-v1', String(Date.now() + 60_000));
   });
 }
 
