@@ -24,11 +24,13 @@ test('parses only auth.email integer settings with comments and CRLF safely', ()
   const policy = parseSupabaseAuthEmailPolicy([
     '# global comment',
     '',
+    '[auth.email',
     '[auth]',
     'otp_length = 6',
     '[auth.email] # managed policy',
     'enable_signup = true',
     'invalid setting',
+    'bad-key = 1',
     'otp_length = 10 # upper supported boundary',
     'otp_expiry = 90',
     '[auth.email.template.confirmation]',
