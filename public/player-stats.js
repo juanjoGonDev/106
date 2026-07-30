@@ -13,6 +13,7 @@
     if (!Number.isFinite(Number(value))) return 0;
     return clamp(100 - (Number(value) / maximum) * 100);
   };
+  const nonNegativeInteger = (value) => Math.max(0, Math.trunc(Number(value) || 0));
 
   function buildRadarStats(profile = {}) {
     const attemptsUsed = Math.max(0, Number(profile.attemptsUsed) || 0);
@@ -26,6 +27,20 @@
       reliability: attemptsUsed > 0 ? clamp((verifiedAttempts / attemptsUsed) * 100) : 0,
       impact: clamp(completedReferrals * 20 + bonusAttempts * 8),
     };
+  }
+
+  function impactExplanation(profile = {}) {
+    const completedReferrals = nonNegativeInteger(profile.completedReferrals);
+    const bonusAttempts = nonNegativeInteger(profile.bonusAttempts);
+    const impact = buildRadarStats(profile).impact;
+    const referralLabel = completedReferrals === 1 ? 'referido completado' : 'referidos completados';
+    const attemptLabel = bonusAttempts === 1 ? 'intento diario adicional' : 'intentos diarios adicionales';
+    return Object.freeze({
+      impact,
+      completedReferrals,
+      bonusAttempts,
+      copy: `Impacto ${impact}/100 · ${completedReferrals} ${referralLabel} · +${bonusAttempts} ${attemptLabel}. Cada referido completado suma 20 puntos y cada intento diario adicional suma 8.`,
+    });
   }
 
   function point(index, radius, center = 170) {
@@ -104,11 +119,15 @@
       legend.append(entry);
     });
     target.append(svg, legend);
+
+    const explanation = document.querySelector('#playerRadarExplanation');
+    if (explanation) explanation.textContent = series[0] ? impactExplanation(series[0].profile).copy : '';
   }
 
   window.Minuto106PlayerStats = {
     axes: AXES.map(([label, key]) => ({ label, key })),
     buildRadarStats,
+    impactExplanation,
     renderPlayerRadar,
   };
 })();
