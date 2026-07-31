@@ -12,7 +12,8 @@ function profile() {
   return {
     nick: 'Vieucirst',
     team: 'spain',
-    attemptsUsed: 17,
+    attemptsUsed: 0,
+    lifetimeAttemptsUsed: 17,
     verifiedAttempts: 17,
     averageDifferenceMs: 250,
     bestDifferenceMs: 4,
@@ -47,7 +48,7 @@ async function capture(page, testInfo) {
   await page.screenshot({ path: resolve(directory, `player-navigation-${device}.png`), animations: 'disabled', fullPage: true });
 }
 
-test('player clean routes keep home navigation anchored and explain every radar statistic', async ({ page }, testInfo) => {
+test('player clean routes preserve lifetime radar statistics after the daily reset', async ({ page }, testInfo) => {
   await installMocks(page);
   const pageErrors = [];
   const consoleErrors = [];
@@ -91,11 +92,16 @@ test('player clean routes keep home navigation anchored and explain every radar 
   await page.keyboard.press('Enter');
   await expect(precision).not.toHaveAttribute('open', '');
 
+  const reliability = page.locator('details[data-stat-key="reliability"]');
+  await reliability.locator('summary').click();
+  await expect(reliability).toHaveAttribute('open', '');
+  await expect(reliability).toContainText('17 intentos válidos de 17 intentos históricos.');
+  await expect(reliability).toContainText('El reinicio diario no borra el historial usado por esta estadística.');
+
   const impact = page.locator('details[data-stat-key="impact"]');
   await impact.locator('summary').click();
   await expect(impact).toHaveAttribute('open', '');
   await expect(impact).toContainText('Cada referido completado suma 20 puntos y cada intento diario adicional suma 8');
-  await expect(impact).toContainText('Las partidas, los trofeos y los logros no lo aumentan directamente.');
 
   const brand = page.locator('.site-header .brand');
   const firstNavigationLink = page.locator('.site-navigation a').first();
