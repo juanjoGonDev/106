@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module';
 
+import { PLAYER_CARD_RENDERER_REVISION } from '../../shared/player-radar-model.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -104,7 +106,10 @@ test('shares the current section PNG with text and the unchanged public URL', as
   await page.goto('/player.html?nick=Yisucrist&section=trophies', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { level: 1, name: 'Yisucrist' })).toBeVisible();
   await expect(page).toHaveURL(/\/player\/Yisucrist\/trophies$/);
-  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Yisucrist\/trophies\.png\?v=321$/);
+  const metadataCardUrl = new URL(await page.locator('meta[property="og:image"]').getAttribute('content'));
+  expect(metadataCardUrl.pathname).toMatch(/player-share\/Yisucrist\/trophies\.png$/);
+  expect(metadataCardUrl.searchParams.get('v')).toBe('321');
+  expect(metadataCardUrl.searchParams.get('r')).toBe(String(PLAYER_CARD_RENDERER_REVISION));
 
   const preparingButton = page.getByRole('button', { name: 'Preparando...' });
   await expect(preparingButton).toBeDisabled();
