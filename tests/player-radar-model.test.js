@@ -14,6 +14,9 @@ import {
 const canonicalSource = readFileSync('shared/player-radar-model.js', 'utf8');
 const browserSource = readFileSync('public/player-radar-model.js', 'utf8');
 const edgeSource = readFileSync('supabase/functions/_shared/player-radar-model.js', 'utf8');
+const configSource = readFileSync('public/config.js', 'utf8');
+const generateConfigSource = readFileSync('scripts/generate-config.mjs', 'utf8');
+const developmentServerSource = readFileSync('scripts/serve.mjs', 'utf8');
 
 function loadBrowserModel() {
   const context = vm.createContext({});
@@ -118,5 +121,13 @@ describe('generated player radar runtimes', () => {
       browserSource,
       edgeSource: `${edgeSource}\n// drift`,
     })).toEqual(['supabase/functions/_shared/player-radar-model.js']);
+  });
+
+  it('bootstraps the same generated browser runtime in production and local config responses', () => {
+    expect(configSource.endsWith(browserSource)).toBe(true);
+    expect(generateConfigSource).toContain("readFile(new URL('../public/player-radar-model.js'");
+    expect(generateConfigSource).toContain('${radarRuntime}');
+    expect(developmentServerSource).toContain("readFile(join(root, 'player-radar-model.js')");
+    expect(developmentServerSource).toContain('${playerRadarRuntime}');
   });
 });
