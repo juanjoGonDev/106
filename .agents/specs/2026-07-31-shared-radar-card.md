@@ -19,6 +19,7 @@ Follow-up production evidence showed that the corrected image appeared only afte
 - Card URLs only included `profileRevision`. A code-only scoring, renderer or migration-driven profile-contract change did not increment that data revision for every player, leaving existing URLs unchanged.
 - Dynamic player card responses are publicly cached, so an unchanged URL can continue serving the prior renderer after deployment.
 - Versioning the general runtime `config.js` would broaden cache invalidation into authentication and unrelated application bootstrapping. The radar renderer needs an isolated cache identity instead.
+- Final-head security validation reached a healthy local stack, applied every migration and warmed the required Edge Functions, then one run of the pinned Supabase CLI failed internally while executing `status -o env` with Bun's `JSON Parse error`. All other isolated Supabase domains completed; this is recorded as transient CLI evidence rather than a permissions or application failure.
 
 ## Decision
 
@@ -71,6 +72,7 @@ Follow-up production evidence showed that the corrected image appeared only afte
 - **Global invalidation drift:** a new migration cannot silently retain the old card identity because `check:player-radar-model` compares the revision with the newest migration timestamp.
 - **Runtime coupling:** the radar model remains a separate versioned asset; general config and Auth initialization are not invalidated or mocked differently.
 - **Contract change:** `get_game_player_profile` is service-role-only and already used by `player-context`; `player-share` also runs with the service role.
+- **CI infrastructure:** the pinned Supabase CLI can fail transiently inside Bun while parsing its own status output; evidence must distinguish that from a failed migration, permission assertion or Edge Function response.
 - **Scope drift:** the visual card layout remains unchanged except for rendering the correct polygon.
 
 ## Test plan
@@ -85,6 +87,7 @@ Follow-up production evidence showed that the corrected image appeared only afte
 - Desktop/Mobile Playwright for web radar plus card preview parity and refreshed URL.
 - Existing authentication Playwright journeys to prove isolated radar cache invalidation does not alter `config.js` interception or Auth bootstrapping.
 - Complete repository quality and platform-evidence workflows.
+- On a transient Supabase CLI status parser failure, preserve diagnostics and validate again on a fresh final head; do not weaken or bypass the security assertions.
 
 ## Rollback
 
