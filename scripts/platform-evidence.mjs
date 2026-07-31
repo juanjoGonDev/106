@@ -25,6 +25,7 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'player-overview',
   'player-profile-context',
   'player-profile-fallback',
+  'player-reliability',
   'player-trophies',
   'privacy-page',
   'privacy-settings',
@@ -44,6 +45,7 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'league-detail-active',
   'league-detail-scheduled',
   'league-directory',
+  'player-reliability',
 ]);
 
 const DEVICES = Object.freeze(['desktop', 'mobile']);
