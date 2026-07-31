@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and final-head validation in progress on `agent/fix-shared-radar-card`. No merge, deployment, release or production migration has been performed.
+Implemented and validated on `agent/fix-shared-radar-card`. No merge, deployment, release or production migration has been performed.
 
 ## Request
 
@@ -19,7 +19,7 @@ Follow-up production evidence showed that the corrected image appeared only afte
 - Card URLs only included `profileRevision`. A code-only scoring, renderer or migration-driven profile-contract change did not increment that data revision for every player, leaving existing URLs unchanged.
 - Dynamic player card responses are publicly cached, so an unchanged URL can continue serving the prior renderer after deployment.
 - Versioning the general runtime `config.js` would broaden cache invalidation into authentication and unrelated application bootstrapping. The radar renderer needs an isolated cache identity instead.
-- Final-head security validation reached a healthy local stack, applied every migration and warmed the required Edge Functions, then one run of the pinned Supabase CLI failed internally while executing `status -o env` with Bun's `JSON Parse error`. All other isolated Supabase domains completed; this is recorded as transient CLI evidence rather than a permissions or application failure.
+- One validation run reached a healthy local stack, applied every migration and warmed the required Edge Functions, then the pinned Supabase CLI failed internally while executing `status -o env` with Bun's `JSON Parse error`. A fresh unchanged application head passed the complete security domain, confirming a transient CLI failure rather than a permissions or application defect.
 
 ## Decision
 
@@ -87,7 +87,14 @@ Follow-up production evidence showed that the corrected image appeared only afte
 - Desktop/Mobile Playwright for web radar plus card preview parity and refreshed URL.
 - Existing authentication Playwright journeys to prove isolated radar cache invalidation does not alter `config.js` interception or Auth bootstrapping.
 - Complete repository quality and platform-evidence workflows.
-- On a transient Supabase CLI status parser failure, preserve diagnostics and validate again on a fresh final head; do not weaken or bypass the security assertions.
+
+## Validation
+
+- Final validated application head: `94a2d70adadb90f08f73bf0ebee37ef2036dde6d`.
+- Pull Request Quality Pipeline: success, including unit/security, ESLint, Knip, build and every isolated Supabase domain.
+- Player Pages and Social Cards: success, including strict coverage, sixteen Desktop/Mobile shards, GIF generation and canonical evidence packaging.
+- Authentication Quality, Public Asset Audit and CodeQL Advanced: success.
+- Canonical platform artifact: workflow run `30617147005`, artifact `8787863631`, digest `sha256:36e1ddc32588ce33242606b59a729edd01be4a328258d84002d41d3f4a738734`.
 
 ## Rollback
 
