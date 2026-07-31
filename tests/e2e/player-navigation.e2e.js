@@ -1,12 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
-const { expect, test } = require(runtimePath);
+const { devices, expect, test } = require(runtimePath);
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const previewDirectory = resolve('.tmp/pr-previews');
+const applicationUrl = 'http://127.0.0.1:3000';
+mkdirSync(previewDirectory, { recursive: true });
 
 function profile() {
   return {
@@ -27,6 +30,22 @@ function profile() {
   };
 }
 
+function evidenceDevice(isMobile) {
+  return isMobile ? 'mobile' : 'desktop';
+}
+
+function recordingContextOptions(isMobile) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  const videoSize = isMobile ? { ...device.viewport } : { width: 1280, height: 800 };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize },
+  };
+}
+
 async function installMocks(page) {
   await page.route('**/functions/v1/player-share/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630"></svg>' });
@@ -43,9 +62,14 @@ async function installMocks(page) {
 async function capture(page, testInfo) {
   if (!visualCapture) return;
   const device = testInfo.project.name.includes('mobile') ? 'mobile' : 'desktop';
-  const directory = resolve('.tmp/pr-previews');
-  mkdirSync(directory, { recursive: true });
-  await page.screenshot({ path: resolve(directory, `player-navigation-${device}.png`), animations: 'disabled', fullPage: true });
+  await page.screenshot({ path: resolve(previewDirectory, `player-navigation-${device}.png`), animations: 'disabled', fullPage: true });
+}
+
+async function saveVideo(context, page, area, isMobile) {
+  const video = page.video();
+  if (!video) throw new Error(`Playwright did not create the ${area} recording.`);
+  await context.close();
+  await video.saveAs(join(previewDirectory, `${area}-${evidenceDevice(isMobile)}.webm`));
 }
 
 test('player clean routes preserve lifetime radar statistics after the daily reset', async ({ page }, testInfo) => {
@@ -119,4 +143,37 @@ test('player clean routes preserve lifetime radar statistics after the daily res
 
   await brand.click();
   await expect(page).toHaveURL((url) => url.pathname === '/');
+});
+
+test('records the corrected lifetime reliability disclosure after the daily reset', async ({ browser, isMobile }) => {
+  test.skip(!visualCapture, 'Visual recording is generated only by the PR evidence workflow.');
+  const context = await browser.newContext(recordingContextOptions(isMobile));
+  const page = await context.newPage();
+  await installMocks(page);
+
+  await page.goto('/player/Vieucirst');
+  await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
+  const reliability = page.locator('details[data-stat-key="reliability"]');
+  const summary = reliability.locator('summary');
+  await summary.scrollIntoViewIfNeeded();
+
+  await page.waitForTimeout(400);
+  await summary.click();
+  await expect(reliability).toHaveAttribute('open', '');
+  await expect(reliability).toContainText('17 intentos válidos de 17 intentos históricos.');
+  await page.waitForTimeout(900);
+  await summary.click();
+  await expect(reliability).not.toHaveAttribute('open', '');
+  await page.waitForTimeout(500);
+  await summary.click();
+  await expect(reliability).toHaveAttribute('open', '');
+  await page.waitForTimeout(800);
+
+  const device = evidenceDevice(isMobile);
+  await page.screenshot({
+    path: join(previewDirectory, `player-reliability-${device}.png`),
+    animations: 'disabled',
+    fullPage: true,
+  });
+  await saveVideo(context, page, 'player-reliability', isMobile);
 });
