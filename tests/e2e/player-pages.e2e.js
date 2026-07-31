@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
+import { PLAYER_CARD_RENDERER_REVISION } from '../../shared/player-radar-model.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -11,6 +13,7 @@ const apiUrl = 'https://imtitjwgiemlaabpioed.supabase.co/functions/v1/game-api';
 const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
 const visualGif = process.env.PR_VISUAL_GIF === '1';
 const previewRoot = resolve('.tmp/pr-previews');
+const versionedOverviewCardPattern = new RegExp(`player-share/Vieucirst/achievements\\.png\\?v=123&r=${PLAYER_CARD_RENDERER_REVISION}$`);
 const cardSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><linearGradient id="g"><stop stop-color="#650018"/><stop offset=".5" stop-color="#080a10"/><stop offset="1" stop-color="#10264f"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><rect x="52" y="52" width="690" height="526" rx="30" fill="#151924" stroke="#f4c95d"/><rect x="766" y="52" width="382" height="526" rx="30" fill="#0b1019" stroke="#ffffff33"/><text x="82" y="112" fill="#f4c95d" font-family="Arial" font-size="28" font-weight="800">MINUTO 106 · LOGROS DESTACADOS</text><text x="82" y="190" fill="white" font-family="Arial" font-size="64" font-weight="900">VIEUCIRST</text><text x="82" y="245" fill="#d4d7df" font-family="Arial" font-size="28">🇪🇸 España · #1 GLOBAL</text><text x="82" y="340" fill="white" font-family="Arial" font-size="32">±4 ms · 3 trofeos · 3 logros</text><text x="832" y="115" fill="#f4c95d" font-family="Arial" font-size="24">PENTÁGONO</text><polygon points="957,160 1065,238 1024,366 890,366 849,238" fill="#f4c95d44" stroke="#f4c95d" stroke-width="5"/></svg>`;
 
 function projectDevice(testInfo) {
@@ -192,9 +195,9 @@ test('clean player routes expose responsive overview, achievements and trophies'
   await expect(page.getByRole('heading', { level: 1, name: 'Vieucirst' })).toBeVisible();
   await expect(page.locator('#playerTeam .flag--spain')).toBeVisible();
   await expect(page.locator('#playerRadar svg')).toBeVisible();
-  await expect(page.locator('#playerCardPreview')).toHaveAttribute('src', /player-share\/Vieucirst\/achievements\.png\?v=123$/);
-  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /player-share\/Vieucirst\/achievements\.png\?v=123$/);
-  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', /player-share\/Vieucirst\/achievements\.png\?v=123$/);
+  await expect(page.locator('#playerCardPreview')).toHaveAttribute('src', versionedOverviewCardPattern);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', versionedOverviewCardPattern);
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', versionedOverviewCardPattern);
   await expectNoHorizontalOverflow(page);
   await capture(page, testInfo, 'player-overview');
   await captureGifFrame(page, testInfo, 1, 'overview');
