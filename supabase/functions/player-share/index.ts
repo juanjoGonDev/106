@@ -2,6 +2,11 @@ import { ImageResponse } from 'npm:@vercel/og@0.11.1';
 import React from 'npm:react@19.2.7';
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
 
+import {
+  PLAYER_CARD_RENDERER_REVISION,
+  playerRadarStatsArray,
+} from '../_shared/player-radar-model.js';
+
 const WIDTH = 1200;
 const HEIGHT = 630;
 const SECTIONS = new Set(['overview', 'achievements', 'trophies']);
@@ -45,6 +50,11 @@ function normalizeSection(value: unknown) {
   const section = String(value ?? '').toLowerCase().replace(/\.png$/, '');
   if (section === 'card') return 'overview';
   return SECTIONS.has(section) ? section : 'overview';
+}
+
+function normalizeRevision(value: unknown) {
+  const revision = Number(value);
+  return Number.isFinite(revision) && revision >= 0 ? Math.trunc(revision) : 0;
 }
 
 function escapeHtml(value: unknown) {
@@ -119,10 +129,12 @@ function playerShareUrl(request: Request, nick: string, section: string) {
   return url;
 }
 
-function playerImageUrl(request: Request, nick: string, section: string) {
+function playerImageUrl(request: Request, nick: string, section: string, profileRevision: unknown) {
   const url = publicShareBaseUrl(request);
   const imageName = section === 'overview' ? 'card' : section;
   url.pathname = `${url.pathname.replace(/\/$/, '')}/${encodeURIComponent(nick)}/${imageName}.png`;
+  url.searchParams.set('v', String(normalizeRevision(profileRevision)));
+  url.searchParams.set('r', String(PLAYER_CARD_RENDERER_REVISION));
   return url;
 }
 
@@ -157,7 +169,7 @@ async function loadTemplate(fileName: string, fallback: string) {
 
 async function getProfile(nick: string) {
   const key = nick.toLocaleLowerCase('es');
-  const { data, error } = await supabase.rpc('get_game_public_profile', { p_nick_key: key });
+  const { data, error } = await supabase.rpc('get_game_player_profile', { p_nick_key: key });
   if (error) throw new Error('Profile query failed');
   return data as Record<string, unknown>;
 }
@@ -189,25 +201,6 @@ function teamIdentity(profile: Record<string, unknown>) {
     : { key: 'spain', name: 'España', colors: ['#aa151b', '#f1bf00', '#aa151b'] };
 }
 
-function radarStats(profile: Record<string, unknown>) {
-  const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
-  const inverse = (value: unknown, maximum: number) => hasNumber(value) ? clamp(100 - Number(value) / maximum * 100) : 0;
-  const lifetimeAttemptsSource = Object.prototype.hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')
-    ? profile.lifetimeAttemptsUsed
-    : profile.attemptsUsed;
-  const lifetimeAttemptsUsed = Math.max(0, Number(lifetimeAttemptsSource) || 0);
-  const verifiedAttempts = Math.max(0, Number(profile.verifiedAttempts) || 0);
-  const completedReferrals = Math.max(0, Number(profile.completedReferrals) || 0);
-  const bonusAttempts = Math.max(0, Number(profile.bonusAttempts) || 0);
-  return [
-    inverse(profile.bestDifferenceMs, 1000),
-    inverse(profile.averageDifferenceMs, 1500),
-    clamp(verifiedAttempts / 20 * 100),
-    lifetimeAttemptsUsed ? clamp(verifiedAttempts / lifetimeAttemptsUsed * 100) : 0,
-    clamp(completedReferrals * 20 + bonusAttempts * 8),
-  ];
-}
-
 function radarPoint(index: number, radius: number, center = 170) {
   const angle = -Math.PI / 2 + Math.PI * 2 * index / RADAR_LABELS.length;
   return {
@@ -216,14 +209,14 @@ function radarPoint(index: number, radius: number, center = 170) {
   };
 }
 
-function polygonPoints(values: number[], radius = 112, center = 170) {
+function polygonPoints(values: readonly number[], radius = 112, center = 170) {
   return values.map((value, index) => {
     const point = radarPoint(index, radius * value / 100, center);
     return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
   }).join(' ');
 }
 
-function radarElement(stats: number[], nick: string) {
+function radarElement(stats: readonly number[], nick: string) {
   const grid = [];
   for (const level of [20, 40, 60, 80, 100]) {
     grid.push(h('polygon', {
@@ -331,7 +324,7 @@ async function playerCardResponse(profile: Record<string, unknown>, section: str
   const team = teamIdentity(profile);
   const trophies = (profile.trophies || {}) as Record<string, unknown>;
   const achievements = (profile.achievements || {}) as Record<string, unknown>;
-  const stats = radarStats(profile);
+  const stats = playerRadarStatsArray(profile);
   const sectionLabel = section === 'achievements' ? 'LOGROS' : section === 'trophies' ? 'TROFEOS' : 'PERFIL GLOBAL';
   const rows = sectionRows(profile, section);
   const nick = truncate(profile.nick || 'Jugador', 24);
@@ -370,6 +363,7 @@ async function playerCardResponse(profile: Record<string, unknown>, section: str
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'public, max-age=300, s-maxage=900, stale-while-revalidate=3600',
       'Content-Disposition': `inline; filename="minuto-106-${encodeURIComponent(String(profile.nick || 'player'))}-${section}.png"`,
+      'X-Minuto106-Card-Renderer': String(PLAYER_CARD_RENDERER_REVISION),
       'X-Content-Type-Options': 'nosniff',
     },
   });
@@ -419,7 +413,7 @@ function playerHtmlResponse(request: Request, profile: Record<string, unknown>, 
   const suffix = section === 'overview' ? '' : `/${section}`;
   const canonical = `${siteUrl}/player/${encodeURIComponent(nick)}${suffix}`;
   const shareUrl = playerShareUrl(request, nick, section);
-  const imageUrl = playerImageUrl(request, nick, section);
+  const imageUrl = playerImageUrl(request, nick, section, profile.profileRevision);
   const trophies = Number((profile.trophies as Record<string, unknown> | undefined)?.total || 0);
   const achievements = Number((profile.achievements as Record<string, unknown> | undefined)?.total || 0);
   const title = `${nick} · Minuto 106`;
@@ -429,7 +423,8 @@ function playerHtmlResponse(request: Request, profile: Record<string, unknown>, 
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=1800',
+      'Cache-Control': 'public, max-age=0, s-maxage=60, must-revalidate',
+      'X-Minuto106-Card-Renderer': String(PLAYER_CARD_RENDERER_REVISION),
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; frame-ancestors 'none'",
     },
@@ -459,7 +454,15 @@ Deno.serve(async (request) => {
     if (route.nick.length < 2) return new Response('Jugador no válido', { status: 400 });
     const profile = await getProfile(route.nick);
     if (!profile?.nick) return new Response('Jugador no encontrado', { status: 404 });
-    if (request.method === 'HEAD') return new Response(null, { status: 200, headers: { 'Content-Type': route.image ? 'image/png' : 'text/html; charset=utf-8' } });
+    if (request.method === 'HEAD') {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Content-Type': route.image ? 'image/png' : 'text/html; charset=utf-8',
+          'X-Minuto106-Card-Renderer': String(PLAYER_CARD_RENDERER_REVISION),
+        },
+      });
+    }
     return route.image ? await playerCardResponse(profile, route.section) : playerHtmlResponse(request, profile, route.section);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
