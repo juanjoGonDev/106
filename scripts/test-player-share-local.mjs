@@ -47,6 +47,14 @@ function htmlAttributeUrl(html, property) {
   return new URL(match[1].replaceAll('&amp;', '&'));
 }
 
+function localFunctionUrl(publicUrl, apiUrl) {
+  const target = new URL(publicUrl);
+  const localApi = new URL(apiUrl);
+  target.protocol = localApi.protocol;
+  target.host = localApi.host;
+  return target;
+}
+
 const { apiUrl, serviceRoleKey } = readLocalEnvironment();
 const functionHeaders = {
   apikey: serviceRoleKey,
@@ -119,7 +127,7 @@ assert.equal(achievementsImageUrl.searchParams.get('r'), String(PLAYER_CARD_REND
 
 const overviewImageUrl = new URL(achievementsImageUrl);
 overviewImageUrl.pathname = overviewImageUrl.pathname.replace(/\/achievements\.png$/, '/card.png');
-const overviewResponse = await fetch(overviewImageUrl, {
+const overviewResponse = await fetch(localFunctionUrl(overviewImageUrl, apiUrl), {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
 });
@@ -127,7 +135,7 @@ const overviewPng = new Uint8Array(await overviewResponse.arrayBuffer());
 assertPng(overviewResponse, overviewPng, 'Player overview', 300, { rendererRevision: PLAYER_CARD_RENDERER_REVISION });
 persistPreview('player-overview.png', overviewPng);
 
-const playerResponse = await fetch(achievementsImageUrl, {
+const playerResponse = await fetch(localFunctionUrl(achievementsImageUrl, apiUrl), {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
 });
