@@ -121,7 +121,13 @@
     return playerUrl(nick, section, publicBaseUrl);
   }
 
-  function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0, rendererRevision = 0) {
+  function cardUrl(
+    apiBaseUrl,
+    nick,
+    section = 'overview',
+    revision = 0,
+    rendererRevision = globalThis.Minuto106PlayerRadarModel?.cardRendererRevision ?? 0,
+  ) {
     const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
     if (!edgeUrl) return '';
     const validation = nicknameValidation(nick);
