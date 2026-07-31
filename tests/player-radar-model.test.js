@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
@@ -7,16 +7,18 @@ import * as canonicalModel from '../shared/player-radar-model.js';
 import * as edgeModel from '../supabase/functions/_shared/player-radar-model.js';
 import {
   findPlayerRadarModelDrift,
+  latestMigrationRevision,
+  playerCardRendererRevision,
   renderBrowserPlayerRadarModel,
   renderEdgePlayerRadarModel,
+  renderMigrationAwareCanonicalModel,
+  renderPlayerRadarHtml,
 } from '../scripts/player-radar-model-files.mjs';
 
 const canonicalSource = readFileSync('shared/player-radar-model.js', 'utf8');
 const browserSource = readFileSync('public/player-radar-model.js', 'utf8');
 const edgeSource = readFileSync('supabase/functions/_shared/player-radar-model.js', 'utf8');
-const configSource = readFileSync('public/config.js', 'utf8');
-const generateConfigSource = readFileSync('scripts/generate-config.mjs', 'utf8');
-const developmentServerSource = readFileSync('scripts/serve.mjs', 'utf8');
+const migrationRevision = latestMigrationRevision(readdirSync('supabase/migrations'));
 
 function loadBrowserModel() {
   const context = vm.createContext({});
@@ -94,10 +96,11 @@ describe('canonical player radar model', () => {
     expect(canonicalModel.buildPlayerRadarStats({ attemptsUsed: 10, lifetimeAttemptsUsed: 0, verifiedAttempts: 8 }).reliability).toBe(0);
   });
 
-  it('publishes one immutable card-renderer revision through every runtime', () => {
-    expect(canonicalModel.PLAYER_CARD_RENDERER_REVISION).toBe(2);
-    expect(edgeModel.PLAYER_CARD_RENDERER_REVISION).toBe(2);
-    expect(browserModel.cardRendererRevision).toBe(2);
+  it('publishes one migration-aware immutable cache revision through every runtime', () => {
+    expect(canonicalModel.PLAYER_CARD_RENDERER_REVISION).toBeGreaterThan(migrationRevision);
+    expect(edgeModel.PLAYER_CARD_RENDERER_REVISION).toBe(canonicalModel.PLAYER_CARD_RENDERER_REVISION);
+    expect(browserModel.cardRendererRevision).toBe(canonicalModel.PLAYER_CARD_RENDERER_REVISION);
+    expect(playerCardRendererRevision(canonicalSource)).toBe(canonicalModel.PLAYER_CARD_RENDERER_REVISION);
     expect(Object.isFrozen(canonicalModel.PLAYER_RADAR_POLICY)).toBe(true);
     expect(Object.isFrozen(canonicalModel.PLAYER_RADAR_KEYS)).toBe(true);
   });
@@ -123,11 +126,30 @@ describe('generated player radar runtimes', () => {
     })).toEqual(['supabase/functions/_shared/player-radar-model.js']);
   });
 
-  it('bootstraps the same generated browser runtime in production and local config responses', () => {
-    expect(configSource.endsWith(browserSource)).toBe(true);
-    expect(generateConfigSource).toContain("readFile(new URL('../public/player-radar-model.js'");
-    expect(generateConfigSource).toContain('${radarRuntime}');
-    expect(developmentServerSource).toContain("readFile(join(root, 'player-radar-model.js')");
-    expect(developmentServerSource).toContain('${playerRadarRuntime}');
+  it('advances stale cache revisions after migrations without lowering manual renderer bumps', () => {
+    const staleSource = canonicalSource.replace(
+      /PLAYER_CARD_RENDERER_REVISION = \d+;/,
+      `PLAYER_CARD_RENDERER_REVISION = ${migrationRevision};`,
+    );
+    const advancedSource = renderMigrationAwareCanonicalModel(staleSource, migrationRevision);
+    expect(playerCardRendererRevision(advancedSource)).toBe(migrationRevision + 1);
+
+    const manualRevision = migrationRevision + 50;
+    const manualSource = canonicalSource.replace(
+      /PLAYER_CARD_RENDERER_REVISION = \d+;/,
+      `PLAYER_CARD_RENDERER_REVISION = ${manualRevision};`,
+    );
+    expect(renderMigrationAwareCanonicalModel(manualSource, migrationRevision)).toBe(manualSource);
+  });
+
+  it('loads exactly one versioned canonical model before every browser consumer', () => {
+    const rendererRevision = canonicalModel.PLAYER_CARD_RENDERER_REVISION;
+    const html = '<script src="./player-radar-model.js?v=old"></script>\n<script src="./player-ui.js"></script>\n<script src="./player-stats.js"></script>';
+    const rendered = renderPlayerRadarHtml(html, rendererRevision);
+    const expectedScript = `<script src="./player-radar-model.js?v=${rendererRevision}"></script>`;
+    expect(rendered.match(/player-radar-model\.js/g)).toHaveLength(1);
+    expect(rendered).toContain(expectedScript);
+    expect(rendered.indexOf(expectedScript)).toBeLessThan(rendered.indexOf('player-ui.js'));
+    expect(rendered.indexOf(expectedScript)).toBeLessThan(rendered.indexOf('player-stats.js'));
   });
 });
