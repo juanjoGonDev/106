@@ -10,7 +10,7 @@ export const PLAYER_RADAR_MODEL_PATHS = Object.freeze({
   edge: resolve(repositoryRoot, 'supabase/functions/_shared/player-radar-model.js'),
 });
 
-const GENERATED_BANNER = '// Generated from shared/player-radar-model.js. Run `pnpm sync:player-radar-model`; do not edit directly.\n';
+const GENERATED_BANNER = '// Generated from shared/player-radar-model.js. Run `node scripts/sync-player-radar-model.mjs`; do not edit directly.\n';
 
 export function renderBrowserPlayerRadarModel(canonicalSource) {
   const runtimeSource = String(canonicalSource).replace(/^export /gm, '');
