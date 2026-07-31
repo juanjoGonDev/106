@@ -86,7 +86,8 @@ test('parses valid query and clean routes while rejecting malformed and unrelate
 });
 
 test('builds public share routes and data-plus-renderer-versioned png endpoints', () => {
-  const { api } = loadPlayerUi();
+  const { api, context } = loadPlayerUi();
+  const rendererRevision = context.Minuto106PlayerRadarModel.cardRendererRevision;
   assert.equal(api.edgeFunctionBaseUrl('', 'player-share'), null);
   assert.equal(api.edgeFunctionBaseUrl('https://project.supabase.co/functions/v1/game-api?x=1#hash', 'player-share').toString(), 'https://project.supabase.co/functions/v1/player-share');
   assert.equal(api.shareUrl('', 'Juan', 'trophies'), 'https://example.test/106/player/Juan/trophies');
@@ -95,8 +96,8 @@ test('builds public share routes and data-plus-renderer-versioned png endpoints'
   assert.equal(api.shareUrl('https://public.example/106/', 'Juan', 'trophies'), 'https://public.example/106/player/Juan/trophies');
   assert.equal(api.cardUrl('', 'Juan'), '');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', '..'), '');
-  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0&r=2');
-  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456&r=2');
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), `https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0&r=${rendererRevision}`);
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), `https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456&r=${rendererRevision}`);
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456, 9), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456&r=9');
 
   const legacyRuntime = loadPlayerUi({ withRadar: false }).api;
