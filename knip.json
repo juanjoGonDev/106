@@ -28,6 +28,7 @@
     "public/profile-share.js",
     "public/share-actions.js",
     "public/layout.js",
+    "public/player-radar-model.js",
     "public/player-stats.js",
     "public/player-ui.js",
     "public/player.js",
@@ -48,6 +49,7 @@
   ],
   "project": [
     "public/**/*.js",
+    "shared/**/*.js",
     "scripts/**/*.mjs",
     "tests/**/*.js",
     "playwright.config.js"
