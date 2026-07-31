@@ -5,9 +5,13 @@ import { dirname, resolve } from 'node:path';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationFilePattern = /^(\d{14})_[a-z0-9][a-z0-9_]*\.sql$/;
 const rendererRevisionPattern = /^export const PLAYER_CARD_RENDERER_REVISION = (\d+);$/m;
-const playerRadarScriptPattern = /<script src="\.\/player-radar-model\.js(?:\?[^\"]*)?"><\/script>\s*/g;
-const configScriptPattern = /<script src="\.\/config\.js(?:\?[^\"]*)?"><\/script>/g;
-const playerConsumerScriptPattern = /<script src="\.\/(?:player-ui|player-stats)\.js(?:\?[^\"]*)?"><\/script>/;
+const playerRadarScriptPrefix = '<script src="./player-radar-model.js';
+const configScriptPrefix = '<script src="./config.js';
+const playerConsumerScriptPrefixes = Object.freeze([
+  '<script src="./player-ui.js',
+  '<script src="./player-stats.js',
+]);
+const scriptClosingTag = '</script>';
 
 export const PLAYER_RADAR_MODEL_PATHS = Object.freeze({
   canonical: resolve(repositoryRoot, 'shared/player-radar-model.js'),
@@ -19,6 +23,74 @@ export const PLAYER_RADAR_MODEL_PATHS = Object.freeze({
 });
 
 const GENERATED_BANNER = '// Generated from shared/player-radar-model.js. Run `node scripts/sync-player-radar-model.mjs`; do not edit directly.\n';
+
+function scriptEndIndex(source, startIndex) {
+  const closingIndex = source.indexOf(scriptClosingTag, startIndex);
+  return closingIndex < 0 ? -1 : closingIndex + scriptClosingTag.length;
+}
+
+function isHtmlWhitespace(character) {
+  return character === ' ' || character === '\n' || character === '\r' || character === '\t';
+}
+
+function removeScriptsByPrefix(source, prefix) {
+  let rendered = '';
+  let cursor = 0;
+  let count = 0;
+
+  while (cursor < source.length) {
+    const startIndex = source.indexOf(prefix, cursor);
+    if (startIndex < 0) {
+      rendered += source.slice(cursor);
+      break;
+    }
+    const endIndex = scriptEndIndex(source, startIndex);
+    if (endIndex < 0) {
+      rendered += source.slice(cursor);
+      break;
+    }
+
+    rendered += source.slice(cursor, startIndex);
+    cursor = endIndex;
+    while (cursor < source.length && isHtmlWhitespace(source[cursor])) cursor += 1;
+    count += 1;
+  }
+
+  return Object.freeze({ source: rendered, count });
+}
+
+function replaceScriptsByPrefix(source, prefix, replacement) {
+  let rendered = '';
+  let cursor = 0;
+  let count = 0;
+
+  while (cursor < source.length) {
+    const startIndex = source.indexOf(prefix, cursor);
+    if (startIndex < 0) {
+      rendered += source.slice(cursor);
+      break;
+    }
+    const endIndex = scriptEndIndex(source, startIndex);
+    if (endIndex < 0) {
+      rendered += source.slice(cursor);
+      break;
+    }
+
+    rendered += source.slice(cursor, startIndex);
+    rendered += replacement;
+    cursor = endIndex;
+    count += 1;
+  }
+
+  return Object.freeze({ source: rendered, count });
+}
+
+function firstPlayerConsumerIndex(source) {
+  const indexes = playerConsumerScriptPrefixes
+    .map((prefix) => source.indexOf(prefix))
+    .filter((index) => index >= 0);
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
+}
 
 export function latestMigrationRevision(fileNames) {
   const revisions = Array.from(fileNames ?? [], (fileName) => {
@@ -61,22 +133,26 @@ export function renderPlayerRadarHtml(htmlSource, rendererRevision) {
     throw new Error('The player radar HTML revision must be a positive safe integer.');
   }
 
-  const sourceWithoutDirectModel = String(htmlSource).replace(playerRadarScriptPattern, '');
-  let configScriptCount = 0;
-  const rendered = sourceWithoutDirectModel.replace(configScriptPattern, () => {
-    configScriptCount += 1;
-    return `<script src="./config.js?v=${revision}"></script>`;
-  });
-  if (configScriptCount !== 1) {
+  const sourceWithoutDirectModel = removeScriptsByPrefix(
+    String(htmlSource),
+    playerRadarScriptPrefix,
+  ).source;
+  const expectedConfigScript = `<script src="./config.js?v=${revision}"></script>`;
+  const configScripts = replaceScriptsByPrefix(
+    sourceWithoutDirectModel,
+    configScriptPrefix,
+    expectedConfigScript,
+  );
+  if (configScripts.count !== 1) {
     throw new Error('Each radar consumer document must load config.js exactly once.');
   }
 
-  const consumer = rendered.match(playerConsumerScriptPattern);
-  const configIndex = rendered.indexOf(`./config.js?v=${revision}`);
-  if (consumer?.index !== undefined && configIndex > consumer.index) {
+  const consumerIndex = firstPlayerConsumerIndex(configScripts.source);
+  const configIndex = configScripts.source.indexOf(expectedConfigScript);
+  if (consumerIndex >= 0 && configIndex > consumerIndex) {
     throw new Error('config.js must load before player radar consumers.');
   }
-  return rendered;
+  return configScripts.source;
 }
 
 export function renderBrowserPlayerRadarModel(canonicalSource) {
