@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation in progress on `agent/fix-lifetime-reliability`. No merge, deployment, release or production migration has been performed.
+Implementation is complete on `agent/fix-lifetime-reliability` in PR #58. Final-head CI, platform evidence packaging and the PR evidence contract are in progress. No merge, deployment, release or production migration has been performed.
 
 ## Request
 
@@ -48,7 +48,7 @@ After PR #57 was merged, the public player radar can show `Fiabilidad` as zero i
 - **Migration safety:** use a new `create or replace function` migration and preserve existing grants. Applied migrations are not edited.
 - **Cache:** version the modified browser radar entrypoint so deployed clients do not retain the broken denominator.
 
-## Test plan
+## Tests
 
 - Unit regression for post-reset daily/lifetime field collision, legacy fallback, partial validity and explicit zero.
 - Static parity contract for browser and Edge lifetime-denominator resolution.
@@ -56,6 +56,10 @@ After PR #57 was merged, the public player radar can show `Fiabilidad` as zero i
 - Real local PostgreSQL journey with previous-day verified attempts and zero current-day usage.
 - Desktop and Mobile Playwright with a realistic post-reset public profile.
 - Complete repository quality, Supabase and platform-evidence workflows.
+
+## Validation
+
+Pre-final head `642f5505afc26d14abe833f6c35d15265d225e41` passed unit/security, lint, Knip, build/syntax, dependency policy, CodeQL, authentication, public-asset audit, database migration, gameplay-core and complete Desktop/Mobile player-platform workflows. One isolated Supabase sharing job failed before executing tests because the runner could not bind local port `54322`; that infrastructure collision was retried rather than addressed with a code change. The definitive validation source is the newer final PR head produced by this specification update.
 
 ## Rollback
 
@@ -65,5 +69,5 @@ Revert browser and Edge changes normally. If the migration has reached productio
 
 - Branch: `agent/fix-lifetime-reliability`
 - Base: `main` at merged PR #57
-- One normal, non-draft pull request
+- Pull request: #58, normal and non-draft
 - No merge, deployment, production migration or release without explicit approval
