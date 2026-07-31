@@ -10,7 +10,8 @@ describe('player radar statistics', () => {
     const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       bestDifferenceMs: 0,
       averageDifferenceMs: 0,
-      attemptsUsed: 20,
+      attemptsUsed: 0,
+      lifetimeAttemptsUsed: 20,
       verifiedAttempts: 20,
       completedReferrals: 5,
       bonusAttempts: 0,
@@ -28,7 +29,8 @@ describe('player radar statistics', () => {
     const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       bestDifferenceMs: 999999,
       averageDifferenceMs: -500,
-      attemptsUsed: 1,
+      attemptsUsed: 0,
+      lifetimeAttemptsUsed: 1,
       verifiedAttempts: 50,
       completedReferrals: 999,
       bonusAttempts: 999,
@@ -39,7 +41,16 @@ describe('player radar statistics', () => {
     }
   });
 
-  it('uses verified ratio as the reliability score', () => {
+  it('uses lifetime attempts instead of current-day usage for reliability after reset', () => {
+    const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
+      attemptsUsed: 0,
+      lifetimeAttemptsUsed: 10,
+      verifiedAttempts: 8,
+    });
+    expect(stats.reliability).toBe(80);
+  });
+
+  it('keeps rolling compatibility with profiles that do not expose lifetime attempts yet', () => {
     const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
       attemptsUsed: 10,
       verifiedAttempts: 8,
@@ -47,11 +58,21 @@ describe('player radar statistics', () => {
     expect(stats.reliability).toBe(80);
   });
 
+  it('does not replace an explicit zero lifetime total with current-day usage', () => {
+    const stats = globalThis.window.Minuto106PlayerStats.buildRadarStats({
+      attemptsUsed: 5,
+      lifetimeAttemptsUsed: 0,
+      verifiedAttempts: 0,
+    });
+    expect(stats.reliability).toBe(0);
+  });
+
   it('builds one actionable explanation for every radar statistic from the shared scoring policy', () => {
     const explanations = globalThis.window.Minuto106PlayerStats.statExplanations({
       bestDifferenceMs: 4,
       averageDifferenceMs: 250,
-      attemptsUsed: 17,
+      attemptsUsed: 0,
+      lifetimeAttemptsUsed: 17,
       verifiedAttempts: 17,
       completedReferrals: 0,
       bonusAttempts: 1,
@@ -74,8 +95,9 @@ describe('player radar statistics', () => {
       calculation: 'Cada intento válido aporta 5 puntos. Alcanzas 100/100 con 20 intentos válidos.',
     });
     expect(explanations[3]).toMatchObject({
-      current: '17 intentos válidos de 17 usados.',
-      improve: 'Evita intentos excluidos o inválidos. Con todos tus intentos válidos mantienes 100/100.',
+      current: '17 intentos válidos de 17 intentos históricos.',
+      calculation: 'Divide los intentos válidos entre todos tus intentos globales históricos y redondea el porcentaje a una puntuación sobre 100.',
+      improve: 'Evita intentos excluidos o inválidos. El reinicio diario no borra el historial usado por esta estadística.',
     });
     expect(explanations[4]).toMatchObject({
       current: '0 referidos completados y +1 intento diario adicional.',
@@ -85,7 +107,8 @@ describe('player radar statistics', () => {
 
   it('explains empty reliability and normalizes malformed progression values', () => {
     const explanations = globalThis.window.Minuto106PlayerStats.statExplanations({
-      attemptsUsed: 0,
+      attemptsUsed: 4,
+      lifetimeAttemptsUsed: 'invalid',
       verifiedAttempts: -10,
       completedReferrals: -10,
       bonusAttempts: 'invalid',
@@ -93,7 +116,7 @@ describe('player radar statistics', () => {
 
     expect(explanations.find(({ key }) => key === 'reliability')).toMatchObject({
       score: 0,
-      current: 'Aún no hay intentos usados para calcular el porcentaje.',
+      current: 'Aún no hay intentos históricos para calcular el porcentaje.',
     });
     expect(explanations.find(({ key }) => key === 'impact')).toMatchObject({
       score: 0,

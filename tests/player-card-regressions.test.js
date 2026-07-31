@@ -9,6 +9,18 @@ const edgeRadarStats = edgeCard.slice(edgeCard.indexOf('function radarStats'), e
 const edgeRadarElement = edgeCard.slice(edgeCard.indexOf('function radarElement'), edgeCard.indexOf('function flagElement'));
 
 describe('player card radar parity', () => {
+  it('uses lifetime attempt totals for reliability in both browser and generated cards', () => {
+    expect(browserRadar).toContain("hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')");
+    expect(browserRadar).toContain('? profile.lifetimeAttemptsUsed');
+    expect(browserRadar).toContain(': profile.attemptsUsed');
+    expect(browserRadar).toContain('verifiedAttempts / lifetimeAttemptsUsed');
+    expect(edgeRadarStats).toContain("hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')");
+    expect(edgeRadarStats).toContain('? profile.lifetimeAttemptsUsed');
+    expect(edgeRadarStats).toContain(': profile.attemptsUsed');
+    expect(edgeRadarStats).toContain('verifiedAttempts / lifetimeAttemptsUsed');
+    expect(edgeRadarStats).not.toContain('verifiedAttempts / attemptsUsed');
+  });
+
   it('uses the browser impact inputs instead of achievement points', () => {
     expect(browserRadar).toContain('impactPointsPerReferral: 20');
     expect(browserRadar).toContain('impactPointsPerBonusAttempt: 8');
