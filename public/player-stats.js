@@ -1,12 +1,11 @@
 (() => {
   const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
-  const RADAR_POLICY = Object.freeze({
-    precisionMaximumDifferenceMs: 1000,
-    consistencyMaximumDifferenceMs: 1500,
-    experienceMaximumVerifiedAttempts: 20,
-    impactPointsPerReferral: 20,
-    impactPointsPerBonusAttempt: 8,
-  });
+  const radarModel = window.Minuto106PlayerRadarModel;
+  if (!radarModel) throw new Error('Minuto106PlayerRadarModel must load before player-stats.js.');
+
+  const RADAR_POLICY = radarModel.policy;
+  const buildRadarStats = radarModel.buildRadarStats;
+  const resolveLifetimeAttemptsUsed = radarModel.resolveLifetimeAttemptsUsed;
   const AXES = [
     ['Precisión', 'precision'],
     ['Regularidad', 'consistency'],
@@ -16,40 +15,12 @@
   ];
 
   const clamp = (value) => Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
-  const inverseScore = (value, maximum) => {
-    if (!Number.isFinite(Number(value))) return 0;
-    return clamp(100 - (Number(value) / maximum) * 100);
-  };
   const nonNegativeInteger = (value) => Math.max(0, Math.trunc(Number(value) || 0));
   const formatInteger = (value) => nonNegativeInteger(value).toLocaleString('es-ES');
   const formatDifference = (value) => {
     if (!Number.isFinite(Number(value))) return 'sin datos';
     return `±${Math.round(Math.abs(Number(value))).toLocaleString('es-ES')} ms`;
   };
-
-  function resolveLifetimeAttemptsUsed(profile = {}) {
-    const source = Object.prototype.hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')
-      ? profile.lifetimeAttemptsUsed
-      : profile.attemptsUsed;
-    return nonNegativeInteger(source);
-  }
-
-  function buildRadarStats(profile = {}) {
-    const lifetimeAttemptsUsed = resolveLifetimeAttemptsUsed(profile);
-    const verifiedAttempts = Math.max(0, Number(profile.verifiedAttempts) || 0);
-    const completedReferrals = Math.max(0, Number(profile.completedReferrals) || 0);
-    const bonusAttempts = Math.max(0, Number(profile.bonusAttempts) || 0);
-    return {
-      precision: inverseScore(profile.bestDifferenceMs, RADAR_POLICY.precisionMaximumDifferenceMs),
-      consistency: inverseScore(profile.averageDifferenceMs, RADAR_POLICY.consistencyMaximumDifferenceMs),
-      experience: clamp((verifiedAttempts / RADAR_POLICY.experienceMaximumVerifiedAttempts) * 100),
-      reliability: lifetimeAttemptsUsed > 0 ? clamp((verifiedAttempts / lifetimeAttemptsUsed) * 100) : 0,
-      impact: clamp(
-        completedReferrals * RADAR_POLICY.impactPointsPerReferral
-          + bonusAttempts * RADAR_POLICY.impactPointsPerBonusAttempt,
-      ),
-    };
-  }
 
   function statExplanations(profile = {}) {
     const stats = buildRadarStats(profile);
