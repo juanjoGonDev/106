@@ -10,6 +10,7 @@ import {
   latestMigrationRevision,
   playerCardRendererRevision,
   renderBrowserPlayerRadarModel,
+  renderConfigWithPlayerRadar,
   renderEdgePlayerRadarModel,
   renderMigrationAwareCanonicalModel,
   renderPlayerRadarHtml,
@@ -18,6 +19,7 @@ import {
 const canonicalSource = readFileSync('shared/player-radar-model.js', 'utf8');
 const browserSource = readFileSync('public/player-radar-model.js', 'utf8');
 const edgeSource = readFileSync('supabase/functions/_shared/player-radar-model.js', 'utf8');
+const configSource = readFileSync('public/config.js', 'utf8');
 const migrationRevision = latestMigrationRevision(readdirSync('supabase/migrations'));
 
 function loadBrowserModel() {
@@ -107,9 +109,10 @@ describe('canonical player radar model', () => {
 });
 
 describe('generated player radar runtimes', () => {
-  it('matches the canonical source exactly', () => {
+  it('matches the canonical source and embedded production config exactly', () => {
     expect(browserSource).toBe(renderBrowserPlayerRadarModel(canonicalSource));
     expect(edgeSource).toBe(renderEdgePlayerRadarModel(canonicalSource));
+    expect(configSource).toBe(renderConfigWithPlayerRadar(configSource, browserSource));
     expect(findPlayerRadarModelDrift({ canonicalSource, browserSource, edgeSource })).toEqual([]);
   });
 
@@ -142,14 +145,38 @@ describe('generated player radar runtimes', () => {
     expect(renderMigrationAwareCanonicalModel(manualSource, migrationRevision)).toBe(manualSource);
   });
 
-  it('loads exactly one versioned canonical model before every browser consumer', () => {
+  it('rejects missing or invalid migration and renderer identities', () => {
+    expect(() => latestMigrationRevision(['README.md'])).toThrow('No timestamped Supabase migrations were found.');
+    expect(() => playerCardRendererRevision('export const PLAYER_CARD_RENDERER_REVISION = 0;')).toThrow('positive safe integer');
+    expect(() => renderMigrationAwareCanonicalModel(canonicalSource, 0)).toThrow('latest migration revision');
+  });
+
+  it('embeds one generated runtime and replaces a previous generated section', () => {
+    const baseConfig = 'window.__MINUTO106_CONFIG__ = { apiBaseUrl: "local" };\n';
+    const first = renderConfigWithPlayerRadar(baseConfig, browserSource);
+    expect(first).toBe(`${baseConfig.trimEnd()}\n${browserSource}`);
+    expect(renderConfigWithPlayerRadar(first, browserSource)).toBe(first);
+    expect(() => renderConfigWithPlayerRadar('window.other = {};', browserSource)).toThrow('must define window.__MINUTO106_CONFIG__');
+  });
+
+  it('loads one versioned config before every browser radar consumer', () => {
     const rendererRevision = canonicalModel.PLAYER_CARD_RENDERER_REVISION;
-    const html = '<script src="./player-radar-model.js?v=old"></script>\n<script src="./player-ui.js"></script>\n<script src="./player-stats.js"></script>';
+    const html = '<script src="./config.js"></script>\n<script src="./player-radar-model.js?v=old"></script>\n<script src="./player-ui.js"></script>\n<script src="./player-stats.js"></script>';
     const rendered = renderPlayerRadarHtml(html, rendererRevision);
-    const expectedScript = `<script src="./player-radar-model.js?v=${rendererRevision}"></script>`;
-    expect(rendered.match(/player-radar-model\.js/g)).toHaveLength(1);
-    expect(rendered).toContain(expectedScript);
-    expect(rendered.indexOf(expectedScript)).toBeLessThan(rendered.indexOf('player-ui.js'));
-    expect(rendered.indexOf(expectedScript)).toBeLessThan(rendered.indexOf('player-stats.js'));
+    const expectedConfig = `<script src="./config.js?v=${rendererRevision}"></script>`;
+    expect(rendered.match(/config\.js/g)).toHaveLength(1);
+    expect(rendered).toContain(expectedConfig);
+    expect(rendered).not.toContain('player-radar-model.js');
+    expect(rendered.indexOf(expectedConfig)).toBeLessThan(rendered.indexOf('player-ui.js'));
+    expect(rendered.indexOf(expectedConfig)).toBeLessThan(rendered.indexOf('player-stats.js'));
+    expect(renderPlayerRadarHtml(rendered, rendererRevision)).toBe(rendered);
+  });
+
+  it('rejects invalid, missing, duplicated or late config scripts', () => {
+    const revision = canonicalModel.PLAYER_CARD_RENDERER_REVISION;
+    expect(() => renderPlayerRadarHtml('<script src="./config.js"></script>', 0)).toThrow('positive safe integer');
+    expect(() => renderPlayerRadarHtml('<script src="./player-ui.js"></script>', revision)).toThrow('exactly once');
+    expect(() => renderPlayerRadarHtml('<script src="./config.js"></script><script src="./config.js"></script>', revision)).toThrow('exactly once');
+    expect(() => renderPlayerRadarHtml('<script src="./player-ui.js"></script><script src="./config.js"></script>', revision)).toThrow('must load before');
   });
 });
