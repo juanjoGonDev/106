@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
+import { PLAYER_CARD_RENDERER_REVISION } from '../shared/player-radar-model.js';
+
 function readLocalEnvironment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], { cwd: process.cwd(), encoding: 'utf8' });
   if (result.error) throw result.error;
@@ -18,7 +20,7 @@ function readLocalEnvironment() {
   return { apiUrl: apiUrl.replace(/\/$/, ''), serviceRoleKey };
 }
 
-function assertPng(response, png, label, expectedMaxAge) {
+function assertPng(response, png, label, expectedMaxAge, { rendererRevision = null } = {}) {
   assert.equal(response.status, 200, new TextDecoder().decode(png));
   assert.match(response.headers.get('content-type') || '', /^image\/png/);
   assert.deepEqual([...png.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
@@ -27,12 +29,22 @@ function assertPng(response, png, label, expectedMaxAge) {
   assert.equal(buffer.readUInt32BE(16), 1200, `${label} width`);
   assert.equal(buffer.readUInt32BE(20), 630, `${label} height`);
   assert.match(response.headers.get('cache-control') || '', new RegExp(`max-age=${expectedMaxAge}`));
+  if (rendererRevision !== null) {
+    assert.equal(response.headers.get('x-minuto106-card-renderer'), String(rendererRevision));
+  }
 }
 
 function persistPreview(name, png) {
   const path = resolve('.tmp/pr-previews/social', name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, png);
+}
+
+function htmlAttributeUrl(html, property) {
+  const escapedProperty = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(new RegExp(`<meta property="${escapedProperty}" content="([^"]+)"`));
+  assert.ok(match?.[1], `Missing ${property} metadata.`);
+  return new URL(match[1].replaceAll('&amp;', '&'));
 }
 
 const { apiUrl, serviceRoleKey } = readLocalEnvironment();
@@ -53,6 +65,18 @@ async function gameStats() {
   return JSON.parse(text);
 }
 
+async function playerProfile(nick) {
+  const response = await fetch(`${apiUrl}/rest/v1/rpc/get_game_player_profile`, {
+    method: 'POST',
+    headers: { ...functionHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_nick_key: nick.toLocaleLowerCase('es') }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const text = await response.text();
+  assert.equal(response.status, 200, text);
+  return JSON.parse(text);
+}
+
 const stats = await gameStats();
 const player = stats.leaderboard?.[0];
 assert.ok(player?.nick, 'The integration journey must create at least one ranked player.');
@@ -66,6 +90,11 @@ for (const ranking of [...(stats.honoursRankings?.trophies || []), ...(stats.hon
   }
 }
 
+const profile = await playerProfile(player.nick);
+assert.equal(profile.nick, player.nick);
+assert.ok(Object.hasOwn(profile, 'lifetimeAttemptsUsed'), 'The card profile contract must expose lifetimeAttemptsUsed.');
+assert.ok(Number(profile.lifetimeAttemptsUsed) >= Number(profile.verifiedAttempts || 0));
+
 const nick = encodeURIComponent(player.nick);
 const htmlResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements`, {
   headers: functionHeaders,
@@ -75,6 +104,7 @@ const htmlResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/ac
 const html = await htmlResponse.text();
 assert.equal(htmlResponse.status, 200, html);
 assert.match(htmlResponse.headers.get('content-type') || '', /^text\/html/);
+assert.equal(htmlResponse.headers.get('x-minuto106-card-renderer'), String(PLAYER_CARD_RENDERER_REVISION));
 assert.match(html, /property="og:image"/);
 assert.match(html, /property="og:image:secure_url"/);
 assert.match(html, /name="twitter:card" content="summary_large_image"/);
@@ -83,20 +113,26 @@ assert.match(html, new RegExp(`/functions/v1/player-share/${nick}/achievements\\
 assert.doesNotMatch(html, /achievements\/achievements\.png/);
 assert.match(html, new RegExp(player.nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
-const overviewResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/card.png`, {
+const achievementsImageUrl = htmlAttributeUrl(html, 'og:image');
+assert.equal(achievementsImageUrl.searchParams.get('v'), String(Math.max(0, Math.trunc(Number(profile.profileRevision) || 0))));
+assert.equal(achievementsImageUrl.searchParams.get('r'), String(PLAYER_CARD_RENDERER_REVISION));
+
+const overviewImageUrl = new URL(achievementsImageUrl);
+overviewImageUrl.pathname = overviewImageUrl.pathname.replace(/\/achievements\.png$/, '/card.png');
+const overviewResponse = await fetch(overviewImageUrl, {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
 });
 const overviewPng = new Uint8Array(await overviewResponse.arrayBuffer());
-assertPng(overviewResponse, overviewPng, 'Player overview', 300);
+assertPng(overviewResponse, overviewPng, 'Player overview', 300, { rendererRevision: PLAYER_CARD_RENDERER_REVISION });
 persistPreview('player-overview.png', overviewPng);
 
-const playerResponse = await fetch(`${apiUrl}/functions/v1/player-share/${nick}/achievements.png`, {
+const playerResponse = await fetch(achievementsImageUrl, {
   headers: functionHeaders,
   signal: AbortSignal.timeout(60_000),
 });
 const playerPng = new Uint8Array(await playerResponse.arrayBuffer());
-assertPng(playerResponse, playerPng, 'Player achievements', 300);
+assertPng(playerResponse, playerPng, 'Player achievements', 300, { rendererRevision: PLAYER_CARD_RENDERER_REVISION });
 persistPreview('player-achievements.png', playerPng);
 
 const siteHtmlResponse = await fetch(`${apiUrl}/functions/v1/player-share/_site`, {
