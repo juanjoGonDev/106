@@ -128,7 +128,10 @@ async function readConfigHtmlEntries() {
       filePath: resolve(PLAYER_RADAR_MODEL_PATHS.publicDirectory, fileName),
       source: sources[index],
     }))
-    .filter((entry) => entry.source.includes('./config.js'));
+    .filter((entry) => (
+      entry.source.includes('./config.js')
+      && (entry.source.includes('./player-ui.js') || entry.source.includes('./player-stats.js'))
+    ));
 }
 
 export async function synchronizePlayerRadarModels({ check = false } = {}) {
