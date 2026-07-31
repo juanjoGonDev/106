@@ -86,7 +86,7 @@ async function expectVersionedCardPreview(page) {
   const source = await preview.getAttribute('src');
   expect(source).toBeTruthy();
   const url = new URL(source, page.url());
-  expect(url.pathname).toMatch(/\/functions\/v1\/player-share\/Javiererd90\/card\.png$/);
+  expect(url.pathname).toMatch(/\/functions\/v1\/player-share\/Javiererd90\/achievements\.png$/);
   expect(url.searchParams.get('v')).toBe('31');
   expect(url.searchParams.get('r')).toBe(String(PLAYER_CARD_RENDERER_REVISION));
 }
