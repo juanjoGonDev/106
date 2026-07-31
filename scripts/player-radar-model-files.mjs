@@ -6,17 +6,16 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationFilePattern = /^(\d{14})_[a-z0-9][a-z0-9_]*\.sql$/;
 const rendererRevisionPattern = /^export const PLAYER_CARD_RENDERER_REVISION = (\d+);$/m;
 const playerRadarScriptPattern = /<script src="\.\/player-radar-model\.js(?:\?[^\"]*)?"><\/script>\s*/g;
-const playerDependencyScriptPattern = /<script src="\.\/(?:player-ui|player-stats)\.js(?:\?[^\"]*)?"><\/script>/;
+const configScriptPattern = /<script src="\.\/config\.js(?:\?[^\"]*)?"><\/script>/g;
+const playerConsumerScriptPattern = /<script src="\.\/(?:player-ui|player-stats)\.js(?:\?[^\"]*)?"><\/script>/;
 
 export const PLAYER_RADAR_MODEL_PATHS = Object.freeze({
   canonical: resolve(repositoryRoot, 'shared/player-radar-model.js'),
   browser: resolve(repositoryRoot, 'public/player-radar-model.js'),
   edge: resolve(repositoryRoot, 'supabase/functions/_shared/player-radar-model.js'),
+  config: resolve(repositoryRoot, 'public/config.js'),
   migrations: resolve(repositoryRoot, 'supabase/migrations'),
-  html: Object.freeze({
-    'public/index.html': resolve(repositoryRoot, 'public/index.html'),
-    'public/player.html': resolve(repositoryRoot, 'public/player.html'),
-  }),
+  publicDirectory: resolve(repositoryRoot, 'public'),
 });
 
 const GENERATED_BANNER = '// Generated from shared/player-radar-model.js. Run `node scripts/sync-player-radar-model.mjs`; do not edit directly.\n';
@@ -62,19 +61,22 @@ export function renderPlayerRadarHtml(htmlSource, rendererRevision) {
     throw new Error('The player radar HTML revision must be a positive safe integer.');
   }
 
-  const sourceWithoutModel = String(htmlSource).replace(playerRadarScriptPattern, '');
-  const dependency = sourceWithoutModel.match(playerDependencyScriptPattern);
-  if (!dependency || dependency.index === undefined) {
-    throw new Error('Player radar HTML must load player-ui.js or player-stats.js.');
+  const sourceWithoutDirectModel = String(htmlSource).replace(playerRadarScriptPattern, '');
+  let configScriptCount = 0;
+  const rendered = sourceWithoutDirectModel.replace(configScriptPattern, () => {
+    configScriptCount += 1;
+    return `<script src="./config.js?v=${revision}"></script>`;
+  });
+  if (configScriptCount !== 1) {
+    throw new Error('Each radar consumer document must load config.js exactly once.');
   }
 
-  const dependencyIndex = dependency.index;
-  const lineStart = sourceWithoutModel.lastIndexOf('\n', dependencyIndex - 1) + 1;
-  const linePrefix = sourceWithoutModel.slice(lineStart, dependencyIndex);
-  const separator = /^\s*$/.test(linePrefix) ? `\n${linePrefix}` : '';
-  const modelScript = `<script src="./player-radar-model.js?v=${revision}"></script>`;
-
-  return `${sourceWithoutModel.slice(0, dependencyIndex)}${modelScript}${separator}${sourceWithoutModel.slice(dependencyIndex)}`;
+  const consumer = rendered.match(playerConsumerScriptPattern);
+  const configIndex = rendered.indexOf(`./config.js?v=${revision}`);
+  if (consumer?.index !== undefined && configIndex > consumer.index) {
+    throw new Error('config.js must load before player radar consumers.');
+  }
+  return rendered;
 }
 
 export function renderBrowserPlayerRadarModel(canonicalSource) {
@@ -92,6 +94,16 @@ export function renderEdgePlayerRadarModel(canonicalSource) {
   return `${GENERATED_BANNER}${String(canonicalSource).trimEnd()}\n`;
 }
 
+export function renderConfigWithPlayerRadar(configSource, browserSource) {
+  const source = String(configSource);
+  const generatedRuntimeIndex = source.indexOf(GENERATED_BANNER);
+  const configPrefix = (generatedRuntimeIndex >= 0 ? source.slice(0, generatedRuntimeIndex) : source).trimEnd();
+  if (!configPrefix.includes('window.__MINUTO106_CONFIG__')) {
+    throw new Error('public/config.js must define window.__MINUTO106_CONFIG__.');
+  }
+  return `${configPrefix}\n${String(browserSource).trimStart()}`;
+}
+
 export function findPlayerRadarModelDrift({ canonicalSource, browserSource, edgeSource }) {
   const expectedBrowser = renderBrowserPlayerRadarModel(canonicalSource);
   const expectedEdge = renderEdgePlayerRadarModel(canonicalSource);
@@ -101,26 +113,46 @@ export function findPlayerRadarModelDrift({ canonicalSource, browserSource, edge
   ].filter(Boolean));
 }
 
+async function readConfigHtmlEntries() {
+  const directoryEntries = await readdir(PLAYER_RADAR_MODEL_PATHS.publicDirectory, { withFileTypes: true });
+  const htmlFiles = directoryEntries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.html'))
+    .map((entry) => entry.name)
+    .sort();
+  const sources = await Promise.all(htmlFiles.map((fileName) => (
+    readFile(resolve(PLAYER_RADAR_MODEL_PATHS.publicDirectory, fileName), 'utf8')
+  )));
+  return htmlFiles
+    .map((fileName, index) => ({
+      repositoryPath: `public/${fileName}`,
+      filePath: resolve(PLAYER_RADAR_MODEL_PATHS.publicDirectory, fileName),
+      source: sources[index],
+    }))
+    .filter((entry) => entry.source.includes('./config.js'));
+}
+
 export async function synchronizePlayerRadarModels({ check = false } = {}) {
-  const [canonicalSource, migrationFiles, ...htmlSources] = await Promise.all([
+  const [canonicalSource, migrationFiles, configSource, htmlEntries] = await Promise.all([
     readFile(PLAYER_RADAR_MODEL_PATHS.canonical, 'utf8'),
     readdir(PLAYER_RADAR_MODEL_PATHS.migrations),
-    ...Object.values(PLAYER_RADAR_MODEL_PATHS.html).map((path) => readFile(path, 'utf8')),
+    readFile(PLAYER_RADAR_MODEL_PATHS.config, 'utf8'),
+    readConfigHtmlEntries(),
   ]);
   const migrationRevision = latestMigrationRevision(migrationFiles);
   const expectedCanonical = renderMigrationAwareCanonicalModel(canonicalSource, migrationRevision);
   const rendererRevision = playerCardRendererRevision(expectedCanonical);
   const expectedBrowser = renderBrowserPlayerRadarModel(expectedCanonical);
   const expectedEdge = renderEdgePlayerRadarModel(expectedCanonical);
-  const htmlEntries = Object.entries(PLAYER_RADAR_MODEL_PATHS.html);
-  const expectedHtml = htmlSources.map((source) => renderPlayerRadarHtml(source, rendererRevision));
+  const expectedConfig = renderConfigWithPlayerRadar(configSource, expectedBrowser);
+  const expectedHtml = htmlEntries.map((entry) => renderPlayerRadarHtml(entry.source, rendererRevision));
 
   if (!check) {
     await Promise.all([
       writeFile(PLAYER_RADAR_MODEL_PATHS.canonical, expectedCanonical),
       writeFile(PLAYER_RADAR_MODEL_PATHS.browser, expectedBrowser),
       writeFile(PLAYER_RADAR_MODEL_PATHS.edge, expectedEdge),
-      ...htmlEntries.map(([, path], index) => writeFile(path, expectedHtml[index])),
+      writeFile(PLAYER_RADAR_MODEL_PATHS.config, expectedConfig),
+      ...htmlEntries.map((entry, index) => writeFile(entry.filePath, expectedHtml[index])),
     ]);
     return Object.freeze([]);
   }
@@ -136,8 +168,9 @@ export async function synchronizePlayerRadarModels({ check = false } = {}) {
       browserSource,
       edgeSource,
     }),
-    ...htmlEntries.map(([repositoryPath], index) => (
-      htmlSources[index] === expectedHtml[index] ? null : repositoryPath
+    configSource === expectedConfig ? null : 'public/config.js',
+    ...htmlEntries.map((entry, index) => (
+      entry.source === expectedHtml[index] ? null : entry.repositoryPath
     )),
   ].filter(Boolean);
 
