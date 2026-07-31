@@ -38,6 +38,7 @@ describe('player pages and ranking links', () => {
 
   it('keeps current player sections and attaches the generated PNG through a separate progressive enhancement', () => {
     const html = read('public/player.html');
+    const config = read('public/config.js');
     const script = read('public/player.js');
     const share = read('public/profile-share.js');
     const honours = read('public/honours.js');
@@ -47,7 +48,9 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
-    expect(html.indexOf('./player-radar-model.js')).toBeLessThan(html.indexOf('./player-ui.js'));
+    expect(html.indexOf('./config.js')).toBeLessThan(html.indexOf('./player-ui.js'));
+    expect(html).not.toContain('./player-radar-model.js');
+    expect(config).toContain('globalThis.Minuto106PlayerRadarModel = Object.freeze');
     expect(html).toContain('<script src="./profile-share.js?v=20260731-card-renderer-2" data-minuto106-profile-share></script>');
     expect(html).toContain('id="sharePlayer" class="primary" type="button" disabled>Preparando...</button>');
     expect(html).not.toContain('property="og:image"');
