@@ -192,7 +192,10 @@ function teamIdentity(profile: Record<string, unknown>) {
 function radarStats(profile: Record<string, unknown>) {
   const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
   const inverse = (value: unknown, maximum: number) => hasNumber(value) ? clamp(100 - Number(value) / maximum * 100) : 0;
-  const attemptsUsed = Math.max(0, Number(profile.attemptsUsed) || 0);
+  const lifetimeAttemptsSource = Object.prototype.hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')
+    ? profile.lifetimeAttemptsUsed
+    : profile.attemptsUsed;
+  const lifetimeAttemptsUsed = Math.max(0, Number(lifetimeAttemptsSource) || 0);
   const verifiedAttempts = Math.max(0, Number(profile.verifiedAttempts) || 0);
   const completedReferrals = Math.max(0, Number(profile.completedReferrals) || 0);
   const bonusAttempts = Math.max(0, Number(profile.bonusAttempts) || 0);
@@ -200,7 +203,7 @@ function radarStats(profile: Record<string, unknown>) {
     inverse(profile.bestDifferenceMs, 1000),
     inverse(profile.averageDifferenceMs, 1500),
     clamp(verifiedAttempts / 20 * 100),
-    attemptsUsed ? clamp(verifiedAttempts / attemptsUsed * 100) : 0,
+    lifetimeAttemptsUsed ? clamp(verifiedAttempts / lifetimeAttemptsUsed * 100) : 0,
     clamp(completedReferrals * 20 + bonusAttempts * 8),
   ];
 }
