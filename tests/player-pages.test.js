@@ -47,7 +47,8 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
-    expect(html).toContain('<script src="./profile-share.js" data-minuto106-profile-share></script>');
+    expect(html.indexOf('./player-radar-model.js')).toBeLessThan(html.indexOf('./player-ui.js'));
+    expect(html).toContain('<script src="./profile-share.js?v=20260731-card-renderer-2" data-minuto106-profile-share></script>');
     expect(html).toContain('id="sharePlayer" class="primary" type="button" disabled>Preparando...</button>');
     expect(html).not.toContain('property="og:image"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
@@ -143,7 +144,8 @@ describe('dynamic player social card', () => {
     expect(edge).toContain('property="og:image:secure_url"');
     expect(edge).toContain('name="twitter:image:src"');
     expect(edge).toContain('image/png');
-    expect(edge).toContain('get_game_public_profile');
+    expect(edge).toContain('get_game_player_profile');
+    expect(edge).not.toContain('get_game_public_profile');
     expect(edge).not.toContain('imageUrl.pathname.replace(/\\/?$/');
   });
 
