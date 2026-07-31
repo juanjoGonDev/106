@@ -4,12 +4,12 @@ const check = process.argv.slice(2).includes('--check');
 const drift = await synchronizePlayerRadarModels({ check });
 
 if (drift.length > 0) {
-  console.error('Generated player radar models are stale:');
+  console.error('Player radar sources, cache revision or loaders are stale:');
   for (const path of drift) console.error(`  - ${path}`);
-  console.error('Run `pnpm sync:player-radar-model` and commit the generated files.');
+  console.error('Run `node scripts/sync-player-radar-model.mjs` and commit the generated files.');
   process.exitCode = 1;
 } else {
   console.log(check
-    ? 'Generated player radar models are synchronized.'
-    : 'Generated player radar models updated.');
+    ? 'Player radar sources, cache revision and loaders are synchronized.'
+    : 'Player radar sources, cache revision and loaders updated.');
 }
