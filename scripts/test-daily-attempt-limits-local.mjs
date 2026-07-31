@@ -184,7 +184,14 @@ let state = jsonPsql(databaseUrl, `public.get_game_daily_attempt_state(
 )`);
 assert.equal(state.attemptsUsed, 0, JSON.stringify(state));
 assert.equal(state.attemptsLeft, 5, JSON.stringify(state));
-process.stdout.write('✓ previous server-day attempts do not consume today\'s quota\n');
+const profileAfterReset = jsonPsql(
+  databaseUrl,
+  `public.get_game_player_profile(${sqlLiteral(referrerKeyA)})`,
+);
+assert.equal(profileAfterReset.attemptsUsed, 0, JSON.stringify(profileAfterReset));
+assert.equal(profileAfterReset.lifetimeAttemptsUsed, 5, JSON.stringify(profileAfterReset));
+assert.equal(profileAfterReset.verifiedAttempts, 5, JSON.stringify(profileAfterReset));
+process.stdout.write('✓ previous server-day attempts remain in lifetime profile totals after daily usage resets\n');
 
 insertVerifiedAttempts(databaseUrl, {
   nick: referrerNickA, nickKey: referrerKeyA, deviceHash: referrerDevice, ipHash: referrerIp,
