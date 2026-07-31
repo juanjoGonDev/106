@@ -17,7 +17,7 @@ export function renderBrowserPlayerRadarModel(canonicalSource) {
   const indented = runtimeSource
     .trimEnd()
     .split('\n')
-    .map((line) => `  ${line}`)
+    .map((line) => line ? `  ${line}` : '')
     .join('\n');
 
   return `${GENERATED_BANNER}(() => {\n${indented}\n\n  globalThis.Minuto106PlayerRadarModel = Object.freeze({\n    cardRendererRevision: PLAYER_CARD_RENDERER_REVISION,\n    keys: PLAYER_RADAR_KEYS,\n    policy: PLAYER_RADAR_POLICY,\n    buildRadarStats: buildPlayerRadarStats,\n    buildRadarStatsArray: playerRadarStatsArray,\n    resolveLifetimeAttemptsUsed,\n  });\n})();\n`;
