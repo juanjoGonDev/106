@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 beforeAll(async () => {
-  globalThis.window = {};
+  globalThis.window = globalThis;
+  await import('../public/player-radar-model.js');
   await import('../public/player-stats.js');
 });
 

@@ -4,32 +4,41 @@ import { describe, expect, it } from 'vitest';
 const edgeCard = readFileSync('supabase/functions/player-share/index.ts', 'utf8');
 const browserRadar = readFileSync('public/player-stats.js', 'utf8');
 const playerPage = readFileSync('public/player.js', 'utf8');
+const playerShell = readFileSync('public/player.html', 'utf8');
+const playerUi = readFileSync('public/player-ui.js', 'utf8');
 const shareIntegration = readFileSync('scripts/test-player-share-local.mjs', 'utf8');
-const edgeRadarStats = edgeCard.slice(edgeCard.indexOf('function radarStats'), edgeCard.indexOf('function radarPoint'));
 const edgeRadarElement = edgeCard.slice(edgeCard.indexOf('function radarElement'), edgeCard.indexOf('function flagElement'));
 
 describe('player card radar parity', () => {
-  it('uses lifetime attempt totals for reliability in both browser and generated cards', () => {
-    expect(browserRadar).toContain("hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')");
-    expect(browserRadar).toContain('? profile.lifetimeAttemptsUsed');
-    expect(browserRadar).toContain(': profile.attemptsUsed');
-    expect(browserRadar).toContain('verifiedAttempts / lifetimeAttemptsUsed');
-    expect(edgeRadarStats).toContain("hasOwnProperty.call(profile, 'lifetimeAttemptsUsed')");
-    expect(edgeRadarStats).toContain('? profile.lifetimeAttemptsUsed');
-    expect(edgeRadarStats).toContain(': profile.attemptsUsed');
-    expect(edgeRadarStats).toContain('verifiedAttempts / lifetimeAttemptsUsed');
-    expect(edgeRadarStats).not.toContain('verifiedAttempts / attemptsUsed');
+  it('delegates browser and generated cards to the canonical model', () => {
+    expect(browserRadar).toContain('window.Minuto106PlayerRadarModel');
+    expect(browserRadar).toContain('radarModel.buildRadarStats');
+    expect(browserRadar).not.toContain('precisionMaximumDifferenceMs: 1000');
+    expect(browserRadar).not.toContain('verifiedAttempts / lifetimeAttemptsUsed');
+
+    expect(edgeCard).toContain("from '../_shared/player-radar-model.js'");
+    expect(edgeCard).toContain('playerRadarStatsArray(profile)');
+    expect(edgeCard).not.toContain('function radarStats(');
+    expect(edgeCard).not.toContain('completedReferrals * 20 + bonusAttempts * 8');
   });
 
-  it('uses the browser impact inputs instead of achievement points', () => {
-    expect(browserRadar).toContain('impactPointsPerReferral: 20');
-    expect(browserRadar).toContain('impactPointsPerBonusAttempt: 8');
-    expect(browserRadar).toContain('completedReferrals * RADAR_POLICY.impactPointsPerReferral');
-    expect(browserRadar).toContain('bonusAttempts * RADAR_POLICY.impactPointsPerBonusAttempt');
-    expect(edgeRadarStats).toContain('completedReferrals');
-    expect(edgeRadarStats).toContain('bonusAttempts');
-    expect(edgeRadarStats).toContain('completedReferrals * 20 + bonusAttempts * 8');
-    expect(edgeRadarStats).not.toContain('achievements');
+  it('loads the same lifetime profile contract as the browser', () => {
+    expect(edgeCard).toContain("supabase.rpc('get_game_player_profile'");
+    expect(edgeCard).not.toContain("supabase.rpc('get_game_public_profile'");
+    expect(shareIntegration).toContain("/rest/v1/rpc/get_game_player_profile");
+    expect(shareIntegration).toContain('lifetimeAttemptsUsed');
+  });
+
+  it('versions every player card by data and renderer revision', () => {
+    expect(playerShell.indexOf('player-radar-model.js')).toBeLessThan(playerShell.indexOf('player-ui.js'));
+    expect(playerUi).toContain("edgeUrl.searchParams.set('v'");
+    expect(playerUi).toContain("edgeUrl.searchParams.set('r'");
+    expect(playerUi).toContain('Minuto106PlayerRadarModel?.cardRendererRevision');
+    expect(edgeCard).toContain("url.searchParams.set('v'");
+    expect(edgeCard).toContain("url.searchParams.set('r', String(PLAYER_CARD_RENDERER_REVISION))");
+    expect(edgeCard).toContain("'X-Minuto106-Card-Renderer': String(PLAYER_CARD_RENDERER_REVISION)");
+    expect(shareIntegration).toContain("searchParams.get('r')");
+    expect(shareIntegration).toContain("headers.get('x-minuto106-card-renderer')");
   });
 
   it('renders the same five-level labelled radar structure as the web profile', () => {
