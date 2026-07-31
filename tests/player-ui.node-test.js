@@ -4,9 +4,10 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const policySource = readFileSync(new URL('../public/nickname-policy.js', import.meta.url), 'utf8');
+const radarSource = readFileSync(new URL('../public/player-radar-model.js', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../public/player-ui.js', import.meta.url), 'utf8');
 
-function loadPlayerUi({ withPolicy = true } = {}) {
+function loadPlayerUi({ withPolicy = true, withRadar = true } = {}) {
   const context = {
     URL,
     String,
@@ -19,6 +20,7 @@ function loadPlayerUi({ withPolicy = true } = {}) {
     location: { href: 'https://example.test/106/ranking.html' },
   };
   if (withPolicy) vm.runInNewContext(policySource, context, { filename: 'public/nickname-policy.js' });
+  if (withRadar) vm.runInNewContext(radarSource, context, { filename: 'public/player-radar-model.js' });
   vm.runInNewContext(source, context, { filename: 'public/player-ui.js' });
   return { api: context.Minuto106PlayerUI, context };
 }
@@ -83,7 +85,7 @@ test('parses valid query and clean routes while rejecting malformed and unrelate
   assert.deepEqual({ ...api.parsePlayerLocation('https://example.test/106/ranking.html') }, { nick: '', section: 'overview' });
 });
 
-test('builds public share routes and versioned png endpoints without leaking API paths', () => {
+test('builds public share routes and data-plus-renderer-versioned png endpoints', () => {
   const { api } = loadPlayerUi();
   assert.equal(api.edgeFunctionBaseUrl('', 'player-share'), null);
   assert.equal(api.edgeFunctionBaseUrl('https://project.supabase.co/functions/v1/game-api?x=1#hash', 'player-share').toString(), 'https://project.supabase.co/functions/v1/player-share');
@@ -93,8 +95,12 @@ test('builds public share routes and versioned png endpoints without leaking API
   assert.equal(api.shareUrl('https://public.example/106/', 'Juan', 'trophies'), 'https://public.example/106/player/Juan/trophies');
   assert.equal(api.cardUrl('', 'Juan'), '');
   assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', '..'), '');
-  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0');
-  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456');
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0&r=2');
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456&r=2');
+  assert.equal(api.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan', 'trophies', 456, 9), 'https://project.supabase.co/functions/v1/player-share/Juan/trophies.png?v=456&r=9');
+
+  const legacyRuntime = loadPlayerUi({ withRadar: false }).api;
+  assert.equal(legacyRuntime.cardUrl('https://project.supabase.co/functions/v1/game-api', 'Juan'), 'https://project.supabase.co/functions/v1/player-share/Juan/card.png?v=0&r=0');
 });
 
 test('renders accessible player links and dates', () => {
