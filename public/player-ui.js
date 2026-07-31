@@ -121,7 +121,7 @@
     return playerUrl(nick, section, publicBaseUrl);
   }
 
-  function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0) {
+  function cardUrl(apiBaseUrl, nick, section = 'overview', revision = 0, rendererRevision = 0) {
     const edgeUrl = edgeFunctionBaseUrl(apiBaseUrl, 'player-share');
     if (!edgeUrl) return '';
     const validation = nicknameValidation(nick);
@@ -129,6 +129,7 @@
     const normalizedSection = normalizeSection(section);
     edgeUrl.pathname += `/${encodeURIComponent(validation.normalized)}/${normalizedSection === 'overview' ? 'card' : normalizedSection}.png`;
     edgeUrl.searchParams.set('v', String(normalizeRevision(revision)));
+    edgeUrl.searchParams.set('r', String(normalizeRevision(rendererRevision)));
     return edgeUrl.toString();
   }
 
