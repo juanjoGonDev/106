@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
+import { PLAYER_CARD_RENDERER_REVISION } from '../../shared/player-radar-model.js';
+
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
@@ -86,7 +88,7 @@ async function expectVersionedCardPreview(page) {
   const url = new URL(source, page.url());
   expect(url.pathname).toMatch(/\/functions\/v1\/player-share\/Javiererd90\/card\.png$/);
   expect(url.searchParams.get('v')).toBe('31');
-  expect(url.searchParams.get('r')).toBe('2');
+  expect(url.searchParams.get('r')).toBe(String(PLAYER_CARD_RENDERER_REVISION));
 }
 
 async function capture(page, testInfo) {
