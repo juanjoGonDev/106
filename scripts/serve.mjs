@@ -57,8 +57,7 @@ const runtimeConfig = buildRuntimeConfig({
   ...localSupabaseEnvironment(),
   PUBLIC_SITE_URL: process.env.PUBLIC_SITE_URL || `http://localhost:${port}`,
 });
-const playerRadarRuntime = await readFile(join(root, 'player-radar-model.js'), 'utf8');
-const runtimeConfigSource = `window.__MINUTO106_CONFIG__=${JSON.stringify(runtimeConfig)};\n\n${playerRadarRuntime}`;
+const runtimeConfigSource = `window.__MINUTO106_CONFIG__=${JSON.stringify(runtimeConfig)};\n`;
 
 async function sendFile(response, path, status = 200) {
   const content = await readFile(path);
