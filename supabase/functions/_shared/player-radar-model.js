@@ -1,4 +1,4 @@
-// Generated from shared/player-radar-model.js. Run `pnpm sync:player-radar-model`; do not edit directly.
+// Generated from shared/player-radar-model.js. Run `node scripts/sync-player-radar-model.mjs`; do not edit directly.
 export const PLAYER_CARD_RENDERER_REVISION = 2;
 
 export const PLAYER_RADAR_POLICY = Object.freeze({
