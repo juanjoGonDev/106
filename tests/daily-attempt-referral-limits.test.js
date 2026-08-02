@@ -18,6 +18,7 @@ const lifetimeProfileMigration = readFileSync(
   'utf8',
 );
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
+const dailyLimit = readFileSync('public/daily-attempt-limit.js', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
 
@@ -89,10 +90,17 @@ describe('daily attempt and account referral limits', () => {
     expect(migration).toContain("coalesce(v_challenge.league_id::text, 'global')");
   });
 
+  it('derives the remaining budget from used and reserved capacity', () => {
+    expect(dailyLimit).toContain('const attemptsLeft = maxAttempts - attemptsUsed - attemptsReserved;');
+    expect(dailyLimit).not.toContain('finiteInteger(source.attemptsLeft');
+    expect(dailyLimit).toContain('exhausted: attemptsLeft === 0');
+  });
+
   it('ships the countdown UX and mandatory validation commands', () => {
     expect(ui).toContain("section.id = 'dailyLimitCard'");
     expect(ui).toContain("section.setAttribute('aria-labelledby', 'dailyLimitTitle')");
-    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js?v=20260731-spain-reset')");
+    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js?v=20260802-derived-budget')");
+    expect(ui).toContain("from './daily-attempt-limit.js?v=20260802-derived-budget'");
     expect(ui).toContain("window.Minuto106Competition?.refresh?.('daily-limit-reset')");
     expect(packageJson.scripts['test:daily-attempts:coverage']).toContain('--test-coverage-branches=100');
     expect(packageJson.scripts['test:supabase']).toContain('test-daily-attempt-limits-local.mjs');
