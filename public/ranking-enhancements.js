@@ -10,6 +10,7 @@ import {
 
   const COUNTDOWN_INTERVAL_MS = 1_000;
   let countdownTimer = 0;
+  let refreshTimer = 0;
   let latestResetAt = '';
   let refreshPending = false;
   let refreshAttemptedFor = '';
@@ -40,6 +41,12 @@ import {
     countdownTimer = 0;
   }
 
+  function dispose() {
+    stopCountdown();
+    if (refreshTimer) window.clearTimeout(refreshTimer);
+    refreshTimer = 0;
+  }
+
   function validResetAt(value) {
     return typeof value === 'string' && Number.isFinite(Date.parse(value));
   }
@@ -48,13 +55,16 @@ import {
     if (refreshPending || refreshAttemptedFor === resetAt) return;
     refreshPending = true;
     refreshAttemptedFor = resetAt;
-    homeStats.load()
-      .catch(() => {
-        refreshAttemptedFor = '';
-      })
-      .finally(() => {
-        refreshPending = false;
-      });
+    refreshTimer = window.setTimeout(() => {
+      refreshTimer = 0;
+      homeStats.load()
+        .catch(() => {
+          refreshAttemptedFor = '';
+        })
+        .finally(() => {
+          refreshPending = false;
+        });
+    }, 0);
   }
 
   function renderCountdown() {
@@ -70,8 +80,8 @@ import {
       return;
     }
 
-    const remaining = millisecondsUntilReset(latestResetAt);
-    const formatted = formatDailyCountdown(remaining);
+    const remaining = Math.max(0, millisecondsUntilReset(latestResetAt));
+    const formatted = remaining === 0 ? '00:00:00' : formatDailyCountdown(remaining);
     target.textContent = formatted;
     target.title = `Los premios globales se reinician en ${formatted}`;
     if (remaining > 0) return;
@@ -113,6 +123,6 @@ import {
     if (document.hidden) stopCountdown();
     else scheduleCountdown(latestResetAt);
   });
-  window.addEventListener('pagehide', stopCountdown, { once: true });
+  window.addEventListener('pagehide', dispose, { once: true });
   homeStats.subscribe(renderAwards);
 })();
