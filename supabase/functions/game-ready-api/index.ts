@@ -42,7 +42,6 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 const READINESS_CONTRACT = 'ranked-anti-cheat-v2';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
-const HUMAN_BALL_COUNT = 4;
 const localSolutionEnabled = Deno.env.get('LOCAL_E2E_HUMAN_CHECK_SOLUTIONS') === 'true';
 const localSolutionToken = Deno.env.get('LOCAL_E2E_TEST_TOKEN') ?? '';
 const turnstilePolicy = createTurnstilePolicy({
@@ -96,26 +95,29 @@ function randomHex(byteLength = 32) {
   crypto.getRandomValues(bytes);
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
-function normalizeHumanClicks(value: unknown) {
-  if (!Array.isArray(value) || value.length !== HUMAN_BALL_COUNT) return null;
-  const clicks: Array<{ x: number; y: number; atMs: number; pointerType: string }> = [];
-  let previousAt = -1;
-  for (const item of value) {
-    if (!item || typeof item !== 'object') return null;
-    const input = item as Record<string, unknown>;
-    const x = Number(input.x);
-    const y = Number(input.y);
-    const atMs = Math.round(Number(input.atMs));
-    const pointerType = ['mouse', 'touch', 'pen'].includes(String(input.pointerType))
-      ? String(input.pointerType)
-      : 'unknown';
-    if (!Number.isFinite(x) || x < 0 || x > 100
-      || !Number.isFinite(y) || y < 0 || y > 100
-      || !Number.isFinite(atMs) || atMs <= previousAt || atMs > 20_000) return null;
-    clicks.push({ x: Number(x.toFixed(2)), y: Number(y.toFixed(2)), atMs, pointerType });
-    previousAt = atMs;
-  }
-  return clicks;
+function normalizeHumanClick(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  const x = Number(input.x);
+  const y = Number(input.y);
+  const atMs = Math.round(Number(input.atMs));
+  const pointerType = ['mouse', 'touch', 'pen'].includes(String(input.pointerType))
+    ? String(input.pointerType)
+    : null;
+  if (!Number.isFinite(x) || x < 0 || x > 100
+    || !Number.isFinite(y) || y < 0 || y > 100
+    || !Number.isFinite(atMs) || atMs < 1 || atMs > 20_000
+    || !pointerType) return null;
+  return {
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+    atMs,
+    pointerType,
+  };
+}
+function normalizeStateVersion(value: unknown) {
+  const version = Number(value);
+  return Number.isInteger(version) && version >= 0 && version <= 4 ? version : null;
 }
 function clientIp(request: Request) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -144,7 +146,7 @@ async function rpc(name: string, parameters = {}) {
   return data;
 }
 function statusForError(error: string) {
-  if (['challenge_used', 'challenge_already_activated', 'human_check_used', 'human_check_completed', 'turnstile_replay'].includes(error)) return 409;
+  if (['challenge_used', 'challenge_already_activated', 'human_check_used', 'human_check_completed', 'human_check_stale', 'turnstile_replay'].includes(error)) return 409;
   if (['device_mismatch', 'player_access_denied', 'league_membership_required', 'human_check_mismatch'].includes(error)) return 403;
   if (['rate_limit', 'daily_limit', 'human_check_rate_limit'].includes(error)) return 429;
   if (['challenge_not_found', 'human_check_not_found'].includes(error)) return 404;
@@ -169,6 +171,7 @@ function messageForError(error: string) {
     human_check_expired: 'La verificación visual ha caducado. Repítela.',
     human_check_used: 'La verificación visual ya fue utilizada.',
     human_check_completed: 'La verificación visual ya fue completada.',
+    human_check_stale: 'La verificación ya avanzó desde otra solicitud. Repítela.',
     human_check_incomplete: 'Completa la verificación visual antes de continuar.',
     human_check_mismatch: 'La verificación visual no pertenece a este dispositivo.',
     human_check_failed: 'El orden o las pulsaciones no son correctos.',
@@ -233,6 +236,7 @@ Deno.serve(async (request) => {
         ok: true,
         contract: READINESS_CONTRACT,
         challengeFormat: 'raster-png-v1',
+        progressiveHumanCheck: true,
         turnstileRequired: turnstilePolicy.required,
       });
     }
@@ -249,7 +253,7 @@ Deno.serve(async (request) => {
 
     if (action === 'human-check') {
       const balls = createHumanCheckLayout(secureRandom);
-      const raster = await renderHumanCheckRaster(balls);
+      const raster = await renderHumanCheckRaster(balls, { selectedCount: 0 });
       const result = await rpc('create_game_human_check_raster', {
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
@@ -259,6 +263,8 @@ Deno.serve(async (request) => {
       return jsonResponse(origin, {
         checkId: result.checkId,
         expiresAt: result.expiresAt,
+        selectedCount: 0,
+        stateVersion: 0,
         image: {
           mediaType: raster.mediaType,
           dataUrl: raster.dataUrl,
@@ -284,24 +290,51 @@ Deno.serve(async (request) => {
       }));
     }
 
-    if (action === 'complete-human-check') {
+    if (action === 'human-check-click') {
       const checkId = normalizeUuid(body.checkId);
-      const clicks = normalizeHumanClicks(body.clicks);
-      if (!checkId || !clicks) return safeResult(origin, { error: 'human_check_invalid' });
+      const click = normalizeHumanClick(body.click);
+      const expectedVersion = normalizeStateVersion(body.stateVersion);
+      if (!checkId || !click || expectedVersion === null) {
+        return safeResult(origin, { error: 'human_check_invalid' });
+      }
       const proofToken = randomHex();
-      const result = await rpc('complete_game_human_check_raster', {
+      const result = await rpc('advance_game_human_check_raster', {
         p_check_id: checkId,
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
-        p_clicks: clicks,
+        p_click: click,
+        p_expected_version: expectedVersion,
         p_proof_token_hash: await sha256(`human:${proofToken}`),
       });
       if (result.error) return safeResult(origin, result);
-      return jsonResponse(origin, {
+      if (!Array.isArray(result.balls) || result.balls.length !== 4) {
+        throw new Error('Progressive human-check RPC returned an invalid internal layout.');
+      }
+      const selectedCount = Number(result.selectedCount);
+      const raster = await renderHumanCheckRaster(result.balls, { selectedCount });
+      const response: Record<string, unknown> = {
         checkId,
-        proofToken,
+        selectedCount,
+        stateVersion: result.stateVersion,
+        completed: result.completed === true,
         expiresAt: result.expiresAt,
-      }, 201);
+        image: {
+          mediaType: raster.mediaType,
+          dataUrl: raster.dataUrl,
+          width: raster.width,
+          height: raster.height,
+          digest: raster.digest,
+        },
+      };
+      if (result.completed === true) response.proofToken = proofToken;
+      return jsonResponse(origin, response, result.completed === true ? 201 : 200);
+    }
+
+    if (action === 'complete-human-check') {
+      return jsonResponse(origin, {
+        code: 'human_check_progressive_required',
+        error: 'La verificación debe confirmarse una pulsación cada vez.',
+      }, 410);
     }
 
     if (action === 'prepare-start') {
