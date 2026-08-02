@@ -472,7 +472,9 @@
     for (const id of ['setup', 'playing', 'result']) {
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }
-    document.querySelector('#startButton')?.focus({ preventScroll: true });
+    window.setTimeout(() => {
+      document.querySelector('#startButton')?.focus({ preventScroll: true });
+    }, 0);
   }
 
   async function prepareVerifiedStart(input, init, body) {
