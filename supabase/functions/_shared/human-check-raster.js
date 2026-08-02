@@ -4,6 +4,7 @@ const HEIGHT = 300;
 const BALL_COUNT = 4;
 const BALL_RADIUS_PERCENT = 8;
 const MINIMUM_DISTANCE_PERCENT = 26;
+const NUMBER_BADGE_RADIUS_RATIO = 0.68;
 const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 78, y: 72 }),
   Object.freeze({ x: 20, y: 75 }),
@@ -171,11 +172,13 @@ function drawBall(pixels, width, height, ball) {
   const centerX = width * Number(ball.x) / 100;
   const centerY = height * Number(ball.y) / 100;
   const radius = Math.max(24, Math.min(36, width * Number(ball.radius) / 100));
+  const badgeRadius = radius * NUMBER_BADGE_RADIUS_RATIO;
+  const digitScale = Math.max(3, Math.floor(radius / 7));
   drawCircle(pixels, width, height, centerX + 3, centerY + 4, radius + 3, [0, 0, 0, 70]);
   drawCircle(pixels, width, height, centerX, centerY, radius, [247, 248, 251, 255]);
   drawRing(pixels, width, height, centerX, centerY, radius, 3, [17, 21, 29, 255]);
-  drawCircle(pixels, width, height, centerX, centerY, radius * 0.24, [17, 21, 29, 255]);
-  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY, 4, [255, 255, 255, 255]);
+  drawCircle(pixels, width, height, centerX, centerY, badgeRadius, [17, 21, 29, 255]);
+  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY, digitScale, [255, 255, 255, 255]);
 }
 
 function normalizeRandom(randomValue) {
@@ -184,7 +187,13 @@ function normalizeRandom(randomValue) {
   return Math.max(0, Math.min(0.999999, number));
 }
 
-export function createHumanCheckLayout(random = Math.random) {
+function secureUnitRandom() {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return values[0] / 0x1_0000_0000;
+}
+
+export function createHumanCheckLayout(random = secureUnitRandom) {
   if (typeof random !== 'function') throw new TypeError('random must be a function');
   const balls = [];
   for (let order = 1; order <= BALL_COUNT; order += 1) {
