@@ -39,6 +39,33 @@ async function requestReady(url, init, body, extraHeaders = {}) {
   });
 }
 
+async function completeProgressively(url, init, body) {
+  if (!Array.isArray(body.clicks) || body.clicks.length !== 4) {
+    return response({ error: 'Local legacy click sequence is invalid.' }, 400);
+  }
+
+  let stateVersion = 0;
+  let completed = null;
+  for (const click of body.clicks) {
+    const stepResponse = await requestReady(url, init, {
+      action: 'human-check-click',
+      checkId: body.checkId,
+      click,
+      stateVersion,
+    });
+    const step = await stepResponse.clone().json().catch(() => ({}));
+    if (!stepResponse.ok) return stepResponse;
+    stateVersion = Number(step.stateVersion);
+    completed = step;
+  }
+
+  return response({
+    checkId: completed.checkId,
+    proofToken: completed.proofToken,
+    expiresAt: completed.expiresAt,
+  }, 201);
+}
+
 if (!testToken) {
   throw new Error('LOCAL_E2E_TEST_TOKEN is required for the local human-check test bridge.');
 }
@@ -50,7 +77,7 @@ globalThis.fetch = async (input, init = {}) => {
   }
 
   if (parsed.body.action === 'complete-human-check') {
-    return requestReady(parsed.url, init, parsed.body);
+    return completeProgressively(parsed.url, init, parsed.body);
   }
 
   const createdResponse = await requestReady(parsed.url, init, { action: 'human-check' });
