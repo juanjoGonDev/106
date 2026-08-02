@@ -20,7 +20,7 @@ const LEGACY_STYLE = Object.freeze({
   completedFill: Object.freeze([84, 209, 139, 255]),
   outline: Object.freeze([17, 21, 29, 255]),
   neutralNumber: Object.freeze([255, 255, 255, 255]),
-  completedNumber: Object.freeze([7, 17, 11, 255]),
+  completedNumber: Object.freeze([255, 255, 255, 255]),
 });
 
 function clampByte(value) {
