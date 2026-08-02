@@ -19,6 +19,7 @@ const pointerMigration = readFileSync('supabase/migrations/20260721240000_pointe
 const mobileTouchMigration = readFileSync('supabase/migrations/20260722090000_mobile_touch_finish_compat.sql', 'utf8');
 const antiCheatMigration = readFileSync('supabase/migrations/20260802030000_ranked_game_anti_cheat.sql', 'utf8');
 const legacyMigration = readFileSync('supabase/migrations/20260802030100_disable_legacy_human_check_contract.sql', 'utf8');
+const progressiveMigration = readFileSync('supabase/migrations/20260802210500_progressive_human_check_raster.sql', 'utf8');
 
 describe('automation-resistant game interactions', () => {
   it('does not expose a static stop button or selector contract', () => {
@@ -51,22 +52,28 @@ describe('automation-resistant game interactions', () => {
     expect(controlSource).not.toContain('RELEASE_LABELS');
   });
 
-  it('renders a server-issued raster without exposing the ordered solution', () => {
+  it('renders a server-issued raster and confirms each press without exposing the solution', () => {
     expect(indexHtml).toContain('human-check.js');
     expect(humanCheckSource).toContain('action: CHECK_ACTION');
-    expect(humanCheckSource).toContain('action: COMPLETE_ACTION');
+    expect(humanCheckSource).toContain('action: CLICK_ACTION');
     expect(humanCheckSource).toContain("createElement('img')");
-    expect(humanCheckSource).toContain('image.onpointerdown = (event) => {');
+    expect(humanCheckSource).toContain('image.onpointerdown = async (event) => {');
     expect(humanCheckSource).toContain('readyFlowApi.isTrustedReadyPointer(event)');
-    expect(humanCheckSource).toContain('image.src = challengeImage.dataUrl');
+    expect(humanCheckSource).toContain('await applyChallengeImage(image, updated.image)');
+    expect(humanCheckSource).toContain('stateVersion');
     expect(humanCheckSource).not.toContain('created.balls');
     expect(humanCheckSource).not.toContain('drawCaptchaScene');
+    expect(humanCheckSource).not.toMatch(/Empieza por|Ahora pulsa el balón/);
     expect(readyFlowSource).toContain("Object.freeze(['mouse', 'touch', 'pen'])");
     expect(readyApiSource).toContain("challengeFormat: 'raster-png-v1'");
-    expect(readyApiSource).toContain('renderHumanCheckRaster');
+    expect(readyApiSource).toContain('progressiveHumanCheck: true');
+    expect(readyApiSource).toContain("rpc('advance_game_human_check_raster'");
+    expect(readyApiSource).toContain("action === 'complete-human-check'");
+    expect(readyApiSource).toContain('}, 410)');
+    expect(readyApiSource).toContain('renderHumanCheckRaster(result.balls, { selectedCount })');
   });
 
-  it('persists and consumes the visual proof before creating a challenge', () => {
+  it('advances the hidden visual proof atomically before creating a challenge', () => {
     for (const contract of ['game_human_checks', 'create_game_human_check', 'complete_game_human_check', 'consume_game_human_check', 'start_game_challenge_pointer_only', 'finish_game_attempt_pointer_only']) {
       expect(pointerMigration).toContain(contract);
     }
@@ -75,6 +82,13 @@ describe('automation-resistant game interactions', () => {
     expect(antiCheatMigration).toContain('create or replace function public.finish_game_attempt_pointer_only(');
     expect(legacyMigration).toContain('complete_game_human_check_raster');
     expect(legacyMigration).toContain('legacy human-check contract disabled');
+    expect(progressiveMigration).toContain('add column if not exists selected_count');
+    expect(progressiveMigration).toContain('add column if not exists state_version');
+    expect(progressiveMigration).toContain('create or replace function public.advance_game_human_check_raster(');
+    expect(progressiveMigration).toContain('for update;');
+    expect(progressiveMigration).toContain("'error', 'human_check_stale'");
+    expect(progressiveMigration).toContain("'completed', v_completed");
+    expect(progressiveMigration).toContain('grant execute on function public.advance_game_human_check_raster');
   });
 
   it('accepts trusted mobile touch without weakening mouse checks', () => {
