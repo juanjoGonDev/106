@@ -145,8 +145,24 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   const solution = await solutionResponse.json();
   expect(solution.balls).toHaveLength(4);
 
-  for (const ball of solution.balls) {
+  let previousDigest = await challengeImage.getAttribute('data-digest');
+  for (let index = 0; index < solution.balls.length; index += 1) {
+    const ball = solution.balls[index];
+    const responsePromise = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/game-ready-api')) return false;
+      const body = response.request().postDataJSON?.() ?? {};
+      return body.action === 'human-check-click' && body.checkId === publicChallenge.checkId;
+    });
     await clickAtPercent(page, challengeImage, ball.x, ball.y, useTouch);
+    const response = await responsePromise;
+    expect(response.status()).toBe(index === 3 ? 201 : 200);
+    const payload = await response.json();
+    expect(payload.selectedCount).toBe(index + 1);
+    expect(payload).not.toHaveProperty('balls');
+    expect(JSON.stringify(payload)).not.toMatch(/"(?:x|y|radius|order)"\s*:/);
+    await expect(page.locator('.human-check-progress')).toHaveText(`${index + 1} / 4`);
+    await expect(challengeImage).not.toHaveAttribute('data-digest', previousDigest);
+    previousDigest = await challengeImage.getAttribute('data-digest');
   }
   await expect(page.locator('.human-check-overlay')).toBeHidden({ timeout: 15_000 });
 
