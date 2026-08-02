@@ -1,0 +1,83 @@
+name: Agent Cancellation Request Fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-cancellation-request-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'juanjoGonDev/106' && github.event.pull_request.head.ref == 'agent/security-ranked-game-anti-cheat'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: agent/security-ranked-game-anti-cheat
+          fetch-depth: 0
+
+      - name: Abort the in-flight verification request on cancel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('public/human-check.js')
+          source = path.read_text()
+
+          replacements = [
+              (
+                  '  function createHumanCheckDialog() {\n',
+                  '  function createHumanCheckDialog(onCancel) {\n',
+              ),
+              (
+                  "      cancelled = true;\n      const error = new HumanCheckCancelledError('Verificación visual cancelada.');\n",
+                  "      cancelled = true;\n      onCancel?.();\n      const error = new HumanCheckCancelledError('Verificación visual cancelada.');\n",
+              ),
+              (
+                  "  async function obtainProof(url, common) {\n    const dialog = createHumanCheckDialog();\n    let previousDigest = '';\n",
+                  "  async function obtainProof(url, common) {\n    const requestController = new AbortController();\n    const dialog = createHumanCheckDialog(() => requestController.abort());\n    const requestCommon = { ...common, signal: requestController.signal };\n    let previousDigest = '';\n",
+              ),
+              (
+                  '          const created = await createServerCheck(url, common, previousDigest);\n',
+                  '          const created = await createServerCheck(url, requestCommon, previousDigest);\n',
+              ),
+              (
+                  '            const proof = await completeServerCheck(url, common, created, result.clicks);\n',
+                  '            const proof = await completeServerCheck(url, requestCommon, created, result.clicks);\n',
+              ),
+              (
+                  "        } catch (error) {\n          if (error instanceof HumanCheckCancelledError) throw error;\n",
+                  "        } catch (error) {\n          if (requestController.signal.aborted) {\n            throw new HumanCheckCancelledError('Verificación visual cancelada.');\n          }\n          if (error instanceof HumanCheckCancelledError) throw error;\n",
+              ),
+          ]
+
+          for before, after in replacements:
+              if source.count(before) != 1:
+                  raise SystemExit(f'Expected exactly one replacement target: {before[:60]!r}')
+              source = source.replace(before, after)
+
+          path.write_text(source)
+          PY
+
+          test "$(git diff --name-only)" = "public/human-check.js"
+          node --check public/human-check.js
+
+      - name: Commit focused cancellation fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- public/human-check.js
+          git commit -m 'fix(game): abort cancelled verification requests'
+          git push origin HEAD:agent/security-ranked-game-anti-cheat
