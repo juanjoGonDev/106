@@ -1,0 +1,84 @@
+name: Agent Final Contract Synchronization
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-final-contract-synchronization
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'juanjoGonDev/106' && github.event.pull_request.head.ref == 'agent/security-ranked-game-anti-cheat'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: agent/security-ranked-game-anti-cheat
+          fetch-depth: 0
+
+      - name: Synchronize tests and specification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, before, after):
+              file = Path(path)
+              source = file.read_text()
+              if source.count(before) != 1:
+                  raise SystemExit(f'{path}: expected exactly one replacement target')
+              file.write_text(source.replace(before, after))
+
+          replace_once(
+              'tests/e2e/ranked-anti-cheat.e2e.js',
+              "  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(profileOverflow).toBe(false);\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
+              "  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(profileOverflow).toBe(false);\n  await page.waitForLoadState('networkidle');\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
+          )
+
+          replace_once(
+              'tests/human-check-explicit-start.test.js',
+              "    expect(source.match(/createHumanCheckDialog\\(\\)/g)).toHaveLength(2);\n",
+              "    expect(source).toContain('function createHumanCheckDialog(onCancel)');\n    expect(source).toContain('createHumanCheckDialog(() => requestController.abort())');\n    expect(source).toContain('signal: requestController.signal');\n    expect(source).toContain('requestController.signal.aborted');\n",
+          )
+
+          replace_once(
+              '.agents/specs/2026-08-02-ranked-game-anti-cheat.md',
+              "13. After cancellation or an intercepted start failure, restore focus to the `#startButton` that opened the dialog. This follows the accessible dialog-return pattern and avoids reopening the mobile software keyboard by focusing the nickname field.\n",
+              "13. After cancellation or an intercepted start failure, restore focus to the `#startButton` that opened the dialog. This follows the accessible dialog-return pattern and avoids reopening the mobile software keyboard by focusing the nickname field.\n14. Cancelling the raster dialog aborts its in-flight verification request. Closing presentation state alone is insufficient because the unresolved request would keep the initiating game action disabled.\n",
+          )
+
+          replace_once(
+              '.agents/specs/2026-08-02-ranked-game-anti-cheat.md',
+              "- [x] Dialog cancellation restores focus to its initiating control on Desktop and Mobile.\n",
+              "- [x] Dialog cancellation aborts in-flight verification work and restores focus to its initiating control on Desktop and Mobile.\n",
+          )
+
+          replace_once(
+              '.agents/specs/2026-08-02-ranked-game-anti-cheat.md',
+              "Implemented. Final-head CI and visual evidence are the remaining delivery gates; no production action has been performed.\n",
+              "Implemented. Delivery is complete only when the current head's required CI and visual-evidence checks are green; no production action has been performed.\n",
+          )
+          PY
+
+          test "$(git diff --name-only | sort)" = "$(printf '%s\n' .agents/specs/2026-08-02-ranked-game-anti-cheat.md tests/e2e/ranked-anti-cheat.e2e.js tests/human-check-explicit-start.test.js | sort)"
+          node --check tests/e2e/ranked-anti-cheat.e2e.js
+          node --check tests/human-check-explicit-start.test.js
+
+      - name: Commit synchronized contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- .agents/specs/2026-08-02-ranked-game-anti-cheat.md tests/e2e/ranked-anti-cheat.e2e.js tests/human-check-explicit-start.test.js
+          git commit -m 'test(game): synchronize cancellation contracts'
+          git push origin HEAD:agent/security-ranked-game-anti-cheat
