@@ -48,7 +48,7 @@ function clicksFor(balls, options = {}) {
   return balls.map((ball, index) => ({
     x: Number(ball.x) + Number(options.offsetX ?? 0),
     y: Number(ball.y) + Number(options.offsetY ?? 0),
-    atMs: 240 + index * 320,
+    atMs: Number(options.startAtMs ?? 240) + index * 320,
     pointerType: options.pointerType ?? 'touch',
     trusted: options.trusted ?? false,
   }));
@@ -58,6 +58,8 @@ async function createCheck(headers) {
   const check = await api(readyEndpoint, { action: 'human-check' }, headers);
   assert.equal(check.response.status, 201, JSON.stringify(check.body));
   assert.match(String(check.body.checkId), /^[0-9a-f-]{36}$/i);
+  assert.equal(check.body.selectedCount, 0);
+  assert.equal(check.body.stateVersion, 0);
   assert.equal(check.body.image?.mediaType, 'image/png');
   assert.match(String(check.body.image?.dataUrl), /^data:image\/png;base64,/);
   assert.match(String(check.body.image?.digest), /^[a-f0-9]{64}$/);
@@ -78,21 +80,42 @@ async function readSolution(checkId, headers, testToken = localTestToken) {
   });
 }
 
+async function advanceCheck(check, headers, click) {
+  return api(readyEndpoint, {
+    action: 'human-check-click',
+    checkId: check.checkId,
+    click,
+    stateVersion: check.stateVersion,
+  }, headers);
+}
+
 async function completeCheck(check, headers, clickOptions = {}) {
   const solution = await readSolution(check.checkId, headers);
   assert.equal(solution.response.status, 200, JSON.stringify(solution.body));
   assert.equal(solution.body.balls?.length, 4, JSON.stringify(solution.body));
-  return api(readyEndpoint, {
-    action: 'complete-human-check',
-    checkId: check.checkId,
-    clicks: clicksFor(solution.body.balls, clickOptions),
-  }, headers);
+  const clicks = clicksFor(solution.body.balls, clickOptions);
+  let current = check;
+
+  for (let index = 0; index < clicks.length; index += 1) {
+    const previousDigest = current.image.digest;
+    const advanced = await advanceCheck(current, headers, clicks[index]);
+    assert.equal(advanced.response.status, index === clicks.length - 1 ? 201 : 200, JSON.stringify(advanced.body));
+    assert.equal(advanced.body.selectedCount, index + 1);
+    assert.equal(advanced.body.stateVersion, index + 1);
+    assert.notEqual(advanced.body.image?.digest, previousDigest);
+    assert.equal('balls' in advanced.body, false, JSON.stringify(advanced.body));
+    assert.doesNotMatch(JSON.stringify(advanced.body), /"(?:x|y|radius|order)"\s*:/);
+    current = advanced.body;
+  }
+
+  return { response: { status: 201 }, body: current };
 }
 
 async function createProof(headers) {
   const check = await createCheck(headers);
   const completed = await completeCheck(check, headers);
   assert.equal(completed.response.status, 201, JSON.stringify(completed.body));
+  assert.equal(completed.body.completed, true);
   assert.match(String(completed.body.proofToken), /^[a-f0-9]{64}$/);
   return completed.body;
 }
@@ -159,9 +182,10 @@ assert.deepEqual(health.body, {
   ok: true,
   contract: 'ranked-anti-cheat-v2',
   challengeFormat: 'raster-png-v1',
+  progressiveHumanCheck: true,
   turnstileRequired: true,
 });
-process.stdout.write('✓ Readiness publishes the raster and strict Turnstile contract.\n');
+process.stdout.write('✓ Readiness publishes the progressive raster and strict Turnstile contract.\n');
 
 const rasterHeaders = createHeaders('ci-raster');
 const firstCheck = await createCheck(rasterHeaders);
@@ -179,36 +203,87 @@ process.stdout.write('✓ The deterministic solution endpoint requires local ori
 
 const wrongSolution = await readSolution(firstCheck.checkId, rasterHeaders);
 assert.equal(wrongSolution.response.status, 200, JSON.stringify(wrongSolution.body));
-const wrongCompletion = await api(readyEndpoint, {
-  action: 'complete-human-check',
-  checkId: firstCheck.checkId,
-  clicks: clicksFor(wrongSolution.body.balls, { offsetX: 30, offsetY: 30, trusted: true }),
-}, rasterHeaders);
+const wrongClick = clicksFor(wrongSolution.body.balls, { offsetX: 30, offsetY: 30, trusted: true })[0];
+const wrongCompletion = await advanceCheck(firstCheck, rasterHeaders, wrongClick);
 assert.equal(wrongCompletion.response.status, 400, JSON.stringify(wrongCompletion.body));
+const wrongReplay = await advanceCheck(firstCheck, rasterHeaders, clicksFor(wrongSolution.body.balls)[0]);
+assert.equal(wrongReplay.response.status, 409, JSON.stringify(wrongReplay.body));
 
 const replacementCheck = await createCheck(rasterHeaders);
 assert.notEqual(replacementCheck.checkId, firstCheck.checkId);
 assert.notEqual(replacementCheck.image.digest, firstCheck.image.digest);
-process.stdout.write('✓ Incorrect input is rejected and a replacement raster has a new ID and digest.\n');
+process.stdout.write('✓ Incorrect input invalidates the challenge and a replacement raster has a new ID and digest.\n');
 
-const concurrencyHeaders = createHeaders('ci-check-race');
-const concurrencyCheck = await createCheck(concurrencyHeaders);
-const concurrencySolution = await readSolution(concurrencyCheck.checkId, concurrencyHeaders);
-const completionPayload = {
-  action: 'complete-human-check',
-  checkId: concurrencyCheck.checkId,
-  clicks: clicksFor(concurrencySolution.body.balls, { trusted: true }),
+const duplicateHeaders = createHeaders('ci-check-duplicate');
+const duplicateCheck = await createCheck(duplicateHeaders);
+const duplicateSolution = await readSolution(duplicateCheck.checkId, duplicateHeaders);
+const duplicateClick = clicksFor(duplicateSolution.body.balls)[0];
+const duplicatePayload = {
+  action: 'human-check-click',
+  checkId: duplicateCheck.checkId,
+  click: duplicateClick,
+  stateVersion: 0,
+};
+const duplicateResults = await Promise.all([
+  api(readyEndpoint, duplicatePayload, duplicateHeaders),
+  api(readyEndpoint, duplicatePayload, duplicateHeaders),
+]);
+assert.deepEqual(
+  duplicateResults.map((result) => result.response.status).sort((left, right) => left - right),
+  [200, 409],
+  JSON.stringify(duplicateResults.map((result) => result.body)),
+);
+
+const differentHeaders = createHeaders('ci-check-different');
+const differentCheck = await createCheck(differentHeaders);
+const differentSolution = await readSolution(differentCheck.checkId, differentHeaders);
+const firstBall = differentSolution.body.balls[0];
+const differentPayloads = [
+  { x: Number(firstBall.x), y: Number(firstBall.y), atMs: 240, pointerType: 'touch' },
+  { x: Number(firstBall.x) + 0.25, y: Number(firstBall.y) + 0.25, atMs: 241, pointerType: 'touch' },
+].map((click) => ({
+  action: 'human-check-click',
+  checkId: differentCheck.checkId,
+  click,
+  stateVersion: 0,
+}));
+const differentResults = await Promise.all(differentPayloads.map((payload) => (
+  api(readyEndpoint, payload, differentHeaders)
+)));
+assert.deepEqual(
+  differentResults.map((result) => result.response.status).sort((left, right) => left - right),
+  [200, 409],
+  JSON.stringify(differentResults.map((result) => result.body)),
+);
+process.stdout.write('✓ Duplicate and different concurrent presses advance exactly once.\n');
+
+const completionHeaders = createHeaders('ci-check-complete-race');
+const completionCheck = await createCheck(completionHeaders);
+const completionSolution = await readSolution(completionCheck.checkId, completionHeaders);
+const completionClicks = clicksFor(completionSolution.body.balls);
+let completionState = completionCheck;
+for (let index = 0; index < 3; index += 1) {
+  const step = await advanceCheck(completionState, completionHeaders, completionClicks[index]);
+  assert.equal(step.response.status, 200, JSON.stringify(step.body));
+  completionState = step.body;
+}
+const finalPayload = {
+  action: 'human-check-click',
+  checkId: completionCheck.checkId,
+  click: completionClicks[3],
+  stateVersion: completionState.stateVersion,
 };
 const concurrentCompletions = await Promise.all([
-  api(readyEndpoint, completionPayload, concurrencyHeaders),
-  api(readyEndpoint, completionPayload, concurrencyHeaders),
+  api(readyEndpoint, finalPayload, completionHeaders),
+  api(readyEndpoint, finalPayload, completionHeaders),
 ]);
 assert.deepEqual(
   concurrentCompletions.map((result) => result.response.status).sort((left, right) => left - right),
   [201, 409],
   JSON.stringify(concurrentCompletions.map((result) => result.body)),
 );
-process.stdout.write('✓ Concurrent human-check completion succeeds exactly once.\n');
+assert.equal(concurrentCompletions.filter((result) => result.body.proofToken).length, 1);
+process.stdout.write('✓ Concurrent fourth presses issue exactly one proof.\n');
 
 const missingTurnstileHeaders = createHeaders('ci-turnstile');
 const missingProof = await createProof(missingTurnstileHeaders);
