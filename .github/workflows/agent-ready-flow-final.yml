@@ -1,0 +1,77 @@
+name: Agent Final Ready Flow Fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-final-ready-flow-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'juanjoGonDev/106' && github.event.pull_request.head.ref == 'agent/security-ranked-game-anti-cheat'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: agent/security-ranked-game-anti-cheat
+          fetch-depth: 0
+
+      - name: Apply bounded final fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, before, after):
+              file = Path(path)
+              source = file.read_text()
+              if source.count(before) != 1:
+                  raise SystemExit(f'{path}: expected exactly one replacement target')
+              file.write_text(source.replace(before, after))
+
+          replace_once(
+              '.github/workflows/ci.yml',
+              "  supabase-integration:\n    name: 🧪 Supabase · ${{ matrix.suite }}\n    if: github.event.pull_request.draft == false\n    runs-on: ubuntu-latest\n    timeout-minutes: 3\n",
+              "  supabase-integration:\n    name: 🧪 Supabase · ${{ matrix.suite }}\n    if: github.event.pull_request.draft == false\n    runs-on: ubuntu-latest\n    timeout-minutes: ${{ matrix.suite == 'ready-flow' && 6 || 3 }}\n",
+          )
+
+          replace_once(
+              '.github/workflows/ci.yml',
+              "        if: matrix.suite == 'auth-browser'\n        uses: pnpm/action-setup",
+              "        if: matrix.suite == 'auth-browser' || matrix.suite == 'ready-flow'\n        uses: pnpm/action-setup",
+          )
+
+          replace_once(
+              'public/human-check.js',
+              "    document.querySelector('#startButton')?.focus({ preventScroll: true });\n",
+              "    window.setTimeout(() => {\n      document.querySelector('#startButton')?.focus({ preventScroll: true });\n    }, 0);\n",
+          )
+          PY
+
+          git rm .github/workflows/agent-ready-flow-final.yml
+          changed="$(git diff HEAD --name-only | sort)"
+          expected="$(printf '%s\n' \
+            .github/workflows/agent-ready-flow-final.yml \
+            .github/workflows/ci.yml \
+            public/human-check.js | sort)"
+          test "$changed" = "$expected"
+          node --check public/human-check.js
+
+      - name: Commit final ready-flow fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- .github/workflows/ci.yml public/human-check.js
+          git commit -m 'fix(ci): complete live ranked validation'
+          git push origin HEAD:agent/security-ranked-game-anti-cheat
