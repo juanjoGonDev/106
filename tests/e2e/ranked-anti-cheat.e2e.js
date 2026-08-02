@@ -35,18 +35,13 @@ async function clickAtPercent(page, locator, xPercent, yPercent, useTouch) {
 }
 
 async function clickRuntimeControl(page, useTouch) {
-  const bounds = await page.locator('#playing').evaluate((playing) => {
-    const host = [...playing.children].find((element) => element.tagName.toLowerCase().startsWith('m106-'))
-      ?? [...playing.querySelectorAll('*')].find((element) => element.tagName.toLowerCase().startsWith('m106-'));
-    if (!host) return null;
-    const box = host.getBoundingClientRect();
-    return { x: box.x, y: box.y, width: box.width, height: box.height };
-  });
-  if (!bounds) throw new Error('Runtime game control was not rendered.');
-  const x = bounds.x + bounds.width / 2;
-  const y = bounds.y + bounds.height / 2;
-  if (useTouch) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  const control = page
+    .locator('#playing')
+    .locator('xpath=.//*[starts-with(local-name(), "m106-")]')
+    .last();
+  await expect(control).toBeVisible();
+  if (useTouch) await control.tap();
+  else await control.click();
 }
 
 test('@live-ranked-anti-cheat keeps raster verification and client timing authoritative', async ({ page, request }, testInfo) => {
