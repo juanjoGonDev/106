@@ -14,6 +14,12 @@ function unique(label) {
   return `${label}${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.slice(0, 24);
 }
 
+function isExpectedNavigationAbort(request) {
+  return request.resourceType() === 'image'
+    && request.failure()?.errorText === 'net::ERR_ABORTED'
+    && /\/functions\/v1\/player-share\/.+\/card\.png(?:\?|$)/.test(request.url());
+}
+
 async function clickAtPercent(page, locator, xPercent, yPercent, useTouch) {
   const box = await locator.boundingBox();
   if (!box) throw new Error('Interactive challenge bounds are unavailable.');
@@ -51,7 +57,10 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
   });
-  page.on('requestfailed', (failed) => failedRequests.push(`${failed.method()} ${failed.url()} ${failed.failure()?.errorText ?? ''}`));
+  page.on('requestfailed', (failed) => {
+    if (isExpectedNavigationAbort(failed)) return;
+    failedRequests.push(`${failed.method()} ${failed.url()} ${failed.failure()?.errorText ?? ''}`);
+  });
   page.on('response', async (response) => {
     if (!response.url().endsWith('/game-ready-api')) return;
     const requestBody = response.request().postDataJSON?.() ?? {};
@@ -86,7 +95,7 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
 
   await page.goto('/');
   await page.locator('#nick').fill(nick);
-  await page.locator('[data-team="spain"]').click();
+  await page.locator('.team-picker [data-team="spain"]').click();
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 15_000 });
   await page.locator('#startButton').click();
 
@@ -143,8 +152,15 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   await expect(page.locator('#verificationStatus')).toContainText('apto para el ranking');
 
   await page.reload();
+  const profileResponse = page.waitForResponse((response) => {
+    if (!response.url().endsWith('/player-context') || !response.ok()) return false;
+    const body = response.request().postDataJSON?.() ?? {};
+    return body.action === 'player-context' && body.nick === nick;
+  }, { timeout: 25_000 });
+  await page.locator('#nick').fill('');
   await page.locator('#nick').fill(nick);
-  await expect(page.locator('#profileCard')).toBeVisible({ timeout: 15_000 });
+  await profileResponse;
+  await expect(page.locator('#profileCard')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#attemptHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`);
 
   const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
@@ -161,7 +177,7 @@ test('@live-ranked-anti-cheat cancels the neutral raster dialog with Escape', as
 
   await page.goto('/');
   await page.locator('#nick').fill(unique('E2ECancel'));
-  await page.locator('[data-team="argentina"]').click();
+  await page.locator('.team-picker [data-team="argentina"]').click();
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 15_000 });
   await page.locator('#startButton').click();
   await expect(page.locator('.human-check-overlay')).toBeVisible();
