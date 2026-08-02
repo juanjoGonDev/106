@@ -259,7 +259,7 @@ jobs:
     name: 🧪 Supabase · ${{ matrix.suite }}
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: ${{ matrix.suite == 'ready-flow' && 6 || 3 }}
     strategy:
       fail-fast: false
       max-parallel: 7
@@ -270,7 +270,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm for live browser suite
-        if: matrix.suite == 'auth-browser'
+        if: matrix.suite == 'auth-browser' || matrix.suite == 'ready-flow'
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         with:
           version: ${{ env.PNPM_VERSION }}
