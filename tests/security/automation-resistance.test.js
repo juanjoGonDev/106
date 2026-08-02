@@ -71,8 +71,9 @@ describe('automation-resistant game interactions', () => {
       expect(pointerMigration).toContain(contract);
     }
     expect(pointerMigration).toContain("interaction_mode = 'press'");
-    expect(antiCheatMigration).toContain('complete_game_human_check_raster');
-    expect(antiCheatMigration).toContain('finish_game_attempt_ranked');
+    expect(antiCheatMigration).toContain('create or replace function public.complete_game_human_check(');
+    expect(antiCheatMigration).toContain('create or replace function public.finish_game_attempt_pointer_only(');
+    expect(legacyMigration).toContain('complete_game_human_check_raster');
     expect(legacyMigration).toContain('legacy human-check contract disabled');
   });
 
@@ -91,7 +92,7 @@ describe('automation-resistant game interactions', () => {
       expect(apiSource).toContain(signal);
     }
     expect(apiSource).toContain("rpc('finish_game_attempt_pointer_only'");
-    expect(antiCheatMigration).toContain("jsonb_build_object('clientTelemetry'");
+    expect(antiCheatMigration).toContain("'clientTelemetry', coalesce(p_client_signals, '{}'::jsonb)");
     expect(antiCheatMigration).toContain('v_server_elapsed_ms');
     expect(antiCheatMigration).toContain('v_transport_delta_ms');
     expect(migrationSource).toContain('challenge_used');
