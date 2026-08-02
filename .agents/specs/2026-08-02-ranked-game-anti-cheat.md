@@ -27,7 +27,7 @@ Harden ranked attempts against trivial HTTP automation without penalizing users 
 9. Use additive, forward-only migrations. Do not rewrite applied migrations.
 10. Keep legacy browser fixture compatibility behind three simultaneous test gates: localhost, `navigator.webdriver`, and a Playwright-only local-storage flag. Production and ordinary local browsers continue rejecting responses without the raster contract.
 11. Run the real ranked Playwright journey only from its dedicated Supabase suite. Generic visual shards explicitly exclude the live tag so repository-owned integration remains real without duplicating local backend ownership across every shard.
-12. Bootstrap the pinned package manager through Corepack when a CI shard does not preinstall `pnpm`; the repository `packageManager` field remains the version source.
+12. When a CI shard has no `pnpm` binary, bootstrap the exact version declared by `packageManager` through `npx --yes`; this avoids the stale Corepack signing-key set bundled with the pinned Node runtime while preserving the repository's exact pnpm version as the single source of truth.
 
 ## Timing thresholds
 
