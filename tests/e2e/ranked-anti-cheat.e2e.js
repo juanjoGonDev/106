@@ -9,6 +9,10 @@ const { expect, test } = require(runtimePath);
 const apiUrl = process.env.SUPABASE_TEST_URL ?? 'http://127.0.0.1:54321';
 const readyEndpoint = `${apiUrl.replace(/\/$/, '')}/functions/v1/game-ready-api`;
 const testToken = process.env.LOCAL_E2E_TEST_TOKEN ?? 'ci-local-ranked-anti-cheat-106';
+const SOCIAL_IMAGE_FIXTURE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
 
 function unique(label) {
   return `${label}${Date.now().toString(36)}${randomBytes(2).toString('hex')}`.slice(0, 24);
@@ -92,6 +96,14 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
       return;
     }
     await route.continue();
+  });
+
+  await page.route('**/functions/v1/player-share/**/*.png*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: SOCIAL_IMAGE_FIXTURE,
+    });
   });
 
   await page.goto('/');
