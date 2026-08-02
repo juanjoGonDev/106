@@ -25,6 +25,12 @@ function isExpectedNavigationAbort(request) {
     && /^\/functions\/v1\/player-share\/[^/]+\/card\.png$/.test(url.pathname);
 }
 
+function isHumanCheckResponse(response) {
+  if (!response.url().endsWith('/game-ready-api') || !response.ok()) return false;
+  const requestBody = response.request().postDataJSON?.() ?? {};
+  return requestBody.action === 'human-check';
+}
+
 async function clickAtPercent(page, locator, xPercent, yPercent, useTouch) {
   const box = await locator.boundingBox();
   if (!box) throw new Error('Interactive challenge bounds are unavailable.');
@@ -56,7 +62,6 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   const useTouch = testInfo.project.name.includes('mobile');
   const errors = [];
   const failedRequests = [];
-  const challengeResponses = [];
   const finishRequests = [];
   const accountToken = randomBytes(32).toString('hex');
   const nick = unique('E2ERanked');
@@ -68,12 +73,6 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   page.on('requestfailed', (failed) => {
     if (isExpectedNavigationAbort(failed)) return;
     failedRequests.push(`${failed.method()} ${failed.url()} ${failed.failure()?.errorText ?? ''}`);
-  });
-  page.on('response', async (response) => {
-    if (!response.url().endsWith('/game-ready-api')) return;
-    const requestBody = response.request().postDataJSON?.() ?? {};
-    if (requestBody.action !== 'human-check') return;
-    challengeResponses.push(await response.json());
   });
 
   await page.addInitScript(({ account }) => {
@@ -113,16 +112,17 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   await page.locator('#nick').fill(nick);
   await page.locator('.team-picker [data-team="spain"]').click();
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 15_000 });
+
+  const initialChallengeResponse = page.waitForResponse(isHumanCheckResponse, { timeout: 15_000 });
   await page.locator('#startButton').click();
+  const publicChallenge = await (await initialChallengeResponse).json();
 
   const challengeImage = page.locator('.human-check-image');
   await expect(challengeImage).toBeVisible();
   await expect(challengeImage).toHaveAttribute('src', /^data:image\/png;base64,/);
   await expect(page.locator('.human-check-progress')).toHaveText('0 / 4');
   await expect(page.locator('.human-check-overlay')).not.toContainText(/Empieza por|Ahora pulsa el balón|balón siguiente/i);
-  await expect.poll(() => challengeResponses.length).toBeGreaterThan(0);
 
-  const publicChallenge = challengeResponses.at(-1);
   expect(publicChallenge).not.toHaveProperty('balls');
   expect(JSON.stringify(publicChallenge)).not.toMatch(/"(?:x|y|radius|order)"\s*:/);
   expect(publicChallenge.image.mediaType).toBe('image/png');
