@@ -10,6 +10,7 @@
   const HUMAN_CHECK_PRESS_COUNT = 4;
   const MAX_SERVER_FAILURES = 2;
   const LOADING_DELAY_MS = 180;
+  const FOCUS_RESTORE_TIMEOUT_MS = 5_000;
   const LOCAL_TEST_RASTER_FLAG = 'minuto106:e2e-raster-fixture-v1';
   const LOCAL_TEST_RASTER_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   let activeVerification = null;
@@ -466,15 +467,33 @@
     });
   }
 
+  function focusStartWhenEnabled() {
+    const startButton = document.querySelector('#startButton');
+    if (!startButton) return;
+
+    const focus = () => {
+      if (!startButton.isConnected || startButton.disabled) return false;
+      startButton.focus({ preventScroll: true });
+      return true;
+    };
+    if (focus()) return;
+
+    const observer = new MutationObserver(() => {
+      if (!focus()) return;
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+    });
+    const timeoutId = window.setTimeout(() => observer.disconnect(), FOCUS_RESTORE_TIMEOUT_MS);
+    observer.observe(startButton, { attributes: true, attributeFilter: ['disabled'] });
+  }
+
   function restoreSetupSurface() {
     destroyActiveReadinessControl();
     gateNextStopControl = false;
     for (const id of ['setup', 'playing', 'result']) {
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }
-    window.setTimeout(() => {
-      document.querySelector('#startButton')?.focus({ preventScroll: true });
-    }, 0);
+    focusStartWhenEnabled();
   }
 
   async function prepareVerifiedStart(input, init, body) {

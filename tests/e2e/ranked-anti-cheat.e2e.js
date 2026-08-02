@@ -160,13 +160,20 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   }, { timeout: 25_000 });
   await page.locator('#nick').fill('');
   await page.locator('#nick').fill(nick);
-  await profileResponse;
-  await page.locator('#profileCard').scrollIntoViewIfNeeded();
-  await expect(page.locator('#profileCard')).toBeVisible({ timeout: 25_000 });
-  await expect(page.locator('#attemptHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`);
+  const persistedResponse = await profileResponse;
+  const persistedContext = await persistedResponse.json();
+  expect(persistedContext.availability).toBe('owned');
+  expect(persistedContext.profile.history).toEqual(expect.arrayContaining([
+    expect.objectContaining({ elapsedMs: Math.round(displayedSeconds * 1_000) }),
+  ]));
 
-  const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-  expect(horizontalOverflow).toBe(false);
+  const homeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  expect(homeOverflow).toBe(false);
+
+  await page.goto(`/player/${encodeURIComponent(nick)}`);
+  await expect(page.locator('#playerHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`, { timeout: 25_000 });
+  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  expect(profileOverflow).toBe(false);
   expect(errors).toEqual([]);
   expect(failedRequests).toEqual([]);
 });
