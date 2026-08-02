@@ -75,7 +75,7 @@ jobs:
               --data '{"action":"health"}' \
               "$readiness_url" || true)"
 
-            if jq -e '.ok == true and .contract == "prepared-countdown-v1"' <<<"$response" >/dev/null 2>&1; then
+            if jq -e '.ok == true and .contract == "ranked-anti-cheat-v2" and .challengeFormat == "raster-png-v1"' <<<"$response" >/dev/null 2>&1; then
               echo "Compatible readiness backend is available at attempt $attempt."
               exit 0
             fi
