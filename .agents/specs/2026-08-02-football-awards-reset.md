@@ -52,18 +52,18 @@
 
 ## Acceptance
 
-- [ ] The verification retains the raster-only anti-cheat contract and never exposes football coordinates or a next-target cue.
-- [ ] The pitch uses the pre-PR-60 burgundy/dark/blue gradient and translucent field-line constants.
-- [ ] Football circles, outlines, shadows, pentagons and numbers are smooth and no longer use matrix/pixel glyphs.
-- [ ] Numbers 1–4 remain readable in neutral and completed-green states.
-- [ ] Each correct server-confirmed press changes only that football to the green completed state; every future football remains byte-identical.
-- [ ] `0 used + 0 reserved + max 5` always normalizes to 5 remaining, even when a stale payload says `attemptsLeft: 0`.
-- [ ] The exhausted card cannot appear for a fresh `0 de 5` daily state.
-- [ ] The awards card shows a live `HH:MM:SS` countdown using a server-supplied Madrid reset instant.
-- [ ] The awards countdown reaches zero without becoming negative, performs one authoritative refresh and then follows the next reset.
-- [ ] Missing `resetAt` degrades to an unavailable countdown rather than an invented client time.
-- [ ] `0–0` displays `Sin puntos`; negative, infinite and invalid team values are clamped to zero.
-- [ ] Unit, strict coverage, security, local Supabase, Desktop/Mobile Playwright and platform-evidence checks pass.
+- [x] The verification retains the raster-only anti-cheat contract and never exposes football coordinates or a next-target cue.
+- [x] The pitch uses the pre-PR-60 burgundy/dark/blue gradient and translucent field-line constants.
+- [x] Football circles, outlines, shadows, pentagons and numbers are smooth and no longer use matrix/pixel glyphs.
+- [x] Numbers 1–4 remain readable in neutral and completed-green states.
+- [x] Each correct server-confirmed press changes only that football to the green completed state; every future football remains byte-identical.
+- [x] `0 used + 0 reserved + max 5` always normalizes to 5 remaining, even when a stale payload says `attemptsLeft: 0`.
+- [x] The exhausted card cannot appear for a fresh `0 de 5` daily state.
+- [x] The awards card shows a live `HH:MM:SS` countdown using a server-supplied Madrid reset instant.
+- [x] The awards countdown reaches zero without becoming negative, performs one authoritative refresh and then follows the next reset.
+- [x] Missing `resetAt` degrades to an unavailable countdown rather than an invented client time.
+- [x] `0–0` displays `Sin puntos`; negative, infinite and invalid team values are clamped to zero.
+- [x] Unit, strict coverage, security, local Supabase, Desktop/Mobile Playwright and platform-evidence checks pass.
 
 ## Checks
 
@@ -73,6 +73,15 @@
 - `pnpm test:supabase`
 - `pnpm test:e2e`
 - Pull-request CI and platform evidence workflows
+
+All final runtime checks passed on commit `90f2500ecfc56d518e9ea2e344e764bb088a5a40`:
+
+- Pull Request Quality Pipeline: `30770040029`
+- Player Pages and Social Cards: `30770040017`
+- Pull Request Visual Evidence: `30770040015`
+- CodeQL Advanced: `30770040012`
+- Authentication Quality: `30770040027`
+- Public Asset Audit: `30770040010`
 
 ## Rollback
 
@@ -88,4 +97,4 @@
 
 ## Status
 
-Implementation and final-head validation in progress.
+Implementation, tests, full-stack runtime validation and platform evidence complete. The pull request is ready for review; production deployment remains pending explicit approval.
