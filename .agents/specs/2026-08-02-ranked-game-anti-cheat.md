@@ -29,6 +29,7 @@ Harden ranked attempts against trivial HTTP automation without penalizing users 
 11. Run the real ranked Playwright journey only from its dedicated Supabase suite. Generic visual shards explicitly exclude the live tag so repository-owned integration remains real without duplicating local backend ownership across every shard.
 12. When a CI shard has no `pnpm` binary, bootstrap the exact version declared by `packageManager` through `npx --yes`; this avoids the stale Corepack signing-key set bundled with the pinned Node runtime while preserving the repository's exact pnpm version as the single source of truth.
 13. After cancellation or an intercepted start failure, restore focus to the `#startButton` that opened the dialog. This follows the accessible dialog-return pattern and avoids reopening the mobile software keyboard by focusing the nickname field.
+14. Cancelling the raster dialog aborts its in-flight verification request. Closing presentation state alone is insufficient because the unresolved request would keep the initiating game action disabled.
 
 ## Timing thresholds
 
@@ -71,7 +72,7 @@ The lower manual delta accounts for the client countdown beginning immediately b
 - [x] Turnstile fails closed in production-required mode and validates action, hostname, freshness and replay.
 - [x] Real local Supabase tests verify migrations, permissions, state, atomicity and concurrency.
 - [x] Playwright verifies the complete real flow in Desktop and Mobile, persistence after reload, latency behaviour, refresh, cancellation, accessibility and overflow.
-- [x] Dialog cancellation restores focus to its initiating control on Desktop and Mobile.
+- [x] Dialog cancellation aborts in-flight verification work and restores focus to its initiating control on Desktop and Mobile.
 - [x] New isolated logic reaches 100% line, function and branch coverage.
 - [x] Existing quality, security, migration, gameplay and browser contracts remain covered by their canonical jobs.
 
@@ -100,4 +101,4 @@ Revert browser, Edge Function, tests and CI wiring. Do not delete or rewrite the
 
 ## Status
 
-Implemented. Final-head CI and visual evidence are the remaining delivery gates; no production action has been performed.
+Implemented. Delivery is complete only when the current head's required CI and visual-evidence checks are green; no production action has been performed.

@@ -169,6 +169,7 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
 
   const homeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(homeOverflow).toBe(false);
+  await page.waitForLoadState('networkidle');
 
   await page.goto(`/player/${encodeURIComponent(nick)}`);
   await expect(page.locator('#playerHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`, { timeout: 25_000 });

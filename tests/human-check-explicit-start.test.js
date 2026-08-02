@@ -80,7 +80,10 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(source).toContain('created.image.digest === previousDigest');
     expect(source).toContain('Generando una imagen nueva…');
     expect(source).toContain('LOADING_DELAY_MS = 180');
-    expect(source.match(/createHumanCheckDialog\(\)/g)).toHaveLength(2);
+    expect(source).toContain('function createHumanCheckDialog(onCancel)');
+    expect(source).toContain('createHumanCheckDialog(() => requestController.abort())');
+    expect(source).toContain('signal: requestController.signal');
+    expect(source).toContain('requestController.signal.aborted');
     expect(readyApi).toContain('createHumanCheckLayout');
   });
 
