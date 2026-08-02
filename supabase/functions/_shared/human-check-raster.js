@@ -11,11 +11,14 @@ const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 22, y: 28 }),
 ]);
 const DIGITS = Object.freeze({
-  1: Object.freeze(['01110', '00110', '00110', '00110', '00110', '00110', '11111']),
+  1: Object.freeze(['00100', '01100', '00100', '00100', '00100', '00100', '01110']),
   2: Object.freeze(['11110', '00001', '00001', '01110', '10000', '10000', '11111']),
   3: Object.freeze(['11110', '00001', '00001', '01110', '00001', '00001', '11110']),
   4: Object.freeze(['10010', '10010', '10010', '11111', '00010', '00010', '00010']),
 });
+const PITCH_START = Object.freeze([98, 0, 25, 255]);
+const PITCH_MIDDLE = Object.freeze([16, 18, 26, 255]);
+const PITCH_END = Object.freeze([18, 48, 95, 255]);
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
@@ -66,10 +69,20 @@ function setPixel(pixels, width, height, x, y, red, green, blue, alpha = 255) {
   const py = Math.round(y);
   if (px < 0 || py < 0 || px >= width || py >= height) return;
   const offset = (py * width + px) * 4;
-  pixels[offset] = clampByte(red);
-  pixels[offset + 1] = clampByte(green);
-  pixels[offset + 2] = clampByte(blue);
-  pixels[offset + 3] = clampByte(alpha);
+  const sourceAlpha = clampByte(alpha);
+  if (sourceAlpha === 255) {
+    pixels[offset] = clampByte(red);
+    pixels[offset + 1] = clampByte(green);
+    pixels[offset + 2] = clampByte(blue);
+    pixels[offset + 3] = 255;
+    return;
+  }
+  const ratio = sourceAlpha / 255;
+  const inverse = 1 - ratio;
+  pixels[offset] = clampByte(red * ratio + pixels[offset] * inverse);
+  pixels[offset + 1] = clampByte(green * ratio + pixels[offset + 1] * inverse);
+  pixels[offset + 2] = clampByte(blue * ratio + pixels[offset + 2] * inverse);
+  pixels[offset + 3] = 255;
 }
 
 function fillRect(pixels, width, height, left, top, rectWidth, rectHeight, color) {
@@ -192,33 +205,55 @@ function drawDigit(pixels, width, height, digit, centerX, centerY, scale, color)
   });
 }
 
-function drawPitch(pixels, width, height) {
-  for (let y = 0; y < height; y += 1) {
-    const ratio = y / Math.max(1, height - 1);
-    fillRect(pixels, width, height, 0, y, width, 1, [30 + ratio * 12, 58 + ratio * 28, 45 + ratio * 15, 255]);
-  }
-  const white = [235, 245, 240, 210];
-  drawLine(pixels, width, height, 16, 16, width - 16, 16, 2, white);
-  drawLine(pixels, width, height, width - 16, 16, width - 16, height - 16, 2, white);
-  drawLine(pixels, width, height, width - 16, height - 16, 16, height - 16, 2, white);
-  drawLine(pixels, width, height, 16, height - 16, 16, 16, 2, white);
-  drawLine(pixels, width, height, width / 2, 16, width / 2, height - 16, 2, white);
-  drawRing(pixels, width, height, width / 2, height / 2, Math.min(width, height) * 0.13, 2, white);
+function interpolateColor(from, to, ratio) {
+  return from.map((value, index) => value + (to[index] - value) * ratio);
 }
 
-function drawBall(pixels, width, height, ball, completed) {
+function drawPitch(pixels, width, height) {
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const diagonal = (
+        x / Math.max(1, width - 1)
+        + y / Math.max(1, height - 1)
+      ) / 2;
+      const firstSegment = diagonal <= 0.48;
+      const ratio = firstSegment ? diagonal / 0.48 : (diagonal - 0.48) / 0.52;
+      const color = firstSegment
+        ? interpolateColor(PITCH_START, PITCH_MIDDLE, ratio)
+        : interpolateColor(PITCH_MIDDLE, PITCH_END, ratio);
+      setPixel(pixels, width, height, x, y, ...color);
+    }
+  }
+
+  const lineColor = [255, 255, 255, 34];
+  drawLine(pixels, width, height, 18, 18, width - 18, 18, 2, lineColor);
+  drawLine(pixels, width, height, width - 18, 18, width - 18, height - 18, 2, lineColor);
+  drawLine(pixels, width, height, width - 18, height - 18, 18, height - 18, 2, lineColor);
+  drawLine(pixels, width, height, 18, height - 18, 18, 18, 2, lineColor);
+  drawLine(pixels, width, height, width / 2, 18, width / 2, height - 18, 2, lineColor);
+  drawRing(pixels, width, height, width / 2, height / 2, Math.min(width, height) * 0.13, 2, lineColor);
+}
+
+function drawBall(pixels, width, height, ball, completed, active) {
   const centerX = width * Number(ball.x) / 100;
   const centerY = height * Number(ball.y) / 100;
-  const radius = Math.max(24, Math.min(36, width * Number(ball.radius) / 100));
+  const radius = Math.max(24, Math.min(38, width * Number(ball.radius) / 100));
   const digitScale = Math.max(3, Math.floor(radius / 8));
-  const shadowColor = [0, 0, 0, 105];
   const fillColor = completed ? [84, 209, 139, 255] : [247, 248, 251, 255];
   const inkColor = [17, 21, 29, 255];
+  const outlineColor = active ? [244, 201, 93, 255] : inkColor;
 
-  drawCircle(pixels, width, height, centerX + 4, centerY + 6, radius + 3, shadowColor);
+  if (active) {
+    drawCircle(pixels, width, height, centerX, centerY, radius + 13, [244, 201, 93, 18]);
+    drawCircle(pixels, width, height, centerX, centerY, radius + 8, [244, 201, 93, 30]);
+    drawCircle(pixels, width, height, centerX, centerY, radius + 4, [244, 201, 93, 48]);
+  } else {
+    drawCircle(pixels, width, height, centerX + 4, centerY + 6, radius + 4, [0, 0, 0, 105]);
+  }
+
   drawCircle(pixels, width, height, centerX, centerY, radius, fillColor);
-  drawRing(pixels, width, height, centerX, centerY, radius, completed ? 4 : 3, inkColor);
-  drawPentagon(pixels, width, height, centerX, centerY, radius * 0.38, inkColor);
+  drawRing(pixels, width, height, centerX, centerY, radius, active ? 5 : 3, outlineColor);
+  drawPentagon(pixels, width, height, centerX, centerY, radius * 0.34, inkColor);
   drawDigit(pixels, width, height, Number(ball.order), centerX, centerY + 1, digitScale, [255, 255, 255, 255]);
 }
 
@@ -295,7 +330,14 @@ export async function renderHumanCheckRaster(balls, options = {}) {
   const height = Math.max(200, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
   const pixels = new Uint8Array(width * height * 4);
   drawPitch(pixels, width, height);
-  balls.forEach((ball, index) => drawBall(pixels, width, height, ball, index < selectedCount));
+  balls.forEach((ball, index) => drawBall(
+    pixels,
+    width,
+    height,
+    ball,
+    index < selectedCount,
+    index === selectedCount,
+  ));
 
   const scanlines = new Uint8Array((width * 4 + 1) * height);
   for (let y = 0; y < height; y += 1) {
