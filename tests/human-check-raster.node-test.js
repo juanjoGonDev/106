@@ -11,6 +11,7 @@ import {
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 const NEUTRAL_FILL = [247, 248, 251, 255];
 const COMPLETED_FILL = [84, 209, 139, 255];
+const ACTIVE_OUTLINE = [244, 201, 93, 255];
 
 function sequence(values) {
   let index = 0;
@@ -100,11 +101,11 @@ function ballGeometry(decoded, ball) {
   return {
     centerX: decoded.width * Number(ball.x) / 100,
     centerY: decoded.height * Number(ball.y) / 100,
-    radius: Math.max(24, Math.min(36, decoded.width * Number(ball.radius) / 100)),
+    radius: Math.max(24, Math.min(38, decoded.width * Number(ball.radius) / 100)),
   };
 }
 
-function assertLegacyFootball(decoded, ball, completed) {
+function assertLegacyFootball(decoded, ball, completed, active) {
   const { centerX, centerY, radius } = ballGeometry(decoded, ball);
   assert.deepEqual(
     pixelAt(decoded, centerX + radius * 0.7, centerY),
@@ -124,15 +125,40 @@ function assertLegacyFootball(decoded, ball, completed) {
   assert.ok(lightDigitPixels >= 30, `ball ${ball.order} must contain a readable light number`);
   assert.ok(darkPentagonPixels >= 90, `ball ${ball.order} must contain the legacy dark pentagon`);
 
-  const shadow = pixelAt(decoded, centerX + radius + 3, centerY + 6);
-  assert.ok(shadow[0] <= 20 && shadow[1] <= 20 && shadow[2] <= 20, `ball ${ball.order} must keep a dark drop shadow`);
+  const outline = pixelAt(decoded, centerX + radius - 1, centerY);
+  if (active) assert.deepEqual(outline, ACTIVE_OUTLINE, `ball ${ball.order} must expose the active gold outline`);
+  else assert.ok(outline[0] <= 32 && outline[1] <= 32 && outline[2] <= 40, `ball ${ball.order} must keep a dark outline`);
+
+  const effect = active
+    ? pixelAt(decoded, centerX + radius + 7, centerY)
+    : pixelAt(decoded, centerX + radius + 3, centerY + 6);
+  if (active) {
+    const background = pixelAt(decoded, centerX + radius + 14, centerY);
+    assert.ok(
+      effect[0] >= background[0] + 20 && effect[1] >= background[1] + 15,
+      `ball ${ball.order} must keep a gold active glow`,
+    );
+  } else {
+    assert.ok(Math.max(effect[0], effect[1], effect[2]) <= 80, `ball ${ball.order} must keep a dark drop shadow`);
+  }
+}
+
+function assertLegacyPitch(decoded) {
+  const topLeft = pixelAt(decoded, 2, 2);
+  const middle = pixelAt(decoded, decoded.width / 2 + 20, decoded.height / 2 + 20);
+  const bottomRight = pixelAt(decoded, decoded.width - 3, decoded.height - 3);
+  assert.ok(topLeft[0] > topLeft[2] * 2, 'pitch must begin with the legacy burgundy tone');
+  assert.ok(middle[0] < 45 && middle[1] < 45 && middle[2] < 55, 'pitch middle must retain the dark stadium tone');
+  assert.ok(bottomRight[2] > bottomRight[0] * 2, 'pitch must end with the legacy blue tone');
+  const line = pixelAt(decoded, 18, 18);
+  assert.ok(line[0] > topLeft[0] || line[1] > topLeft[1] || line[2] > topLeft[2], 'pitch boundary must remain visible');
 }
 
 function cropBall(decoded, ball) {
   const { centerX, centerY, radius } = ballGeometry(decoded, ball);
   const bytes = [];
-  for (let y = Math.floor(centerY - radius - 4); y <= Math.ceil(centerY + radius + 8); y += 1) {
-    for (let x = Math.floor(centerX - radius - 4); x <= Math.ceil(centerX + radius + 8); x += 1) {
+  for (let y = Math.floor(centerY - radius - 14); y <= Math.ceil(centerY + radius + 14); y += 1) {
+    for (let x = Math.floor(centerX - radius - 14); x <= Math.ceil(centerX + radius + 14); x += 1) {
       bytes.push(...pixelAt(decoded, x, y));
     }
   }
@@ -194,7 +220,7 @@ test('normalizes invalid random values and falls back when candidates overlap', 
   assert.ok(clamped.every((ball) => ball.y >= 18 && ball.y <= 82));
 });
 
-test('renders deterministic legacy neutral and completed states for progress zero through four', async () => {
+test('renders deterministic legacy neutral, active and completed states for progress zero through four', async () => {
   const balls = fixedLayout();
   const rasters = [];
   for (let selectedCount = 0; selectedCount <= 4; selectedCount += 1) {
@@ -203,7 +229,13 @@ test('renders deterministic legacy neutral and completed states for progress zer
     assert.equal(raster.digest, repeated.digest);
     assert.deepEqual(raster.bytes, repeated.bytes);
     const decoded = decodeRgbaPng(raster.bytes);
-    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < selectedCount));
+    assertLegacyPitch(decoded);
+    balls.forEach((ball, index) => assertLegacyFootball(
+      decoded,
+      ball,
+      index < selectedCount,
+      index === selectedCount,
+    ));
     rasters.push({ raster, decoded });
   }
 
@@ -212,11 +244,14 @@ test('renders deterministic legacy neutral and completed states for progress zer
     const previous = rasters[progress - 1].decoded;
     const current = rasters[progress].decoded;
     assert.notDeepEqual(cropBall(previous, balls[progress - 1]), cropBall(current, balls[progress - 1]));
-    for (let unselected = progress; unselected < balls.length; unselected += 1) {
+    if (progress < balls.length) {
+      assert.notDeepEqual(cropBall(previous, balls[progress]), cropBall(current, balls[progress]));
+    }
+    for (let unchanged = progress + 1; unchanged < balls.length; unchanged += 1) {
       assert.deepEqual(
-        cropBall(previous, balls[unselected]),
-        cropBall(current, balls[unselected]),
-        `progress ${progress} must not highlight unselected ball ${unselected + 1}`,
+        cropBall(previous, balls[unchanged]),
+        cropBall(current, balls[unchanged]),
+        `progress ${progress} must not change future ball ${unchanged + 1}`,
       );
     }
   }
@@ -234,7 +269,8 @@ test('renders readable progress at minimum, default and maximum dimensions', asy
     assert.match(raster.dataUrl, /^data:image\/png;base64,/);
     assert.match(raster.digest, /^[a-f0-9]{64}$/);
     const decoded = decodeRgbaPng(raster.bytes);
-    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < 2));
+    assertLegacyPitch(decoded);
+    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < 2, index === 2));
   }
 });
 
