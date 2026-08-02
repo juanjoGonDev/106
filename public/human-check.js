@@ -473,9 +473,7 @@
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }
     window.setTimeout(() => {
-      window.setTimeout(() => {
       document.querySelector('#startButton')?.focus({ preventScroll: true });
-    }, 0);
     }, 0);
   }
 
