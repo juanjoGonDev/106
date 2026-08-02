@@ -184,7 +184,7 @@ test('@live-ranked-anti-cheat keeps the smooth raster, server confirmation and c
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 15_000 });
   await page.locator('#startButton').click();
   const publicChallengeCapture = await waitForCapture(expect, humanChecks, 1);
-  expect(publicChallengeCapture.status).toBe(200);
+  expect(publicChallengeCapture.status).toBe(201);
   const publicChallenge = publicChallengeCapture.payload;
 
   const challengeImage = page.locator('.human-check-image');
