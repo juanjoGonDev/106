@@ -109,9 +109,9 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(preparedMigration).toContain("v_ready_expires_at timestamptz := v_prepared_at + interval '2 minutes'");
   });
 
-  it('loads timing before the interaction scripts and cache-busts the changed assets', () => {
+  it('loads timing before the progressive interaction scripts and cache-busts changed assets', () => {
     const timingIndex = index.indexOf('src="./attempt-timing.js?v=20260723"');
-    const interceptorIndex = index.indexOf('src="./human-check.js?v=20260723"');
+    const interceptorIndex = index.indexOf('src="./human-check.js?v=20260802-progressive-footballs"');
     const controlIndex = index.indexOf('src="./stop-control.js?v=20260723"');
     expect(timingIndex).toBeGreaterThan(-1);
     expect(interceptorIndex).toBeGreaterThan(timingIndex);
