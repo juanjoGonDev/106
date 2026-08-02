@@ -15,13 +15,13 @@ const boundedMigration = readFileSync('supabase/migrations/20260723190000_bounde
 describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
   it('uses the modal only for numbered-ball solving', () => {
     expect(source).toContain("overlay.dataset.phase = 'solving'");
-    expect(source).toContain("settle({ kind: 'solved', clicks, previousBalls: balls })");
+    expect(source).toContain("settle({ kind: 'solved', clicks, previousDigest: challengeImage.digest })");
     expect(source).not.toContain('human-check-countdown');
     expect(source).not.toContain("className = 'game-readiness-layer'");
   });
 
   it('closes captcha before exposing the complete gameplay surface', () => {
-    expect(source).toContain('dialog.destroy();\n          return proof;');
+    expect(source).toContain('dialog.destroy();\n            return proof;');
     expect(source).toContain("document.querySelector(`#${id}`)?.classList.toggle('active', id === 'playing')");
     expect(source).toContain("timer.classList.remove('concealed')");
     expect(index).toContain('Después tendrás todo el juego visible antes de iniciar la cuenta atrás.');
@@ -74,24 +74,24 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(boundedMigration).toContain('if not v_is_timeout and abs(v_server_elapsed_ms - p_client_elapsed_ms) > 3000');
   });
 
-  it('regenerates the complete server captcha and keeps one modal mounted', () => {
-    expect(source).toContain("settle({ kind: 'refresh', previousBalls: balls })");
-    expect(source).toContain('previousBalls: previousBalls.length ? previousBalls : undefined');
-    expect(source).toContain('readyFlowApi.layoutsDiffer(previousBalls, created.balls)');
-    expect(source).toContain('Generando posiciones nuevas…');
+  it('regenerates the complete server raster and keeps one modal mounted', () => {
+    expect(source).toContain("settle({ kind: 'refresh', previousDigest: challengeImage.digest })");
+    expect(source).toContain('previousDigest: previousDigest || undefined');
+    expect(source).toContain('created.image.digest === previousDigest');
+    expect(source).toContain('Generando una imagen nueva…');
     expect(source).toContain('LOADING_DELAY_MS = 180');
     expect(source.match(/createHumanCheckDialog\(\)/g)).toHaveLength(2);
-    expect(readyApi).toContain('HUMAN_BALL_REPLACEMENT_DISTANCE = 12');
-    expect(readyApi).toContain('createBallLayout(previousBalls)');
+    expect(readyApi).toContain('createHumanCheckLayout');
+    expect(readyApi).toContain('previousDigest');
   });
 
-  it('invalidates stale Chrome resize frames before painting a replacement captcha', () => {
-    expect(flow).toContain('function createLatestFrameRenderer');
-    expect(source).toContain('readyFlowApi.createLatestFrameRenderer');
-    expect(source).toContain('frameRenderer.invalidate()');
-    expect(source).toContain('frameRenderer.replace(redraw)');
-    expect(source).toContain('frameRenderer.renderNow();\n      frameRenderer.request();');
-    expect(source).toContain('function onResize() {\n      frameRenderer.request();\n    }');
+  it('replaces raster challenges without exposing drawing commands or coordinates', () => {
+    expect(source).toContain("const image = document.createElement('img')");
+    expect(source).toContain('image.src = challengeImage.dataUrl');
+    expect(source).toContain('image.dataset.digest = challengeImage.digest');
+    expect(source).toContain('image.onpointerdown = (event) => {');
+    expect(source).not.toContain('drawCaptchaScene');
+    expect(source).not.toContain('created.balls');
   });
 
   it('bootstraps the private account key for the prepare-start action', () => {
