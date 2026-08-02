@@ -18,7 +18,9 @@ const lifetimeProfileMigration = readFileSync(
   'utf8',
 );
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
+const competition = readFileSync('public/competition.js', 'utf8');
 const dailyLimit = readFileSync('public/daily-attempt-limit.js', 'utf8');
+const home = readFileSync('public/index.html', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
 
@@ -94,6 +96,9 @@ describe('daily attempt and account referral limits', () => {
     expect(dailyLimit).toContain('const attemptsLeft = maxAttempts - attemptsUsed - attemptsReserved;');
     expect(dailyLimit).not.toContain('finiteInteger(source.attemptsLeft');
     expect(dailyLimit).toContain('exhausted: attemptsLeft === 0');
+    expect(competition).toContain("from './daily-attempt-limit.js?v=20260802-derived-budget'");
+    expect(competition).toContain('return resolveDailyAttemptState(context.profile, accountDailyAttemptPolicy());');
+    expect(home).toContain('<script type="module" src="./competition.js?v=20260802-derived-budget"></script>');
   });
 
   it('ships the countdown UX and mandatory validation commands', () => {
