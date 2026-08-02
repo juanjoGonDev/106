@@ -30,6 +30,7 @@ Harden ranked attempts against trivial HTTP automation without penalizing users 
 12. When a CI shard has no `pnpm` binary, bootstrap the exact version declared by `packageManager` through `npx --yes`; this avoids the stale Corepack signing-key set bundled with the pinned Node runtime while preserving the repository's exact pnpm version as the single source of truth.
 13. After cancellation or an intercepted start failure, restore focus to the `#startButton` that opened the dialog. This follows the accessible dialog-return pattern and avoids reopening the mobile software keyboard by focusing the nickname field.
 14. Cancelling the raster dialog aborts its in-flight verification request. Closing presentation state alone is insufficient because the unresolved request would keep the initiating game action disabled.
+15. The live anti-cheat journey keeps the game, player-context, public profile and PostgreSQL paths real, but fulfils unrelated `player-share` PNG requests with a deterministic raster. The actual social renderer remains covered by the separate real `gameplay-sharing` Supabase suite, avoiding a duplicate owner and preventing an unrelated local renderer failure from masking anti-cheat regressions.
 
 ## Timing thresholds
 
@@ -82,7 +83,8 @@ The lower manual delta accounts for the client countdown beginning immediately b
 - Vitest contract/security suite: passing before final-head evidence generation.
 - Clean local Supabase migration, permissions, readiness, security, gameplay, auth and sharing suites: canonical matrix coverage.
 - Real concurrent HTTP requests for replay, human-proof completion and finish races.
-- Dedicated `@live-ranked-anti-cheat` Playwright journey in Desktop and Mobile against local Supabase.
+- Dedicated `@live-ranked-anti-cheat` Playwright journey in Desktop and Mobile against local Supabase; only unrelated social-card PNG rendering is fulfilled deterministically.
+- Real player-share renderer coverage remains in the canonical `gameplay-sharing` Supabase suite.
 - Full Desktop/Mobile visual shard matrix with screenshots, WebM recordings, GIF derivation and platform manifest.
 - Syntax, ESLint, Knip, package policy, dependency audit, public assets and CodeQL.
 - Temporary agent workflows and generated helper files removed before final validation.
