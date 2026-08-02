@@ -1,5 +1,5 @@
 // Global card cache revision. Keep it strictly newer than every database migration.
-export const PLAYER_CARD_RENDERER_REVISION = 20260802210501;
+export const PLAYER_CARD_RENDERER_REVISION = 20260802220001;
 
 export const PLAYER_RADAR_POLICY = Object.freeze({
   precisionMaximumDifferenceMs: 1000,
