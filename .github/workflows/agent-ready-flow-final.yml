@@ -31,30 +31,32 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path, before, after):
-              file = Path(path)
-              source = file.read_text()
-              if source.count(before) != 1:
-                  raise SystemExit(f'{path}: expected exactly one replacement target')
-              file.write_text(source.replace(before, after))
-
-          replace_once(
-              '.github/workflows/ci.yml',
-              "  supabase-integration:\n    name: 🧪 Supabase · ${{ matrix.suite }}\n    if: github.event.pull_request.draft == false\n    runs-on: ubuntu-latest\n    timeout-minutes: 3\n",
-              "  supabase-integration:\n    name: 🧪 Supabase · ${{ matrix.suite }}\n    if: github.event.pull_request.draft == false\n    runs-on: ubuntu-latest\n    timeout-minutes: ${{ matrix.suite == 'ready-flow' && 6 || 3 }}\n",
+          ci_path = Path('.github/workflows/ci.yml')
+          ci_source = ci_path.read_text()
+          marker = '  supabase-integration:\n'
+          marker_index = ci_source.index(marker)
+          timeout_before = '    timeout-minutes: 3\n'
+          timeout_index = ci_source.index(timeout_before, marker_index)
+          timeout_expression = '$' + "{{ matrix.suite == 'ready-flow' && 6 || 3 }}"
+          ci_source = (
+              ci_source[:timeout_index]
+              + f'    timeout-minutes: {timeout_expression}\n'
+              + ci_source[timeout_index + len(timeout_before):]
           )
 
-          replace_once(
-              '.github/workflows/ci.yml',
-              "        if: matrix.suite == 'auth-browser'\n        uses: pnpm/action-setup",
-              "        if: matrix.suite == 'auth-browser' || matrix.suite == 'ready-flow'\n        uses: pnpm/action-setup",
-          )
+          setup_before = "        if: matrix.suite == 'auth-browser'\n        uses: pnpm/action-setup"
+          setup_after = "        if: matrix.suite == 'auth-browser' || matrix.suite == 'ready-flow'\n        uses: pnpm/action-setup"
+          if ci_source.count(setup_before) != 1:
+              raise SystemExit('ci.yml: expected one pnpm setup condition')
+          ci_path.write_text(ci_source.replace(setup_before, setup_after))
 
-          replace_once(
-              'public/human-check.js',
-              "    document.querySelector('#startButton')?.focus({ preventScroll: true });\n",
-              "    window.setTimeout(() => {\n      document.querySelector('#startButton')?.focus({ preventScroll: true });\n    }, 0);\n",
-          )
+          human_path = Path('public/human-check.js')
+          human_source = human_path.read_text()
+          focus_before = "    document.querySelector('#startButton')?.focus({ preventScroll: true });\n"
+          focus_after = "    window.setTimeout(() => {\n      document.querySelector('#startButton')?.focus({ preventScroll: true });\n    }, 0);\n"
+          if human_source.count(focus_before) != 1:
+              raise SystemExit('human-check.js: expected one focus target')
+          human_path.write_text(human_source.replace(focus_before, focus_after))
           PY
 
           git rm .github/workflows/agent-ready-flow-final.yml
