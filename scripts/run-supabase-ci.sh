@@ -62,8 +62,15 @@ clear_stale_ci_supabase_containers() {
   echo "✓ removed ${#stale_containers[@]} stale Supabase runner container(s)"
 }
 
-prepare_browser_runtime() {
-  if [[ "$SUITE" != 'auth-browser' && "$SUITE" != 'ready-flow' ]]; then
+start_playwright_runtime_preparation() {
+  PLAYWRIGHT_PREPARE_ONLY=1 PLAYWRIGHT_DISABLE_VIDEO=1 \
+    node scripts/run-playwright.mjs > playwright-prepare.log 2>&1 &
+  PLAYWRIGHT_PREP_PID=$!
+  echo '✓ Playwright runtime preparation started alongside Supabase startup'
+}
+
+prepare_auth_browser_runtime() {
+  if [[ "$SUITE" != 'auth-browser' ]]; then
     return 0
   fi
 
@@ -73,7 +80,14 @@ prepare_browser_runtime() {
   echo '✓ Playwright runtime preparation started alongside Supabase startup'
 }
 
-wait_for_browser_runtime() {
+prepare_ranked_browser_runtime() {
+  if [[ "$SUITE" != 'ready-flow' ]]; then
+    return 0
+  fi
+  start_playwright_runtime_preparation
+}
+
+wait_for_auth_browser_runtime() {
   if [[ -z "$PLAYWRIGHT_PREP_PID" ]]; then
     return 0
   fi
@@ -231,7 +245,7 @@ prepare_local_browser_config() {
 run_ready_flow_suite() {
   export LOCAL_E2E_TEST_TOKEN
   node scripts/test-ready-flow-local.mjs
-  wait_for_browser_runtime
+  wait_for_auth_browser_runtime
   load_local_supabase_environment
   prepare_local_browser_config
   export SUPABASE_TEST_URL="$API_URL"
@@ -248,11 +262,13 @@ run_ready_flow_suite() {
 }
 
 run_gameplay_core_suite() {
-  node scripts/test-supabase-local.mjs
-  node scripts/test-attempt-reservations-local.mjs
-  node scripts/test-daily-attempt-limits-local.mjs
-  node scripts/test-verified-email-daily-bonus-local.mjs
-  node scripts/test-mobile-touch-local.mjs
+  export LOCAL_E2E_TEST_TOKEN
+  local bridge=(--import ./scripts/legacy-human-check-test-bridge.mjs)
+  node "${bridge[@]}" scripts/test-supabase-local.mjs
+  node "${bridge[@]}" scripts/test-attempt-reservations-local.mjs
+  node "${bridge[@]}" scripts/test-daily-attempt-limits-local.mjs
+  node "${bridge[@]}" scripts/test-verified-email-daily-bonus-local.mjs
+  node "${bridge[@]}" scripts/test-mobile-touch-local.mjs
 }
 
 run_gameplay_sharing_suite() {
@@ -268,7 +284,7 @@ run_auth_api_suite() {
 }
 
 run_auth_browser_suite() {
-  wait_for_browser_runtime
+  wait_for_auth_browser_runtime
   load_local_supabase_environment
   export SUPABASE_AUTH_LIVE=1
   export SUPABASE_TEST_URL="$API_URL"
@@ -290,7 +306,8 @@ run_migration_suite() {
 
 validate_suite
 clear_stale_ci_supabase_containers
-prepare_browser_runtime
+prepare_auth_browser_runtime
+prepare_ranked_browser_runtime
 
 cat > supabase/functions/.env <<'EOF'
 HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
@@ -301,14 +318,19 @@ TURNSTILE_REQUIRED=false
 TURNSTILE_TEST_MODE=false
 EOF
 
-if [[ "$SUITE" == 'ready-flow' ]]; then
+if [[ "$SUITE" == 'ready-flow' || "$SUITE" == 'gameplay-core' ]]; then
   cat >> supabase/functions/.env <<EOF
+LOCAL_E2E_HUMAN_CHECK_SOLUTIONS=true
+LOCAL_E2E_TEST_TOKEN=$LOCAL_E2E_TEST_TOKEN
+EOF
+fi
+
+if [[ "$SUITE" == 'ready-flow' ]]; then
+  cat >> supabase/functions/.env <<'EOF'
 TURNSTILE_REQUIRED=true
 TURNSTILE_TEST_MODE=true
 TURNSTILE_EXPECTED_ACTION=ranked-attempt
 TURNSTILE_EXPECTED_HOSTNAMES=127.0.0.1,localhost
-LOCAL_E2E_HUMAN_CHECK_SOLUTIONS=true
-LOCAL_E2E_TEST_TOKEN=$LOCAL_E2E_TEST_TOKEN
 EOF
 fi
 
