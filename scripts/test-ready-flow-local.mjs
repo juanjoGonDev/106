@@ -203,7 +203,7 @@ process.stdout.write('✓ The deterministic solution endpoint requires local ori
 
 const wrongSolution = await readSolution(firstCheck.checkId, rasterHeaders);
 assert.equal(wrongSolution.response.status, 200, JSON.stringify(wrongSolution.body));
-const wrongClick = clicksFor(wrongSolution.body.balls, { offsetX: 30, offsetY: 30, trusted: true })[0];
+const wrongClick = clicksFor(wrongSolution.body.balls, { offsetX: 10, offsetY: 10, trusted: true })[0];
 const wrongCompletion = await advanceCheck(firstCheck, rasterHeaders, wrongClick);
 assert.equal(wrongCompletion.response.status, 400, JSON.stringify(wrongCompletion.body));
 const wrongReplay = await advanceCheck(firstCheck, rasterHeaders, clicksFor(wrongSolution.body.balls)[0]);
