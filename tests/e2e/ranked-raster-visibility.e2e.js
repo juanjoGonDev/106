@@ -108,6 +108,16 @@ test('@live-ranked-anti-cheat renders legacy footballs and confirms every select
     localStorage.setItem('minuto106:account-access-v1', account);
   }, { account: accountToken });
 
+  await page.route('**/game-ready-api', async (route) => {
+    const requestBody = route.request().postDataJSON?.() ?? {};
+    if (requestBody.action === 'prepare-start') {
+      requestBody.turnstileToken = `test-valid:raster-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
+      await route.continue({ postData: JSON.stringify(requestBody) });
+      return;
+    }
+    await route.continue();
+  });
+
   await page.goto('/');
   await page.locator('#nick').fill(nick);
   await page.locator('.team-picker [data-team="spain"]').click();
@@ -179,6 +189,7 @@ test('@live-ranked-anti-cheat renders legacy footballs and confirms every select
   expect(finalPayload.completed).toBe(true);
   expect(finalPayload.proofToken).toMatch(/^[a-f0-9]{64}$/);
   await expect(page.locator('.human-check-overlay')).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator('.game-readiness-control')).toBeVisible({ timeout: 15_000 });
 
   const replay = await request.post(readyEndpoint, {
     headers: requestHeaders,
