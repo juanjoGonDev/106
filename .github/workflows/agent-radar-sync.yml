@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   synchronize:
-    if: github.repository == 'juanjoGonDev/106' && github.actor == 'juanjoGonDev'
+    if: github.repository == 'juanjoGonDev/106' && github.ref == 'refs/heads/agent/security-ranked-game-anti-cheat'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
