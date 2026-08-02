@@ -10,6 +10,10 @@ const playwrightArguments = process.argv.slice(2);
 const prepareOnly = process.env.PLAYWRIGHT_PREPARE_ONLY === '1';
 const runtimePrepared = process.env.PLAYWRIGHT_RUNTIME_PREPARED === '1';
 const videoDisabled = process.env.PLAYWRIGHT_DISABLE_VIDEO === '1';
+const runsRankedLiveSuite = playwrightArguments.some((argument) => argument.includes('@live-ranked-anti-cheat'));
+if (!runsRankedLiveSuite && process.env.SUPABASE_RANKED_ANTICHEAT_LIVE !== '1') {
+  playwrightArguments.push('--grep-invert=@live-ranked-anti-cheat');
+}
 
 function runCommand(command, arguments_, options = {}) {
   const result = spawnSync(command, arguments_, {
@@ -26,8 +30,20 @@ function runCommand(command, arguments_, options = {}) {
   return result;
 }
 
+let pnpmInvocation = null;
+
+function resolvePnpmInvocation() {
+  if (pnpmInvocation) return pnpmInvocation;
+  const direct = spawnSync('pnpm', ['--version'], { stdio: 'ignore' });
+  pnpmInvocation = direct.error
+    ? Object.freeze({ command: 'corepack', prefix: ['pnpm'] })
+    : Object.freeze({ command: 'pnpm', prefix: [] });
+  return pnpmInvocation;
+}
+
 function runPnpm(arguments_, options = {}) {
-  return runCommand('pnpm', arguments_, options);
+  const invocation = resolvePnpmInvocation();
+  return runCommand(invocation.command, [...invocation.prefix, ...arguments_], options);
 }
 
 function runNodeScript(path) {
