@@ -259,7 +259,7 @@ jobs:
     name: 🧪 Supabase · ${{ matrix.suite }}
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.suite == 'ready-flow' && 6 || 3 }}
+    timeout-minutes: 3
     strategy:
       fail-fast: false
       max-parallel: 7
