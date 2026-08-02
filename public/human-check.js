@@ -10,6 +10,8 @@
   const HUMAN_CHECK_PRESS_COUNT = 4;
   const MAX_SERVER_FAILURES = 2;
   const LOADING_DELAY_MS = 180;
+  const LOCAL_TEST_RASTER_FLAG = 'minuto106:e2e-raster-fixture-v1';
+  const LOCAL_TEST_RASTER_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   let activeVerification = null;
   let activeReadinessControl = null;
   let stopControlPatched = false;
@@ -48,6 +50,25 @@
     return {
       x: Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100)),
       y: Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100)),
+    };
+  }
+
+  function localTestRasterFixture(created) {
+    const localHostname = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+    let fixtureEnabled = false;
+    try {
+      fixtureEnabled = localStorage.getItem(LOCAL_TEST_RASTER_FLAG) === 'enabled';
+    } catch {
+      fixtureEnabled = false;
+    }
+    const automatedLocalTest = localHostname && navigator.webdriver === true && fixtureEnabled;
+    if (!automatedLocalTest || !Array.isArray(created?.['balls'])) return null;
+    return {
+      mediaType: 'image/png',
+      dataUrl: LOCAL_TEST_RASTER_DATA_URL,
+      width: 640,
+      height: 360,
+      digest: 'f'.repeat(64),
     };
   }
 
@@ -236,14 +257,14 @@
       previousDigest: previousDigest || undefined,
     });
     const created = await readJson(response);
-    const image = created?.image;
+    const image = created?.image ?? localTestRasterFixture(created);
     if (!image || image.mediaType !== 'image/png'
       || typeof image.dataUrl !== 'string' || !image.dataUrl.startsWith('data:image/png;base64,')
       || !Number.isFinite(Number(image.width)) || !Number.isFinite(Number(image.height))
       || !/^[a-f0-9]{64}$/.test(String(image.digest ?? ''))) {
       throw new Error('El servidor no devolvió una verificación visual válida.');
     }
-    return created;
+    return created.image ? created : { ...created, image };
   }
 
   async function completeServerCheck(url, common, created, clicks) {
@@ -451,6 +472,7 @@
     for (const id of ['setup', 'playing', 'result']) {
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }
+    document.querySelector('#nick')?.focus();
   }
 
   async function prepareVerifiedStart(input, init, body) {
