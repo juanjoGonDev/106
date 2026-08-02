@@ -81,7 +81,7 @@ describe('home statistics synchronization', () => {
   it('uses the server reset instant and preserves award player teams', () => {
     const html = read('public/index.html');
     const awards = read('public/ranking-enhancements.js');
-    const migration = read('supabase/migrations/20260802210500_awards_reset_countdown.sql');
+    const migration = read('supabase/migrations/20260802210600_awards_reset_countdown.sql');
 
     expect(html).toContain('id="awardsResetCountdown"');
     expect(html).toContain('00:00, hora de España');
