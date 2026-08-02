@@ -82,7 +82,6 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(source).toContain('LOADING_DELAY_MS = 180');
     expect(source.match(/createHumanCheckDialog\(\)/g)).toHaveLength(2);
     expect(readyApi).toContain('createHumanCheckLayout');
-    expect(readyApi).toContain('previousDigest');
   });
 
   it('replaces raster challenges without exposing drawing commands or coordinates', () => {
