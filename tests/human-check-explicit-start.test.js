@@ -15,13 +15,14 @@ const boundedMigration = readFileSync('supabase/migrations/20260723190000_bounde
 describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
   it('uses the modal only for numbered-ball solving', () => {
     expect(source).toContain("overlay.dataset.phase = 'solving'");
-    expect(source).toContain("settle({ kind: 'solved', clicks, previousDigest: challengeImage.digest })");
+    expect(source).toContain("kind: 'solved'");
+    expect(source).toContain('humanProofToken: updated.proofToken');
     expect(source).not.toContain('human-check-countdown');
     expect(source).not.toContain("className = 'game-readiness-layer'");
   });
 
   it('closes captcha before exposing the complete gameplay surface', () => {
-    expect(source).toContain('dialog.destroy();\n            return proof;');
+    expect(source).toContain('dialog.destroy();\n          return result.proof;');
     expect(source).toContain("document.querySelector(`#${id}`)?.classList.toggle('active', id === 'playing')");
     expect(source).toContain("timer.classList.remove('concealed')");
     expect(index).toContain('Después tendrás todo el juego visible antes de iniciar la cuenta atrás.');
@@ -75,7 +76,7 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
   });
 
   it('regenerates the complete server raster and keeps one modal mounted', () => {
-    expect(source).toContain("settle({ kind: 'refresh', previousDigest: challengeImage.digest })");
+    expect(source).toContain("settle({ kind: 'refresh', previousDigest: challenge.image.digest })");
     expect(source).toContain('previousDigest: previousDigest || undefined');
     expect(source).toContain('created.image.digest === previousDigest');
     expect(source).toContain('Generando una imagen nueva…');
@@ -87,11 +88,12 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(readyApi).toContain('createHumanCheckLayout');
   });
 
-  it('replaces raster challenges without exposing drawing commands or coordinates', () => {
+  it('replaces confirmed raster states without exposing drawing commands or coordinates', () => {
     expect(source).toContain("const image = document.createElement('img')");
-    expect(source).toContain('image.src = challengeImage.dataUrl');
-    expect(source).toContain('image.dataset.digest = challengeImage.digest');
-    expect(source).toContain('image.onpointerdown = (event) => {');
+    expect(source).toContain('element.src = challengeImage.dataUrl');
+    expect(source).toContain('element.dataset.digest = challengeImage.digest');
+    expect(source).toContain('image.onpointerdown = async (event) => {');
+    expect(source).toContain('await applyChallengeImage(image, updated.image)');
     expect(source).not.toContain('drawCaptchaScene');
     expect(source).not.toContain('created.balls');
   });
@@ -116,11 +118,12 @@ describe('captcha, inline readiness, and bounded attempt lifecycle', () => {
     expect(controlIndex).toBeGreaterThan(interceptorIndex);
   });
 
-  it('keeps one-time proof, prepare, activate, and finish contracts', () => {
+  it('keeps one-time progressive proof, prepare, activate, and finish contracts', () => {
     expect(source).toContain('action: CHECK_ACTION');
-    expect(source).toContain('action: COMPLETE_ACTION');
+    expect(source).toContain('action: CLICK_ACTION');
     expect(source).toContain('action: PREPARE_ACTION');
     expect(source).toContain('action: ACTIVATE_ACTION');
+    expect(readyApi).toContain("action === 'human-check-click'");
     expect(readyApi).toContain("action === 'prepare-start'");
     expect(readyApi).toContain("action === 'activate-start'");
     expect(preparedMigration).toContain('challenge_not_activated');
