@@ -40,8 +40,8 @@ jobs:
 
           replace_once(
               'tests/e2e/ranked-anti-cheat.e2e.js',
-              "  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(profileOverflow).toBe(false);\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
-              "  const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(profileOverflow).toBe(false);\n  await page.waitForLoadState('networkidle');\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
+              "  const homeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(homeOverflow).toBe(false);\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
+              "  const homeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);\n  expect(homeOverflow).toBe(false);\n  await page.waitForLoadState('networkidle');\n\n  await page.goto(`/player/${encodeURIComponent(nick)}`);\n",
           )
 
           replace_once(
