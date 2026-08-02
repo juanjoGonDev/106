@@ -103,8 +103,8 @@ describe('home statistics synchronization', () => {
   it('keeps scores compact while preserving their full accessible value', () => {
     const store = read('public/home-stats.js');
     const format = read('public/format.js');
-    expect(store).toContain("setCompactValue('#spainScore', spainScore)");
-    expect(store).toContain("setCompactValue('#argentinaScore', argentinaScore)");
+    expect(store).toContain("setCompactValue('#spainScore', battle.spainScore)");
+    expect(store).toContain("setCompactValue('#argentinaScore', battle.argentinaScore)");
     expect(store).toContain('target.title = fullNumber(value)');
     expect(format).toContain("const units = ['', 'K', 'M', 'B', 'T']");
   });
