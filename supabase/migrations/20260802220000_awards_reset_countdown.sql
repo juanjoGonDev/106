@@ -24,16 +24,42 @@ with today_context as (
   from today_attempts attempts
   join best_events best using (nick_key)
   group by attempts.nick_key, best.best_at
+), latest_team as (
+  select distinct on (attempt.nick_key) attempt.nick_key, attempt.team
+  from public.game_attempts attempt
+  where attempt.verified = true
+    and attempt.league_id is null
+  order by attempt.nick_key, attempt.created_at desc, attempt.id desc
 ), awards as (
   select
-    (select jsonb_build_object('nick', nick, 'value', best_difference_ms)
-      from summaries order by best_difference_ms, best_at, nick_key limit 1) as golden_boot,
-    (select jsonb_build_object('nick', nick, 'value', average_difference_ms)
-      from summaries where attempts >= 3
-      order by average_difference_ms, best_difference_ms, best_at, nick_key limit 1) as golden_glove,
-    (select jsonb_build_object('nick', nick, 'value', attempts)
-      from summaries
-      order by attempts desc, best_difference_ms, average_difference_ms, best_at, nick_key limit 1) as golden_ball
+    (select jsonb_build_object(
+      'nick', summary.nick,
+      'team', team.team,
+      'value', summary.best_difference_ms
+    )
+      from summaries summary
+      left join latest_team team using (nick_key)
+      order by summary.best_difference_ms, summary.best_at, summary.nick_key
+      limit 1) as golden_boot,
+    (select jsonb_build_object(
+      'nick', summary.nick,
+      'team', team.team,
+      'value', summary.average_difference_ms
+    )
+      from summaries summary
+      left join latest_team team using (nick_key)
+      where summary.attempts >= 3
+      order by summary.average_difference_ms, summary.best_difference_ms, summary.best_at, summary.nick_key
+      limit 1) as golden_glove,
+    (select jsonb_build_object(
+      'nick', summary.nick,
+      'team', team.team,
+      'value', summary.attempts
+    )
+      from summaries summary
+      left join latest_team team using (nick_key)
+      order by summary.attempts desc, summary.best_difference_ms, summary.average_difference_ms, summary.best_at, summary.nick_key
+      limit 1) as golden_ball
 )
 select jsonb_build_object(
   'date', context.award_date,
@@ -51,4 +77,4 @@ revoke all on function public.get_game_daily_awards() from public, anon, authent
 grant execute on function public.get_game_daily_awards() to service_role;
 
 comment on function public.get_game_daily_awards() is
-  'Returns provisional global awards and their canonical Europe/Madrid reset instant.';
+  'Returns provisional global awards with deterministic player teams and their canonical Europe/Madrid reset instant.';
