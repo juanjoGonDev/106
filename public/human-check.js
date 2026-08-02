@@ -91,7 +91,7 @@
     };
   }
 
-  function createHumanCheckDialog() {
+  function createHumanCheckDialog(onCancel) {
     const overlay = document.createElement('div');
     overlay.className = 'human-check-overlay';
     overlay.dataset.phase = 'loading';
@@ -228,6 +228,7 @@
     function cancelDialog() {
       if (cancelled) return;
       cancelled = true;
+      onCancel?.();
       const error = new HumanCheckCancelledError('Verificación visual cancelada.');
       settledChallenge?.reject(error);
       clearChallenge();
@@ -288,7 +289,9 @@
   }
 
   async function obtainProof(url, common) {
-    const dialog = createHumanCheckDialog();
+    const requestController = new AbortController();
+    const dialog = createHumanCheckDialog(() => requestController.abort());
+    const requestCommon = { ...common, signal: requestController.signal };
     let previousDigest = '';
     let serverFailures = 0;
 
@@ -296,7 +299,7 @@
       while (serverFailures < MAX_SERVER_FAILURES) {
         try {
           dialog.showLoading(previousDigest ? 'Generando una imagen nueva…' : 'Generando verificación…');
-          const created = await createServerCheck(url, common, previousDigest);
+          const created = await createServerCheck(url, requestCommon, previousDigest);
           dialog.assertActive();
           if (previousDigest && created.image.digest === previousDigest) continue;
           const result = await dialog.solve(created);
@@ -305,7 +308,7 @@
             continue;
           }
           try {
-            const proof = await completeServerCheck(url, common, created, result.clicks);
+            const proof = await completeServerCheck(url, requestCommon, created, result.clicks);
             dialog.destroy();
             return proof;
           } catch (error) {
@@ -313,6 +316,9 @@
             previousDigest = result.previousDigest;
           }
         } catch (error) {
+          if (requestController.signal.aborted) {
+            throw new HumanCheckCancelledError('Verificación visual cancelada.');
+          }
           if (error instanceof HumanCheckCancelledError) throw error;
           if (isRefreshError(error)) continue;
           serverFailures += 1;
