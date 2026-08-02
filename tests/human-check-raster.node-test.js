@@ -11,7 +11,6 @@ import {
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 const NEUTRAL_FILL = [247, 248, 251, 255];
 const COMPLETED_FILL = [84, 209, 139, 255];
-const ACTIVE_OUTLINE = [244, 201, 93, 255];
 
 function sequence(values) {
   let index = 0;
@@ -101,46 +100,67 @@ function ballGeometry(decoded, ball) {
   return {
     centerX: decoded.width * Number(ball.x) / 100,
     centerY: decoded.height * Number(ball.y) / 100,
-    radius: Math.max(24, Math.min(38, decoded.width * Number(ball.radius) / 100)),
+    radius: Math.max(25, Math.min(38, decoded.width * Number(ball.radius) / 100)),
   };
 }
 
-function assertLegacyFootball(decoded, ball, completed, active) {
+function colorDistance(left, right) {
+  return Math.hypot(
+    left[0] - right[0],
+    left[1] - right[1],
+    left[2] - right[2],
+  );
+}
+
+function assertLegacyFootball(decoded, ball, completed) {
   const { centerX, centerY, radius } = ballGeometry(decoded, ball);
-  assert.deepEqual(
-    pixelAt(decoded, centerX + radius * 0.7, centerY),
-    completed ? COMPLETED_FILL : NEUTRAL_FILL,
-    `ball ${ball.order} must use the ${completed ? 'completed green' : 'neutral white'} fill`,
+  const expectedFill = completed ? COMPLETED_FILL : NEUTRAL_FILL;
+  assert.ok(
+    colorDistance(pixelAt(decoded, centerX + radius * 0.7, centerY), expectedFill) <= 4,
+    `ball ${ball.order} must use the exact ${completed ? 'completed green' : 'neutral white'} fill`,
   );
 
-  let lightDigitPixels = 0;
+  const outline = pixelAt(decoded, centerX + radius - 1.5, centerY);
+  assert.ok(outline[0] <= 40 && outline[1] <= 40 && outline[2] <= 48, `ball ${ball.order} must keep the dark legacy outline`);
+
+  let lightNumberPixels = 0;
+  let completedNumberPixels = 0;
   let darkPentagonPixels = 0;
-  for (let y = Math.floor(centerY - radius * 0.45); y <= Math.ceil(centerY + radius * 0.45); y += 1) {
-    for (let x = Math.floor(centerX - radius * 0.45); x <= Math.ceil(centerX + radius * 0.45); x += 1) {
-      const [red, green, blue, alpha] = pixelAt(decoded, x, y);
-      if (alpha === 255 && red >= 245 && green >= 245 && blue >= 245) lightDigitPixels += 1;
-      if (alpha === 255 && red <= 32 && green <= 32 && blue <= 40) darkPentagonPixels += 1;
+  let blendedEdgePixels = 0;
+  const colors = new Set();
+  for (let y = Math.floor(centerY - radius - 3); y <= Math.ceil(centerY + radius + 3); y += 1) {
+    for (let x = Math.floor(centerX - radius - 3); x <= Math.ceil(centerX + radius + 3); x += 1) {
+      const pixel = pixelAt(decoded, x, y);
+      colors.add(pixel.slice(0, 3).join(','));
+      const distance = Math.hypot(x - centerX, y - centerY);
+      if (distance >= radius - 2 && distance <= radius + 2) {
+        const fillDistance = colorDistance(pixel, expectedFill);
+        const outlineDistance = colorDistance(pixel, [17, 21, 29, 255]);
+        if (fillDistance > 8 && outlineDistance > 8) blendedEdgePixels += 1;
+      }
+      if (Math.abs(x - centerX) <= radius * 0.25 && Math.abs(y - centerY) <= radius * 0.35) {
+        const [red, green, blue] = pixel;
+        if (red >= 238 && green >= 238 && blue >= 238) lightNumberPixels += 1;
+        if (red <= 12 && green <= 24 && blue <= 18) completedNumberPixels += 1;
+        if (red <= 38 && green <= 38 && blue <= 46) darkPentagonPixels += 1;
+      }
     }
   }
-  assert.ok(lightDigitPixels >= 30, `ball ${ball.order} must contain a readable light number`);
-  assert.ok(darkPentagonPixels >= 90, `ball ${ball.order} must contain the legacy dark pentagon`);
-
-  const outline = pixelAt(decoded, centerX + radius - 1, centerY);
-  if (active) assert.deepEqual(outline, ACTIVE_OUTLINE, `ball ${ball.order} must expose the active gold outline`);
-  else assert.ok(outline[0] <= 32 && outline[1] <= 32 && outline[2] <= 40, `ball ${ball.order} must keep a dark outline`);
-
-  const effect = active
-    ? pixelAt(decoded, centerX + radius + 7, centerY)
-    : pixelAt(decoded, centerX + radius + 3, centerY + 6);
-  if (active) {
-    const background = pixelAt(decoded, centerX + radius + 14, centerY);
-    assert.ok(
-      effect[0] >= background[0] + 20 && effect[1] >= background[1] + 15,
-      `ball ${ball.order} must keep a gold active glow`,
-    );
+  assert.ok(darkPentagonPixels >= 60, `ball ${ball.order} must retain the central dark pentagon`);
+  if (completed) {
+    assert.ok(completedNumberPixels >= 8, `completed ball ${ball.order} must use the legacy dark number`);
   } else {
-    assert.ok(Math.max(effect[0], effect[1], effect[2]) <= 80, `ball ${ball.order} must keep a dark drop shadow`);
+    assert.ok(lightNumberPixels >= 12, `neutral ball ${ball.order} must contain a smooth readable white number`);
   }
+  assert.ok(blendedEdgePixels >= 12, `ball ${ball.order} must have anti-aliased circular edges`);
+  assert.ok(colors.size >= 35, `ball ${ball.order} must not regress to a flat pixel-art sprite`);
+
+  const shadow = pixelAt(decoded, centerX + radius + 5, centerY + 2);
+  const background = pixelAt(decoded, centerX + radius + 16, centerY + 2);
+  assert.ok(
+    shadow[0] < background[0] || shadow[1] < background[1] || shadow[2] < background[2],
+    `ball ${ball.order} must retain the diffuse canvas-style shadow`,
+  );
 }
 
 function assertLegacyPitch(decoded) {
@@ -157,8 +177,8 @@ function assertLegacyPitch(decoded) {
 function cropBall(decoded, ball) {
   const { centerX, centerY, radius } = ballGeometry(decoded, ball);
   const bytes = [];
-  for (let y = Math.floor(centerY - radius - 14); y <= Math.ceil(centerY + radius + 14); y += 1) {
-    for (let x = Math.floor(centerX - radius - 14); x <= Math.ceil(centerX + radius + 14); x += 1) {
+  for (let y = Math.floor(centerY - radius - 16); y <= Math.ceil(centerY + radius + 16); y += 1) {
+    for (let x = Math.floor(centerX - radius - 16); x <= Math.ceil(centerX + radius + 16); x += 1) {
       bytes.push(...pixelAt(decoded, x, y));
     }
   }
@@ -174,13 +194,25 @@ function fixedLayout() {
   ]));
 }
 
-test('publishes stable raster geometry constants', () => {
+test('publishes the exact legacy visual contract', () => {
   assert.deepEqual(HUMAN_CHECK_RASTER, {
-    width: 480,
-    height: 300,
+    width: 560,
+    height: 360,
     ballCount: 4,
     radiusPercent: 8,
     minimumDistancePercent: 26,
+    supersample: 3,
+    style: {
+      pitchStart: [98, 0, 25, 255],
+      pitchMiddle: [16, 18, 26, 255],
+      pitchEnd: [18, 48, 95, 255],
+      fieldLine: [255, 255, 255, 34],
+      neutralFill: [247, 248, 251, 255],
+      completedFill: [84, 209, 139, 255],
+      outline: [17, 21, 29, 255],
+      neutralNumber: [255, 255, 255, 255],
+      completedNumber: [7, 17, 11, 255],
+    },
   });
 });
 
@@ -220,7 +252,7 @@ test('normalizes invalid random values and falls back when candidates overlap', 
   assert.ok(clamped.every((ball) => ball.y >= 18 && ball.y <= 82));
 });
 
-test('renders deterministic legacy neutral, active and completed states for progress zero through four', async () => {
+test('renders deterministic neutral and server-confirmed completed states without a next-target hint', async () => {
   const balls = fixedLayout();
   const rasters = [];
   for (let selectedCount = 0; selectedCount <= 4; selectedCount += 1) {
@@ -230,12 +262,7 @@ test('renders deterministic legacy neutral, active and completed states for prog
     assert.deepEqual(raster.bytes, repeated.bytes);
     const decoded = decodeRgbaPng(raster.bytes);
     assertLegacyPitch(decoded);
-    balls.forEach((ball, index) => assertLegacyFootball(
-      decoded,
-      ball,
-      index < selectedCount,
-      index === selectedCount,
-    ));
+    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < selectedCount));
     rasters.push({ raster, decoded });
   }
 
@@ -244,20 +271,17 @@ test('renders deterministic legacy neutral, active and completed states for prog
     const previous = rasters[progress - 1].decoded;
     const current = rasters[progress].decoded;
     assert.notDeepEqual(cropBall(previous, balls[progress - 1]), cropBall(current, balls[progress - 1]));
-    if (progress < balls.length) {
-      assert.notDeepEqual(cropBall(previous, balls[progress]), cropBall(current, balls[progress]));
-    }
-    for (let unchanged = progress + 1; unchanged < balls.length; unchanged += 1) {
+    for (let unchanged = progress; unchanged < balls.length; unchanged += 1) {
       assert.deepEqual(
         cropBall(previous, balls[unchanged]),
         cropBall(current, balls[unchanged]),
-        `progress ${progress} must not change future ball ${unchanged + 1}`,
+        `progress ${progress} must not reveal or visually change future ball ${unchanged + 1}`,
       );
     }
   }
 });
 
-test('renders readable progress at minimum, default and maximum dimensions', async () => {
+test('renders smooth readable footballs at minimum, default and maximum dimensions', async () => {
   const balls = fixedLayout();
   for (const options of [
     { width: 1, height: 1, selectedCount: 2 },
@@ -270,7 +294,7 @@ test('renders readable progress at minimum, default and maximum dimensions', asy
     assert.match(raster.digest, /^[a-f0-9]{64}$/);
     const decoded = decodeRgbaPng(raster.bytes);
     assertLegacyPitch(decoded);
-    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < 2, index === 2));
+    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < 2));
   }
 });
 
@@ -288,7 +312,9 @@ test('handles edge geometry and rejects malformed raster contracts', async () =>
     { order: 4, x: 100, y: 100, radius: 8 },
   ];
   const edge = await renderHumanCheckRaster(edgeBalls, { width: 320, height: 200, selectedCount: 4 });
-  assert.ok(edge.bytes.length > 100);
+  const decoded = decodeRgbaPng(edge.bytes);
+  assert.equal(decoded.width, 320);
+  assert.equal(decoded.height, 220);
 
   await assert.rejects(
     () => renderHumanCheckRaster([
