@@ -15,6 +15,7 @@ POSTGRES_URL=''
 readonly VALID_SUITES='security ready-flow gameplay-core gameplay-sharing auth-api auth-browser migrations'
 readonly EDGE_WARMUP_ATTEMPTS=3
 readonly EDGE_WARMUP_TIMEOUT_SECONDS=30
+readonly LOCAL_E2E_TEST_TOKEN='ci-local-ranked-anti-cheat-106'
 
 cleanup() {
   exit_code=$?
@@ -61,8 +62,8 @@ clear_stale_ci_supabase_containers() {
   echo "✓ removed ${#stale_containers[@]} stale Supabase runner container(s)"
 }
 
-prepare_auth_browser_runtime() {
-  if [[ "$SUITE" != 'auth-browser' ]]; then
+prepare_browser_runtime() {
+  if [[ "$SUITE" != 'auth-browser' && "$SUITE" != 'ready-flow' ]]; then
     return 0
   fi
 
@@ -72,7 +73,7 @@ prepare_auth_browser_runtime() {
   echo '✓ Playwright runtime preparation started alongside Supabase startup'
 }
 
-wait_for_auth_browser_runtime() {
+wait_for_browser_runtime() {
   if [[ -z "$PLAYWRIGHT_PREP_PID" ]]; then
     return 0
   fi
@@ -83,7 +84,7 @@ wait_for_auth_browser_runtime() {
     return 1
   fi
   PLAYWRIGHT_PREP_PID=''
-  echo '✓ Playwright runtime is ready for the live authentication suite'
+  echo '✓ Playwright runtime is ready for the live browser suite'
 }
 
 load_local_supabase_environment() {
@@ -215,8 +216,35 @@ run_security_suite() {
   supabase migration list --local
 }
 
+prepare_local_browser_config() {
+  SUPABASE_FUNCTIONS_URL="$API_URL/functions/v1" \
+  SUPABASE_PROJECT_ID='local-ranked-anti-cheat' \
+  SUPABASE_PUBLISHABLE_KEY="$ANON_KEY" \
+  TURNSTILE_SITE_KEY='' \
+  PUBLIC_SITE_URL='http://127.0.0.1:3000' \
+  GITHUB_PAGES_URL='http://127.0.0.1:3000' \
+  GITHUB_REPOSITORY='juanjoGonDev/106' \
+  GITHUB_REPOSITORY_OWNER='juanjoGonDev' \
+    node scripts/generate-config.mjs
+}
+
 run_ready_flow_suite() {
+  export LOCAL_E2E_TEST_TOKEN
   node scripts/test-ready-flow-local.mjs
+  wait_for_browser_runtime
+  load_local_supabase_environment
+  prepare_local_browser_config
+  export SUPABASE_TEST_URL="$API_URL"
+  export SUPABASE_TEST_ANON_KEY="$ANON_KEY"
+  export SUPABASE_TEST_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+  export SUPABASE_TEST_DB_URL="${DB_URL:-$POSTGRES_URL}"
+  export PLAYWRIGHT_WEB_SERVER_COMMAND='node scripts/serve.mjs'
+  export PLAYWRIGHT_DISABLE_VIDEO=1
+  export PLAYWRIGHT_RUNTIME_PREPARED=1
+  node scripts/run-playwright.mjs \
+    --grep @live-ranked-anti-cheat \
+    --project=desktop-chrome \
+    --project=mobile-chrome
 }
 
 run_gameplay_core_suite() {
@@ -240,7 +268,7 @@ run_auth_api_suite() {
 }
 
 run_auth_browser_suite() {
-  wait_for_auth_browser_runtime
+  wait_for_browser_runtime
   load_local_supabase_environment
   export SUPABASE_AUTH_LIVE=1
   export SUPABASE_TEST_URL="$API_URL"
@@ -262,13 +290,27 @@ run_migration_suite() {
 
 validate_suite
 clear_stale_ci_supabase_containers
-prepare_auth_browser_runtime
+prepare_browser_runtime
 
 cat > supabase/functions/.env <<'EOF'
 HASH_PEPPER=ci-local-only-pepper-106-do-not-use-in-production
-ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,https://juanjogondev.github.io
 TURNSTILE_SECRET_KEY=
+APP_ENV=test
+TURNSTILE_REQUIRED=false
+TURNSTILE_TEST_MODE=false
 EOF
+
+if [[ "$SUITE" == 'ready-flow' ]]; then
+  cat >> supabase/functions/.env <<EOF
+TURNSTILE_REQUIRED=true
+TURNSTILE_TEST_MODE=true
+TURNSTILE_EXPECTED_ACTION=ranked-attempt
+TURNSTILE_EXPECTED_HOSTNAMES=127.0.0.1,localhost
+LOCAL_E2E_HUMAN_CHECK_SOLUTIONS=true
+LOCAL_E2E_TEST_TOKEN=$LOCAL_E2E_TEST_TOKEN
+EOF
+fi
 
 echo "::group::Start local Supabase stack for ${SUITE}"
 supabase start \
