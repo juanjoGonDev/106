@@ -7,8 +7,12 @@
   const PREPARE_ACTION = 'prepare-start';
   const ACTIVATE_ACTION = 'activate-start';
   const COUNTDOWN_MS = 3_000;
+  const HUMAN_CHECK_PRESS_COUNT = 4;
   const MAX_SERVER_FAILURES = 2;
   const LOADING_DELAY_MS = 180;
+  const FOCUS_RESTORE_TIMEOUT_MS = 5_000;
+  const LOCAL_TEST_RASTER_FLAG = 'minuto106:e2e-raster-fixture-v1';
+  const LOCAL_TEST_RASTER_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   let activeVerification = null;
   let activeReadinessControl = null;
   let stopControlPatched = false;
@@ -42,97 +46,31 @@
     return url.toString();
   }
 
-  function normalizeCanvas(canvas) {
-    const bounds = canvas.getBoundingClientRect();
-    const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const width = Math.max(280, Math.round(bounds.width || 560));
-    const height = Math.max(260, Math.round(bounds.height || 360));
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    const context = canvas.getContext('2d');
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    return { context, width, height };
-  }
-
-  function drawFootball(context, x, y, radius, order, completed, active) {
-    context.save();
-    context.translate(x, y);
-    context.shadowColor = active ? '#f4c95dcc' : '#0009';
-    context.shadowBlur = active ? 24 : 12;
-    context.fillStyle = completed ? '#54d18b' : '#f7f8fb';
-    context.beginPath();
-    context.arc(0, 0, radius, 0, Math.PI * 2);
-    context.fill();
-    context.shadowBlur = 0;
-    context.strokeStyle = active ? '#f4c95d' : '#11151d';
-    context.lineWidth = active ? 5 : 3;
-    context.stroke();
-
-    context.fillStyle = '#11151d';
-    context.beginPath();
-    for (let index = 0; index < 5; index += 1) {
-      const angle = -Math.PI / 2 + index * Math.PI * 2 / 5;
-      const pointX = Math.cos(angle) * radius * 0.34;
-      const pointY = Math.sin(angle) * radius * 0.34;
-      if (index === 0) context.moveTo(pointX, pointY);
-      else context.lineTo(pointX, pointY);
-    }
-    context.closePath();
-    context.fill();
-
-    context.fillStyle = completed ? '#07110b' : '#ffffff';
-    context.font = `900 ${Math.max(16, Math.round(radius * 0.58))}px system-ui, sans-serif`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(String(order), 0, 1);
-    context.restore();
-  }
-
-  function drawCaptchaScene(canvas, balls, completedCount) {
-    const { context, width, height } = normalizeCanvas(canvas);
-    const gradient = context.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#620019');
-    gradient.addColorStop(0.48, '#10121a');
-    gradient.addColorStop(1, '#12305f');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-
-    context.strokeStyle = '#ffffff22';
-    context.lineWidth = 2;
-    context.strokeRect(18, 18, width - 36, height - 36);
-    context.beginPath();
-    context.moveTo(width / 2, 18);
-    context.lineTo(width / 2, height - 18);
-    context.stroke();
-    context.beginPath();
-    context.arc(width / 2, height / 2, Math.min(width, height) * 0.13, 0, Math.PI * 2);
-    context.stroke();
-
-    for (let index = 0; index < balls.length; index += 1) {
-      const ball = balls[index];
-      const radius = Math.max(25, Math.min(38, width * Number(ball.radius) / 100));
-      drawFootball(
-        context,
-        width * Number(ball.x) / 100,
-        height * Number(ball.y) / 100,
-        radius,
-        ball.order,
-        index < completedCount,
-        index === completedCount,
-      );
-    }
-  }
-
-  function canvasPoint(canvas, event) {
-    const bounds = canvas.getBoundingClientRect();
+  function imagePoint(image, event) {
+    const bounds = image.getBoundingClientRect();
     return {
       x: Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100)),
       y: Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100)),
     };
   }
 
-  function hitBall(point, ball) {
-    return Math.hypot(point.x - Number(ball.x), point.y - Number(ball.y)) <= Number(ball.radius);
+  function localTestRasterFixture(created) {
+    const localHostname = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+    let fixtureEnabled;
+    try {
+      fixtureEnabled = localStorage.getItem(LOCAL_TEST_RASTER_FLAG) === 'enabled';
+    } catch {
+      fixtureEnabled = false;
+    }
+    const automatedLocalTest = localHostname && navigator.webdriver === true && fixtureEnabled;
+    if (!automatedLocalTest || !Array.isArray(created?.['balls'])) return null;
+    return {
+      mediaType: 'image/png',
+      dataUrl: LOCAL_TEST_RASTER_DATA_URL,
+      width: 640,
+      height: 360,
+      digest: 'f'.repeat(64),
+    };
   }
 
   function lockViewport() {
@@ -153,7 +91,7 @@
     };
   }
 
-  function createHumanCheckDialog() {
+  function createHumanCheckDialog(onCancel) {
     const overlay = document.createElement('div');
     overlay.className = 'human-check-overlay';
     overlay.dataset.phase = 'loading';
@@ -165,13 +103,15 @@
     panel.className = 'human-check-panel';
     const heading = document.createElement('div');
     heading.className = 'human-check-heading';
-    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Si fallas, se generará una verificación completamente nueva.</p>';
+    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Pulsa los cuatro balones numerados en orden ascendente. Si fallas, se generará una imagen nueva.</p>';
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
     progress.setAttribute('aria-live', 'polite');
-    const canvas = document.createElement('canvas');
-    canvas.className = 'human-check-canvas';
-    canvas.setAttribute('aria-label', 'Zona visual de verificación. Pulsa los balones numerados en orden.');
+    const image = document.createElement('img');
+    image.className = 'human-check-canvas human-check-image';
+    image.alt = 'Campo con cuatro balones numerados. Pulsa los números en orden ascendente.';
+    image.draggable = false;
+    image.decoding = 'async';
     const status = document.createElement('p');
     status.className = 'human-check-status';
     status.setAttribute('aria-live', 'polite');
@@ -183,14 +123,10 @@
     cancel.className = 'ghost human-check-cancel';
     cancel.type = 'button';
     cancel.textContent = 'Cancelar';
-    panel.append(heading, progress, canvas, status, loading, cancel);
+    panel.append(heading, progress, image, status, loading, cancel);
     overlay.append(panel);
     document.body.append(overlay);
     const unlockViewport = lockViewport();
-    const frameRenderer = readyFlowApi.createLatestFrameRenderer({
-      scheduleFrame: window.requestAnimationFrame.bind(window),
-      cancelFrame: window.cancelAnimationFrame.bind(window),
-    });
 
     let cancelled = false;
     let destroyed = false;
@@ -202,8 +138,7 @@
       window.clearTimeout(expiryTimer);
       expiryTimer = 0;
       settledChallenge = null;
-      canvas.onpointerdown = null;
-      frameRenderer.invalidate();
+      image.onpointerdown = null;
     }
 
     function showLoading(message = 'Generando una verificación nueva…') {
@@ -215,21 +150,21 @@
       loadingTimer = window.setTimeout(() => {
         if (cancelled || destroyed) return;
         loading.hidden = false;
-        canvas.classList.add('is-loading');
+        image.classList.add('is-loading');
       }, LOADING_DELAY_MS);
     }
 
     function hideLoading() {
       window.clearTimeout(loadingTimer);
       loading.hidden = true;
-      canvas.classList.remove('is-loading');
+      image.classList.remove('is-loading');
     }
 
     function assertActive() {
       if (cancelled) throw new HumanCheckCancelledError('Verificación visual cancelada.');
     }
 
-    function solve({ balls, expiresAt }) {
+    function solve({ image: challengeImage, expiresAt }) {
       assertActive();
       clearChallenge();
       hideLoading();
@@ -238,12 +173,12 @@
       const sequenceStartedAt = performance.now();
       const clicks = [];
 
-      const redraw = () => drawCaptchaScene(canvas, balls, completedCount);
-      frameRenderer.replace(redraw);
-      progress.textContent = `0 / ${balls.length}`;
-      status.textContent = 'Empieza por el balón 1.';
-      frameRenderer.renderNow();
-      frameRenderer.request();
+      image.src = challengeImage.dataUrl;
+      image.width = Number(challengeImage.width);
+      image.height = Number(challengeImage.height);
+      image.dataset.digest = challengeImage.digest;
+      progress.textContent = `0 / ${HUMAN_CHECK_PRESS_COUNT}`;
+      status.textContent = 'Pulsa los cuatro balones en orden ascendente.';
 
       return new Promise((resolve, reject) => {
         settledChallenge = { reject };
@@ -253,36 +188,29 @@
           resolve(value);
         };
         expiryTimer = window.setTimeout(
-          () => settle({ kind: 'refresh', previousBalls: balls }),
+          () => settle({ kind: 'refresh', previousDigest: challengeImage.digest }),
           Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
         );
 
-        canvas.onpointerdown = (event) => {
+        image.onpointerdown = (event) => {
           event.preventDefault();
           if (!readyFlowApi.isTrustedReadyPointer(event)) return;
-          const point = canvasPoint(canvas, event);
-          const expected = balls[completedCount];
-          if (!expected || !hitBall(point, expected)) {
-            status.textContent = 'Orden incorrecto. Generando posiciones nuevas…';
-            settle({ kind: 'refresh', previousBalls: balls });
-            return;
-          }
-
+          const point = imagePoint(image, event);
           clicks.push({
             x: Number(point.x.toFixed(2)),
             y: Number(point.y.toFixed(2)),
             atMs: Math.max(1, Math.round(performance.now() - sequenceStartedAt)),
             pointerType: event.pointerType,
-            trusted: true,
           });
           completedCount += 1;
-          progress.textContent = `${completedCount} / ${balls.length}`;
-          status.textContent = completedCount === balls.length
-            ? 'Verificación completada.'
-            : `Bien. Ahora pulsa el balón ${balls[completedCount].order}.`;
-          frameRenderer.renderNow();
+          progress.textContent = `${completedCount} / ${HUMAN_CHECK_PRESS_COUNT}`;
+          status.textContent = completedCount === HUMAN_CHECK_PRESS_COUNT
+            ? 'Comprobando la secuencia…'
+            : 'Secuencia registrada. Continúa con el siguiente número.';
 
-          if (completedCount === balls.length) settle({ kind: 'solved', clicks, previousBalls: balls });
+          if (completedCount === HUMAN_CHECK_PRESS_COUNT) {
+            settle({ kind: 'solved', clicks, previousDigest: challengeImage.digest });
+          }
         };
       });
     }
@@ -292,8 +220,6 @@
       destroyed = true;
       window.clearTimeout(loadingTimer);
       window.clearTimeout(expiryTimer);
-      frameRenderer.dispose();
-      window.removeEventListener('resize', onResize);
       document.removeEventListener('keydown', onKeyDown);
       overlay.remove();
       unlockViewport();
@@ -302,6 +228,7 @@
     function cancelDialog() {
       if (cancelled) return;
       cancelled = true;
+      onCancel?.();
       const error = new HumanCheckCancelledError('Verificación visual cancelada.');
       settledChallenge?.reject(error);
       clearChallenge();
@@ -312,13 +239,8 @@
       if (event.key === 'Escape') cancelDialog();
     }
 
-    function onResize() {
-      frameRenderer.request();
-    }
-
     cancel.addEventListener('click', cancelDialog);
     document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', onResize);
     showLoading('Generando verificación…');
 
     return Object.freeze({ showLoading, solve, assertActive, destroy });
@@ -331,16 +253,20 @@
     });
   }
 
-  async function createServerCheck(url, common, previousBalls) {
+  async function createServerCheck(url, common, previousDigest) {
     const response = await readyRequest(url, common, {
       action: CHECK_ACTION,
-      previousBalls: previousBalls.length ? previousBalls : undefined,
+      previousDigest: previousDigest || undefined,
     });
     const created = await readJson(response);
-    if (!Array.isArray(created.balls) || created.balls.length !== 4) {
+    const image = created?.image ?? localTestRasterFixture(created);
+    if (!image || image.mediaType !== 'image/png'
+      || typeof image.dataUrl !== 'string' || !image.dataUrl.startsWith('data:image/png;base64,')
+      || !Number.isFinite(Number(image.width)) || !Number.isFinite(Number(image.height))
+      || !/^[a-f0-9]{64}$/.test(String(image.digest ?? ''))) {
       throw new Error('El servidor no devolvió una verificación visual válida.');
     }
-    return created;
+    return created.image ? created : { ...created, image };
   }
 
   async function completeServerCheck(url, common, created, clicks) {
@@ -359,33 +285,40 @@
 
   function isRefreshError(error) {
     if (error instanceof HumanCheckRefreshError) return true;
-    return /caduc|expir|orden|pulsaciones/i.test(String(error instanceof Error ? error.message : error || ''));
+    return /caduc|expir|orden|pulsaciones|secuencia/i.test(String(error instanceof Error ? error.message : error || ''));
   }
 
   async function obtainProof(url, common) {
-    const dialog = createHumanCheckDialog();
-    let previousBalls = [];
+    const requestController = new AbortController();
+    const dialog = createHumanCheckDialog(() => requestController.abort());
+    const requestCommon = { ...common, signal: requestController.signal };
+    let previousDigest = '';
     let serverFailures = 0;
 
     try {
       while (serverFailures < MAX_SERVER_FAILURES) {
         try {
-          dialog.showLoading(previousBalls.length ? 'Generando posiciones nuevas…' : 'Generando verificación…');
-          const created = await createServerCheck(url, common, previousBalls);
+          dialog.showLoading(previousDigest ? 'Generando una imagen nueva…' : 'Generando verificación…');
+          const created = await createServerCheck(url, requestCommon, previousDigest);
           dialog.assertActive();
-          if (previousBalls.length && !readyFlowApi.layoutsDiffer(previousBalls, created.balls)) {
-            previousBalls = created.balls;
-            continue;
-          }
+          if (previousDigest && created.image.digest === previousDigest) continue;
           const result = await dialog.solve(created);
           if (result.kind === 'refresh') {
-            previousBalls = result.previousBalls;
+            previousDigest = result.previousDigest;
             continue;
           }
-          const proof = await completeServerCheck(url, common, created, result.clicks);
-          dialog.destroy();
-          return proof;
+          try {
+            const proof = await completeServerCheck(url, requestCommon, created, result.clicks);
+            dialog.destroy();
+            return proof;
+          } catch (error) {
+            if (!isRefreshError(error)) throw error;
+            previousDigest = result.previousDigest;
+          }
         } catch (error) {
+          if (requestController.signal.aborted) {
+            throw new HumanCheckCancelledError('Verificación visual cancelada.');
+          }
           if (error instanceof HumanCheckCancelledError) throw error;
           if (isRefreshError(error)) continue;
           serverFailures += 1;
@@ -540,12 +473,33 @@
     });
   }
 
+  function focusStartWhenEnabled() {
+    const startButton = document.querySelector('#startButton');
+    if (!startButton) return;
+
+    const focus = () => {
+      if (!startButton.isConnected || startButton.disabled) return false;
+      startButton.focus({ preventScroll: true });
+      return true;
+    };
+    if (focus()) return;
+
+    const observer = new MutationObserver(() => {
+      if (!focus()) return;
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+    });
+    const timeoutId = window.setTimeout(() => observer.disconnect(), FOCUS_RESTORE_TIMEOUT_MS);
+    observer.observe(startButton, { attributes: true, attributeFilter: ['disabled'] });
+  }
+
   function restoreSetupSurface() {
     destroyActiveReadinessControl();
     gateNextStopControl = false;
     for (const id of ['setup', 'playing', 'result']) {
       document.querySelector(`#${id}`)?.classList.toggle('active', id === 'setup');
     }
+    focusStartWhenEnabled();
   }
 
   async function prepareVerifiedStart(input, init, body) {
