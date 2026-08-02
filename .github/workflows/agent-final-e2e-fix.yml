@@ -64,7 +64,7 @@ jobs:
           PY
 
           git rm .github/workflows/agent-final-e2e-fix.yml
-          changed="$(git diff --name-only | sort)"
+          changed="$(git diff HEAD --name-only | sort)"
           expected="$(printf '%s\n' \
             .github/workflows/agent-final-e2e-fix.yml \
             public/human-check.js \
