@@ -62,7 +62,7 @@ async function installStatsRoute(page, responseForRequest) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(responseForRequest()),
+        body: JSON.stringify(await responseForRequest()),
       });
       return;
     }
@@ -108,6 +108,25 @@ test('daily awards count down to zero, refresh once and follow the next server r
       animations: 'disabled',
     });
   }
+});
+
+test('an already expired server reset is clamped at zero while the authoritative refresh is pending', async ({ page }) => {
+  let statsRequests = 0;
+  await installStatsRoute(page, async () => {
+    statsRequests += 1;
+    if (statsRequests === 1) return statsSnapshot(new Date(Date.now() - 60_000).toISOString());
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    return statsSnapshot(new Date(Date.now() + 90_000).toISOString());
+  });
+
+  await page.goto('/?awards-reset=expired', { waitUntil: 'domcontentloaded' });
+  const countdown = page.locator('#awardsResetCountdown');
+  await expect.poll(() => statsRequests, { timeout: 3_000 }).toBe(2);
+  await expect(countdown).toHaveText('00:00:00');
+  await expect(countdown).not.toContainText('-');
+  await expect.poll(async () => countdownSeconds(await countdown.textContent()), { timeout: 3_000 })
+    .toBeGreaterThan(70);
+  expect(statsRequests).toBe(2);
 });
 
 test('missing reset metadata stays unavailable without inventing a client clock', async ({ page }) => {
