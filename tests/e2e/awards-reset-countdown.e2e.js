@@ -49,6 +49,13 @@ function countdownSeconds(value) {
 }
 
 async function installStatsRoute(page, responseForRequest) {
+  await page.route('**/functions/v1/player-context', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ dailyAttemptPolicy: null }),
+    });
+  });
   await page.route('**/functions/v1/game-api', async (route) => {
     const body = bodyOf(route.request());
     if (body.action === 'stats') {
