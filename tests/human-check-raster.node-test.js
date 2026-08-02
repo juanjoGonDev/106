@@ -124,7 +124,6 @@ function assertLegacyFootball(decoded, ball, completed) {
   assert.ok(outline[0] <= 40 && outline[1] <= 40 && outline[2] <= 48, `ball ${ball.order} must keep the dark legacy outline`);
 
   let lightNumberPixels = 0;
-  let completedNumberPixels = 0;
   let darkPentagonPixels = 0;
   let blendedEdgePixels = 0;
   const colors = new Set();
@@ -141,17 +140,12 @@ function assertLegacyFootball(decoded, ball, completed) {
       if (Math.abs(x - centerX) <= radius * 0.25 && Math.abs(y - centerY) <= radius * 0.35) {
         const [red, green, blue] = pixel;
         if (red >= 238 && green >= 238 && blue >= 238) lightNumberPixels += 1;
-        if (red <= 12 && green <= 24 && blue <= 18) completedNumberPixels += 1;
         if (red <= 38 && green <= 38 && blue <= 46) darkPentagonPixels += 1;
       }
     }
   }
   assert.ok(darkPentagonPixels >= 60, `ball ${ball.order} must retain the central dark pentagon`);
-  if (completed) {
-    assert.ok(completedNumberPixels >= 8, `completed ball ${ball.order} must use the legacy dark number`);
-  } else {
-    assert.ok(lightNumberPixels >= 12, `neutral ball ${ball.order} must contain a smooth readable white number`);
-  }
+  assert.ok(lightNumberPixels >= 12, `ball ${ball.order} must contain a smooth readable white number in every state`);
   assert.ok(blendedEdgePixels >= 12, `ball ${ball.order} must have anti-aliased circular edges`);
   assert.ok(colors.size >= 35, `ball ${ball.order} must not regress to a flat pixel-art sprite`);
 
@@ -194,7 +188,7 @@ function fixedLayout() {
   ]));
 }
 
-test('publishes the exact legacy visual contract', () => {
+test('publishes the legacy visual contract with readable completed numbers', () => {
   assert.deepEqual(HUMAN_CHECK_RASTER, {
     width: 560,
     height: 360,
@@ -211,7 +205,7 @@ test('publishes the exact legacy visual contract', () => {
       completedFill: [84, 209, 139, 255],
       outline: [17, 21, 29, 255],
       neutralNumber: [255, 255, 255, 255],
-      completedNumber: [7, 17, 11, 255],
+      completedNumber: [255, 255, 255, 255],
     },
   });
 });
