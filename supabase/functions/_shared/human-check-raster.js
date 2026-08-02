@@ -4,7 +4,8 @@ const HEIGHT = 360;
 const BALL_COUNT = 4;
 const BALL_RADIUS_PERCENT = 8;
 const MINIMUM_DISTANCE_PERCENT = 26;
-const SUPERSAMPLE = 3;
+const ANTIALIAS_WIDTH = 1;
+const SHADOW_BLUR = 12;
 const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 78, y: 72 }),
   Object.freeze({ x: 20, y: 75 }),
@@ -25,6 +26,10 @@ const LEGACY_STYLE = Object.freeze({
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+}
+
+function clampUnit(value) {
+  return Math.max(0, Math.min(1, value));
 }
 
 function writeUint32(target, offset, value) {
@@ -67,12 +72,12 @@ function pngChunk(type, data) {
   return chunk;
 }
 
-function blendPixel(pixels, width, height, x, y, color) {
+function blendColor(pixels, width, height, x, y, color, coverage = 1) {
   const px = Math.round(x);
   const py = Math.round(y);
   if (px < 0 || py < 0 || px >= width || py >= height) return;
   const offset = (py * width + px) * 4;
-  const sourceAlpha = clampByte(color[3]) / 255;
+  const sourceAlpha = clampUnit(coverage) * clampByte(color[3]) / 255;
   const inverse = 1 - sourceAlpha;
   pixels[offset] = clampByte(color[0] * sourceAlpha + pixels[offset] * inverse);
   pixels[offset + 1] = clampByte(color[1] * sourceAlpha + pixels[offset + 1] * inverse);
@@ -80,49 +85,54 @@ function blendPixel(pixels, width, height, x, y, color) {
   pixels[offset + 3] = 255;
 }
 
+function circleCoverage(distance, radius) {
+  return clampUnit(radius + ANTIALIAS_WIDTH / 2 - distance);
+}
+
 function drawCircle(pixels, width, height, centerX, centerY, radius, color) {
-  const minimumX = Math.floor(centerX - radius);
-  const maximumX = Math.ceil(centerX + radius);
-  const minimumY = Math.floor(centerY - radius);
-  const maximumY = Math.ceil(centerY + radius);
-  const squaredRadius = radius * radius;
-  for (let y = minimumY; y <= maximumY; y += 1) {
-    for (let x = minimumX; x <= maximumX; x += 1) {
-      const dx = x - centerX;
-      const dy = y - centerY;
-      if (dx * dx + dy * dy <= squaredRadius) blendPixel(pixels, width, height, x, y, color);
+  const extent = radius + ANTIALIAS_WIDTH;
+  for (let y = Math.floor(centerY - extent); y <= Math.ceil(centerY + extent); y += 1) {
+    for (let x = Math.floor(centerX - extent); x <= Math.ceil(centerX + extent); x += 1) {
+      const coverage = circleCoverage(Math.hypot(x - centerX, y - centerY), radius);
+      if (coverage > 0) blendColor(pixels, width, height, x, y, color, coverage);
     }
   }
 }
 
 function drawRing(pixels, width, height, centerX, centerY, radius, thickness, color) {
-  const outer = radius * radius;
-  const innerRadius = Math.max(0, radius - thickness);
-  const inner = innerRadius * innerRadius;
-  for (let y = Math.floor(centerY - radius); y <= Math.ceil(centerY + radius); y += 1) {
-    for (let x = Math.floor(centerX - radius); x <= Math.ceil(centerX + radius); x += 1) {
-      const dx = x - centerX;
-      const dy = y - centerY;
-      const distance = dx * dx + dy * dy;
-      if (distance <= outer && distance >= inner) blendPixel(pixels, width, height, x, y, color);
+  const extent = radius + ANTIALIAS_WIDTH;
+  const innerRadius = radius - thickness;
+  for (let y = Math.floor(centerY - extent); y <= Math.ceil(centerY + extent); y += 1) {
+    for (let x = Math.floor(centerX - extent); x <= Math.ceil(centerX + extent); x += 1) {
+      const distance = Math.hypot(x - centerX, y - centerY);
+      const outerCoverage = circleCoverage(distance, radius);
+      const innerCoverage = clampUnit(distance - innerRadius + ANTIALIAS_WIDTH / 2);
+      const coverage = Math.min(outerCoverage, innerCoverage);
+      if (coverage > 0) blendColor(pixels, width, height, x, y, color, coverage);
     }
   }
 }
 
+function distanceToSegment(x, y, x1, y1, x2, y2) {
+  const deltaX = x2 - x1;
+  const deltaY = y2 - y1;
+  const lengthSquared = Math.max(Number.EPSILON, deltaX * deltaX + deltaY * deltaY);
+  const ratio = clampUnit(((x - x1) * deltaX + (y - y1) * deltaY) / lengthSquared);
+  return Math.hypot(x - (x1 + deltaX * ratio), y - (y1 + deltaY * ratio));
+}
+
 function drawRoundLine(pixels, width, height, x1, y1, x2, y2, thickness, color) {
-  const radius = Math.max(0.5, thickness / 2);
-  const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
-  for (let step = 0; step <= steps; step += 1) {
-    const ratio = step / steps;
-    drawCircle(
-      pixels,
-      width,
-      height,
-      x1 + (x2 - x1) * ratio,
-      y1 + (y2 - y1) * ratio,
-      radius,
-      color,
-    );
+  const radius = thickness / 2;
+  const extent = radius + ANTIALIAS_WIDTH;
+  const minimumX = Math.floor(Math.min(x1, x2) - extent);
+  const maximumX = Math.ceil(Math.max(x1, x2) + extent);
+  const minimumY = Math.floor(Math.min(y1, y2) - extent);
+  const maximumY = Math.ceil(Math.max(y1, y2) + extent);
+  for (let y = minimumY; y <= maximumY; y += 1) {
+    for (let x = minimumX; x <= maximumX; x += 1) {
+      const coverage = clampUnit(radius + ANTIALIAS_WIDTH / 2 - distanceToSegment(x, y, x1, y1, x2, y2));
+      if (coverage > 0) blendColor(pixels, width, height, x, y, color, coverage);
+    }
   }
 }
 
@@ -155,6 +165,20 @@ function pointInsidePolygon(x, y, points) {
   return inside;
 }
 
+function polygonCoverage(x, y, points) {
+  const samples = [
+    [0.25, 0.25],
+    [0.75, 0.25],
+    [0.25, 0.75],
+    [0.75, 0.75],
+  ];
+  let inside = 0;
+  for (const [offsetX, offsetY] of samples) {
+    if (pointInsidePolygon(x + offsetX, y + offsetY, points)) inside += 1;
+  }
+  return inside / samples.length;
+}
+
 function fillPolygon(pixels, width, height, points, color) {
   const minimumX = Math.floor(Math.min(...points.map((point) => point.x)));
   const maximumX = Math.ceil(Math.max(...points.map((point) => point.x)));
@@ -162,7 +186,8 @@ function fillPolygon(pixels, width, height, points, color) {
   const maximumY = Math.ceil(Math.max(...points.map((point) => point.y)));
   for (let y = minimumY; y <= maximumY; y += 1) {
     for (let x = minimumX; x <= maximumX; x += 1) {
-      if (pointInsidePolygon(x + 0.5, y + 0.5, points)) blendPixel(pixels, width, height, x, y, color);
+      const coverage = polygonCoverage(x, y, points);
+      if (coverage > 0) blendColor(pixels, width, height, x, y, color, coverage);
     }
   }
 }
@@ -232,35 +257,32 @@ function digitPaths(digit, centerX, centerY, radius) {
 }
 
 function drawDigit(pixels, width, height, digit, centerX, centerY, radius, color) {
-  const thickness = Math.max(2.8 * SUPERSAMPLE, radius * 0.105);
+  const thickness = Math.max(2.8, radius * 0.105);
   for (const path of digitPaths(digit, centerX, centerY, radius)) {
     drawPolyline(pixels, width, height, path, thickness, color);
   }
 }
 
-function interpolateColor(from, to, ratio) {
-  return from.map((value, index) => value + (to[index] - value) * ratio);
-}
-
 function drawPitch(pixels, width, height) {
+  const widthScale = Math.max(1, width - 1);
+  const heightScale = Math.max(1, height - 1);
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const diagonal = (x / Math.max(1, width - 1) + y / Math.max(1, height - 1)) / 2;
+      const diagonal = (x / widthScale + y / heightScale) / 2;
       const firstSegment = diagonal <= 0.48;
       const ratio = firstSegment ? diagonal / 0.48 : (diagonal - 0.48) / 0.52;
-      const color = firstSegment
-        ? interpolateColor(LEGACY_STYLE.pitchStart, LEGACY_STYLE.pitchMiddle, ratio)
-        : interpolateColor(LEGACY_STYLE.pitchMiddle, LEGACY_STYLE.pitchEnd, ratio);
+      const from = firstSegment ? LEGACY_STYLE.pitchStart : LEGACY_STYLE.pitchMiddle;
+      const to = firstSegment ? LEGACY_STYLE.pitchMiddle : LEGACY_STYLE.pitchEnd;
       const offset = (y * width + x) * 4;
-      pixels[offset] = clampByte(color[0]);
-      pixels[offset + 1] = clampByte(color[1]);
-      pixels[offset + 2] = clampByte(color[2]);
+      pixels[offset] = clampByte(from[0] + (to[0] - from[0]) * ratio);
+      pixels[offset + 1] = clampByte(from[1] + (to[1] - from[1]) * ratio);
+      pixels[offset + 2] = clampByte(from[2] + (to[2] - from[2]) * ratio);
       pixels[offset + 3] = 255;
     }
   }
 
-  const margin = 18 * SUPERSAMPLE;
-  const thickness = 2 * SUPERSAMPLE;
+  const margin = 18;
+  const thickness = 2;
   drawRoundLine(pixels, width, height, margin, margin, width - margin, margin, thickness, LEGACY_STYLE.fieldLine);
   drawRoundLine(pixels, width, height, width - margin, margin, width - margin, height - margin, thickness, LEGACY_STYLE.fieldLine);
   drawRoundLine(pixels, width, height, width - margin, height - margin, margin, height - margin, thickness, LEGACY_STYLE.fieldLine);
@@ -279,74 +301,29 @@ function drawPitch(pixels, width, height) {
 }
 
 function drawLegacyShadow(pixels, width, height, centerX, centerY, radius) {
-  const blur = 12 * SUPERSAMPLE;
-  const layers = 12;
-  for (let layer = layers; layer >= 1; layer -= 1) {
-    const ratio = layer / layers;
-    const alpha = Math.round(20 * (1 - ratio) + 5);
-    drawCircle(
-      pixels,
-      width,
-      height,
-      centerX,
-      centerY,
-      radius + blur * ratio,
-      [0, 0, 0, alpha],
-    );
+  const extent = radius + SHADOW_BLUR;
+  for (let y = Math.floor(centerY - extent); y <= Math.ceil(centerY + extent); y += 1) {
+    for (let x = Math.floor(centerX - extent); x <= Math.ceil(centerX + extent); x += 1) {
+      const distance = Math.hypot(x - centerX, y - centerY);
+      const progress = clampUnit((distance - radius) / SHADOW_BLUR);
+      const coverage = distance <= radius + SHADOW_BLUR ? (1 - progress) ** 2 : 0;
+      if (coverage > 0) blendColor(pixels, width, height, x, y, [0, 0, 0, 153], coverage);
+    }
   }
 }
 
 function drawBall(pixels, width, height, ball, completed) {
-  const logicalWidth = width / SUPERSAMPLE;
-  const logicalHeight = height / SUPERSAMPLE;
-  const centerX = logicalWidth * Number(ball.x) / 100 * SUPERSAMPLE;
-  const centerY = logicalHeight * Number(ball.y) / 100 * SUPERSAMPLE;
-  const logicalRadius = Math.max(25, Math.min(38, logicalWidth * Number(ball.radius) / 100));
-  const radius = logicalRadius * SUPERSAMPLE;
+  const centerX = width * Number(ball.x) / 100;
+  const centerY = height * Number(ball.y) / 100;
+  const radius = Math.max(25, Math.min(38, width * Number(ball.radius) / 100));
   const fill = completed ? LEGACY_STYLE.completedFill : LEGACY_STYLE.neutralFill;
   const number = completed ? LEGACY_STYLE.completedNumber : LEGACY_STYLE.neutralNumber;
 
   drawLegacyShadow(pixels, width, height, centerX, centerY, radius);
   drawCircle(pixels, width, height, centerX, centerY, radius, fill);
-  drawRing(pixels, width, height, centerX, centerY, radius, 3 * SUPERSAMPLE, LEGACY_STYLE.outline);
+  drawRing(pixels, width, height, centerX, centerY, radius, 3, LEGACY_STYLE.outline);
   drawPentagon(pixels, width, height, centerX, centerY, radius * 0.34, LEGACY_STYLE.outline);
-  drawDigit(
-    pixels,
-    width,
-    height,
-    Number(ball.order),
-    centerX,
-    centerY + SUPERSAMPLE,
-    radius,
-    number,
-  );
-}
-
-function downsample(source, sourceWidth, sourceHeight, scale) {
-  const width = Math.floor(sourceWidth / scale);
-  const height = Math.floor(sourceHeight / scale);
-  const result = new Uint8Array(width * height * 4);
-  const samples = scale * scale;
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const totals = [0, 0, 0, 0];
-      for (let sampleY = 0; sampleY < scale; sampleY += 1) {
-        for (let sampleX = 0; sampleX < scale; sampleX += 1) {
-          const sourceOffset = (((y * scale + sampleY) * sourceWidth) + x * scale + sampleX) * 4;
-          totals[0] += source[sourceOffset];
-          totals[1] += source[sourceOffset + 1];
-          totals[2] += source[sourceOffset + 2];
-          totals[3] += source[sourceOffset + 3];
-        }
-      }
-      const targetOffset = (y * width + x) * 4;
-      result[targetOffset] = clampByte(totals[0] / samples);
-      result[targetOffset + 1] = clampByte(totals[1] / samples);
-      result[targetOffset + 2] = clampByte(totals[2] / samples);
-      result[targetOffset + 3] = clampByte(totals[3] / samples);
-    }
-  }
-  return result;
+  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY + 1, radius, number);
 }
 
 function normalizeRandom(randomValue) {
@@ -420,18 +397,9 @@ export async function renderHumanCheckRaster(balls, options = {}) {
   const selectedCount = normalizeSelectedCount(options.selectedCount);
   const width = Math.max(320, Math.min(640, Math.round(Number(options.width) || WIDTH)));
   const height = Math.max(220, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
-  const renderWidth = width * SUPERSAMPLE;
-  const renderHeight = height * SUPERSAMPLE;
-  const supersampled = new Uint8Array(renderWidth * renderHeight * 4);
-  drawPitch(supersampled, renderWidth, renderHeight);
-  balls.forEach((ball, index) => drawBall(
-    supersampled,
-    renderWidth,
-    renderHeight,
-    ball,
-    index < selectedCount,
-  ));
-  const pixels = downsample(supersampled, renderWidth, renderHeight, SUPERSAMPLE);
+  const pixels = new Uint8Array(width * height * 4);
+  drawPitch(pixels, width, height);
+  balls.forEach((ball, index) => drawBall(pixels, width, height, ball, index < selectedCount));
 
   const scanlines = new Uint8Array((width * 4 + 1) * height);
   for (let y = 0; y < height; y += 1) {
@@ -469,6 +437,7 @@ export const HUMAN_CHECK_RASTER = Object.freeze({
   ballCount: BALL_COUNT,
   radiusPercent: BALL_RADIUS_PERCENT,
   minimumDistancePercent: MINIMUM_DISTANCE_PERCENT,
-  supersample: SUPERSAMPLE,
+  antialiasWidth: ANTIALIAS_WIDTH,
+  shadowBlur: SHADOW_BLUR,
   style: LEGACY_STYLE,
 });
