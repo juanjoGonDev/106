@@ -78,7 +78,7 @@ describe('home statistics synchronization', () => {
     expect(legacy).not.toContain('formatAward');
   });
 
-  it('uses the server reset instant and the shared countdown formatter', () => {
+  it('uses the server reset instant and preserves award player teams', () => {
     const html = read('public/index.html');
     const awards = read('public/ranking-enhancements.js');
     const migration = read('supabase/migrations/20260802220000_awards_reset_countdown.sql');
@@ -96,6 +96,8 @@ describe('home statistics synchronization', () => {
     expect(migration).toContain("'resetAt', context.reset_at");
     expect(migration).toContain('public.game_server_reset_at(public.game_server_day(clock_timestamp()))');
     expect(migration).toContain('public.game_server_day(attempt.created_at) = context.award_date');
+    expect(migration).toContain('latest_team as (');
+    expect(migration).toContain("'team', team.team");
   });
 
   it('keeps scores compact while preserving their full accessible value', () => {
