@@ -24,11 +24,15 @@ create or replace function public.create_game_human_check(
   p_ip_hash text,
   p_balls jsonb
 ) returns jsonb
-language sql
+language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-  select jsonb_build_object('error', 'human_check_contract_moved');
+begin
+  raise exception using
+    errcode = 'P0001',
+    message = 'legacy human-check contract disabled';
+end;
 $$;
 
 do $$
@@ -47,11 +51,15 @@ create or replace function public.complete_game_human_check(
   p_clicks jsonb,
   p_proof_token_hash text
 ) returns jsonb
-language sql
+language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
-  select jsonb_build_object('error', 'human_check_contract_moved');
+begin
+  raise exception using
+    errcode = 'P0001',
+    message = 'legacy human-check contract disabled';
+end;
 $$;
 
 revoke all on function public.create_game_human_check_storage(text, text, jsonb) from public, anon, authenticated;
