@@ -1,24 +1,27 @@
 const PNG_SIGNATURE = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10);
-const WIDTH = 480;
-const HEIGHT = 300;
+const WIDTH = 560;
+const HEIGHT = 360;
 const BALL_COUNT = 4;
 const BALL_RADIUS_PERCENT = 8;
 const MINIMUM_DISTANCE_PERCENT = 26;
+const SUPERSAMPLE = 3;
 const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 78, y: 72 }),
   Object.freeze({ x: 20, y: 75 }),
   Object.freeze({ x: 80, y: 25 }),
   Object.freeze({ x: 22, y: 28 }),
 ]);
-const DIGITS = Object.freeze({
-  1: Object.freeze(['00100', '01100', '00100', '00100', '00100', '00100', '01110']),
-  2: Object.freeze(['11110', '00001', '00001', '01110', '10000', '10000', '11111']),
-  3: Object.freeze(['11110', '00001', '00001', '01110', '00001', '00001', '11110']),
-  4: Object.freeze(['10010', '10010', '10010', '11111', '00010', '00010', '00010']),
+const LEGACY_STYLE = Object.freeze({
+  pitchStart: Object.freeze([98, 0, 25, 255]),
+  pitchMiddle: Object.freeze([16, 18, 26, 255]),
+  pitchEnd: Object.freeze([18, 48, 95, 255]),
+  fieldLine: Object.freeze([255, 255, 255, 34]),
+  neutralFill: Object.freeze([247, 248, 251, 255]),
+  completedFill: Object.freeze([84, 209, 139, 255]),
+  outline: Object.freeze([17, 21, 29, 255]),
+  neutralNumber: Object.freeze([255, 255, 255, 255]),
+  completedNumber: Object.freeze([7, 17, 11, 255]),
 });
-const PITCH_START = Object.freeze([98, 0, 25, 255]);
-const PITCH_MIDDLE = Object.freeze([16, 18, 26, 255]);
-const PITCH_END = Object.freeze([18, 48, 95, 255]);
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
@@ -64,63 +67,30 @@ function pngChunk(type, data) {
   return chunk;
 }
 
-function setPixel(pixels, width, height, x, y, red, green, blue, alpha = 255) {
+function blendPixel(pixels, width, height, x, y, color) {
   const px = Math.round(x);
   const py = Math.round(y);
   if (px < 0 || py < 0 || px >= width || py >= height) return;
   const offset = (py * width + px) * 4;
-  const sourceAlpha = clampByte(alpha);
-  if (sourceAlpha === 255) {
-    pixels[offset] = clampByte(red);
-    pixels[offset + 1] = clampByte(green);
-    pixels[offset + 2] = clampByte(blue);
-    pixels[offset + 3] = 255;
-    return;
-  }
-  const ratio = sourceAlpha / 255;
-  const inverse = 1 - ratio;
-  pixels[offset] = clampByte(red * ratio + pixels[offset] * inverse);
-  pixels[offset + 1] = clampByte(green * ratio + pixels[offset + 1] * inverse);
-  pixels[offset + 2] = clampByte(blue * ratio + pixels[offset + 2] * inverse);
+  const sourceAlpha = clampByte(color[3]) / 255;
+  const inverse = 1 - sourceAlpha;
+  pixels[offset] = clampByte(color[0] * sourceAlpha + pixels[offset] * inverse);
+  pixels[offset + 1] = clampByte(color[1] * sourceAlpha + pixels[offset + 1] * inverse);
+  pixels[offset + 2] = clampByte(color[2] * sourceAlpha + pixels[offset + 2] * inverse);
   pixels[offset + 3] = 255;
 }
 
-function fillRect(pixels, width, height, left, top, rectWidth, rectHeight, color) {
-  const startX = Math.max(0, Math.floor(left));
-  const startY = Math.max(0, Math.floor(top));
-  const endX = Math.min(width, Math.ceil(left + rectWidth));
-  const endY = Math.min(height, Math.ceil(top + rectHeight));
-  for (let y = startY; y < endY; y += 1) {
-    for (let x = startX; x < endX; x += 1) {
-      setPixel(pixels, width, height, x, y, ...color);
-    }
-  }
-}
-
-function drawLine(pixels, width, height, x1, y1, x2, y2, thickness, color) {
-  const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
-  const radius = Math.max(0, Math.floor(thickness / 2));
-  for (let step = 0; step <= steps; step += 1) {
-    const ratio = step / steps;
-    const x = x1 + (x2 - x1) * ratio;
-    const y = y1 + (y2 - y1) * ratio;
-    fillRect(pixels, width, height, x - radius, y - radius, radius * 2 + 1, radius * 2 + 1, color);
-  }
-}
-
 function drawCircle(pixels, width, height, centerX, centerY, radius, color) {
-  const minX = Math.floor(centerX - radius);
-  const maxX = Math.ceil(centerX + radius);
-  const minY = Math.floor(centerY - radius);
-  const maxY = Math.ceil(centerY + radius);
+  const minimumX = Math.floor(centerX - radius);
+  const maximumX = Math.ceil(centerX + radius);
+  const minimumY = Math.floor(centerY - radius);
+  const maximumY = Math.ceil(centerY + radius);
   const squaredRadius = radius * radius;
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = minX; x <= maxX; x += 1) {
+  for (let y = minimumY; y <= maximumY; y += 1) {
+    for (let x = minimumX; x <= maximumX; x += 1) {
       const dx = x - centerX;
       const dy = y - centerY;
-      if (dx * dx + dy * dy <= squaredRadius) {
-        setPixel(pixels, width, height, x, y, ...color);
-      }
+      if (dx * dx + dy * dy <= squaredRadius) blendPixel(pixels, width, height, x, y, color);
     }
   }
 }
@@ -134,10 +104,41 @@ function drawRing(pixels, width, height, centerX, centerY, radius, thickness, co
       const dx = x - centerX;
       const dy = y - centerY;
       const distance = dx * dx + dy * dy;
-      if (distance <= outer && distance >= inner) {
-        setPixel(pixels, width, height, x, y, ...color);
-      }
+      if (distance <= outer && distance >= inner) blendPixel(pixels, width, height, x, y, color);
     }
+  }
+}
+
+function drawRoundLine(pixels, width, height, x1, y1, x2, y2, thickness, color) {
+  const radius = Math.max(0.5, thickness / 2);
+  const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
+  for (let step = 0; step <= steps; step += 1) {
+    const ratio = step / steps;
+    drawCircle(
+      pixels,
+      width,
+      height,
+      x1 + (x2 - x1) * ratio,
+      y1 + (y2 - y1) * ratio,
+      radius,
+      color,
+    );
+  }
+}
+
+function drawPolyline(pixels, width, height, points, thickness, color) {
+  for (let index = 1; index < points.length; index += 1) {
+    drawRoundLine(
+      pixels,
+      width,
+      height,
+      points[index - 1].x,
+      points[index - 1].y,
+      points[index].x,
+      points[index].y,
+      thickness,
+      color,
+    );
   }
 }
 
@@ -155,15 +156,13 @@ function pointInsidePolygon(x, y, points) {
 }
 
 function fillPolygon(pixels, width, height, points, color) {
-  const minX = Math.floor(Math.min(...points.map((point) => point.x)));
-  const maxX = Math.ceil(Math.max(...points.map((point) => point.x)));
-  const minY = Math.floor(Math.min(...points.map((point) => point.y)));
-  const maxY = Math.ceil(Math.max(...points.map((point) => point.y)));
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = minX; x <= maxX; x += 1) {
-      if (pointInsidePolygon(x + 0.5, y + 0.5, points)) {
-        setPixel(pixels, width, height, x, y, ...color);
-      }
+  const minimumX = Math.floor(Math.min(...points.map((point) => point.x)));
+  const maximumX = Math.ceil(Math.max(...points.map((point) => point.x)));
+  const minimumY = Math.floor(Math.min(...points.map((point) => point.y)));
+  const maximumY = Math.ceil(Math.max(...points.map((point) => point.y)));
+  for (let y = minimumY; y <= maximumY; y += 1) {
+    for (let x = minimumX; x <= maximumX; x += 1) {
+      if (pointInsidePolygon(x + 0.5, y + 0.5, points)) blendPixel(pixels, width, height, x, y, color);
     }
   }
 }
@@ -180,29 +179,63 @@ function drawPentagon(pixels, width, height, centerX, centerY, radius, color) {
   fillPolygon(pixels, width, height, points, color);
 }
 
-function drawDigit(pixels, width, height, digit, centerX, centerY, scale, color) {
-  const rows = DIGITS[digit];
-  if (!rows) throw new RangeError(`Unsupported digit: ${digit}`);
-  const glyphWidth = rows[0].length * scale;
-  const glyphHeight = rows.length * scale;
-  const left = Math.round(centerX - glyphWidth / 2);
-  const top = Math.round(centerY - glyphHeight / 2);
-  rows.forEach((row, rowIndex) => {
-    [...row].forEach((cell, columnIndex) => {
-      if (cell === '1') {
-        fillRect(
-          pixels,
-          width,
-          height,
-          left + columnIndex * scale,
-          top + rowIndex * scale,
-          scale,
-          scale,
-          color,
-        );
-      }
-    });
-  });
+function digitPaths(digit, centerX, centerY, radius) {
+  const x = (value) => centerX + value * radius;
+  const y = (value) => centerY + value * radius;
+  if (digit === 1) {
+    return [
+      [{ x: x(-0.13), y: y(-0.22) }, { x: x(0.03), y: y(-0.33) }, { x: x(0.03), y: y(0.28) }],
+      [{ x: x(-0.13), y: y(0.28) }, { x: x(0.18), y: y(0.28) }],
+    ];
+  }
+  if (digit === 2) {
+    return [[
+      { x: x(-0.19), y: y(-0.20) },
+      { x: x(-0.10), y: y(-0.31) },
+      { x: x(0.12), y: y(-0.31) },
+      { x: x(0.21), y: y(-0.20) },
+      { x: x(0.18), y: y(-0.07) },
+      { x: x(-0.18), y: y(0.21) },
+      { x: x(-0.18), y: y(0.28) },
+      { x: x(0.21), y: y(0.28) },
+    ]];
+  }
+  if (digit === 3) {
+    return [
+      [
+        { x: x(-0.18), y: y(-0.24) },
+        { x: x(-0.08), y: y(-0.31) },
+        { x: x(0.13), y: y(-0.31) },
+        { x: x(0.21), y: y(-0.21) },
+        { x: x(0.17), y: y(-0.06) },
+        { x: x(0.05), y: y(0) },
+      ],
+      [
+        { x: x(0.05), y: y(0) },
+        { x: x(0.17), y: y(0.06) },
+        { x: x(0.21), y: y(0.20) },
+        { x: x(0.13), y: y(0.30) },
+        { x: x(-0.09), y: y(0.30) },
+        { x: x(-0.19), y: y(0.22) },
+      ],
+      [{ x: x(-0.08), y: y(0) }, { x: x(0.08), y: y(0) }],
+    ];
+  }
+  if (digit === 4) {
+    return [
+      [{ x: x(0.13), y: y(-0.32) }, { x: x(0.13), y: y(0.31) }],
+      [{ x: x(-0.18), y: y(-0.08) }, { x: x(-0.18), y: y(0.04) }, { x: x(0.22), y: y(0.04) }],
+      [{ x: x(-0.18), y: y(-0.08) }, { x: x(0.05), y: y(-0.32) }],
+    ];
+  }
+  throw new RangeError(`Unsupported digit: ${digit}`);
+}
+
+function drawDigit(pixels, width, height, digit, centerX, centerY, radius, color) {
+  const thickness = Math.max(2.8 * SUPERSAMPLE, radius * 0.105);
+  for (const path of digitPaths(digit, centerX, centerY, radius)) {
+    drawPolyline(pixels, width, height, path, thickness, color);
+  }
 }
 
 function interpolateColor(from, to, ratio) {
@@ -212,49 +245,108 @@ function interpolateColor(from, to, ratio) {
 function drawPitch(pixels, width, height) {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const diagonal = (
-        x / Math.max(1, width - 1)
-        + y / Math.max(1, height - 1)
-      ) / 2;
+      const diagonal = (x / Math.max(1, width - 1) + y / Math.max(1, height - 1)) / 2;
       const firstSegment = diagonal <= 0.48;
       const ratio = firstSegment ? diagonal / 0.48 : (diagonal - 0.48) / 0.52;
       const color = firstSegment
-        ? interpolateColor(PITCH_START, PITCH_MIDDLE, ratio)
-        : interpolateColor(PITCH_MIDDLE, PITCH_END, ratio);
-      setPixel(pixels, width, height, x, y, ...color);
+        ? interpolateColor(LEGACY_STYLE.pitchStart, LEGACY_STYLE.pitchMiddle, ratio)
+        : interpolateColor(LEGACY_STYLE.pitchMiddle, LEGACY_STYLE.pitchEnd, ratio);
+      const offset = (y * width + x) * 4;
+      pixels[offset] = clampByte(color[0]);
+      pixels[offset + 1] = clampByte(color[1]);
+      pixels[offset + 2] = clampByte(color[2]);
+      pixels[offset + 3] = 255;
     }
   }
 
-  const lineColor = [255, 255, 255, 34];
-  drawLine(pixels, width, height, 18, 18, width - 18, 18, 2, lineColor);
-  drawLine(pixels, width, height, width - 18, 18, width - 18, height - 18, 2, lineColor);
-  drawLine(pixels, width, height, width - 18, height - 18, 18, height - 18, 2, lineColor);
-  drawLine(pixels, width, height, 18, height - 18, 18, 18, 2, lineColor);
-  drawLine(pixels, width, height, width / 2, 18, width / 2, height - 18, 2, lineColor);
-  drawRing(pixels, width, height, width / 2, height / 2, Math.min(width, height) * 0.13, 2, lineColor);
+  const margin = 18 * SUPERSAMPLE;
+  const thickness = 2 * SUPERSAMPLE;
+  drawRoundLine(pixels, width, height, margin, margin, width - margin, margin, thickness, LEGACY_STYLE.fieldLine);
+  drawRoundLine(pixels, width, height, width - margin, margin, width - margin, height - margin, thickness, LEGACY_STYLE.fieldLine);
+  drawRoundLine(pixels, width, height, width - margin, height - margin, margin, height - margin, thickness, LEGACY_STYLE.fieldLine);
+  drawRoundLine(pixels, width, height, margin, height - margin, margin, margin, thickness, LEGACY_STYLE.fieldLine);
+  drawRoundLine(pixels, width, height, width / 2, margin, width / 2, height - margin, thickness, LEGACY_STYLE.fieldLine);
+  drawRing(
+    pixels,
+    width,
+    height,
+    width / 2,
+    height / 2,
+    Math.min(width, height) * 0.13,
+    thickness,
+    LEGACY_STYLE.fieldLine,
+  );
 }
 
-function drawBall(pixels, width, height, ball, completed, active) {
-  const centerX = width * Number(ball.x) / 100;
-  const centerY = height * Number(ball.y) / 100;
-  const radius = Math.max(24, Math.min(38, width * Number(ball.radius) / 100));
-  const digitScale = Math.max(3, Math.floor(radius / 8));
-  const fillColor = completed ? [84, 209, 139, 255] : [247, 248, 251, 255];
-  const inkColor = [17, 21, 29, 255];
-  const outlineColor = active ? [244, 201, 93, 255] : inkColor;
-
-  if (active) {
-    drawCircle(pixels, width, height, centerX, centerY, radius + 13, [244, 201, 93, 18]);
-    drawCircle(pixels, width, height, centerX, centerY, radius + 8, [244, 201, 93, 30]);
-    drawCircle(pixels, width, height, centerX, centerY, radius + 4, [244, 201, 93, 48]);
-  } else {
-    drawCircle(pixels, width, height, centerX + 4, centerY + 6, radius + 4, [0, 0, 0, 105]);
+function drawLegacyShadow(pixels, width, height, centerX, centerY, radius) {
+  const blur = 12 * SUPERSAMPLE;
+  const layers = 12;
+  for (let layer = layers; layer >= 1; layer -= 1) {
+    const ratio = layer / layers;
+    const alpha = Math.round(20 * (1 - ratio) + 5);
+    drawCircle(
+      pixels,
+      width,
+      height,
+      centerX,
+      centerY,
+      radius + blur * ratio,
+      [0, 0, 0, alpha],
+    );
   }
+}
 
-  drawCircle(pixels, width, height, centerX, centerY, radius, fillColor);
-  drawRing(pixels, width, height, centerX, centerY, radius, active ? 5 : 3, outlineColor);
-  drawPentagon(pixels, width, height, centerX, centerY, radius * 0.34, inkColor);
-  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY + 1, digitScale, [255, 255, 255, 255]);
+function drawBall(pixels, width, height, ball, completed) {
+  const logicalWidth = width / SUPERSAMPLE;
+  const logicalHeight = height / SUPERSAMPLE;
+  const centerX = logicalWidth * Number(ball.x) / 100 * SUPERSAMPLE;
+  const centerY = logicalHeight * Number(ball.y) / 100 * SUPERSAMPLE;
+  const logicalRadius = Math.max(25, Math.min(38, logicalWidth * Number(ball.radius) / 100));
+  const radius = logicalRadius * SUPERSAMPLE;
+  const fill = completed ? LEGACY_STYLE.completedFill : LEGACY_STYLE.neutralFill;
+  const number = completed ? LEGACY_STYLE.completedNumber : LEGACY_STYLE.neutralNumber;
+
+  drawLegacyShadow(pixels, width, height, centerX, centerY, radius);
+  drawCircle(pixels, width, height, centerX, centerY, radius, fill);
+  drawRing(pixels, width, height, centerX, centerY, radius, 3 * SUPERSAMPLE, LEGACY_STYLE.outline);
+  drawPentagon(pixels, width, height, centerX, centerY, radius * 0.34, LEGACY_STYLE.outline);
+  drawDigit(
+    pixels,
+    width,
+    height,
+    Number(ball.order),
+    centerX,
+    centerY + SUPERSAMPLE,
+    radius,
+    number,
+  );
+}
+
+function downsample(source, sourceWidth, sourceHeight, scale) {
+  const width = Math.floor(sourceWidth / scale);
+  const height = Math.floor(sourceHeight / scale);
+  const result = new Uint8Array(width * height * 4);
+  const samples = scale * scale;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const totals = [0, 0, 0, 0];
+      for (let sampleY = 0; sampleY < scale; sampleY += 1) {
+        for (let sampleX = 0; sampleX < scale; sampleX += 1) {
+          const sourceOffset = (((y * scale + sampleY) * sourceWidth) + x * scale + sampleX) * 4;
+          totals[0] += source[sourceOffset];
+          totals[1] += source[sourceOffset + 1];
+          totals[2] += source[sourceOffset + 2];
+          totals[3] += source[sourceOffset + 3];
+        }
+      }
+      const targetOffset = (y * width + x) * 4;
+      result[targetOffset] = clampByte(totals[0] / samples);
+      result[targetOffset + 1] = clampByte(totals[1] / samples);
+      result[targetOffset + 2] = clampByte(totals[2] / samples);
+      result[targetOffset + 3] = clampByte(totals[3] / samples);
+    }
+  }
+  return result;
 }
 
 function normalizeRandom(randomValue) {
@@ -327,17 +419,19 @@ export async function renderHumanCheckRaster(balls, options = {}) {
   }
   const selectedCount = normalizeSelectedCount(options.selectedCount);
   const width = Math.max(320, Math.min(640, Math.round(Number(options.width) || WIDTH)));
-  const height = Math.max(200, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
-  const pixels = new Uint8Array(width * height * 4);
-  drawPitch(pixels, width, height);
+  const height = Math.max(220, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
+  const renderWidth = width * SUPERSAMPLE;
+  const renderHeight = height * SUPERSAMPLE;
+  const supersampled = new Uint8Array(renderWidth * renderHeight * 4);
+  drawPitch(supersampled, renderWidth, renderHeight);
   balls.forEach((ball, index) => drawBall(
-    pixels,
-    width,
-    height,
+    supersampled,
+    renderWidth,
+    renderHeight,
     ball,
     index < selectedCount,
-    index === selectedCount,
   ));
+  const pixels = downsample(supersampled, renderWidth, renderHeight, SUPERSAMPLE);
 
   const scanlines = new Uint8Array((width * 4 + 1) * height);
   for (let y = 0; y < height; y += 1) {
@@ -375,4 +469,6 @@ export const HUMAN_CHECK_RASTER = Object.freeze({
   ballCount: BALL_COUNT,
   radiusPercent: BALL_RADIUS_PERCENT,
   minimumDistancePercent: MINIMUM_DISTANCE_PERCENT,
+  supersample: SUPERSAMPLE,
+  style: LEGACY_STYLE,
 });
