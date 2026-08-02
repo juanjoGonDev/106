@@ -1,5 +1,10 @@
-import { expect, test } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { createRequire } from 'node:module';
+
+const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
+if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
+const require = createRequire(import.meta.url);
+const { expect, test } = require(runtimePath);
 
 const apiUrl = process.env.SUPABASE_TEST_URL ?? 'http://127.0.0.1:54321';
 const readyEndpoint = `${apiUrl.replace(/\/$/, '')}/functions/v1/game-ready-api`;
