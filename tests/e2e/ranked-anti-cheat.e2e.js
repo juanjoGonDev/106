@@ -35,18 +35,21 @@ async function clickAtPercent(page, locator, xPercent, yPercent, useTouch) {
 }
 
 async function clickRuntimeControl(page, useTouch) {
-  const bounds = await page.locator('#playing').evaluate((playing) => {
-    const host = [...playing.children].find((element) => element.tagName.toLowerCase().startsWith('m106-'))
-      ?? [...playing.querySelectorAll('*')].find((element) => element.tagName.toLowerCase().startsWith('m106-'));
-    if (!host) return null;
-    const box = host.getBoundingClientRect();
-    return { x: box.x, y: box.y, width: box.width, height: box.height };
-  });
-  if (!bounds) throw new Error('Runtime game control was not rendered.');
-  const x = bounds.x + bounds.width / 2;
-  const y = bounds.y + bounds.height / 2;
-  if (useTouch) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  const control = page
+    .locator('#playing')
+    .locator('xpath=.//*[starts-with(local-name(), "m106-")]')
+    .last();
+  await expect(control).toBeVisible();
+  if (!useTouch) {
+    await control.click();
+    return;
+  }
+  const bounds = await control.boundingBox();
+  if (!bounds) throw new Error('Runtime game control has no interactive bounds.');
+  await page.touchscreen.tap(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
 }
 
 test('@live-ranked-anti-cheat keeps raster verification and client timing authoritative', async ({ page, request }, testInfo) => {
@@ -145,8 +148,24 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   const solution = await solutionResponse.json();
   expect(solution.balls).toHaveLength(4);
 
-  for (const ball of solution.balls) {
+  let previousDigest = await challengeImage.getAttribute('data-digest');
+  for (let index = 0; index < solution.balls.length; index += 1) {
+    const ball = solution.balls[index];
+    const responsePromise = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/game-ready-api')) return false;
+      const body = response.request().postDataJSON?.() ?? {};
+      return body.action === 'human-check-click' && body.checkId === publicChallenge.checkId;
+    });
     await clickAtPercent(page, challengeImage, ball.x, ball.y, useTouch);
+    const response = await responsePromise;
+    expect(response.status()).toBe(index === 3 ? 201 : 200);
+    const payload = await response.json();
+    expect(payload.selectedCount).toBe(index + 1);
+    expect(payload).not.toHaveProperty('balls');
+    expect(JSON.stringify(payload)).not.toMatch(/"(?:x|y|radius|order)"\s*:/);
+    await expect(page.locator('.human-check-progress')).toHaveText(`${index + 1} / 4`);
+    await expect(challengeImage).not.toHaveAttribute('data-digest', previousDigest);
+    previousDigest = await challengeImage.getAttribute('data-digest');
   }
   await expect(page.locator('.human-check-overlay')).toBeHidden({ timeout: 15_000 });
 

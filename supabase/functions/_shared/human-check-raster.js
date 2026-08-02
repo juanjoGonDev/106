@@ -4,7 +4,6 @@ const HEIGHT = 300;
 const BALL_COUNT = 4;
 const BALL_RADIUS_PERCENT = 8;
 const MINIMUM_DISTANCE_PERCENT = 26;
-const NUMBER_BADGE_RADIUS_RATIO = 0.68;
 const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 78, y: 72 }),
   Object.freeze({ x: 20, y: 75 }),
@@ -129,6 +128,45 @@ function drawRing(pixels, width, height, centerX, centerY, radius, thickness, co
   }
 }
 
+function pointInsidePolygon(x, y, points) {
+  let inside = false;
+  for (let current = 0, previous = points.length - 1; current < points.length; previous = current, current += 1) {
+    const currentPoint = points[current];
+    const previousPoint = points[previous];
+    const crosses = (currentPoint.y > y) !== (previousPoint.y > y)
+      && x < (previousPoint.x - currentPoint.x) * (y - currentPoint.y)
+        / (previousPoint.y - currentPoint.y) + currentPoint.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function fillPolygon(pixels, width, height, points, color) {
+  const minX = Math.floor(Math.min(...points.map((point) => point.x)));
+  const maxX = Math.ceil(Math.max(...points.map((point) => point.x)));
+  const minY = Math.floor(Math.min(...points.map((point) => point.y)));
+  const maxY = Math.ceil(Math.max(...points.map((point) => point.y)));
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      if (pointInsidePolygon(x + 0.5, y + 0.5, points)) {
+        setPixel(pixels, width, height, x, y, ...color);
+      }
+    }
+  }
+}
+
+function drawPentagon(pixels, width, height, centerX, centerY, radius, color) {
+  const points = [];
+  for (let index = 0; index < 5; index += 1) {
+    const angle = -Math.PI / 2 + index * Math.PI * 2 / 5;
+    points.push({
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    });
+  }
+  fillPolygon(pixels, width, height, points, color);
+}
+
 function drawDigit(pixels, width, height, digit, centerX, centerY, scale, color) {
   const rows = DIGITS[digit];
   if (!rows) throw new RangeError(`Unsupported digit: ${digit}`);
@@ -168,17 +206,20 @@ function drawPitch(pixels, width, height) {
   drawRing(pixels, width, height, width / 2, height / 2, Math.min(width, height) * 0.13, 2, white);
 }
 
-function drawBall(pixels, width, height, ball) {
+function drawBall(pixels, width, height, ball, completed) {
   const centerX = width * Number(ball.x) / 100;
   const centerY = height * Number(ball.y) / 100;
   const radius = Math.max(24, Math.min(36, width * Number(ball.radius) / 100));
-  const badgeRadius = radius * NUMBER_BADGE_RADIUS_RATIO;
-  const digitScale = Math.max(3, Math.floor(radius / 7));
-  drawCircle(pixels, width, height, centerX + 3, centerY + 4, radius + 3, [0, 0, 0, 70]);
-  drawCircle(pixels, width, height, centerX, centerY, radius, [247, 248, 251, 255]);
-  drawRing(pixels, width, height, centerX, centerY, radius, 3, [17, 21, 29, 255]);
-  drawCircle(pixels, width, height, centerX, centerY, badgeRadius, [17, 21, 29, 255]);
-  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY, digitScale, [255, 255, 255, 255]);
+  const digitScale = Math.max(3, Math.floor(radius / 8));
+  const shadowColor = [0, 0, 0, 105];
+  const fillColor = completed ? [84, 209, 139, 255] : [247, 248, 251, 255];
+  const inkColor = [17, 21, 29, 255];
+
+  drawCircle(pixels, width, height, centerX + 4, centerY + 6, radius + 3, shadowColor);
+  drawCircle(pixels, width, height, centerX, centerY, radius, fillColor);
+  drawRing(pixels, width, height, centerX, centerY, radius, completed ? 4 : 3, inkColor);
+  drawPentagon(pixels, width, height, centerX, centerY, radius * 0.38, inkColor);
+  drawDigit(pixels, width, height, Number(ball.order), centerX, centerY + 1, digitScale, [255, 255, 255, 255]);
 }
 
 function normalizeRandom(randomValue) {
@@ -191,6 +232,14 @@ function secureUnitRandom() {
   const values = new Uint32Array(1);
   crypto.getRandomValues(values);
   return values[0] / 0x1_0000_0000;
+}
+
+function normalizeSelectedCount(value) {
+  const selectedCount = Number(value ?? 0);
+  if (!Number.isInteger(selectedCount) || selectedCount < 0 || selectedCount > BALL_COUNT) {
+    throw new RangeError(`selectedCount must be an integer between 0 and ${BALL_COUNT}`);
+  }
+  return selectedCount;
 }
 
 export function createHumanCheckLayout(random = secureUnitRandom) {
@@ -241,11 +290,12 @@ export async function renderHumanCheckRaster(balls, options = {}) {
   if (!Array.isArray(balls) || balls.length !== BALL_COUNT) {
     throw new TypeError(`Expected exactly ${BALL_COUNT} balls`);
   }
+  const selectedCount = normalizeSelectedCount(options.selectedCount);
   const width = Math.max(320, Math.min(640, Math.round(Number(options.width) || WIDTH)));
   const height = Math.max(200, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
   const pixels = new Uint8Array(width * height * 4);
   drawPitch(pixels, width, height);
-  for (const ball of balls) drawBall(pixels, width, height, ball);
+  balls.forEach((ball, index) => drawBall(pixels, width, height, ball, index < selectedCount));
 
   const scanlines = new Uint8Array((width * 4 + 1) * height);
   for (let y = 0; y < height; y += 1) {

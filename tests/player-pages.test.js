@@ -50,7 +50,7 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('width="1200" height="630"');
     expect(html.indexOf('./config.js')).toBeLessThan(html.indexOf('./player-radar-model.js'));
     expect(html.indexOf('./player-radar-model.js')).toBeLessThan(html.indexOf('./player-ui.js'));
-    expect(html).toContain('<script src="./player-radar-model.js?v=20260802030101"></script>');
+    expect(html).toContain('<script src="./player-radar-model.js?v=20260802210501"></script>');
     expect(config).not.toContain('globalThis.Minuto106PlayerRadarModel');
     expect(html).toContain('<script src="./profile-share.js?v=20260731-card-renderer-2" data-minuto106-profile-share></script>');
     expect(html).toContain('id="sharePlayer" class="primary" type="button" disabled>Preparando...</button>');

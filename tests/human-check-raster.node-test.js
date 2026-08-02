@@ -9,6 +9,8 @@ import {
 } from '../supabase/functions/_shared/human-check-raster.js';
 
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
+const NEUTRAL_FILL = [247, 248, 251, 255];
+const COMPLETED_FILL = [84, 209, 139, 255];
 
 function sequence(values) {
   let index = 0;
@@ -87,36 +89,54 @@ function decodeRgbaPng(bytes) {
   return { width, height, pixels };
 }
 
-function assertVisibleNumberContrast(raster, balls) {
-  const decoded = decodeRgbaPng(raster.bytes);
-  assert.equal(decoded.width, raster.width);
-  assert.equal(decoded.height, raster.height);
+function pixelAt(decoded, x, y) {
+  const px = Math.max(0, Math.min(decoded.width - 1, Math.round(x)));
+  const py = Math.max(0, Math.min(decoded.height - 1, Math.round(y)));
+  const offset = (py * decoded.width + px) * 4;
+  return [...decoded.pixels.subarray(offset, offset + 4)];
+}
 
-  for (const ball of balls) {
-    const centerX = decoded.width * Number(ball.x) / 100;
-    const centerY = decoded.height * Number(ball.y) / 100;
-    const radius = Math.max(24, Math.min(36, decoded.width * Number(ball.radius) / 100));
-    const halfWidth = radius * 0.45;
-    const halfHeight = radius * 0.55;
-    let lightPixels = 0;
-    let darkPixels = 0;
+function ballGeometry(decoded, ball) {
+  return {
+    centerX: decoded.width * Number(ball.x) / 100,
+    centerY: decoded.height * Number(ball.y) / 100,
+    radius: Math.max(24, Math.min(36, decoded.width * Number(ball.radius) / 100)),
+  };
+}
 
-    for (let y = Math.floor(centerY - halfHeight); y <= Math.ceil(centerY + halfHeight); y += 1) {
-      for (let x = Math.floor(centerX - halfWidth); x <= Math.ceil(centerX + halfWidth); x += 1) {
-        if (x < 0 || y < 0 || x >= decoded.width || y >= decoded.height) continue;
-        const pixelOffset = (y * decoded.width + x) * 4;
-        const red = decoded.pixels[pixelOffset];
-        const green = decoded.pixels[pixelOffset + 1];
-        const blue = decoded.pixels[pixelOffset + 2];
-        const alpha = decoded.pixels[pixelOffset + 3];
-        if (alpha === 255 && red >= 245 && green >= 245 && blue >= 245) lightPixels += 1;
-        if (alpha === 255 && red <= 32 && green <= 32 && blue <= 40) darkPixels += 1;
-      }
+function assertLegacyFootball(decoded, ball, completed) {
+  const { centerX, centerY, radius } = ballGeometry(decoded, ball);
+  assert.deepEqual(
+    pixelAt(decoded, centerX + radius * 0.7, centerY),
+    completed ? COMPLETED_FILL : NEUTRAL_FILL,
+    `ball ${ball.order} must use the ${completed ? 'completed green' : 'neutral white'} fill`,
+  );
+
+  let lightDigitPixels = 0;
+  let darkPentagonPixels = 0;
+  for (let y = Math.floor(centerY - radius * 0.45); y <= Math.ceil(centerY + radius * 0.45); y += 1) {
+    for (let x = Math.floor(centerX - radius * 0.45); x <= Math.ceil(centerX + radius * 0.45); x += 1) {
+      const [red, green, blue, alpha] = pixelAt(decoded, x, y);
+      if (alpha === 255 && red >= 245 && green >= 245 && blue >= 245) lightDigitPixels += 1;
+      if (alpha === 255 && red <= 32 && green <= 32 && blue <= 40) darkPentagonPixels += 1;
     }
-
-    assert.ok(lightPixels >= 40, `ball ${ball.order} must contain a visible light digit`);
-    assert.ok(darkPixels >= 80, `ball ${ball.order} must contain a contrasting dark badge`);
   }
+  assert.ok(lightDigitPixels >= 30, `ball ${ball.order} must contain a readable light number`);
+  assert.ok(darkPentagonPixels >= 90, `ball ${ball.order} must contain the legacy dark pentagon`);
+
+  const shadow = pixelAt(decoded, centerX + radius + 3, centerY + 6);
+  assert.ok(shadow[0] <= 20 && shadow[1] <= 20 && shadow[2] <= 20, `ball ${ball.order} must keep a dark drop shadow`);
+}
+
+function cropBall(decoded, ball) {
+  const { centerX, centerY, radius } = ballGeometry(decoded, ball);
+  const bytes = [];
+  for (let y = Math.floor(centerY - radius - 4); y <= Math.ceil(centerY + radius + 8); y += 1) {
+    for (let x = Math.floor(centerX - radius - 4); x <= Math.ceil(centerX + radius + 8); x += 1) {
+      bytes.push(...pixelAt(decoded, x, y));
+    }
+  }
+  return bytes;
 }
 
 function fixedLayout() {
@@ -174,35 +194,56 @@ test('normalizes invalid random values and falls back when candidates overlap', 
   assert.ok(clamped.every((ball) => ball.y >= 18 && ball.y <= 82));
 });
 
-test('renders deterministic PNG data with bounded dimensions', async () => {
+test('renders deterministic legacy neutral and completed states for progress zero through four', async () => {
   const balls = fixedLayout();
-  const first = await renderHumanCheckRaster(balls);
-  const second = await renderHumanCheckRaster(balls);
+  const rasters = [];
+  for (let selectedCount = 0; selectedCount <= 4; selectedCount += 1) {
+    const raster = await renderHumanCheckRaster(balls, { selectedCount });
+    const repeated = await renderHumanCheckRaster(balls, { selectedCount });
+    assert.equal(raster.digest, repeated.digest);
+    assert.deepEqual(raster.bytes, repeated.bytes);
+    const decoded = decodeRgbaPng(raster.bytes);
+    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < selectedCount));
+    rasters.push({ raster, decoded });
+  }
 
-  assert.equal(first.mediaType, 'image/png');
-  assert.equal(first.width, 480);
-  assert.equal(first.height, 300);
-  assert.deepEqual([...first.bytes.subarray(0, 8)], PNG_SIGNATURE);
-  assert.match(first.dataUrl, /^data:image\/png;base64,/);
-  assert.match(first.digest, /^[a-f0-9]{64}$/);
-  assert.equal(first.digest, second.digest);
-  assert.deepEqual(first.bytes, second.bytes);
-  assertVisibleNumberContrast(first, balls);
+  assert.equal(new Set(rasters.map(({ raster }) => raster.digest)).size, 5);
+  for (let progress = 1; progress <= 4; progress += 1) {
+    const previous = rasters[progress - 1].decoded;
+    const current = rasters[progress].decoded;
+    assert.notDeepEqual(cropBall(previous, balls[progress - 1]), cropBall(current, balls[progress - 1]));
+    for (let unselected = progress; unselected < balls.length; unselected += 1) {
+      assert.deepEqual(
+        cropBall(previous, balls[unselected]),
+        cropBall(current, balls[unselected]),
+        `progress ${progress} must not highlight unselected ball ${unselected + 1}`,
+      );
+    }
+  }
+});
 
-  const minimum = await renderHumanCheckRaster(balls, { width: 1, height: 1 });
-  assert.equal(minimum.width, 320);
-  assert.equal(minimum.height, 200);
-  assertVisibleNumberContrast(minimum, balls);
-
-  const maximum = await renderHumanCheckRaster(balls, { width: 9999, height: 9999 });
-  assert.equal(maximum.width, 640);
-  assert.equal(maximum.height, 480);
-  assertVisibleNumberContrast(maximum, balls);
+test('renders readable progress at minimum, default and maximum dimensions', async () => {
+  const balls = fixedLayout();
+  for (const options of [
+    { width: 1, height: 1, selectedCount: 2 },
+    { selectedCount: 2 },
+    { width: 9999, height: 9999, selectedCount: 2 },
+  ]) {
+    const raster = await renderHumanCheckRaster(balls, options);
+    assert.equal(raster.mediaType, 'image/png');
+    assert.match(raster.dataUrl, /^data:image\/png;base64,/);
+    assert.match(raster.digest, /^[a-f0-9]{64}$/);
+    const decoded = decodeRgbaPng(raster.bytes);
+    balls.forEach((ball, index) => assertLegacyFootball(decoded, ball, index < 2));
+  }
 });
 
 test('handles edge geometry and rejects malformed raster contracts', async () => {
   await assert.rejects(() => renderHumanCheckRaster(null), /exactly 4 balls/);
   await assert.rejects(() => renderHumanCheckRaster([]), /exactly 4 balls/);
+  for (const selectedCount of [-1, 5, 1.5, 'invalid']) {
+    await assert.rejects(() => renderHumanCheckRaster(fixedLayout(), { selectedCount }), /selectedCount/);
+  }
 
   const edgeBalls = [
     { order: 1, x: 0, y: 0, radius: 8 },
@@ -210,7 +251,7 @@ test('handles edge geometry and rejects malformed raster contracts', async () =>
     { order: 3, x: 0, y: 100, radius: 8 },
     { order: 4, x: 100, y: 100, radius: 8 },
   ];
-  const edge = await renderHumanCheckRaster(edgeBalls, { width: 320, height: 200 });
+  const edge = await renderHumanCheckRaster(edgeBalls, { width: 320, height: 200, selectedCount: 4 });
   assert.ok(edge.bytes.length > 100);
 
   await assert.rejects(
