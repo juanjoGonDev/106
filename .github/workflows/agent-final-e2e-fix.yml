@@ -80,6 +80,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- public/human-check.js tests/e2e/ranked-anti-cheat.e2e.js
-          git add -u -- .github/workflows/agent-final-e2e-fix.yml
           git commit -m 'fix(test): stabilize final ranked journey'
           git push origin HEAD:agent/security-ranked-game-anti-cheat
