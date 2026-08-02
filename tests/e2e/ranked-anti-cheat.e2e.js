@@ -15,9 +15,10 @@ function unique(label) {
 }
 
 function isExpectedNavigationAbort(request) {
-  return request.resourceType() === 'image'
-    && request.failure()?.errorText === 'net::ERR_ABORTED'
-    && /\/functions\/v1\/player-share\/.+\/card\.png(?:\?|$)/.test(request.url());
+  const url = new URL(request.url());
+  return request.failure()?.errorText === 'net::ERR_ABORTED'
+    && url.origin === apiUrl.replace(/\/$/, '')
+    && /^\/functions\/v1\/player-share\/[^/]+\/card\.png$/.test(url.pathname);
 }
 
 async function clickAtPercent(page, locator, xPercent, yPercent, useTouch) {
@@ -160,6 +161,7 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   await page.locator('#nick').fill('');
   await page.locator('#nick').fill(nick);
   await profileResponse;
+  await page.locator('#profileCard').scrollIntoViewIfNeeded();
   await expect(page.locator('#profileCard')).toBeVisible({ timeout: 25_000 });
   await expect(page.locator('#attemptHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`);
 
@@ -184,5 +186,5 @@ test('@live-ranked-anti-cheat cancels the neutral raster dialog with Escape', as
   await page.keyboard.press('Escape');
   await expect(page.locator('.human-check-overlay')).toBeHidden();
   await expect(page.locator('#setup')).toHaveClass(/active/);
-  await expect(page.locator('#nick')).toBeFocused();
+  await expect(page.locator('#startButton')).toBeFocused();
 });
