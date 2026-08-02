@@ -163,7 +163,7 @@ function messageForError(error: string) {
     device_mismatch: 'Debes continuar desde el mismo dispositivo.',
     account_token_required: 'Necesitas la clave privada de tu cuenta.',
     player_access_denied: 'Este nick pertenece a otra cuenta o la clave no es válida.',
-    league_membership_required: 'Este nick no pertenecece a la miniliga.',
+    league_membership_required: 'Este nick no pertenece a la miniliga.',
     human_check_invalid: 'La verificación visual no es válida.',
     human_check_not_found: 'La verificación visual no existe.',
     human_check_expired: 'La verificación visual ha caducado. Repítela.',
@@ -250,7 +250,7 @@ Deno.serve(async (request) => {
     if (action === 'human-check') {
       const balls = createHumanCheckLayout(secureRandom);
       const raster = await renderHumanCheckRaster(balls);
-      const result = await rpc('create_game_human_check', {
+      const result = await rpc('create_game_human_check_raster', {
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
         p_balls: balls,
@@ -289,7 +289,7 @@ Deno.serve(async (request) => {
       const clicks = normalizeHumanClicks(body.clicks);
       if (!checkId || !clicks) return safeResult(origin, { error: 'human_check_invalid' });
       const proofToken = randomHex();
-      const result = await rpc('complete_game_human_check', {
+      const result = await rpc('complete_game_human_check_raster', {
         p_check_id: checkId,
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
