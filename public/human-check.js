@@ -55,7 +55,7 @@
 
   function localTestRasterFixture(created) {
     const localHostname = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
-    let fixtureEnabled = false;
+    let fixtureEnabled;
     try {
       fixtureEnabled = localStorage.getItem(LOCAL_TEST_RASTER_FLAG) === 'enabled';
     } catch {
