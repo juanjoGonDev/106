@@ -1,8 +1,9 @@
 name: Agent Final Ranked E2E Fix
 
 on:
-  push:
-    branches: [agent/security-ranked-game-anti-cheat]
+  pull_request:
+    branches: [main]
+    types: [synchronize]
 
 permissions:
   contents: write
@@ -13,7 +14,7 @@ concurrency:
 
 jobs:
   apply:
-    if: github.repository == 'juanjoGonDev/106' && github.ref == 'refs/heads/agent/security-ranked-game-anti-cheat'
+    if: github.repository == 'juanjoGonDev/106' && github.event.pull_request.head.ref == 'agent/security-ranked-game-anti-cheat'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
