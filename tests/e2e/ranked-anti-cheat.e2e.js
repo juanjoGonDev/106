@@ -40,8 +40,16 @@ async function clickRuntimeControl(page, useTouch) {
     .locator('xpath=.//*[starts-with(local-name(), "m106-")]')
     .last();
   await expect(control).toBeVisible();
-  if (useTouch) await control.tap();
-  else await control.click();
+  if (!useTouch) {
+    await control.click();
+    return;
+  }
+  const bounds = await control.boundingBox();
+  if (!bounds) throw new Error('Runtime game control has no interactive bounds.');
+  await page.touchscreen.tap(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
 }
 
 test('@live-ranked-anti-cheat keeps raster verification and client timing authoritative', async ({ page, request }, testInfo) => {
