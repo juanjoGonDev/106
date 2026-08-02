@@ -1,13 +1,14 @@
 name: Agent Radar Sync Artifact
 
 on:
-  push:
-    branches: [agent/security-ranked-game-anti-cheat]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions: read-all
 
 concurrency:
-  group: agent-radar-sync-${{ github.ref }}
+  group: agent-radar-sync-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Checkout branch
+      - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pinned Node.js
@@ -29,7 +30,7 @@ jobs:
       - name: Upload generated HTML
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: agent-radar-html-${{ github.sha }}
+          name: agent-radar-html-${{ github.event.pull_request.head.sha }}
           path: |
             public/index.html
             public/player.html
