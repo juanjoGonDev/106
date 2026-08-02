@@ -6,6 +6,10 @@ import { dirname, join } from 'node:path';
 const PLAYWRIGHT_VERSION = '1.60.0';
 const PLAYWRIGHT_PACKAGE = `@playwright/test@${PLAYWRIGHT_VERSION}`;
 const GIF_MUXER_PATTERN = /^\s*[D ]?E\s+gif\b/im;
+const packageManager = String(JSON.parse(readFileSync('package.json', 'utf8')).packageManager ?? '');
+if (!/^pnpm@\d+\.\d+\.\d+$/.test(packageManager)) {
+  throw new Error('package.json must pin an exact pnpm packageManager version.');
+}
 const playwrightArguments = process.argv.slice(2);
 const prepareOnly = process.env.PLAYWRIGHT_PREPARE_ONLY === '1';
 const runtimePrepared = process.env.PLAYWRIGHT_RUNTIME_PREPARED === '1';
@@ -36,7 +40,7 @@ function resolvePnpmInvocation() {
   if (pnpmInvocation) return pnpmInvocation;
   const direct = spawnSync('pnpm', ['--version'], { stdio: 'ignore' });
   pnpmInvocation = direct.error
-    ? Object.freeze({ command: 'corepack', prefix: ['pnpm'] })
+    ? Object.freeze({ command: 'npx', prefix: ['--yes', packageManager] })
     : Object.freeze({ command: 'pnpm', prefix: [] });
   return pnpmInvocation;
 }
