@@ -1,4 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
+import { createHumanCheckLayout, renderHumanCheckRaster } from '../_shared/human-check-raster.js';
+import {
+  createTurnstilePolicy,
+  TURNSTILE_MAX_AGE_SECONDS,
+  TURNSTILE_RANKED_ACTION,
+} from '../_shared/turnstile-policy.js';
 import { moderateNickname } from '../game-api/moderation.ts';
 
 function resolveServiceKey() {
@@ -17,28 +23,42 @@ function resolveServiceKey() {
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const serviceKey = resolveServiceKey();
 const hashPepper = Deno.env.get('HASH_PEPPER');
-const turnstileSecret = Deno.env.get('TURNSTILE_SECRET_KEY') ?? '';
 const allowedOrigins = new Set(
   (Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:3000,http://127.0.0.1:3000,https://juanjogondev.github.io')
-    .split(',').map((item) => item.trim()).filter(Boolean),
+    .split(',).map((item) => item.trim()).filter(Boolean),
 );
 if (!supabaseUrl || !serviceKey || !hashPepper) throw new Error('Missing required Edge Function environment variables.');
 
+const allowedHostnames = [...allowedOrigins].flatMap((entry) => {
+  try {
+    return [new URL(entry).hostname];
+  } catch {
+    return [];
+  }
+});
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-const READINESS_CONTRACT = 'prepared-countdown-v1';
+const READINESS_CONTRACT = 'ranked-anti-cheat-v2';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const HUMAN_BALL_COUNT = 4;
-const HUMAN_BALL_RADIUS = 8;
-const HUMAN_BALL_MINIMUM_DISTANCE = 26;
-const HUMAN_BALL_REPLACEMENT_DISTANCE = 12;
+const localSolutionEnabled = Deno.env.get('LOCAL_E2E_HUMAN_CHECK_SOLUTIONS') === 'true';
+const localSolutionToken = Deno.env.get('LOCAL_E2E_TEST_TOKEN') ?? '';
+const turnstilePolicy = createTurnstilePolicy({
+  environment: Deno.env.get('APP_ENV'),
+  required: Deno.env.get('TURNSTILE_REQUIRED'),
+  testMode: Deno.env.get('TURNSTILE_TEST_MODE'),
+  secret: Deno.env.get('TURNSTILE_SECRET_KEY'),
+  expectedAction: Deno.env.get('TURNSTILE_EXPECTED_ACTION') ?? TURNSTILE_RANKED_ACTION,
+  expectedHostnames: Deno.env.get('TURNSTILE_EXPECTED_HOSTNAMES') ?? allowedHostnames,
+  maxAgeSeconds: TURNSTILE_MAX_AGE_SECONDS,
+});
 
 function corsHeaders(origin: string | null) {
   return {
     'Access-Control-Allow-Origin': origin && allowedOrigins.has(origin) ? origin : [...allowedOrigins][0],
-    'Access-Control-Allow-Headers': 'content-type, x-device-id, x-account-token, x-player-token',
+    'Access-Control-Allow-Headers': 'content-type, x-device-id, x-account-token, x-player-token, x-test-run-token',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -76,59 +96,9 @@ function randomHex(byteLength = 32) {
   crypto.getRandomValues(bytes);
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
-function normalizePreviousBalls(value: unknown) {
-  if (!Array.isArray(value) || value.length !== HUMAN_BALL_COUNT) return [];
-  const balls = value.map((item) => {
-    const input = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-    const order = Number(input.order);
-    const x = Number(input.x);
-    const y = Number(input.y);
-    if (!Number.isInteger(order) || order < 1 || order > HUMAN_BALL_COUNT
-      || !Number.isFinite(x) || x < 0 || x > 100
-      || !Number.isFinite(y) || y < 0 || y > 100) return null;
-    return { order, x, y };
-  });
-  return balls.every(Boolean) ? balls as Array<{ order: number; x: number; y: number }> : [];
-}
-function createBallLayout(previousBalls: Array<{ order: number; x: number; y: number }> = []) {
-  const balls: Array<{ order: number; x: number; y: number; radius: number }> = [];
-  const fallback = [
-    { x: 78, y: 72 },
-    { x: 20, y: 75 },
-    { x: 80, y: 25 },
-    { x: 22, y: 28 },
-  ];
-
-  for (let order = 1; order <= HUMAN_BALL_COUNT; order += 1) {
-    const previous = previousBalls.find((ball) => ball.order === order);
-    let candidate = fallback[order - 1];
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      const proposed = {
-        x: 14 + secureRandom() * 72,
-        y: 18 + secureRandom() * 64,
-      };
-      const separated = balls.every((ball) => Math.hypot(ball.x - proposed.x, ball.y - proposed.y) >= HUMAN_BALL_MINIMUM_DISTANCE);
-      const moved = !previous || Math.hypot(previous.x - proposed.x, previous.y - proposed.y) >= HUMAN_BALL_REPLACEMENT_DISTANCE;
-      if (separated && moved) {
-        candidate = proposed;
-        break;
-      }
-    }
-    if (previous && Math.hypot(previous.x - candidate.x, previous.y - candidate.y) < HUMAN_BALL_REPLACEMENT_DISTANCE) {
-      candidate = { x: 100 - previous.x, y: 100 - previous.y };
-    }
-    balls.push({
-      order,
-      x: Number(candidate.x.toFixed(2)),
-      y: Number(candidate.y.toFixed(2)),
-      radius: HUMAN_BALL_RADIUS,
-    });
-  }
-  return balls;
-}
 function normalizeHumanClicks(value: unknown) {
   if (!Array.isArray(value) || value.length !== HUMAN_BALL_COUNT) return null;
-  const clicks: Array<{ x: number; y: number; atMs: number; pointerType: string; trusted: boolean }> = [];
+  const clicks: Array<{ x: number; y: number; atMs: number; pointerType: string }> = [];
   let previousAt = -1;
   for (const item of value) {
     if (!item || typeof item !== 'object') return null;
@@ -136,13 +106,13 @@ function normalizeHumanClicks(value: unknown) {
     const x = Number(input.x);
     const y = Number(input.y);
     const atMs = Math.round(Number(input.atMs));
-    const pointerType = String(input.pointerType ?? '');
+    const pointerType = ['mouse', 'touch', 'pen'].includes(String(input.pointerType))
+      ? String(input.pointerType)
+      : 'unknown';
     if (!Number.isFinite(x) || x < 0 || x > 100
       || !Number.isFinite(y) || y < 0 || y > 100
-      || !Number.isFinite(atMs) || atMs <= previousAt || atMs > 20_000
-      || !['mouse', 'touch', 'pen'].includes(pointerType)
-      || input.trusted !== true) return null;
-    clicks.push({ x: Number(x.toFixed(2)), y: Number(y.toFixed(2)), atMs, pointerType, trusted: true });
+      || !Number.isFinite(atMs) || atMs <= previousAt || atMs > 20_000) return null;
+    clicks.push({ x: Number(x.toFixed(2)), y: Number(y.toFixed(2)), atMs, pointerType });
     previousAt = atMs;
   }
   return clicks;
@@ -153,20 +123,17 @@ function clientIp(request: Request) {
     || request.headers.get('x-real-ip')
     || 'unknown';
 }
+function isLocalOrigin(origin: string | null) {
+  try {
+    const hostname = new URL(String(origin ?? '')).hostname;
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
 async function sha256(value: string) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${hashPepper}:${value}`));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-async function verifyTurnstile(token: unknown, ip: string) {
-  if (!turnstileSecret) return true;
-  if (typeof token !== 'string' || !token) return false;
-  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ secret: turnstileSecret, response: token, remoteip: ip }),
-  });
-  const result = await response.json();
-  return response.ok && result.success === true;
 }
 async function rpc(name: string, parameters = {}) {
   const { data, error } = await supabase.rpc(name, parameters);
@@ -177,7 +144,7 @@ async function rpc(name: string, parameters = {}) {
   return data;
 }
 function statusForError(error: string) {
-  if (['challenge_used', 'challenge_already_activated', 'human_check_used', 'human_check_completed'].includes(error)) return 409;
+  if (['challenge_used', 'challenge_already_activated', 'human_check_used', 'human_check_completed', 'turnstile_replay'].includes(error)) return 409;
   if (['device_mismatch', 'player_access_denied', 'league_membership_required', 'human_check_mismatch'].includes(error)) return 403;
   if (['rate_limit', 'daily_limit', 'human_check_rate_limit'].includes(error)) return 429;
   if (['challenge_not_found', 'human_check_not_found'].includes(error)) return 404;
@@ -209,6 +176,8 @@ function messageForError(error: string) {
     nick_limit: 'Has agotado los intentos disponibles en esta competición.',
     rate_limit: 'Demasiadas acciones seguidas. Espera un momento.',
     daily_limit: 'Has alcanzado el límite diario de seguridad.',
+    turnstile_replay: 'La verificación anti-bots ya fue utilizada. Repítela.',
+    turnstile_invalid: 'La verificación anti-bots no es válida.',
   };
   return messages[error] ?? 'No se pudo preparar el intento.';
 }
@@ -216,6 +185,15 @@ function safeResult(origin: string | null, result: Record<string, unknown>, stat
   return result?.error
     ? jsonResponse(origin, { ...result, error: messageForError(String(result.error)) }, statusForError(String(result.error)))
     : jsonResponse(origin, result, status);
+}
+function turnstileFailure(origin: string | null, code: string) {
+  const configurationFailure = code === 'turnstile_configuration';
+  return jsonResponse(origin, {
+    code,
+    error: configurationFailure
+      ? 'La verificación anti-bots no está configurada de forma segura.'
+      : 'No se pudo completar la verificación anti-bots.',
+  }, configurationFailure ? 503 : 400);
 }
 async function getAccountHash(request: Request) {
   const rawToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
@@ -251,7 +229,12 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const action = String(body.action ?? '');
     if (action === 'health') {
-      return jsonResponse(origin, { ok: true, contract: READINESS_CONTRACT });
+      return jsonResponse(origin, {
+        ok: true,
+        contract: READINESS_CONTRACT,
+        challengeFormat: 'raster-png-v1',
+        turnstileRequired: turnstilePolicy.required,
+      });
     }
 
     const deviceId = request.headers.get('x-device-id') ?? '';
@@ -265,14 +248,40 @@ Deno.serve(async (request) => {
     ]);
 
     if (action === 'human-check') {
-      const previousBalls = normalizePreviousBalls(body.previousBalls);
-      const balls = createBallLayout(previousBalls);
+      const balls = createHumanCheckLayout(secureRandom);
+      const raster = await renderHumanCheckRaster(balls);
       const result = await rpc('create_game_human_check', {
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
         p_balls: balls,
       });
-      return safeResult(origin, { ...result, balls }, 201);
+      if (result.error) return safeResult(origin, result);
+      return jsonResponse(origin, {
+        checkId: result.checkId,
+        expiresAt: result.expiresAt,
+        image: {
+          mediaType: raster.mediaType,
+          dataUrl: raster.dataUrl,
+          width: raster.width,
+          height: raster.height,
+          digest: raster.digest,
+        },
+      }, 201);
+    }
+
+    if (action === 'test-human-check-solution') {
+      if (!localSolutionEnabled) return jsonResponse(origin, { error: 'Not found.' }, 404);
+      if (!isLocalOrigin(origin)) return jsonResponse(origin, { error: 'Forbidden.' }, 403);
+      const suppliedToken = request.headers.get('x-test-run-token') ?? '';
+      if (localSolutionToken.length < 16 || suppliedToken !== localSolutionToken) {
+        return jsonResponse(origin, { error: 'Forbidden.' }, 403);
+      }
+      const checkId = normalizeUuid(body.checkId);
+      if (!checkId) return safeResult(origin, { error: 'human_check_not_found' });
+      return safeResult(origin, await rpc('get_game_human_check_solution_for_test', {
+        p_check_id: checkId,
+        p_device_hash: deviceHash,
+      }));
     }
 
     if (action === 'complete-human-check') {
@@ -304,9 +313,19 @@ Deno.serve(async (request) => {
       if (nick.length < 2 || !team) return safeResult(origin, { error: 'invalid_input' });
       const moderation = moderateNickname(nick);
       if (!moderation.allowed) return jsonResponse(origin, { error: 'El nick no está permitido.' }, 400);
-      if (!(await verifyTurnstile(body.turnstileToken, ip))) {
-        return jsonResponse(origin, { error: 'No se pudo completar la verificación anti-bots.' }, 400);
+
+      const turnstile = await turnstilePolicy.verify({ token: body.turnstileToken, ip, origin });
+      if (!turnstile.ok) return turnstileFailure(origin, turnstile.code);
+      if (!turnstile.skipped) {
+        const tokenResult = await rpc('consume_game_turnstile_token', {
+          p_token_hash: await sha256(`turnstile:${turnstile.token}`),
+          p_expires_at: new Date(
+            (turnstile.challengeTime ?? Date.now()) + TURNSTILE_MAX_AGE_SECONDS * 1000,
+          ).toISOString(),
+        });
+        if (tokenResult.error) return safeResult(origin, tokenResult);
       }
+
       const humanCheckId = normalizeUuid(body.humanCheckId);
       const humanProofToken = String(body.humanProofToken ?? '').trim().toLowerCase();
       if (!humanCheckId || !PRIVATE_TOKEN.test(humanProofToken)) return safeResult(origin, { error: 'human_check_incomplete' });
