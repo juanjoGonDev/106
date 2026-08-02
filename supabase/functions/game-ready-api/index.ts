@@ -25,7 +25,7 @@ const serviceKey = resolveServiceKey();
 const hashPepper = Deno.env.get('HASH_PEPPER');
 const allowedOrigins = new Set(
   (Deno.env.get('ALLOWED_ORIGINS') ?? 'http://localhost:3000,http://127.0.0.1:3000,https://juanjogondev.github.io')
-    .split(',).map((item) => item.trim()).filter(Boolean),
+    .split(',').map((item) => item.trim()).filter(Boolean),
 );
 if (!supabaseUrl || !serviceKey || !hashPepper) throw new Error('Missing required Edge Function environment variables.');
 
@@ -163,7 +163,7 @@ function messageForError(error: string) {
     device_mismatch: 'Debes continuar desde el mismo dispositivo.',
     account_token_required: 'Necesitas la clave privada de tu cuenta.',
     player_access_denied: 'Este nick pertenece a otra cuenta o la clave no es válida.',
-    league_membership_required: 'Este nick no pertenece a la miniliga.',
+    league_membership_required: 'Este nick no pertenecece a la miniliga.',
     human_check_invalid: 'La verificación visual no es válida.',
     human_check_not_found: 'La verificación visual no existe.',
     human_check_expired: 'La verificación visual ha caducado. Repítela.',
