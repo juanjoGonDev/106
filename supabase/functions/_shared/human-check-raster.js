@@ -6,7 +6,6 @@ const BALL_RADIUS_PERCENT = 8;
 const MINIMUM_DISTANCE_PERCENT = 26;
 const ANTIALIAS_WIDTH = 1;
 const SHADOW_BLUR = 12;
-const ACTIVE_SHADOW_BLUR = 24;
 const FALLBACK_LAYOUT = Object.freeze([
   Object.freeze({ x: 78, y: 72 }),
   Object.freeze({ x: 20, y: 75 }),
@@ -59,8 +58,6 @@ const LEGACY_STYLE = Object.freeze({
   neutralFill: Object.freeze([247, 248, 251, 255]),
   completedFill: Object.freeze([84, 209, 139, 255]),
   outline: Object.freeze([17, 21, 29, 255]),
-  activeOutline: Object.freeze([244, 201, 93, 255]),
-  activeGlow: Object.freeze([244, 201, 93, 204]),
   neutralNumber: Object.freeze([255, 255, 255, 255]),
   completedNumber: Object.freeze([255, 255, 255, 255]),
 });
@@ -290,32 +287,28 @@ function drawPitch(pixels, width, height) {
   );
 }
 
-function drawLegacyShadow(pixels, width, height, centerX, centerY, radius, active) {
-  const blur = active ? ACTIVE_SHADOW_BLUR : SHADOW_BLUR;
-  const color = active ? LEGACY_STYLE.activeGlow : [0, 0, 0, 153];
-  const extent = radius + blur;
+function drawLegacyShadow(pixels, width, height, centerX, centerY, radius) {
+  const extent = radius + SHADOW_BLUR;
   for (let y = Math.floor(centerY - extent); y <= Math.ceil(centerY + extent); y += 1) {
     for (let x = Math.floor(centerX - extent); x <= Math.ceil(centerX + extent); x += 1) {
       const distance = Math.hypot(x - centerX, y - centerY);
-      const progress = clampUnit((distance - radius) / blur);
-      const coverage = distance <= radius + blur ? (1 - progress) ** 2 : 0;
-      if (coverage > 0) blendColor(pixels, width, height, x, y, color, coverage);
+      const progress = clampUnit((distance - radius) / SHADOW_BLUR);
+      const coverage = distance <= radius + SHADOW_BLUR ? (1 - progress) ** 2 : 0;
+      if (coverage > 0) blendColor(pixels, width, height, x, y, [0, 0, 0, 153], coverage);
     }
   }
 }
 
-function drawBall(pixels, width, height, ball, completed, active) {
+function drawBall(pixels, width, height, ball, completed) {
   const centerX = width * Number(ball.x) / 100;
   const centerY = height * Number(ball.y) / 100;
   const radius = Math.max(25, Math.min(38, width * Number(ball.radius) / 100));
   const fill = completed ? LEGACY_STYLE.completedFill : LEGACY_STYLE.neutralFill;
-  const outline = active ? LEGACY_STYLE.activeOutline : LEGACY_STYLE.outline;
-  const outlineWidth = active ? 5 : 3;
   const number = completed ? LEGACY_STYLE.completedNumber : LEGACY_STYLE.neutralNumber;
 
-  drawLegacyShadow(pixels, width, height, centerX, centerY, radius, active);
+  drawLegacyShadow(pixels, width, height, centerX, centerY, radius);
   drawCircle(pixels, width, height, centerX, centerY, radius, fill);
-  drawRing(pixels, width, height, centerX, centerY, radius, outlineWidth, outline);
+  drawRing(pixels, width, height, centerX, centerY, radius, 3, LEGACY_STYLE.outline);
   drawPentagon(pixels, width, height, centerX, centerY, radius * 0.34, LEGACY_STYLE.outline);
   drawDigit(pixels, width, height, Number(ball.order), centerX, centerY + 1, radius, number);
 }
@@ -393,14 +386,7 @@ export async function renderHumanCheckRaster(balls, options = {}) {
   const height = Math.max(220, Math.min(480, Math.round(Number(options.height) || HEIGHT)));
   const pixels = new Uint8Array(width * height * 4);
   drawPitch(pixels, width, height);
-  balls.forEach((ball, index) => drawBall(
-    pixels,
-    width,
-    height,
-    ball,
-    index < selectedCount,
-    selectedCount < BALL_COUNT && index === selectedCount,
-  ));
+  balls.forEach((ball, index) => drawBall(pixels, width, height, ball, index < selectedCount));
 
   const scanlines = new Uint8Array((width * 4 + 1) * height);
   for (let y = 0; y < height; y += 1) {
@@ -440,6 +426,5 @@ export const HUMAN_CHECK_RASTER = Object.freeze({
   minimumDistancePercent: MINIMUM_DISTANCE_PERCENT,
   antialiasWidth: ANTIALIAS_WIDTH,
   shadowBlur: SHADOW_BLUR,
-  activeShadowBlur: ACTIVE_SHADOW_BLUR,
   style: LEGACY_STYLE,
 });
