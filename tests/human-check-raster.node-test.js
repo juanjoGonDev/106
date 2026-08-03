@@ -7,7 +7,6 @@ const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 const NEUTRAL_FILL = [247, 248, 251, 255];
 const COMPLETED_FILL = [84, 209, 139, 255];
 const DARK = [17, 21, 29, 255];
-const GOLD = [244, 201, 93, 255];
 
 function sequence(values) { let index = 0; return () => values[index++ % values.length]; }
 function fixedLayout() {
@@ -61,16 +60,16 @@ function crop(decoded, ball, margin = 28) {
   }
   return bytes;
 }
-function assertBall(decoded, ball, state) {
-  const g = geometry(decoded, ball); const expectedFill = state === 'completed' ? COMPLETED_FILL : NEUTRAL_FILL;
+function assertBall(decoded, ball, completed) {
+  const g = geometry(decoded, ball); const expectedFill = completed ? COMPLETED_FILL : NEUTRAL_FILL;
   assert.ok(distance(pixelAt(decoded, g.x + g.radius * 0.7, g.y), expectedFill) <= 5);
   const outline = pixelAt(decoded, g.x + g.radius - 1.5, g.y);
-  assert.ok(distance(outline, state === 'active' ? GOLD : DARK) <= 25, `${state} outline for ${ball.order}`);
+  assert.ok(distance(outline, DARK) <= 25, `${completed ? 'completed' : 'neutral'} outline for ${ball.order}`);
   let light = 0; let dark = 0; let blended = 0; const colors = new Set();
   for (let y = Math.floor(g.y - g.radius - 3); y <= Math.ceil(g.y + g.radius + 3); y += 1) {
     for (let x = Math.floor(g.x - g.radius - 3); x <= Math.ceil(g.x + g.radius + 3); x += 1) {
       const p = pixelAt(decoded, x, y); colors.add(p.slice(0, 3).join(',')); const d = Math.hypot(x - g.x, y - g.y);
-      if (d >= g.radius - 2 && d <= g.radius + 2 && distance(p, expectedFill) > 8 && distance(p, state === 'active' ? GOLD : DARK) > 8) blended += 1;
+      if (d >= g.radius - 2 && d <= g.radius + 2 && distance(p, expectedFill) > 8 && distance(p, DARK) > 8) blended += 1;
       if (Math.abs(x - g.x) <= g.radius * 0.28 && Math.abs(y - g.y) <= g.radius * 0.36) {
         if (p[0] >= 238 && p[1] >= 238 && p[2] >= 238) light += 1;
         if (p[0] <= 38 && p[1] <= 38 && p[2] <= 46) dark += 1;
@@ -79,8 +78,7 @@ function assertBall(decoded, ball, state) {
   }
   assert.ok(light >= 18, `clear number ${ball.order}`); assert.ok(dark >= 50, `pentagon ${ball.order}`); assert.ok(blended >= 8); assert.ok(colors.size >= 30);
   const near = pixelAt(decoded, g.x + g.radius + 5, g.y + 2); const far = pixelAt(decoded, g.x + g.radius + 28, g.y + 2);
-  if (state === 'active') assert.ok(near[0] > near[2] && near[0] > far[0], 'gold active glow');
-  else assert.ok(near[0] < far[0] || near[1] < far[1] || near[2] < far[2], 'dark shadow');
+  assert.ok(near[0] < far[0] || near[1] < far[1] || near[2] < far[2], 'dark shadow');
 }
 function assertPitch(decoded) {
   const a = pixelAt(decoded, 2, 2); const b = pixelAt(decoded, decoded.width - 3, decoded.height - 3);
@@ -88,14 +86,14 @@ function assertPitch(decoded) {
   const line = pixelAt(decoded, 18, 18); assert.ok(line[0] > a[0] || line[1] > a[1] || line[2] > a[2]);
 }
 
-test('publishes the historical coloured state contract', () => {
+test('publishes the historical football contract without a next-target cue', () => {
   assert.deepEqual(HUMAN_CHECK_RASTER, {
     width: 560, height: 360, ballCount: 4, radiusPercent: 8, minimumDistancePercent: 26,
-    antialiasWidth: 1, shadowBlur: 12, activeShadowBlur: 24,
+    antialiasWidth: 1, shadowBlur: 12,
     style: {
       pitchStart: [98, 0, 25, 255], pitchMiddle: [16, 18, 26, 255], pitchEnd: [18, 48, 95, 255], fieldLine: [255, 255, 255, 34],
       neutralFill: [247, 248, 251, 255], completedFill: [84, 209, 139, 255], outline: [17, 21, 29, 255],
-      activeOutline: [244, 201, 93, 255], activeGlow: [244, 201, 93, 204], neutralNumber: [255, 255, 255, 255], completedNumber: [255, 255, 255, 255],
+      neutralNumber: [255, 255, 255, 255], completedNumber: [255, 255, 255, 255],
     },
   });
 });
@@ -109,21 +107,22 @@ test('creates immutable separated layouts with secure and bounded randomness', (
   const clamped = createHumanCheckLayout(sequence([-100, 100, 100, -100, -100, -100, 100, 100])); assert.equal(clamped.length, 4); assertSeparated(clamped);
 });
 
-test('renders deterministic white, gold-active and green-confirmed states', async () => {
+test('renders deterministic white pending and green confirmed states without revealing the next ball', async () => {
   const balls = fixedLayout(); const states = [];
   for (let selectedCount = 0; selectedCount <= 4; selectedCount += 1) {
     const raster = await renderHumanCheckRaster(balls, { selectedCount }); const repeated = await renderHumanCheckRaster(balls, { selectedCount });
     assert.equal(raster.digest, repeated.digest); assert.deepEqual(raster.bytes, repeated.bytes); assert.match(raster.dataUrl, /^data:image\/png;base64,/);
     const decoded = decodeRgbaPng(raster.bytes); assertPitch(decoded);
-    balls.forEach((ball, index) => assertBall(decoded, ball, index < selectedCount ? 'completed' : index === selectedCount ? 'active' : 'neutral'));
+    balls.forEach((ball, index) => assertBall(decoded, ball, index < selectedCount));
     states.push({ raster, decoded });
   }
   assert.equal(new Set(states.map(({ raster }) => raster.digest)).size, 5);
   for (let progress = 1; progress <= 4; progress += 1) {
     const previous = states[progress - 1].decoded; const current = states[progress].decoded;
     assert.notDeepEqual(crop(previous, balls[progress - 1]), crop(current, balls[progress - 1]));
-    if (progress < 4) assert.notDeepEqual(crop(previous, balls[progress]), crop(current, balls[progress]), 'gold cue advances to next numeral');
-    for (let unchanged = progress + 1; unchanged < balls.length; unchanged += 1) assert.deepEqual(crop(previous, balls[unchanged]), crop(current, balls[unchanged]));
+    for (let unchanged = progress; unchanged < balls.length; unchanged += 1) {
+      assert.deepEqual(crop(previous, balls[unchanged]), crop(current, balls[unchanged]), `progress ${progress} must not change pending ball ${unchanged + 1}`);
+    }
   }
 });
 
@@ -131,7 +130,7 @@ test('renders all bounded sizes and rejects malformed contracts', async () => {
   const balls = fixedLayout();
   for (const options of [{ width: 1, height: 1, selectedCount: 2 }, { selectedCount: 2 }, { width: 9999, height: 9999, selectedCount: 2 }]) {
     const raster = await renderHumanCheckRaster(balls, options); assert.equal(raster.mediaType, 'image/png'); assert.match(raster.digest, /^[a-f0-9]{64}$/);
-    const decoded = decodeRgbaPng(raster.bytes); assertPitch(decoded); balls.forEach((ball, index) => assertBall(decoded, ball, index < 2 ? 'completed' : index === 2 ? 'active' : 'neutral'));
+    const decoded = decodeRgbaPng(raster.bytes); assertPitch(decoded); balls.forEach((ball, index) => assertBall(decoded, ball, index < 2));
   }
   await assert.rejects(() => renderHumanCheckRaster(null), /exactly 4 balls/); await assert.rejects(() => renderHumanCheckRaster([]), /exactly 4 balls/);
   for (const selectedCount of [-1, 5, 1.5, 'invalid']) await assert.rejects(() => renderHumanCheckRaster(balls, { selectedCount }), /selectedCount/);
