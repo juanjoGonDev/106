@@ -55,7 +55,7 @@ describe('account daily attempt policy', () => {
     expect(playerContext).toContain('dailyAttemptPolicy: await accountDailyAttemptPolicy(request)');
     expect(cloudService).toContain('this.access.setAccountSession(accountToken, policy)');
     expect(cloudService).toContain('this.access?.setAccountDailyAttemptPolicy?.(policy)');
-    expect(competition).toContain("import { resolveDailyAttemptState } from './daily-attempt-limit.js';");
+    expect(competition).toContain("import { resolveDailyAttemptState } from './daily-attempt-limit.js?v=20260802-derived-budget';");
     expect(competition).toContain('resolveDailyAttemptState(context.profile, accountDailyAttemptPolicy())');
     expect(competition).toContain("return requestContext('account-context');");
     expect(competition).not.toMatch(/profile\?\.attempts(?:Left|Max).*\?\? 5/);

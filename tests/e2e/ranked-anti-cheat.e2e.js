@@ -52,28 +52,87 @@ async function clickRuntimeControl(page, useTouch) {
   );
 }
 
-test('@live-ranked-anti-cheat keeps raster verification and client timing authoritative', async ({ page, request }, testInfo) => {
+async function inspectRaster(page, dataUrl, balls) {
+  return page.evaluate(async ({ source, layout }) => {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    const pixelAt = (x, y) => {
+      const px = Math.max(0, Math.min(canvas.width - 1, Math.round(x)));
+      const py = Math.max(0, Math.min(canvas.height - 1, Math.round(y)));
+      const offset = (py * canvas.width + px) * 4;
+      return [...pixels.slice(offset, offset + 4)];
+    };
+
+    return layout.map((ball) => {
+      const centerX = canvas.width * Number(ball.x) / 100;
+      const centerY = canvas.height * Number(ball.y) / 100;
+      const radius = Math.max(25, Math.min(38, canvas.width * Number(ball.radius) / 100));
+      let lightPixels = 0;
+      let darkPixels = 0;
+      for (let y = Math.floor(centerY - radius * 0.45); y <= Math.ceil(centerY + radius * 0.45); y += 1) {
+        for (let x = Math.floor(centerX - radius * 0.45); x <= Math.ceil(centerX + radius * 0.45); x += 1) {
+          const [red, green, blue, alpha] = pixelAt(x, y);
+          if (alpha === 255 && red >= 238 && green >= 238 && blue >= 238) lightPixels += 1;
+          if (alpha === 255 && red <= 38 && green <= 38 && blue <= 46) darkPixels += 1;
+        }
+      }
+      return {
+        order: ball.order,
+        outerFill: pixelAt(centerX + radius * 0.7, centerY),
+        lightPixels,
+        darkPixels,
+      };
+    });
+  }, { source: dataUrl, layout: balls });
+}
+
+function assertAppearance(appearance, selectedCount) {
+  for (const ball of appearance) {
+    const selected = Number(ball.order) <= selectedCount;
+    expect(ball.outerFill, `ball ${ball.order} fill at progress ${selectedCount}`).toEqual(
+      selected ? [84, 209, 139, 255] : [247, 248, 251, 255],
+    );
+    expect(ball.lightPixels, `ball ${ball.order} readable number`).toBeGreaterThanOrEqual(12);
+    expect(ball.darkPixels, `ball ${ball.order} legacy pentagon`).toBeGreaterThanOrEqual(60);
+  }
+}
+
+async function waitForCapture(expectApi, captures, expectedCount) {
+  await expectApi.poll(() => captures.length, { timeout: 15_000 }).toBe(expectedCount);
+  return captures[expectedCount - 1];
+}
+
+test('@live-ranked-anti-cheat keeps the smooth raster, server confirmation and client timing authoritative', async ({ page, request }, testInfo) => {
   const useTouch = testInfo.project.name.includes('mobile');
   const errors = [];
   const failedRequests = [];
-  const challengeResponses = [];
+  const httpErrors = [];
   const finishRequests = [];
+  const humanChecks = [];
+  const humanCheckClicks = [];
   const accountToken = randomBytes(32).toString('hex');
   const nick = unique('E2ERanked');
 
   page.on('pageerror', (error) => errors.push(`page: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    if (message.type() !== 'error') return;
+    if (message.text().startsWith('Failed to load resource:')) return;
+    errors.push(`console: ${message.text()}`);
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) httpErrors.push(`${response.status()} ${response.url()}`);
   });
   page.on('requestfailed', (failed) => {
     if (isExpectedNavigationAbort(failed)) return;
     failedRequests.push(`${failed.method()} ${failed.url()} ${failed.failure()?.errorText ?? ''}`);
-  });
-  page.on('response', async (response) => {
-    if (!response.url().endsWith('/game-ready-api')) return;
-    const requestBody = response.request().postDataJSON?.() ?? {};
-    if (requestBody.action !== 'human-check') return;
-    challengeResponses.push(await response.json());
   });
 
   await page.addInitScript(({ account }) => {
@@ -84,7 +143,17 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
     const requestBody = route.request().postDataJSON?.() ?? {};
     if (requestBody.action === 'prepare-start') {
       requestBody.turnstileToken = `test-valid:e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      await route.continue({ postData: JSON.stringify(requestBody) });
+      const upstream = await route.fetch({ postData: JSON.stringify(requestBody) });
+      await route.fulfill({ response: upstream });
+      return;
+    }
+    if (requestBody.action === 'human-check' || requestBody.action === 'human-check-click') {
+      const upstream = await route.fetch();
+      const payload = await upstream.json();
+      const capture = Object.freeze({ status: upstream.status(), payload });
+      if (requestBody.action === 'human-check') humanChecks.push(capture);
+      else humanCheckClicks.push(capture);
+      await route.fulfill({ response: upstream, json: payload });
       return;
     }
     await route.continue();
@@ -114,15 +183,16 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   await page.locator('.team-picker [data-team="spain"]').click();
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 15_000 });
   await page.locator('#startButton').click();
+  const publicChallengeCapture = await waitForCapture(expect, humanChecks, 1);
+  expect(publicChallengeCapture.status).toBe(201);
+  const publicChallenge = publicChallengeCapture.payload;
 
   const challengeImage = page.locator('.human-check-image');
   await expect(challengeImage).toBeVisible();
   await expect(challengeImage).toHaveAttribute('src', /^data:image\/png;base64,/);
   await expect(page.locator('.human-check-progress')).toHaveText('0 / 4');
   await expect(page.locator('.human-check-overlay')).not.toContainText(/Empieza por|Ahora pulsa el balón|balón siguiente/i);
-  await expect.poll(() => challengeResponses.length).toBeGreaterThan(0);
 
-  const publicChallenge = challengeResponses.at(-1);
   expect(publicChallenge).not.toHaveProperty('balls');
   expect(JSON.stringify(publicChallenge)).not.toMatch(/"(?:x|y|radius|order)"\s*:/);
   expect(publicChallenge.image.mediaType).toBe('image/png');
@@ -147,26 +217,35 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
   expect(solutionResponse.status()).toBe(200);
   const solution = await solutionResponse.json();
   expect(solution.balls).toHaveLength(4);
+  assertAppearance(await inspectRaster(page, publicChallenge.image.dataUrl, solution.balls), 0);
 
-  let previousDigest = await challengeImage.getAttribute('data-digest');
+  let previousDigest = publicChallenge.image.digest;
+  let previousStateVersion = 0;
+  let finalPayload = null;
   for (let index = 0; index < solution.balls.length; index += 1) {
     const ball = solution.balls[index];
-    const responsePromise = page.waitForResponse((response) => {
-      if (!response.url().endsWith('/game-ready-api')) return false;
-      const body = response.request().postDataJSON?.() ?? {};
-      return body.action === 'human-check-click' && body.checkId === publicChallenge.checkId;
-    });
     await clickAtPercent(page, challengeImage, ball.x, ball.y, useTouch);
-    const response = await responsePromise;
-    expect(response.status()).toBe(index === 3 ? 201 : 200);
-    const payload = await response.json();
+    const capture = await waitForCapture(expect, humanCheckClicks, index + 1);
+    expect(capture.status).toBe(index === 3 ? 201 : 200);
+    const payload = capture.payload;
     expect(payload.selectedCount).toBe(index + 1);
+    expect(payload.stateVersion).toBe(previousStateVersion + 1);
+    expect(payload.image.digest).not.toBe(previousDigest);
     expect(payload).not.toHaveProperty('balls');
     expect(JSON.stringify(payload)).not.toMatch(/"(?:x|y|radius|order)"\s*:/);
-    await expect(page.locator('.human-check-progress')).toHaveText(`${index + 1} / 4`);
-    await expect(challengeImage).not.toHaveAttribute('data-digest', previousDigest);
-    previousDigest = await challengeImage.getAttribute('data-digest');
+    assertAppearance(await inspectRaster(page, payload.image.dataUrl, solution.balls), index + 1);
+
+    if (index < solution.balls.length - 1) {
+      await expect(page.locator('.human-check-progress')).toHaveText(`${index + 1} / 4`);
+      await expect(challengeImage).toHaveAttribute('data-digest', payload.image.digest);
+    }
+    previousDigest = payload.image.digest;
+    previousStateVersion = payload.stateVersion;
+    finalPayload = payload;
   }
+
+  expect(finalPayload.completed).toBe(true);
+  expect(finalPayload.proofToken).toMatch(/^[a-f0-9]{64}$/);
   await expect(page.locator('.human-check-overlay')).toBeHidden({ timeout: 15_000 });
 
   await expect(page.locator('.game-readiness-control')).toBeVisible();
@@ -200,13 +279,13 @@ test('@live-ranked-anti-cheat keeps raster verification and client timing author
 
   const homeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(homeOverflow).toBe(false);
-  await page.waitForLoadState('networkidle');
 
   await page.goto(`/player/${encodeURIComponent(nick)}`);
   await expect(page.locator('#playerHistory')).toContainText(`${displayedSeconds.toFixed(3)} s`, { timeout: 25_000 });
   const profileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(profileOverflow).toBe(false);
   expect(errors).toEqual([]);
+  expect(httpErrors).toEqual([]);
   expect(failedRequests).toEqual([]);
 });
 

@@ -1,4 +1,4 @@
-import { resolveDailyAttemptState } from './daily-attempt-limit.js';
+import { resolveDailyAttemptState } from './daily-attempt-limit.js?v=20260802-derived-budget';
 
 (() => {
   const config = window.__MINUTO106_CONFIG__ ?? {};

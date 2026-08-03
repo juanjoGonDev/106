@@ -48,7 +48,7 @@ test('normalizes missing, malformed and bounded daily profile values', () => {
   assert.deepEqual(normalizeDailyAttemptProfile({
     attemptsUsed: '2.9',
     dailyAttemptsReserved: '2',
-    attemptsLeft: '3',
+    attemptsLeft: '0',
     bonusAttempts: '2',
     completedReferrals: '4',
     dailyResetAt: '2026-07-28T00:00:00.000Z',
@@ -61,6 +61,43 @@ test('normalizes missing, malformed and bounded daily profile values', () => {
     completedReferrals: 4,
     resetAt: '2026-07-28T00:00:00.000Z',
     exhausted: false,
+    atCeiling: false,
+  });
+});
+
+test('derives remaining attempts from the canonical budget inputs', () => {
+  assert.deepEqual(normalizeDailyAttemptProfile({
+    attemptsUsed: 0,
+    dailyAttemptsReserved: 0,
+    attemptsLeft: 0,
+    maxAttempts: 5,
+    dailyResetAt: '2026-08-03T22:00:00.000Z',
+  }), {
+    attemptsUsed: 0,
+    attemptsReserved: 0,
+    attemptsLeft: 5,
+    maxAttempts: 5,
+    bonusAttempts: 0,
+    completedReferrals: 0,
+    resetAt: '2026-08-03T22:00:00.000Z',
+    exhausted: false,
+    atCeiling: false,
+  });
+
+  assert.deepEqual(normalizeDailyAttemptProfile({
+    attemptsUsed: 4,
+    dailyAttemptsReserved: 1,
+    attemptsLeft: 5,
+    maxAttempts: 5,
+  }), {
+    attemptsUsed: 4,
+    attemptsReserved: 1,
+    attemptsLeft: 0,
+    maxAttempts: 5,
+    bonusAttempts: 0,
+    completedReferrals: 0,
+    resetAt: '',
+    exhausted: true,
     atCeiling: false,
   });
 });
@@ -93,7 +130,7 @@ test('resolves player state before account policy and falls back safely', () => 
     nick: 'Player',
     attemptsUsed: 3,
     dailyAttemptsReserved: 1,
-    attemptsLeft: 2,
+    attemptsLeft: 0,
     maxAttempts: 6,
     bonusAttempts: 1,
   }, accountPolicy), {
@@ -148,10 +185,10 @@ test('describes referral progress and exhausted copy at every boundary', () => {
     copy: 'Has alcanzado el máximo diario de 10 intentos por nick.',
   });
 
-  assert.equal(exhaustedDailyLimitCopy({ attemptsLeft: 2 }), '');
+  assert.equal(exhaustedDailyLimitCopy({ attemptsLeft: 0 }), '');
   assert.equal(exhaustedDailyLimitCopy({
     attemptsUsed: 6,
-    attemptsLeft: 0,
+    attemptsLeft: 6,
     maxAttempts: 6,
     dailyResetAt: '2026-07-28T00:00:00.000Z',
   }), 'Has agotado tus 6 intentos globales de hoy.');

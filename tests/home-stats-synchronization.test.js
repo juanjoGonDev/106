@@ -16,11 +16,12 @@ describe('home statistics synchronization', () => {
     const html = read('public/index.html');
     const format = html.indexOf('./format.js');
     const coordinator = html.indexOf('./home-stats.js?v=20260724');
-    const awards = html.indexOf('./ranking-enhancements.js?v=20260723');
+    const awards = html.indexOf('./ranking-enhancements.js?v=20260802-awards-reset');
 
     expect(format).toBeGreaterThan(-1);
     expect(coordinator).toBeGreaterThan(format);
     expect(awards).toBeGreaterThan(coordinator);
+    expect(html).toContain('<script type="module" src="./ranking-enhancements.js?v=20260802-awards-reset"></script>');
   });
 
   it('keeps the only stats request inside the authoritative store', () => {
@@ -77,11 +78,33 @@ describe('home statistics synchronization', () => {
     expect(legacy).not.toContain('formatAward');
   });
 
+  it('uses the server reset instant and preserves award player teams', () => {
+    const html = read('public/index.html');
+    const awards = read('public/ranking-enhancements.js');
+    const migration = read('supabase/migrations/20260802210600_awards_reset_countdown.sql');
+
+    expect(html).toContain('id="awardsResetCountdown"');
+    expect(html).toContain('00:00, hora de España');
+    expect(html).toContain('<link rel="stylesheet" href="./v22.css">');
+    expect(awards).toContain("from './daily-attempt-limit.js?v=20260802-derived-budget'");
+    expect(awards).toContain('millisecondsUntilReset(latestResetAt)');
+    expect(awards).toContain('formatDailyCountdown(remaining)');
+    expect(awards).toContain('homeStats.load()');
+    expect(awards).toContain('refreshAttemptedFor === resetAt');
+    expect(awards).not.toContain('setHours(');
+    expect(awards).not.toContain("timeZone: 'Europe/Madrid'");
+    expect(migration).toContain("'resetAt', context.reset_at");
+    expect(migration).toContain('public.game_server_reset_at(public.game_server_day(clock_timestamp()))');
+    expect(migration).toContain('public.game_server_day(attempt.created_at) = context.award_date');
+    expect(migration).toContain('latest_team as (');
+    expect(migration).toContain("'team', team.team");
+  });
+
   it('keeps scores compact while preserving their full accessible value', () => {
     const store = read('public/home-stats.js');
     const format = read('public/format.js');
-    expect(store).toContain("setCompactValue('#spainScore', spainScore)");
-    expect(store).toContain("setCompactValue('#argentinaScore', argentinaScore)");
+    expect(store).toContain("setCompactValue('#spainScore', battle.spainScore)");
+    expect(store).toContain("setCompactValue('#argentinaScore', battle.argentinaScore)");
     expect(store).toContain('target.title = fullNumber(value)');
     expect(format).toContain("const units = ['', 'K', 'M', 'B', 'T']");
   });

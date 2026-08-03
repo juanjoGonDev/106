@@ -173,6 +173,22 @@ warm_auth_api_functions() {
   return "$failed"
 }
 
+warm_security_functions() {
+  local game_api_pid player_context_pid league_api_pid failed=0
+
+  probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' &
+  game_api_pid=$!
+  probe_edge_function "$API_URL/functions/v1/player-context" '{"action":"player-context","nick":"Warmup106"}' &
+  player_context_pid=$!
+  probe_edge_function "$API_URL/functions/v1/league-api" '{"action":"list-leagues","search":"","visibility":"all"}' &
+  league_api_pid=$!
+
+  wait "$game_api_pid" || failed=1
+  wait "$player_context_pid" || failed=1
+  wait "$league_api_pid" || failed=1
+  return "$failed"
+}
+
 warm_edge_functions_for_suite() {
   case "$SUITE" in
     auth-api)
@@ -189,9 +205,7 @@ warm_edge_functions_for_suite() {
         && probe_edge_function "$API_URL/functions/v1/game-ready-api" '{"action":"health"}'
       ;;
     security)
-      probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}' \
-        && probe_edge_function "$API_URL/functions/v1/player-context" '{"action":"player-context","nick":"Warmup106"}' \
-        && probe_edge_function "$API_URL/functions/v1/league-api" '{"action":"list-leagues","search":"","visibility":"all"}'
+      warm_security_functions
       ;;
     gameplay-sharing|migrations)
       probe_edge_function "$API_URL/functions/v1/game-api" '{"action":"stats"}'

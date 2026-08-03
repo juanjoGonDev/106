@@ -138,11 +138,14 @@ async function installGameMocks(page, finishBodies) {
 
 async function clickCaptcha(page) {
   const canvas = page.locator('.human-check-canvas');
-  await expect(canvas).toBeVisible();
+  await expect(canvas).toBeVisible({ timeout: 15_000 });
   const box = await canvas.boundingBox();
   if (!box) throw new Error('Captcha canvas has no bounding box.');
-  for (const ball of balls) {
+  for (const [index, ball] of balls.entries()) {
     await page.mouse.click(box.x + box.width * ball.x / 100, box.y + box.height * ball.y / 100);
+    if (index < balls.length - 1) {
+      await expect(page.locator('.human-check-progress')).toHaveText(`${index + 1} / 4`, { timeout: 5_000 });
+    }
   }
 }
 
@@ -177,7 +180,7 @@ async function prepareAttempt(page, { capture = false, isMobile = false } = {}) 
   await expect(page.locator('#startButton')).toBeEnabled();
   await page.locator('#startButton').click();
   await clickCaptcha(page);
-  await expect(page.locator('.game-readiness-control')).toBeVisible();
+  await expect(page.locator('.game-readiness-control')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('#playInstruction')).toBeVisible();
   await expect(page.locator('.timer-hint')).toBeVisible();
   if (capture) await capturePlayingPanel(page, 'game-readiness', isMobile);
