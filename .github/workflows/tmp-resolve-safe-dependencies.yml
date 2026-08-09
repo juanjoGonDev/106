@@ -36,17 +36,12 @@ jobs:
         with:
           node-version: 22.13.0
 
-      - name: Prepare candidate manifests
+      - name: Prepare candidate package policy
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE'
           const fs = require('node:fs');
-
-          const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          manifest.devDependencies['@eslint/js'] = '9.39.5';
-          manifest.devDependencies.eslint = '9.39.5';
-          fs.writeFileSync('package.json', `${JSON.stringify(manifest, null, 2)}\n`);
 
           const workspacePath = 'pnpm-workspace.yaml';
           const workspace = fs.readFileSync(workspacePath, 'utf8');
@@ -58,7 +53,7 @@ jobs:
           const prefix = workspace.slice(0, markerIndex).trimEnd();
           fs.writeFileSync(
             workspacePath,
-            `${prefix}\n\noverrides:\n  postcss: 8.5.19\n  nanoid: 5.1.16\n`,
+            `${prefix}\n\n# Temporary maturity exception for the newly published security patch. Remove after 7 days.\nminimumReleaseAgeExclude:\n  - brace-expansion@5.0.9 # GHSA-rgw5-rvv9-x895\n\noverrides:\n  postcss: 8.5.19\n  brace-expansion: 5.0.9\n  nanoid: 5.1.16\n`,
           );
           NODE
 
@@ -75,10 +70,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "eslint@9.39.5" pnpm-lock.yaml
+          grep -Fq "eslint@10.7.0" pnpm-lock.yaml
+          grep -Fq "brace-expansion@5.0.9" pnpm-lock.yaml
           grep -Fq "nanoid@5.1.16" pnpm-lock.yaml
           if grep -Fq "brace-expansion@5.0.8" pnpm-lock.yaml; then
             echo 'Vulnerable brace-expansion 5.0.8 is still present.' >&2
+            exit 1
+          fi
+          if grep -Fq "nanoid@3.3.15" pnpm-lock.yaml; then
+            echo 'Vulnerable nanoid 3.3.15 is still present.' >&2
             exit 1
           fi
 
@@ -86,9 +86,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sha256sum package.json pnpm-workspace.yaml pnpm-lock.yaml
+          sha256sum pnpm-workspace.yaml pnpm-lock.yaml
           echo '::group::candidate-files-base64'
-          printf 'PACKAGE_JSON_B64=' && base64 -w0 package.json && printf '\n'
           printf 'PNPM_WORKSPACE_B64=' && base64 -w0 pnpm-workspace.yaml && printf '\n'
           printf 'PNPM_LOCK_B64=' && base64 -w0 pnpm-lock.yaml && printf '\n'
           echo '::endgroup::'
