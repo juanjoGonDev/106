@@ -622,7 +622,7 @@ function testReferralReconciliation(databaseUrl, prefix) {
       createdAt: isoAt(day, 9, index),
     }));
   }
-  const fifthAt = `${day}T09:00:04+00:00`;
+  const fifthAt = isoAt(day, 9, 4);
   assert.equal(boolPsql(databaseUrl, `public.reconcile_game_account_referral(${sqlLiteral(referred.accountId)}::uuid)`), true);
   assert.equal(
     Date.parse(scalar(databaseUrl, `(
