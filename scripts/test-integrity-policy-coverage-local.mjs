@@ -681,15 +681,19 @@ function testLeagueReconciliation(databaseUrl, prefix) {
     ${sqlLiteral(owner.deviceHash)}
   )`);
   assert.equal(created.waiting, true, JSON.stringify(created));
-  assert.equal(Number(scalar(databaseUrl, `public.reconcile_game_league_trophy((select id from public.game_leagues where code = ${sqlLiteral(created.code)}))`)), 0);
+  assert.ok(created.joinCode, JSON.stringify(created));
+  assert.ok(created.publicId, JSON.stringify(created));
 
-  const joinedSecond = jsonPsql(databaseUrl, `public.join_game_league(${sqlLiteral(created.code)}, ${sqlLiteral(second.nickKey)}, ${sqlLiteral(second.deviceHash)})`);
+  const leagueId = scalar(databaseUrl, `(select id from public.game_leagues where public_id = ${sqlLiteral(created.publicId)})`);
+  assert.match(leagueId, /^[0-9a-f-]{36}$/i);
+  assert.equal(Number(scalar(databaseUrl, `public.reconcile_game_league_trophy(${sqlLiteral(leagueId)}::uuid)`)), 0);
+
+  const joinedSecond = jsonPsql(databaseUrl, `public.join_game_league(${sqlLiteral(created.joinCode)}, ${sqlLiteral(second.nickKey)}, ${sqlLiteral(second.deviceHash)})`);
   assert.equal(joinedSecond.waiting, true, JSON.stringify(joinedSecond));
-  const joinedThird = jsonPsql(databaseUrl, `public.join_game_league(${sqlLiteral(created.code)}, ${sqlLiteral(third.nickKey)}, ${sqlLiteral(third.deviceHash)})`);
-  assert.equal(joinedThird.active, true, JSON.stringify(joinedThird));
+  const joinedThird = jsonPsql(databaseUrl, `public.join_game_league(${sqlLiteral(created.joinCode)}, ${sqlLiteral(third.nickKey)}, ${sqlLiteral(third.deviceHash)})`);
+  assert.equal(joinedThird.scheduled, true, JSON.stringify(joinedThird));
   assert.equal(joinedThird.eligible, true, JSON.stringify(joinedThird));
 
-  const leagueId = scalar(databaseUrl, `(select id from public.game_leagues where code = ${sqlLiteral(created.code)})`);
   assert.equal(Number(scalar(databaseUrl, `public.reconcile_game_league_trophy(${sqlLiteral(leagueId)}::uuid)`)), 0);
 
   const day = madridDay(databaseUrl, -5);
@@ -726,7 +730,7 @@ function testLeagueReconciliation(databaseUrl, prefix) {
   assert.equal(Number(scalar(databaseUrl, `public.reconcile_game_league_trophy(${sqlLiteral(randomUUID())}::uuid)`)), 0);
   assert.equal(Number(scalar(databaseUrl, 'public.sync_game_league_trophies()')), 0);
 
-  logStep('league reconciliation covers waiting/active guards, initial champion, idempotency, successor reassignment and no-winner removal');
+  logStep('league reconciliation covers waiting/scheduled guards, initial champion, idempotency, successor reassignment and no-winner removal');
 }
 
 async function testAdvisoryLockSerialization(databaseUrl, cluster, referralAccountId) {
