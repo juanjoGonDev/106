@@ -8,15 +8,14 @@ Centralize daily award calculation for any Madrid calendar date so current provi
 
 ## Evidence
 
-- The current canonical `finish_game_attempt` marks the third result within 5 ms during 24 hours as unverified when either the device hash or IP hash matches. This treats a weak shared-network identifier like a strong identity and uses precision alone as a decisive rule.
-- The same function excludes an exact repeated interaction fingerprint immediately after two prior matches, even though browser telemetry is attacker-controlled and PR #60 explicitly downgraded client signals to telemetry rather than authorization.
-- PR #60 already established hard server boundaries for single-use challenge state, persisted device identity and bounded server/client timing; these are suitable immediate rejection conditions.
-- `award_game_trophies_for_date()` and `get_game_daily_awards()` independently implement Golden Boot, Golden Glove and Golden Ball ordering. `get_game_player_honours_progress()` has a third current-day implementation.
-- `sync_game_trophy_history()` only fills missing dates. It cannot correct a previously persisted winner after integrity changes.
-- `sync_game_league_trophies()` only inserts a missing champion. It cannot replace a champion whose winning attempt later becomes ineligible.
-- Trophy and progression achievements are append-only. An achievement remains stored after the qualifying attempts or trophies are invalidated.
-- Featured achievement rows can remain active after their underlying achievement disappears.
-- Production snapshot validation currently assumes verified attempts, trophies and achievements are monotonic, which conflicts with deliberate retrospective fraud correction.
+- The previous canonical `finish_game_attempt` marked the third result within 5 ms during 24 hours as unverified when either the device hash or IP hash matched. This treated a weak shared-network identifier like a strong identity and used precision alone as a decisive rule.
+- The same function excluded an exact repeated interaction fingerprint immediately after two prior matches, even though browser telemetry is attacker-controlled and PR #60 explicitly downgraded client signals to telemetry rather than authorization.
+- PR #60 already established hard server boundaries for single-use challenge state, persisted device identity and bounded server/client timing; these remain the immediate rejection conditions.
+- `award_game_trophies_for_date()` and `get_game_daily_awards()` independently implemented Golden Boot, Golden Glove and Golden Ball ordering. `get_game_player_honours_progress()` had a third current-day implementation.
+- `sync_game_trophy_history()` only filled missing dates and could not correct a persisted winner after integrity changes.
+- `sync_game_league_trophies()` only inserted a missing champion and could not replace a champion whose winning attempt later became ineligible.
+- Trophy and progression achievements were append-only, and featured achievement rows could remain active after the qualifying history became invalid.
+- Production snapshot validation assumed verified attempts, trophies and achievements were monotonic, which conflicted with deliberate retrospective fraud correction.
 
 ## Decision
 
@@ -30,11 +29,11 @@ Centralize daily award calculation for any Madrid calendar date so current provi
 6. Reassess a bounded 24-hour cluster when a new near-perfect attempt arrives. A later suspicious pattern may therefore invalidate earlier attempts in the same strong-identity cluster.
 7. Provide a full deterministic rebuild entrypoint so a future policy version can recalculate historical integrity from raw attempts without inventing a second scoring implementation.
 8. Rebuild derived achievements from current authoritative data instead of only appending. Remove invalid achievements and deactivate featured selections that no longer exist.
-9. Reconcile referral completion from the current fifth verified global attempt of the referred account so retroactive invalidation cannot retain an unearned referral reward.
+9. Reconcile referral completion from the current fifth verified global attempt of the referred account. Use the same `referral-complete:<account>` advisory-lock namespace as normal completion so live completion and retrospective correction cannot race.
 10. Create one canonical `game_daily_award_candidates(date)` calculation. All current-day JSON, historical persistence, reconciliation and current profile progress delegate to it.
 11. Historical daily trophies are replaceable derived rows. Reconciliation upserts the rightful candidate, removes a category with no eligible candidate, updates its run ledger, and rebuilds achievements for old/new winners.
 12. Finished league trophies are also replaceable derived rows. Reconciliation recomputes the eligible winner from current verified attempts and rebuilds achievements for affected players.
-13. Existing raw history remains auditable; correction never deletes attempts, challenges or integrity events.
+13. Existing raw history remains auditable; correction never deletes attempts, challenges or integrity events. The integrity-event ledger grants service role `SELECT`/`INSERT`, not `UPDATE`/`DELETE`.
 14. Snapshot deployment guards continue enforcing monotonic raw/source history, while explicitly treating verified/reward projections as recomputable metrics.
 
 ## Risk policy v2
@@ -48,16 +47,23 @@ Signals are deliberately asymmetric:
 - **Repeated interaction fingerprint**: exact repeated normalized client telemetry contributes only as corroborating evidence; it is never an authorization signal.
 - **IP correlation**: capped weak evidence for observability only and never satisfies the strong-identity requirement.
 
-An attempt is excluded only when the aggregate score reaches the exclusion threshold **and** both a strong-identity condition and repeated-interaction condition are present. Otherwise high precision can at most produce `watch`.
+An attempt is excluded only when the aggregate score reaches the exclusion threshold **and** the corroborating requirements are present. Otherwise high precision can at most produce `watch`.
+
+Current policy-v2 exclusion requires all of:
+
+- score at least 65;
+- at least four near-perfect attempts in the bounded strong-identity window;
+- at least three repeated normalized interaction fingerprints;
+- at least three nicks on the same device, or at least four repeated zero-motion/user-activation-gap observations.
 
 ## Scope
 
 ### Included
 
-- Additive PostgreSQL migration for integrity state/events, scoring, bounded reassessment and full rebuild.
+- Additive PostgreSQL migrations for integrity state/events, scoring, bounded reassessment and full rebuild.
 - Effective `verified` projection synchronization.
 - Reversible achievement rebuild and featured-achievement cleanup.
-- Referral completion reconciliation.
+- Referral completion reconciliation with canonical advisory locking.
 - Canonical date-based daily award candidates and JSON projection.
 - Historical daily trophy reconciliation/reassignment.
 - Finished league trophy reconciliation/reassignment.
@@ -65,6 +71,7 @@ An attempt is excluded only when the aggregate score reaches the exclusion thres
 - Production snapshot policy for recomputable derived metrics.
 - Real local Supabase regression coverage and static security/SSOT contracts.
 - Documentation of the new integrity/reward lifecycle.
+- Migration-aware player-radar revision synchronization and full desktop/mobile visual evidence required by the repository contract.
 
 ### Excluded
 
@@ -76,49 +83,66 @@ An attempt is excluded only when the aggregate score reaches the exclusion thres
 
 ## Acceptance
 
-- [ ] A player can record multiple near-perfect results on one identity without being excluded solely for skill/precision.
-- [ ] Multiple players/devices sharing one IP are not excluded solely because of that IP.
-- [ ] A corroborated cross-nick/device repeated-interaction near-perfect cluster can move earlier and later attempts to `excluded`.
-- [ ] Hard-invalid attempts remain excluded regardless of risk score.
-- [ ] Reassessment is deterministic, idempotent and policy-versioned.
-- [ ] Raw attempt timing/telemetry is never deleted or rewritten by integrity reconciliation.
-- [ ] `game_attempts.verified` always matches effective integrity eligibility after reconciliation.
-- [ ] Removing qualifying attempts removes dependent precision/activity/trophy achievements and invalid featured selections.
-- [ ] Referral completion/bonus eligibility follows current verified history.
-- [ ] One backend function owns Golden Boot/Glove/Ball candidate ordering for any Madrid date.
-- [ ] Current provisional awards and persisted historical awards produce the same winner/metrics for the same unchanged date data.
-- [ ] Retrospective invalidation reassigns each affected daily trophy to the rightful eligible successor, or removes it when none exists.
-- [ ] Retrospective invalidation reassigns an affected finished-league trophy similarly.
-- [ ] Reconciliation repairs historical trophy/achievement state idempotently.
-- [ ] Production deployment history guards continue protecting raw history while permitting intentional derived-integrity corrections.
-- [ ] Empty-database migration and real local integration journeys pass.
+- [x] A player can record multiple near-perfect results on one identity without being excluded solely for skill/precision.
+- [x] Multiple players/devices sharing one IP are not excluded solely because of that IP.
+- [x] A corroborated cross-nick/device repeated-interaction near-perfect cluster can move earlier and later attempts to `excluded`.
+- [x] Hard-invalid attempts remain excluded regardless of risk score.
+- [x] Reassessment is deterministic, idempotent and policy-versioned.
+- [x] Raw attempt timing/telemetry is never deleted or rewritten by integrity reconciliation.
+- [x] `game_attempts.verified` matches effective integrity eligibility after reconciliation.
+- [x] Removing qualifying attempts removes dependent precision/activity/trophy achievements and invalid featured selections.
+- [x] Referral completion/bonus eligibility follows current verified history and shares the live-completion advisory lock.
+- [x] One backend function owns Golden Boot/Glove/Ball candidate ordering for any Madrid date.
+- [x] Current provisional awards and persisted historical awards consume the same candidate calculation.
+- [x] Retrospective invalidation reassigns each affected daily trophy to the rightful eligible successor, or removes it when no candidate exists.
+- [x] Finished-league trophy reconciliation can replace or remove the champion using current verified league attempts.
+- [x] Reconciliation repairs historical trophy/achievement state idempotently.
+- [x] Production deployment history guards continue protecting raw history while permitting intentional derived-integrity corrections.
+- [x] Empty-database migration and real local integration journeys pass.
 
-## Tests
+## Tests and validation
 
-- Static contract tests for one daily-award SSOT, risk-policy invariants, private integrity tables/functions and forward migration ownership.
-- Local PostgreSQL fixture: repeated near-perfect skill on a single identity remains eligible.
-- Local PostgreSQL fixture: same-IP/different-device players remain eligible.
-- Local PostgreSQL fixture: cross-nick same-device + repeated fingerprint produces a retrospective exclusion cluster.
-- Local PostgreSQL fixture: repeated integrity reassessment has no further state changes.
-- Daily award fixture: invalidate prior winner, reconcile date, assert successor owns the trophy and old/new achievements are rebuilt.
-- No-successor daily award fixture: category is removed safely.
-- Finished league fixture: invalidate champion, reconcile, assert next eligible attempt becomes champion.
-- Featured achievement fixture: invalidated achievement is deactivated.
-- Referral fixture: fifth verified attempt removal reopens completion; restoration uses the deterministic fifth-attempt timestamp.
-- Current-day award JSON compared with the canonical date calculation.
-- Existing trophy, progression, security, migration and Supabase integration suites remain green.
+Canonical PR run `31337192721` at head `73c02bc404b78611cb99df4060af8098b65d002c` validated the implementation before this documentation-only closure commit:
+
+- `Build · Prepare workspace`: passed, including package policy, frozen install, config generation, public-media audit and syntax.
+- `Tests · Unit & security`: passed, including `tests/security/integrity-reconciliation.test.js`.
+- `ESLint`: passed with zero warnings.
+- `Knip`: passed.
+- `Supabase · security`: passed.
+- `Supabase · migrations`: passed from an empty local database.
+- `Supabase · gameplay-core`: passed.
+- `Supabase · gameplay-sharing`: passed and includes `scripts/test-integrity-reconciliation-local.mjs` after the canonical trophy suite.
+- `Supabase · auth-api`: passed.
+- `Supabase · auth-browser`: passed.
+- `Supabase · ready-flow`: passed, including the real ranked Desktop/Mobile Playwright journey.
+- `Authentication Quality`, `CodeQL Advanced` and `Public Asset Audit`: passed.
+- `Player Pages and Social Cards` run `31337192745`: passed all 16 browser capture shards, validated 44 platform screens and 13 recorded interaction areas, and published artifact `platform-evidence-31337192745` with digest `sha256:ce61427e5ab1421c4f39c84a442e76d9f896facf5536f12da647f27a3f312e40`.
+- `Pull Request Visual Evidence` rerun `31337325629`: passed after binding the PR evidence block to that artifact.
+
+The only failing canonical quality stage on that validated code head is the dependency audit. It is external to this change: the frozen lock currently resolves `brace-expansion@5.0.8` while the advisory requires `>=5.0.9`, and `nanoid@3.3.15` while the advisory requires `>=3.3.17`. Package policy/install themselves pass. On 2026-08-09 the official npm package page still exposes `brace-expansion` 5.0.8 as the published current version, so the audit cannot be made green by weakening policy or inventing an unavailable version. No advisory ignore was added.
+
+Focused integration assertions additionally prove:
+
+- five near-perfect attempts by one skilled identity remain verified;
+- six different devices sharing one IP remain verified;
+- a four-nick same-device repeated automation-shaped cluster retrospectively excludes its earlier attempts;
+- a previously persisted suspicious daily winner loses Golden Boot/Glove/Ball and the eligible fallback player receives them;
+- invalidated `first_trophy` and featured state are removed/deactivated while the rightful successor receives the derived achievement;
+- repeated reconciliation makes no further verification changes;
+- current and explicit-current-date award JSON are identical;
+- raw client telemetry remains stored while policy-v2 events are appended.
 
 ## Rollback
 
-Do not rewrite or remove the applied migration. Application rollback may stop invoking reassessment while preserving the new audit tables. Any policy correction after deployment must be a forward migration that updates the versioned scoring/reconciliation functions and reruns the deterministic rebuild. Raw attempts and integrity events remain available for audit and recovery.
+Do not rewrite or remove an applied migration. Application rollback may stop invoking reassessment while preserving the new audit tables. Any policy correction after deployment must be a forward migration that updates the versioned scoring/reconciliation functions and reruns the deterministic rebuild. Raw attempts and integrity events remain available for audit and recovery.
 
 ## Delivery
 
 - Branch: `agent/security-ranked-integrity-reconciliation`
 - Base: `main`
-- Pull request: normal, non-draft.
-- Merge, deployment, release and production migration execution are not authorized.
+- Pull request: `#66`, normal and non-draft.
+- Merge, deployment, release and production migration execution are not authorized and were not performed.
 
 ## Status
 
-In progress. Reconnaissance completed against the current `main` anti-cheat, trophy, achievement, league and deployment-snapshot contracts. Implementation and validation pending.
+Implemented and validated. All task-owned code, migration, database, browser, static-analysis and visual-evidence checks pass on the validated code head. Delivery is blocked only by newly published transitive dependency advisories whose patched versions are not currently available through the repository's frozen dependency graph; the security gate was not weakened.
