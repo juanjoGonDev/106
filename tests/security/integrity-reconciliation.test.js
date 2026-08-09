@@ -5,6 +5,10 @@ const integrityMigration = readFileSync(
   'supabase/migrations/20260809230000_ranked_integrity_engine.sql',
   'utf8',
 );
+const integrityPrivilegesMigration = readFileSync(
+  'supabase/migrations/20260809230050_ranked_integrity_privileges.sql',
+  'utf8',
+);
 const rewardMigration = readFileSync(
   'supabase/migrations/20260809230100_ranked_reward_reconciliation.sql',
   'utf8',
@@ -24,6 +28,12 @@ describe('ranked integrity reconciliation', () => {
     expect(integrityMigration).toContain('policy_version integer not null default 2');
     expect(integrityMigration).toContain('alter table public.game_attempt_integrity enable row level security');
     expect(integrityMigration).toContain('revoke all on table public.game_attempt_integrity, public.game_attempt_integrity_events');
+    expect(integrityPrivilegesMigration).toContain(
+      'grant select, insert on table public.game_attempt_integrity_events',
+    );
+    expect(integrityPrivilegesMigration).not.toMatch(
+      /grant\s+(?:all|update|delete)[^;]*game_attempt_integrity_events/i,
+    );
     expect(rewardMigration).not.toMatch(/delete\s+from\s+public\.game_attempts/i);
   });
 
