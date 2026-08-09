@@ -13,11 +13,27 @@ const rewardMigration = readFileSync(
   'supabase/migrations/20260809230100_ranked_reward_reconciliation.sql',
   'utf8',
 );
+const hardeningMigration = readFileSync(
+  'supabase/migrations/20260810002000_ranked_integrity_policy_hardening.sql',
+  'utf8',
+);
+const referralMigration = readFileSync(
+  'supabase/migrations/20260727150100_daily_referral_limits.sql',
+  'utf8',
+);
+const supabaseRunner = readFileSync('scripts/run-supabase-ci.sh', 'utf8');
+const policyCoverageSuite = readFileSync('scripts/test-integrity-policy-coverage-local.mjs', 'utf8');
 const snapshotComparator = readFileSync('scripts/compare-production-snapshots.mjs', 'utf8');
 
 function functionBody(source, name) {
   const pattern = new RegExp(`create or replace function public\\.${name}\\([^]*?\\n\\$\\$;`, 'i');
   return source.match(pattern)?.[0] ?? '';
+}
+
+function latestFunctionBody(sources, name) {
+  const source = sources.join('\n');
+  const pattern = new RegExp(`create or replace function public\\.${name}\\([^]*?\\n\\$\\$;`, 'gi');
+  return [...source.matchAll(pattern)].at(-1)?.[0] ?? '';
 }
 
 describe('ranked integrity reconciliation', () => {
@@ -35,6 +51,7 @@ describe('ranked integrity reconciliation', () => {
       /grant\s+(?:all|update|delete)[^;]*game_attempt_integrity_events/i,
     );
     expect(rewardMigration).not.toMatch(/delete\s+from\s+public\.game_attempts/i);
+    expect(hardeningMigration).not.toMatch(/delete\s+from\s+public\.game_attempts/i);
   });
 
   it('treats legacy heuristic failures as reassessable while preserving hard failures', () => {
@@ -57,11 +74,39 @@ describe('ranked integrity reconciliation', () => {
     expect(decision).not.toMatch(/v_ip_(?:near|devices)[^\n]*then\s*\n?\s*v_status\s*:=\s*'excluded'/i);
   });
 
+  it('serializes every mutable integrity projection on its canonical lock', () => {
+    const reassess = latestFunctionBody(
+      [rewardMigration, hardeningMigration],
+      'reassess_game_integrity_cluster',
+    );
+    const reconcileReferral = latestFunctionBody(
+      [integrityMigration, hardeningMigration],
+      'reconcile_game_account_referral',
+    );
+    const completeReferral = functionBody(referralMigration, 'complete_game_account_referral');
+    const rebuild = latestFunctionBody(
+      [rewardMigration, hardeningMigration],
+      'rebuild_game_attempt_integrity',
+    );
+
+    expect(reassess).toContain("'integrity-device:' || coalesce(v_anchor.device_hash, v_anchor.id::text)");
+    expect(reassess).toContain('pg_advisory_xact_lock');
+    expect(reconcileReferral).toContain("'referral-complete:' || v_account_id::text");
+    expect(completeReferral).toContain("'referral-complete:' || v_referred_account_id::text");
+    expect(reconcileReferral).not.toContain("'integrity-referral:'");
+    expect(rebuild).toContain('v_reassess_result := public.reassess_game_integrity_cluster(v_anchor_id)');
+    expect(rebuild).toContain("(v_reassess_result->>'projectionChanges')::integer");
+    expect(hardeningMigration).toContain('select public.rebuild_game_attempt_integrity(true);');
+  });
+
   it('can invalidate earlier attempts only through a bounded same-device retrospective cluster', () => {
-    const reassess = functionBody(rewardMigration, 'reassess_game_integrity_cluster');
+    const reassess = latestFunctionBody(
+      [rewardMigration, hardeningMigration],
+      'reassess_game_integrity_cluster',
+    );
     expect(reassess).toContain("attempt.created_at between v_anchor.created_at - interval '24 hours' and v_anchor.created_at");
     expect(reassess).toContain('attempt.device_hash = v_anchor.device_hash');
-    expect(reassess).toContain("v_next_status := case");
+    expect(reassess).toContain('v_next_status := case');
     expect(reassess).toContain("v_target.status = 'excluded' or v_decision_status = 'excluded'");
     expect(reassess).toContain('update public.game_attempts');
     expect(reassess).toContain('perform public.reconcile_game_integrity_attempts(v_changed_attempts)');
@@ -94,7 +139,10 @@ describe('ranked integrity reconciliation', () => {
     const daily = functionBody(rewardMigration, 'reconcile_game_trophies_for_date');
     const league = functionBody(rewardMigration, 'reconcile_game_league_trophy');
     const achievements = functionBody(integrityMigration, 'rebuild_game_player_achievements');
-    const referral = functionBody(integrityMigration, 'reconcile_game_account_referral');
+    const referral = latestFunctionBody(
+      [integrityMigration, hardeningMigration],
+      'reconcile_game_account_referral',
+    );
 
     expect(daily).toContain('on conflict (award_date, trophy_type) do update');
     expect(daily).toContain('delete from public.game_daily_trophies');
@@ -109,6 +157,37 @@ describe('ranked integrity reconciliation', () => {
     expect(achievements).toContain('game_player_featured_achievements');
     expect(referral).toContain('offset 4');
     expect(referral).toContain('set completed_at = v_fifth_verified_at');
+  });
+
+  it('runs a real PostgreSQL branch/boundary matrix for the complete policy surface', () => {
+    expect(supabaseRunner).toContain('node scripts/test-integrity-policy-coverage-local.mjs');
+    for (const marker of [
+      'negative values clamp to zero',
+      'near-perfect branch 8',
+      'same-device nick branch 4',
+      'fingerprint branch 4',
+      'automation-shape branch 4',
+      'exact watch threshold',
+      'score cannot bypass near-perfect gate',
+      'score cannot bypass fingerprint gate',
+      'score cannot bypass strong-identity/activation gate',
+      'minimal cross-nick exclusion boundary',
+      'activation-gap alternative exclusion',
+      'risk score is capped at 100',
+      'testEvidenceWindow',
+      'testReassessmentTransitions',
+      'testDailyNoSuccessor',
+      'testReferralReconciliation',
+      'testLeagueReconciliation',
+      'testAdvisoryLockSerialization',
+      'testAuditPrivileges',
+      'testFullRebuild',
+    ]) {
+      expect(policyCoverageSuite).toContain(marker);
+    }
+    expect(policyCoverageSuite).toContain('86_400_000');
+    expect(policyCoverageSuite).toContain('86_400_001');
+    expect(policyCoverageSuite).toContain("set lock_timeout = '250ms'");
   });
 
   it('runs the integrity engine after the server-authoritative pointer finish', () => {
