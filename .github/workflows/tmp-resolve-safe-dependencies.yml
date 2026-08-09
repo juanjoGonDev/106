@@ -4,18 +4,21 @@ on:
   push:
     branches:
       - agent/security-ranked-integrity-reconciliation
+  pull_request:
+    branches: [main]
+    types: [synchronize]
 
 permissions:
   contents: read
 
 concurrency:
-  group: tmp-safe-dependency-resolver-${{ github.ref }}
+  group: tmp-safe-dependency-resolver-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   resolve:
     name: Resolve audited dependency graph
-    if: github.ref == 'refs/heads/agent/security-ranked-integrity-reconciliation'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/agent/security-ranked-integrity-reconciliation'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
