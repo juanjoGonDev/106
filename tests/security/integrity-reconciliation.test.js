@@ -163,10 +163,10 @@ describe('ranked integrity reconciliation', () => {
     expect(supabaseRunner).toContain('node scripts/test-integrity-policy-coverage-local.mjs');
     for (const marker of [
       'negative values clamp to zero',
-      'near-perfect branch 8',
-      'same-device nick branch 4',
-      'fingerprint branch 4',
-      'automation-shape branch 4',
+      '[[2, 0], [3, 10], [4, 20], [5, 20], [6, 25], [7, 25], [8, 30]]',
+      '[[1, 0], [2, 10], [3, 25], [4, 30]]',
+      '[[1, 0], [2, 10], [3, 20], [4, 25]]',
+      '[[2, 0], [3, 15], [4, 30]]',
       'exact watch threshold',
       'score cannot bypass near-perfect gate',
       'score cannot bypass fingerprint gate',
