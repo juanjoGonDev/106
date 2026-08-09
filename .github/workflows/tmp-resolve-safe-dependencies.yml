@@ -1,9 +1,6 @@
 name: Temporary safe dependency resolver
 
 on:
-  push:
-    branches:
-      - agent/security-ranked-integrity-reconciliation
   pull_request:
     branches: [main]
     types: [synchronize]
@@ -12,17 +9,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: tmp-safe-dependency-resolver-${{ github.event.pull_request.head.sha || github.sha }}
+  group: tmp-safe-dependency-resolver-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 jobs:
   resolve:
     name: Resolve audited dependency graph
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/agent/security-ranked-integrity-reconciliation'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout branch
+      - name: Checkout pull request
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
       - name: Set up pnpm
