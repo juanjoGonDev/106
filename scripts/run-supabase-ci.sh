@@ -287,6 +287,7 @@ run_gameplay_core_suite() {
 
 run_gameplay_sharing_suite() {
   node scripts/test-trophies-local.mjs
+  node scripts/test-integrity-policy-coverage-local.mjs
   node scripts/test-integrity-reconciliation-local.mjs
   node scripts/test-player-share-local.mjs
   node scripts/test-social-share-local.mjs
