@@ -21,38 +21,27 @@
 }
 
 .zadmin-body{
-  background:var(--za-bg);
+  min-height:100vh;
+  min-height:100svh;
+  margin:0;
+  background:
+    radial-gradient(circle at 50% -20%,#17233d 0,transparent 42%),
+    var(--za-bg);
   color:var(--za-text);
 }
 
 .zadmin-shell{
-  width:min(1480px,calc(100% - 28px));
+  width:min(1480px,calc(100% - 32px));
+  min-height:100vh;
+  min-height:100svh;
   margin:0 auto;
   padding:32px 0 72px;
 }
 
-.zadmin-heading{
-  max-width:780px;
-  margin-bottom:var(--za-space-4);
-}
-
-.zadmin-heading h1,
 .zadmin-card h2,
 .zadmin-card h3,
 .zadmin-card h4{
   margin-top:0;
-}
-
-.zadmin-heading h1{
-  margin-bottom:var(--za-space-2);
-  font-size:clamp(2rem,8vw,3.8rem);
-  line-height:1;
-  letter-spacing:-.045em;
-}
-
-.zadmin-heading>p:last-child,
-.zadmin-muted{
-  color:var(--za-muted);
 }
 
 .zadmin-card{
@@ -62,17 +51,75 @@
   padding:var(--za-space-3);
 }
 
-.zadmin-login{
-  width:min(520px,100%);
+.zadmin-login-stage{
+  display:grid;
+  min-height:calc(100vh - 104px);
+  min-height:calc(100svh - 104px);
+  place-items:center;
+  padding:24px 0;
 }
 
-.zadmin-login form{
+.zadmin-login-card{
+  position:relative;
+  width:min(480px,100%);
+  overflow:hidden;
+  padding:0;
+  border-color:var(--za-border-strong);
+  background:linear-gradient(180deg,#151820 0%,#101218 100%);
+  box-shadow:0 28px 80px #00000066,0 0 0 1px #00000033;
+}
+
+.zadmin-login-card::before{
+  position:absolute;
+  top:0;
+  right:0;
+  left:0;
+  height:3px;
+  background:linear-gradient(90deg,transparent,var(--za-accent),transparent);
+  content:"";
+}
+
+.zadmin-login-heading{
+  padding:34px 32px 26px;
+  border-bottom:1px solid var(--za-border);
+  background:linear-gradient(180deg,#ffffff05,transparent);
+}
+
+.zadmin-login-heading h1{
+  margin:8px 0 12px;
+  font-size:clamp(2rem,7vw,2.75rem);
+  line-height:1.02;
+  letter-spacing:-.045em;
+}
+
+.zadmin-login-heading>p:last-child{
+  max-width:42ch;
+  margin:0;
+  color:var(--za-muted);
+  line-height:1.55;
+}
+
+.zadmin-login-content{
+  padding:28px 32px 32px;
+}
+
+.zadmin-login-content h2{
+  margin:8px 0 8px;
+  font-size:1.35rem;
+}
+
+.zadmin-login-content>.zadmin-muted{
+  margin:0;
+  line-height:1.5;
+}
+
+.zadmin-login-content form{
   display:grid;
   gap:var(--za-space-2);
   margin-top:var(--za-space-4);
 }
 
-.zadmin-login label,
+.zadmin-login-content label,
 .zadmin-filter-grid label,
 .zadmin-ban-form label{
   display:grid;
@@ -80,8 +127,22 @@
   font-weight:800;
 }
 
-.zadmin-login .primary{
-  margin-top:var(--za-space-1);
+.zadmin-login-card .primary{
+  width:100%;
+  min-height:48px;
+  margin:8px 0 0;
+  border-radius:12px;
+}
+
+.zadmin-dashboard-title{
+  margin:6px 0 8px;
+  font-size:clamp(2rem,5vw,3rem);
+  line-height:1;
+  letter-spacing:-.04em;
+}
+
+.zadmin-muted{
+  color:var(--za-muted);
 }
 
 .zadmin-body input,
@@ -95,6 +156,12 @@
   color:var(--za-text);
   padding:11px 13px;
   font:inherit;
+}
+
+.zadmin-body input:hover,
+.zadmin-body select:hover,
+.zadmin-body textarea:hover{
+  border-color:#ffffff45;
 }
 
 .zadmin-body textarea{
@@ -123,7 +190,7 @@
 
 .zadmin-dashboard{
   display:grid;
-  gap:var(--za-space-3);
+  gap:var(--za-space-4);
 }
 
 .zadmin-session-bar,
@@ -136,7 +203,7 @@
 
 .zadmin-session-bar{
   border-bottom:1px solid var(--za-border);
-  padding-bottom:var(--za-space-3);
+  padding:8px 0 var(--za-space-4);
 }
 
 .zadmin-session-bar h2,
@@ -181,7 +248,7 @@
 
 .zadmin-view{
   display:grid;
-  gap:var(--za-space-3);
+  gap:var(--za-space-4);
 }
 
 .zadmin-summary{
@@ -228,7 +295,7 @@
 
 .zadmin-workspace{
   display:grid;
-  gap:var(--za-space-3);
+  gap:var(--za-space-4);
   align-items:start;
 }
 
@@ -530,7 +597,7 @@
 
 @media(min-width:720px){
   .zadmin-shell{padding-top:48px}
-  .zadmin-card{padding:var(--za-space-4)}
+  .zadmin-card:not(.zadmin-login-card){padding:var(--za-space-4)}
   .zadmin-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
   .zadmin-filter-grid{grid-template-columns:180px 180px minmax(220px,1fr) auto;align-items:end}
   .zadmin-ban-form{grid-template-columns:220px minmax(0,1fr) auto;align-items:end}
@@ -542,7 +609,20 @@
 }
 
 @media(max-width:520px){
-  .zadmin-shell{padding-top:24px}
+  .zadmin-shell{
+    width:min(100% - 24px,1480px);
+    padding-top:12px;
+  }
+  .zadmin-login-stage{
+    min-height:calc(100svh - 48px);
+    padding:12px 0 24px;
+  }
+  .zadmin-login-heading{
+    padding:28px 22px 22px;
+  }
+  .zadmin-login-content{
+    padding:24px 22px 26px;
+  }
   .zadmin-session-bar,
   .zadmin-card-heading,
   .zadmin-ban-item header,
