@@ -23,6 +23,7 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'league-waiting',
   'legal-page',
   'player-achievements',
+  'player-collections',
   'player-honours-progress',
   'player-navigation',
   'player-overview',
@@ -49,6 +50,7 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'league-detail-active',
   'league-detail-scheduled',
   'league-directory',
+  'player-collections',
   'player-reliability',
 ]);
 
