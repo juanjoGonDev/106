@@ -14,6 +14,7 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - Policy v3 deliberately treats timing precision and shared IP as evidence rather than sufficient proof. The admin UI must preserve that false-positive guardrail.
 - Existing production deployment sets Edge Function secrets in `.github/workflows/supabase.yml`; GitHub Actions secrets are not browser runtime configuration.
 - Repository policy requires 100% line/function/branch coverage for new isolated security decision logic, real Supabase validation for critical backend behavior, Desktop/Mobile browser acceptance, and platform evidence for new visual states.
+- Adding database migrations advances the repository-wide player-card cache boundary; `PLAYER_CARD_RENDERER_REVISION` and all maintained loaders must remain strictly newer than the newest migration.
 
 ## Decisions
 
@@ -57,6 +58,8 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - Reuse existing base visual CSS and add a narrowly scoped admin stylesheet. No new UI/chart dependency.
 - Use a mobile-first single-column flow; desktop adds a list/detail workspace without changing task order.
 - Use semantic tables with local horizontal overflow only where comparison requires it, persistent labels, visible focus, 44px primary controls and status messages.
+- Destructive ban and revoke confirmation uses inline application components in the relevant workflow. The zadmin route must not use `alert`, `confirm`, `prompt`, `<dialog>`, `HTMLDialogElement` or `showModal()`.
+- Escape cancels a pending destructive component and returns focus to the control that opened it. Pending actions are also cancelled when the investigated entity, active view or admin session changes so stale context cannot be submitted.
 
 ## Acceptance criteria
 
@@ -73,8 +76,10 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - Manual account/nick/IP bans support 1-24 hours, 1 week and permanent duration plus mandatory reason.
 - Ban enforcement reuses the canonical ranked restriction lookup and preserves automatic policy-v3 bans.
 - Manual bans can be revoked without deleting audit history.
+- Ban/revoke confirmation is an application-owned inline component; no browser-native alert, confirmation, prompt or modal primitive is used by `/zadmin`.
 - Public/anon/authenticated roles cannot read admin login/session/audit/manual-ban data or invoke privileged admin RPCs.
 - New frontend states have Desktop/Mobile acceptance and platform evidence coverage.
+- The global player-card renderer revision remains newer than every migration introduced by the feature and all maintained loader URLs use that same revision.
 - No real secret, raw password, raw session token or new raw gameplay IP storage is committed.
 
 ## Security edge cases
@@ -92,13 +97,15 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - Permanent ban and timed-ban expiry.
 - Revoke already-revoked/nonexistent ban.
 - Automatic integrity ban remains effective independently of manual ban lifecycle.
+- Escape/context changes while ban or revoke confirmation is pending.
 
 ## Validation plan
 
 - 100% Node coverage for isolated zadmin core validators/credential comparison/aggregation.
-- Vitest static security contracts for secret handling, deployment wiring, RLS/grants, session storage and canonical ban enforcement.
+- Vitest static security contracts for secret handling, deployment wiring, RLS/grants, session storage, canonical ban enforcement and absence of browser modal primitives in zadmin.
 - Supabase migration reset/lint via the existing CI matrix; add database-level assertions for the new privilege/rate/session/ban contracts where practical.
-- Playwright Desktop/Mobile tests for login errors, blocked state, authenticated dashboard, search/detail, ban/revoke UX, keyboard flow and 320px overflow.
+- Playwright Desktop/Mobile tests for login errors, blocked state, authenticated dashboard, search/detail, inline ban/revoke component UX, Escape/focus recovery, keyboard flow and 320px overflow.
+- Keep the repository-wide player radar/card revision synchronization test green after the new migrations.
 - Add `zadmin-login` and `zadmin-dashboard` to the platform screenshot inventory and produce final-head Desktop/Mobile PNG evidence.
 - Existing format/lint/Knip/unit/security/Supabase/build/browser/platform-evidence workflows must remain green.
 
