@@ -44,15 +44,15 @@ Use the already-filtered migration execution SQL so function bodies do not affec
 
 ## Acceptance criteria
 
-- [ ] The real `20260810183000_zadmin_attempt_review_risk_scoring.sql` produces no migration-safety violation.
-- [ ] The previously supported `game_player_achievements` check-constraint expansion remains accepted by the generalized rule.
-- [ ] A dropped constraint without a later same-table/same-name `CHECK` recreation remains rejected.
-- [ ] A dropped column remains rejected even if the file also contains safe constraint replacements.
-- [ ] Recreating the same constraint as `UNIQUE`, foreign key, or another non-`CHECK` form remains rejected.
-- [ ] Multiple safe `CHECK` replacements in one migration are accepted only when every destructive `ALTER TABLE ... DROP` is accounted for.
-- [ ] Generic destructive migration protections and explicit reviewed approval behavior remain unchanged.
+- [x] The real `20260810183000_zadmin_attempt_review_risk_scoring.sql` is covered by a regression asserting no migration-safety violation.
+- [x] The previously supported `game_player_achievements` check-constraint expansion remains accepted by the generalized rule.
+- [x] A dropped constraint without a later same-table/same-name `CHECK` recreation remains rejected.
+- [x] A dropped column remains rejected even if the file also contains safe constraint replacements.
+- [x] Recreating the same constraint as `UNIQUE` or on another table remains rejected.
+- [x] Multiple safe `CHECK` replacements in one migration are accepted only when every destructive `ALTER TABLE ... DROP` is accounted for.
+- [x] Generic destructive migration protections and explicit reviewed approval behavior remain unchanged in the test contract.
 - [ ] Relevant unit/security, syntax, lint, dead-code and PR CI checks are green on the final head.
-- [ ] No remote deployment or migration is executed from the task branch.
+- [x] No remote deployment or migration has been executed from the task branch.
 
 ## Test design
 
@@ -60,9 +60,29 @@ Use the already-filtered migration execution SQL so function bodies do not affec
 - Compatibility: existing safe achievement-kind `CHECK` expansion continues to pass.
 - Failure: one `DROP CONSTRAINT` with no recreation fails.
 - Failure: same table/name recreated with a non-`CHECK` constraint fails.
+- Failure: same name recreated on another table fails.
 - Failure: safe replacement plus `DROP COLUMN` still fails.
 - Boundary: multiple safe replacements are accepted together and cannot mask one unsafe drop.
 - Preserve existing tests for runtime-function filtering, top-level destructive statements and explicit production-data-loss approvals.
+
+## Implementation
+
+- Replaced the hard-coded `isVerifiedAchievementCheckExpansion` exception with a fail-closed `hasOnlySafeCheckConstraintReplacements` decision.
+- The decision recognizes only simple repository-owned table/constraint identifiers, requires a later same-table/same-name `ADD CONSTRAINT ... CHECK`, removes only those verified drop statements from the residual destructive scan, and rejects any remaining `ALTER TABLE ... DROP` operation.
+- Added regression coverage in `tests/production-migration-function-bodies.test.js`, including the real zadmin migration.
+- The zadmin migration itself was not modified.
+
+## Validation
+
+Local syntax probes were performed on the new guard logic before committing it. Synthetic runtime probes verified:
+
+- a same-table/same-name `CHECK` replacement is accepted;
+- an unrecreated drop is rejected;
+- recreation as `UNIQUE` is rejected;
+- a safe replacement plus `DROP COLUMN` is rejected;
+- multiple newline-separated safe replacements are accepted.
+
+Repository CI on the final PR head remains the authority for the real migration and complete project contract.
 
 ## Risks
 
@@ -71,14 +91,15 @@ Use the already-filtered migration execution SQL so function bodies do not affec
 
 ## Rollback
 
-Revert the guard and regression-test commit. No database rollback is required because this task does not change or execute a migration.
+Revert the guard and regression-test commits. No database rollback is required because this task does not change or execute a migration.
 
 ## Delivery
 
 - Branch: `agent/fix-zadmin-migration-guard`
+- Pull request: `#72`
 - One normal non-draft PR targeting `main`.
 - No merge, production deployment or remote migration without explicit user authorization.
 
 ## Status
 
-Implementation pending. Final completion requires required checks on the final PR head.
+Implementation and regression coverage are complete. Final completion is pending required CI checks on the final PR head.
