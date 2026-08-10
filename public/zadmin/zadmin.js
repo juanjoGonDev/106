@@ -5,8 +5,6 @@ const SCOPES = new Set(['account', 'nick', 'ip']);
 const RISK_BUCKETS = ['0-19', '20-39', '40-59', '60-79', '80-100'];
 
 let sessionToken = '';
-let sessionExpiresAt = 0;
-let sessionTimer = null;
 let currentScope = 'account';
 let currentTarget = '';
 let currentDetail = null;
@@ -14,6 +12,8 @@ let confirmResolver = null;
 let confirmReturnFocus = null;
 let revokeResolver = null;
 let revokeReturnFocus = null;
+let activeAttemptReviewForm = null;
+let attemptReviewReturnFocus = null;
 
 function $(selector) {
   return document.querySelector(selector);
@@ -74,6 +74,7 @@ function askAdmin({
   cancelLabel = 'Cancelar',
 } = {}) {
   if (confirmResolver) return Promise.resolve(false);
+  closeAttemptReview({ restoreFocus: false });
   $('#adminBanConfirmTitle').textContent = text(title);
   $('#adminBanConfirmMessage').textContent = text(message);
   $('#adminBanConfirmAccept').textContent = text(confirmLabel) || 'Confirmar';
@@ -101,6 +102,7 @@ function settleRevokeReason(value) {
 
 function requestRevokeReason(anchor) {
   if (revokeResolver) return Promise.resolve(null);
+  closeAttemptReview({ restoreFocus: false });
   $('#adminRevokeReason').value = '';
   setStatus($('#adminRevokeStatus'));
   revokeReturnFocus = document.activeElement;
@@ -123,6 +125,15 @@ function submitRevokeReason(event) {
     return;
   }
   settleRevokeReason(reason);
+}
+
+function closeAttemptReview({ restoreFocus = true } = {}) {
+  if (!(activeAttemptReviewForm instanceof HTMLElement)) return;
+  const returnFocus = attemptReviewReturnFocus;
+  activeAttemptReviewForm.remove();
+  activeAttemptReviewForm = null;
+  attemptReviewReturnFocus = null;
+  if (restoreFocus) focusIfAvailable(returnFocus);
 }
 
 function apiUrl() {
@@ -184,7 +195,7 @@ async function adminRequest(action, payload = {}, { requireSession = true } = {}
   }
 
   if (!response.ok) {
-    if (response.status === 401 && result.code === 'invalid_session') clearSession('La sesión ha caducado. Vuelve a iniciar sesión.');
+    if (response.status === 401 && result.code === 'invalid_session') clearSession('La sesión ha caducado por inactividad o ha sido revocada. Vuelve a iniciar sesión.');
     const error = new Error(text(result.error) || `La operación falló (${response.status}).`);
     error.code = result.code;
     error.retryAfterSeconds = result.retryAfterSeconds;
@@ -210,6 +221,7 @@ function shortHash(value) {
 function scopeLabel(scope) {
   if (scope === 'account') return 'Cuenta';
   if (scope === 'ip') return 'IP (huella)';
+  if (scope === 'attempt') return 'Intento';
   return 'Nick';
 }
 
@@ -241,32 +253,21 @@ function showDashboard() {
 }
 
 function updateSessionClock() {
-  if (!sessionToken || !sessionExpiresAt) return;
-  const remainingMs = sessionExpiresAt - Date.now();
-  if (remainingMs <= 0) {
-    clearSession('La sesión ha caducado. Vuelve a iniciar sesión.');
-    return;
-  }
-  const minutes = Math.floor(remainingMs / 60_000);
-  const seconds = Math.floor((remainingMs % 60_000) / 1_000);
-  $('#adminSessionStatus').textContent = `Caduca en ${minutes}:${String(seconds).padStart(2, '0')}. El token solo vive en memoria.`;
+  if (!sessionToken) return;
+  $('#adminSessionStatus').textContent = 'Sesión activa. Se renueva con cada uso y el servidor la cierra tras 12 h sin actividad. El token solo vive en memoria.';
 }
 
 function startSessionClock() {
-  if (sessionTimer) window.clearInterval(sessionTimer);
   updateSessionClock();
-  sessionTimer = window.setInterval(updateSessionClock, 1_000);
 }
 
 function clearSession(message = '') {
   if (confirmResolver) settleConfirm(false);
   if (revokeResolver) settleRevokeReason(null);
+  closeAttemptReview({ restoreFocus: false });
   sessionToken = '';
-  sessionExpiresAt = 0;
   currentTarget = '';
   currentDetail = null;
-  if (sessionTimer) window.clearInterval(sessionTimer);
-  sessionTimer = null;
   showLogin(message);
   $('#adminPassword').value = '';
 }
@@ -451,6 +452,89 @@ function renderEntityBans(bans = []) {
   replaceChildren($('#adminEntityBans'), items.length ? items : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay bans manuales registrados para esta entidad.' })]);
 }
 
+async function submitAttemptReview(event, attempt, form, status, actionButton) {
+  event.preventDefault();
+  const textarea = form.querySelector('textarea');
+  const reason = textarea?.value.trim() || '';
+  if (reason.length < 3) {
+    setStatus(status, 'El motivo debe tener al menos 3 caracteres.', 'error');
+    textarea?.focus();
+    return;
+  }
+
+  const invalidating = attempt.manual_invalidated !== true;
+  const attemptId = text(attempt.id);
+  const scope = currentScope;
+  const target = currentTarget;
+  actionButton.disabled = true;
+  setStatus(status, invalidating ? 'Invalidando tiempo…' : 'Restaurando tiempo…');
+  try {
+    await adminRequest(invalidating ? 'invalidate-attempt' : 'restore-attempt', { attemptId, reason });
+    closeAttemptReview({ restoreFocus: false });
+    await Promise.all([loadDetail(scope, target), loadOverview({ preserveDetail: true })]);
+    const nextButton = document.querySelector(`[data-attempt-review-id="${attemptId}"]`);
+    focusIfAvailable(nextButton);
+    setStatus(
+      $('#adminOverviewStatus'),
+      invalidating
+        ? 'Tiempo invalidado. El intento bruto se conserva y las proyecciones se han reconciliado.'
+        : 'Anulación retirada. La política de integridad ha reevaluado el intento.',
+      'success',
+    );
+  } catch (error) {
+    setStatus(status, error.message, 'error');
+    actionButton.disabled = false;
+  }
+}
+
+function openAttemptReview(attempt, item, trigger) {
+  if (!attempt?.id || !(item instanceof HTMLElement)) return;
+  if (confirmResolver) settleConfirm(false);
+  if (revokeResolver) settleRevokeReason(null);
+  closeAttemptReview({ restoreFocus: false });
+
+  const invalidating = attempt.manual_invalidated !== true;
+  const form = createElement('form', {
+    className: 'zadmin-ban-form',
+    attributes: { novalidate: '', 'data-attempt-review-form': text(attempt.id) },
+  });
+  const label = document.createElement('label');
+  label.append(document.createTextNode('Motivo'));
+  const textarea = createElement('textarea', {
+    attributes: {
+      maxlength: '500',
+      rows: '3',
+      placeholder: invalidating
+        ? 'Describe por qué este tiempo debe dejar de contar.'
+        : 'Describe por qué retiras la anulación manual.',
+    },
+  });
+  const status = createElement('p', {
+    className: 'zadmin-status',
+    attributes: { role: 'status', 'aria-live': 'polite' },
+  });
+  label.append(textarea, status);
+
+  const cancelButton = createElement('button', {
+    className: 'zadmin-inline-button',
+    textContent: 'Cancelar',
+    attributes: { type: 'button' },
+  });
+  const actionButton = createElement('button', {
+    className: invalidating ? 'zadmin-danger' : 'zadmin-inline-button',
+    textContent: invalidating ? 'Invalidar tiempo' : 'Restaurar tiempo',
+    attributes: { type: 'submit' },
+  });
+  cancelButton.addEventListener('click', () => closeAttemptReview());
+  form.addEventListener('submit', (event) => submitAttemptReview(event, attempt, form, status, actionButton));
+  form.append(label, cancelButton, actionButton);
+
+  attemptReviewReturnFocus = trigger;
+  activeAttemptReviewForm = form;
+  item.append(form);
+  window.requestAnimationFrame(() => textarea.focus());
+}
+
 function attemptItem(attempt) {
   const item = createElement('article', { className: 'zadmin-attempt' });
   const header = document.createElement('header');
@@ -459,11 +543,14 @@ function attemptItem(attempt) {
     createElement('strong', { textContent: `${text(attempt.nick) || text(attempt.nick_key) || 'Intento'} · ${boundedNumber(attempt.difference_ms)} ms` }),
     createElement('p', { className: 'zadmin-muted', textContent: formatDate(attempt.created_at) }),
   );
+  const manualInvalidated = attempt.manual_invalidated === true;
   const stateName = ['eligible', 'watch', 'excluded'].includes(attempt.integrity_status) ? attempt.integrity_status : 'eligible';
   const state = createElement('span', {
     className: 'zadmin-state',
-    textContent: `${stateName} · ${boundedNumber(attempt.risk_score, 0, 100)}/100`,
-    attributes: { 'data-state': stateName },
+    textContent: manualInvalidated
+      ? `manual · ${boundedNumber(attempt.risk_score, 0, 100)}/100`
+      : `${stateName} · ${boundedNumber(attempt.risk_score, 0, 100)}/100`,
+    attributes: { 'data-state': manualInvalidated ? 'excluded' : stateName },
   });
   header.append(title, state);
   item.append(header);
@@ -474,6 +561,18 @@ function attemptItem(attempt) {
     textContent: reasons.length ? `Razones: ${reasons.join(', ')}` : 'Sin razones de riesgo registradas.',
   }));
 
+  if (attempt.manual_action === 'invalidate') {
+    item.append(createElement('p', {
+      className: 'zadmin-muted',
+      textContent: `Invalidación manual: ${text(attempt.manual_action_reason) || '—'} · ${formatDate(attempt.manual_action_at)}. El score técnico se conserva sin alteraciones.`,
+    }));
+  } else if (attempt.manual_action === 'restore') {
+    item.append(createElement('p', {
+      className: 'zadmin-muted',
+      textContent: `Última revisión manual: restaurado · ${text(attempt.manual_action_reason) || '—'} · ${formatDate(attempt.manual_action_at)}.`,
+    }));
+  }
+
   const details = document.createElement('details');
   details.append(createElement('summary', { textContent: 'Evidencia técnica' }));
   const pre = document.createElement('pre');
@@ -481,12 +580,32 @@ function attemptItem(attempt) {
     integrityEvidence: attempt.integrity_evidence || {},
     policyVersion: attempt.integrity_policy_version,
     evaluatedAt: attempt.integrity_evaluated_at,
+    manualReview: {
+      invalidated: manualInvalidated,
+      action: attempt.manual_action || null,
+      reason: attempt.manual_action_reason || null,
+      at: attempt.manual_action_at || null,
+    },
     account: attempt.account_id,
     ip: attempt.ip_hash,
     device: attempt.device_hash,
   }, null, 2);
   details.append(pre);
   item.append(details);
+
+  if (attempt.id) {
+    const actionButton = createElement('button', {
+      className: manualInvalidated ? 'zadmin-inline-button' : 'zadmin-danger',
+      textContent: manualInvalidated ? 'Restaurar tiempo' : 'Invalidar tiempo',
+      attributes: {
+        type: 'button',
+        'data-attempt-review-id': text(attempt.id),
+        'aria-label': `${manualInvalidated ? 'Restaurar' : 'Invalidar'} tiempo de ${text(attempt.nick) || 'este intento'}: ${boundedNumber(attempt.difference_ms)} ms`,
+      },
+    });
+    actionButton.addEventListener('click', () => openAttemptReview(attempt, item, actionButton));
+    item.append(actionButton);
+  }
   return item;
 }
 
@@ -498,6 +617,7 @@ function renderAttempts(attempts = []) {
 function resetDetail() {
   if (confirmResolver) settleConfirm(false);
   if (revokeResolver) settleRevokeReason(null);
+  closeAttemptReview({ restoreFocus: false });
   currentTarget = '';
   currentDetail = null;
   $('#adminDetailPlaceholder').hidden = false;
@@ -507,6 +627,7 @@ function resetDetail() {
 async function loadDetail(scope, target) {
   if (confirmResolver) settleConfirm(false);
   if (revokeResolver) settleRevokeReason(null);
+  closeAttemptReview({ restoreFocus: false });
   currentScope = SCOPES.has(scope) ? scope : 'nick';
   currentTarget = text(target);
   setStatus($('#adminOverviewStatus'), `Cargando detalle de ${scopeLabel(currentScope).toLowerCase()}…`);
@@ -556,6 +677,7 @@ function populateBanDurations() {
 
 async function applyBan(event) {
   event.preventDefault();
+  closeAttemptReview({ restoreFocus: false });
   const status = $('#adminBanStatus');
   const reason = $('#adminBanReason').value.trim();
   if (!currentTarget || !currentDetail) {
@@ -627,11 +749,18 @@ async function loadBans() {
   }
 }
 
+function auditActionLabel(action) {
+  if (action === 'revoke') return 'Ban revocado';
+  if (action === 'invalidate_attempt') return 'Tiempo invalidado';
+  if (action === 'restore_attempt') return 'Tiempo restaurado';
+  return 'Ban aplicado';
+}
+
 function auditItem(event) {
   const item = createElement('article', { className: 'zadmin-audit-item' });
   const header = document.createElement('header');
   header.append(
-    createElement('strong', { textContent: event.action === 'revoke' ? 'Ban revocado' : 'Ban aplicado' }),
+    createElement('strong', { textContent: auditActionLabel(event.action) }),
     createElement('span', { className: 'zadmin-state', textContent: scopeLabel(event.target_scope) }),
   );
   item.append(
@@ -676,7 +805,6 @@ async function login(event) {
     const expiresAt = Date.parse(text(result.expiresAt));
     if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw new Error('La sesión recibida ya ha caducado.');
     sessionToken = text(result.token).toLowerCase();
-    sessionExpiresAt = expiresAt;
     $('#adminPassword').value = '';
     setStatus(status);
     showDashboard();
@@ -709,6 +837,7 @@ function setView(name) {
   const target = ['investigation', 'bans', 'audit'].includes(name) ? name : 'investigation';
   if (confirmResolver && target !== 'investigation') settleConfirm(false);
   if (revokeResolver) settleRevokeReason(null);
+  closeAttemptReview({ restoreFocus: false });
   for (const button of all('[data-admin-view]')) {
     const active = button.dataset.adminView === target;
     button.classList.toggle('is-active', active);
@@ -729,6 +858,11 @@ function cancelActionComponent(event) {
   if (revokeResolver) {
     event.preventDefault();
     settleRevokeReason(null);
+    return;
+  }
+  if (activeAttemptReviewForm) {
+    event.preventDefault();
+    closeAttemptReview();
   }
 }
 

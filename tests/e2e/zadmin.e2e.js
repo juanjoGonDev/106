@@ -52,13 +52,14 @@ function overviewFixture() {
   };
 }
 
-function detailFixture() {
+function detailFixture({ attemptInvalidated = false } = {}) {
   const target = '11111111-1111-4111-8111-111111111111';
   return {
     scope: 'account',
     target,
     summary: {
-      attempts: 8, verifiedAttempts: 3, watchAttempts: 2, excludedAttempts: 3,
+      attempts: 8, verifiedAttempts: attemptInvalidated ? 2 : 3, watchAttempts: attemptInvalidated ? 1 : 2,
+      excludedAttempts: attemptInvalidated ? 4 : 3,
       maxRiskScore: 91, distinctAccounts: 1, distinctNicks: 3, distinctIps: 2, distinctDevices: 2,
     },
     distribution: { '0-19': 1, '20-39': 1, '40-59': 1, '60-79': 2, '80-100': 3 },
@@ -76,14 +77,19 @@ function detailFixture() {
         integrity_status: 'excluded', risk_score: 91, risk_reasons: ['corroborated_automation'],
         integrity_evidence: { sessionAttempts2h: 7, sessionFingerprintMatches2h: 4 },
         integrity_policy_version: 3, integrity_evaluated_at: '2026-08-10T09:58:01Z',
+        manual_invalidated: false, manual_action: null, manual_action_reason: null, manual_action_at: null,
       },
       {
         id: 'attempt-2', nick: 'Beta', nick_key: 'beta', account_id: target,
         device_hash: '4'.repeat(64), ip_hash: '2'.repeat(64), difference_ms: 22,
-        verified: true, verification_reasons: [], created_at: '2026-08-10T09:40:00Z',
-        integrity_status: 'watch', risk_score: 62, risk_reasons: ['shared_identity_cluster'],
+        verified: !attemptInvalidated, verification_reasons: [], created_at: '2026-08-10T09:40:00Z',
+        integrity_status: attemptInvalidated ? 'excluded' : 'watch', risk_score: 62, risk_reasons: ['shared_identity_cluster'],
         integrity_evidence: { sessionAttempts2h: 5 }, integrity_policy_version: 3,
         integrity_evaluated_at: '2026-08-10T09:40:01Z',
+        manual_invalidated: attemptInvalidated,
+        manual_action: attemptInvalidated ? 'invalidate' : 'restore',
+        manual_action_reason: attemptInvalidated ? 'Script confirmado en revisión manual.' : 'Anulación retirada tras revisar la evidencia.',
+        manual_action_at: '2026-08-10T10:00:00Z',
       },
     ],
     bans: [],
@@ -92,7 +98,9 @@ function detailFixture() {
 
 async function installAdminMocks(page, { failLogins = 0 } = {}) {
   let loginAttempts = 0;
+  let attemptInvalidated = false;
   const authorizedRequests = [];
+  const attemptReviewPayloads = [];
   await page.route('**/functions/v1/zadmin-api', async (route) => {
     const body = requestBody(route);
     const headers = route.request().headers();
@@ -114,7 +122,7 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ token, expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() }),
+        body: JSON.stringify({ token, expiresAt: new Date(Date.now() + 12 * 60 * 60_000).toISOString() }),
       });
       return;
     }
@@ -123,7 +131,7 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       return;
     }
     if (body.action === 'detail') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(detailFixture()) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(detailFixture({ attemptInvalidated })) });
       return;
     }
     if (body.action === 'bans') {
@@ -142,13 +150,28 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       });
       return;
     }
+    if (body.action === 'invalidate-attempt' || body.action === 'restore-attempt') {
+      attemptReviewPayloads.push(body);
+      attemptInvalidated = body.action === 'invalidate-attempt';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          attemptId: body.attemptId,
+          invalidated: attemptInvalidated,
+          effectiveVerified: !attemptInvalidated,
+          reason: body.reason,
+        }),
+      });
+      return;
+    }
     if (body.action === 'logout') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ loggedOut: true }) });
       return;
     }
     await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unknown action' }) });
   });
-  return { authorizedRequests };
+  return { authorizedRequests, attemptReviewPayloads };
 }
 
 async function login(page) {
@@ -214,6 +237,8 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await expect(page.locator('#adminDashboard')).toBeVisible();
   await expect(page.locator('#adminOverviewStatus')).toContainText('14 intentos analizados');
   await expect(page.locator('#adminSummary')).toContainText('Bans manuales activos');
+  await expect(page.locator('#adminSessionStatus')).toContainText('Se renueva con cada uso');
+  await expect(page.locator('#adminSessionStatus')).not.toContainText('Caduca en');
   expect(mocks.authorizedRequests.every((value) => value === `Bearer ${token}`)).toBe(true);
 
   const storage = await page.evaluate(() => ({
@@ -233,6 +258,52 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await page.locator('#adminAttemptList details summary').first().focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
+});
+
+test('individual attempt review is inline, reversible and restores focus on Escape', async ({ page }) => {
+  const mocks = await installAdminMocks(page);
+  await page.goto('/zadmin/');
+  await login(page);
+  await page.locator('#adminEntityRows .zadmin-review-button').first().click();
+
+  const attemptButton = page.locator('[data-attempt-review-id="attempt-2"]');
+  await expect(attemptButton).toHaveText('Invalidar tiempo');
+  await attemptButton.click();
+  const form = page.locator('[data-attempt-review-form="attempt-2"]');
+  const reason = form.locator('textarea');
+  await expect(form).toBeVisible();
+  await expect(reason).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(form).toHaveCount(0);
+  await expect(attemptButton).toBeFocused();
+  expect(mocks.attemptReviewPayloads).toHaveLength(0);
+
+  await attemptButton.click();
+  const reopened = page.locator('[data-attempt-review-form="attempt-2"]');
+  await reopened.locator('button[type="submit"]').click();
+  await expect(reopened.locator('[role="status"]')).toContainText('al menos 3 caracteres');
+  expect(mocks.attemptReviewPayloads).toHaveLength(0);
+
+  await reopened.locator('textarea').fill('Script confirmado en revisión manual.');
+  await reopened.locator('button[type="submit"]').click();
+  await expect(page.locator('[data-attempt-review-id="attempt-2"]')).toHaveText('Restaurar tiempo');
+  await expect(page.locator('#adminAttemptList')).toContainText('Invalidación manual');
+  expect(mocks.attemptReviewPayloads[0]).toMatchObject({
+    action: 'invalidate-attempt',
+    attemptId: 'attempt-2',
+    reason: 'Script confirmado en revisión manual.',
+  });
+
+  await page.locator('[data-attempt-review-id="attempt-2"]').click();
+  const restoreForm = page.locator('[data-attempt-review-form="attempt-2"]');
+  await restoreForm.locator('textarea').fill('Anulación retirada tras revisar la evidencia.');
+  await restoreForm.locator('button[type="submit"]').click();
+  await expect(page.locator('[data-attempt-review-id="attempt-2"]')).toHaveText('Invalidar tiempo');
+  expect(mocks.attemptReviewPayloads[1]).toMatchObject({
+    action: 'restore-attempt',
+    attemptId: 'attempt-2',
+    reason: 'Anulación retirada tras revisar la evidencia.',
+  });
 });
 
 test('manual ban requires evidence text and uses the inline confirmation component', async ({ page }) => {
@@ -286,6 +357,8 @@ test('zadmin remains operable without global overflow at 320px', async ({ page }
   await expect(page.locator('#adminLogoutButton')).toHaveCSS('min-height', '44px');
   await expect(page.locator('#adminRefreshButton')).toHaveCSS('min-height', '44px');
   await expect(page.locator('.zadmin-table-scroll')).toHaveCSS('overflow-x', 'auto');
+  await page.locator('#adminEntityRows .zadmin-review-button').first().click();
+  await expect(page.locator('[data-attempt-review-id="attempt-2"]')).toHaveCSS('min-height', '44px');
 });
 
 test('records isolated login and dashboard evidence from the admin workflow', async ({ browser, isMobile }) => {
@@ -300,6 +373,8 @@ test('records isolated login and dashboard evidence from the admin workflow', as
   await login(screenshotPage);
   await screenshotPage.locator('#adminEntityRows .zadmin-review-button').first().click();
   await expect(screenshotPage.locator('#adminDetailContent')).toBeVisible();
+  await screenshotPage.locator('[data-attempt-review-id="attempt-2"]').click();
+  await expect(screenshotPage.locator('[data-attempt-review-form="attempt-2"]')).toBeVisible();
   await screenshotPage.screenshot({ path: join(previewDirectory, `zadmin-dashboard-${suffix}.png`), animations: 'disabled', fullPage: true });
   await screenshotContext.close();
 
@@ -310,6 +385,9 @@ test('records isolated login and dashboard evidence from the admin workflow', as
   await login(recordingPage);
   await recordingPage.locator('#adminEntityRows .zadmin-review-button').first().click();
   await expect(recordingPage.locator('#adminDetailContent')).toBeVisible();
+  await recordingPage.locator('[data-attempt-review-id="attempt-2"]').click();
+  await recordingPage.locator('[data-attempt-review-form="attempt-2"] textarea').fill('Revisión visual del intento individual.');
+  await recordingPage.keyboard.press('Escape');
   await recordingPage.locator('#adminAttemptList details summary').first().click();
   await expect(recordingPage.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
   await recordingPage.locator('[data-admin-view="bans"]').click();
