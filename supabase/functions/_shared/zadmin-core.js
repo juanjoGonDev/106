@@ -1,4 +1,4 @@
-export const ZADMIN_SESSION_TTL_SECONDS = 30 * 60;
+export const ZADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
 export const ZADMIN_LOGIN_LIMIT = 3;
 export const ZADMIN_LOGIN_WINDOW_SECONDS = 60 * 60;
 export const ZADMIN_MAX_BODY_BYTES = 32 * 1024;
