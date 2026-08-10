@@ -235,7 +235,7 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await expect(page.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
 });
 
-test('manual ban requires evidence text and sends the selected bounded duration', async ({ page }) => {
+test('manual ban requires evidence text and uses the app confirmation component', async ({ page }) => {
   const payloads = [];
   await installAdminMocks(page);
   await page.route('**/functions/v1/zadmin-api', async (route) => {
@@ -253,10 +253,20 @@ test('manual ban requires evidence text and sends the selected bounded duration'
   await page.locator('#adminBanButton').click();
   await expect(page.locator('#adminBanStatus')).toContainText('al menos 3 caracteres');
 
-  page.once('dialog', (dialog) => dialog.accept());
   await page.locator('#adminBanDuration').selectOption('10080');
   await page.locator('#adminBanReason').fill('Correlación manual confirmada con evidencia de integridad.');
   await page.locator('#adminBanButton').click();
+  await expect(page.locator('#adminConfirmDialog')).toBeVisible();
+  await expect(page.locator('#adminConfirmMessage')).toContainText('Correlación manual confirmada');
+  await expect(page.locator('#adminConfirmCancel')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#adminConfirmDialog')).toBeHidden();
+  await expect(page.locator('#adminBanButton')).toBeFocused();
+  expect(payloads).toHaveLength(0);
+
+  await page.locator('#adminBanButton').click();
+  await expect(page.locator('#adminConfirmDialog')).toBeVisible();
+  await page.locator('#adminConfirmAccept').click();
   await expect(page.locator('#adminBanStatus')).toContainText('Ban aplicado');
   expect(payloads).toHaveLength(1);
   expect(payloads[0]).toMatchObject({
