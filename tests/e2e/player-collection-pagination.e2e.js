@@ -135,9 +135,15 @@ async function installProfileMocks(page) {
   });
 }
 
+function playerPath(section = 'overview') {
+  return section === 'overview'
+    ? '/player/PagedPlayer'
+    : `/player/PagedPlayer/${encodeURIComponent(section)}`;
+}
+
 async function openPlayer(page, section = 'overview') {
   await installProfileMocks(page);
-  await page.goto(`/player?nick=PagedPlayer&section=${encodeURIComponent(section)}`);
+  await page.goto(playerPath(section));
   await expect(page.locator('#playerContent')).toBeVisible();
 }
 
@@ -151,7 +157,7 @@ test('attempt and trophy histories stay bounded and navigate deterministically',
   await expect(page.locator('#playerHistory > li')).toHaveCount(3);
   await expect(page.locator('#playerHistoryPager')).toContainText('21–23 de 23');
 
-  await page.goto('/player?nick=PagedPlayer&section=trophies');
+  await page.goto(playerPath('trophies'));
   await expect(page.locator('#playerContent')).toBeVisible();
   await expect(page.locator('#playerTrophyCollection > li')).toHaveCount(4);
   await expect(page.locator('#playerTrophies > li')).toHaveCount(10);
