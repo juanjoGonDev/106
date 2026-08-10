@@ -31,7 +31,7 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - PostgreSQL is the canonical rolling-window gate so concurrent Edge Function instances cannot bypass it.
 - Failed attempts are counted independently for the peppered IP fingerprint and peppered browser-device identifier.
 - Three failures in the previous rolling hour block further logins for that subject until the oldest applicable failure leaves the window.
-- The database acquires deterministic advisory locks for both rate-limit subjects before counting/inserting, preventing concurrent fourth-attempt races.
+- The database acquires deterministic advisory locks for both rate-limit subjects before counting/inserting, preventing concurrent requests from racing past the three-failure limit.
 - A client device identifier is useful only as an additional throttle signal because it can be reset/spoofed. IP and device limits therefore apply independently.
 
 ### Manual bans
@@ -63,7 +63,7 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - `/zadmin/` is reachable directly but absent from normal navigation/layout.
 - Login credentials are server-only and production deployment fails closed when either required secret is missing.
 - Invalid username and invalid password are indistinguishable to clients.
-- The fourth failed login inside one rolling hour is blocked for the same IP or same device, including concurrent requests.
+- The third failed submission inside one rolling hour consumes the limit and blocks further logins for the same IP or same device, including concurrent requests, until that subject leaves the rolling window.
 - A valid password cannot bypass an already-active rate-limit block.
 - Session tokens are random, stored only as hashes server-side, bound to IP/device and expire after 30 minutes.
 - Reloading the page does not restore an admin session.
@@ -84,7 +84,7 @@ Protect the surface with a dedicated server-side username/password boundary supp
 - Oversized and malformed JSON requests.
 - Missing or malformed bearer token.
 - Wrong username, wrong password, both wrong and Unicode inputs.
-- Third failure, fourth failure, exact rolling-window expiry and independent IP/device counters.
+- Third failure, subsequent blocked attempt, exact rolling-window expiry and independent IP/device counters.
 - Concurrent failed attempts for the same rate-limit subject.
 - Correct credentials while blocked.
 - Expired, revoked, wrong-IP and wrong-device sessions.
@@ -115,4 +115,4 @@ Revert the application/workflow changes. If the migration has already been appli
 
 ## Status
 
-In progress.
+Implementation complete; final CI and visual evidence validation are in progress.
