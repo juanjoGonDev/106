@@ -11,6 +11,7 @@ describe('zadmin security core coverage', () => {
       '--test-coverage-functions=100',
       '--test-coverage-branches=100',
       'tests/zadmin-core.node-test.js',
+      'tests/zadmin-core-fallbacks.node-test.js',
     ], {
       cwd: process.cwd(),
       encoding: 'utf8',
