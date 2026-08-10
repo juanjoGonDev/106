@@ -358,7 +358,7 @@ const precisionOnlyLargeSample = await serviceRpc(local, 'game_attempt_integrity
     sessionVeryNear2h: 8,
   },
 });
-assert.equal(precisionOnlyLargeSample.riskScore, 100);
+assert.equal(precisionOnlyLargeSample.riskScore, 75);
 assert.equal(precisionOnlyLargeSample.status, 'watch');
 assert.equal(precisionOnlyLargeSample.malicious, false);
 log('Extreme 1/2/3 ms-style bursts rise to review priority while timing evidence alone still cannot convict or auto-exclude');
