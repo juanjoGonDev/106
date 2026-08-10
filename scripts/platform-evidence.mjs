@@ -54,6 +54,7 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'league-directory',
   'player-collections',
   'player-reliability',
+  'zadmin-dashboard',
 ]);
 
 const DEVICES = Object.freeze(['desktop', 'mobile']);
