@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <title>Administración — Minuto 106</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./zadmin.css">
+</head>
+<body class="zadmin-body">
+  <main class="zadmin-shell">
+    <header class="zadmin-heading">
+      <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
+      <h1>Integridad y jugadores</h1>
+      <p>Investiga actividad correlacionada y aplica restricciones manuales solo cuando la evidencia lo justifique.</p>
+    </header>
+
+    <section id="adminLoginPanel" class="zadmin-card zadmin-login" aria-labelledby="adminLoginTitle">
+      <p class="eyebrow">ACCESO RESTRINGIDO</p>
+      <h2 id="adminLoginTitle">Iniciar sesión</h2>
+      <p class="zadmin-muted">La sesión de administración no se guarda en el navegador y caduca automáticamente.</p>
+      <form id="adminLoginForm" novalidate>
+        <label for="adminUsername">Usuario</label>
+        <input id="adminUsername" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <label for="adminPassword">Contraseña</label>
+        <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
+        <button id="adminLoginButton" class="primary" type="submit">Entrar</button>
+      </form>
+      <p id="adminLoginStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section id="adminDashboard" class="zadmin-dashboard" hidden aria-labelledby="adminDashboardTitle">
+      <header class="zadmin-session-bar">
+        <div>
+          <p class="eyebrow">SESIÓN ACTIVA</p>
+          <h2 id="adminDashboardTitle">Panel de revisión</h2>
+          <p id="adminSessionStatus" class="zadmin-muted" role="status" aria-live="polite"></p>
+        </div>
+        <button id="adminLogoutButton" class="ghost" type="button">Cerrar sesión</button>
+      </header>
+
+      <nav class="zadmin-tabs" aria-label="Secciones de administración">
+        <button class="zadmin-tab is-active" type="button" data-admin-view="investigation" aria-pressed="true">Investigación</button>
+        <button class="zadmin-tab" type="button" data-admin-view="bans" aria-pressed="false">Bans manuales</button>
+        <button class="zadmin-tab" type="button" data-admin-view="audit" aria-pressed="false">Auditoría</button>
+      </nav>
+
+      <section id="adminInvestigationView" class="zadmin-view" data-admin-panel="investigation">
+        <div id="adminSummary" class="zadmin-summary" aria-label="Resumen de actividad"></div>
+
+        <section class="zadmin-card zadmin-filters" aria-labelledby="adminFiltersTitle">
+          <div>
+            <p class="eyebrow">FILTROS</p>
+            <h3 id="adminFiltersTitle">Explorar actividad</h3>
+          </div>
+          <div class="zadmin-filter-grid">
+            <label>
+              Agrupar por
+              <select id="adminScope">
+                <option value="account">Cuenta</option>
+                <option value="nick">Nick</option>
+                <option value="ip">IP (huella)</option>
+              </select>
+            </label>
+            <label>
+              Periodo
+              <select id="adminRangeDays">
+                <option value="1">Últimas 24 horas</option>
+                <option value="7" selected>Últimos 7 días</option>
+                <option value="30">Últimos 30 días</option>
+              </select>
+            </label>
+            <label class="zadmin-search-field">
+              Buscar
+              <input id="adminSearch" type="search" maxlength="80" autocomplete="off" placeholder="Cuenta, nick o huella">
+            </label>
+            <button id="adminRefreshButton" class="secondary" type="button">Actualizar</button>
+          </div>
+          <p id="adminOverviewStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <div class="zadmin-workspace">
+          <section class="zadmin-card zadmin-entities" aria-labelledby="adminEntitiesTitle">
+            <div class="zadmin-card-heading">
+              <div>
+                <p class="eyebrow">SEÑALES</p>
+                <h3 id="adminEntitiesTitle">Entidades</h3>
+              </div>
+              <p class="zadmin-muted">Ordenadas por riesgo máximo y exclusiones.</p>
+            </div>
+            <div class="zadmin-table-scroll">
+              <table class="zadmin-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Entidad</th>
+                    <th scope="col">Intentos</th>
+                    <th scope="col">Riesgo máx.</th>
+                    <th scope="col">Watch</th>
+                    <th scope="col">Excluidos</th>
+                    <th scope="col"><span class="sr-only">Acción</span></th>
+                  </tr>
+                </thead>
+                <tbody id="adminEntityRows"></tbody>
+              </table>
+            </div>
+            <p id="adminEntitiesEmpty" class="zadmin-empty" hidden>No hay actividad que coincida con estos filtros.</p>
+          </section>
+
+          <section id="adminDetailPanel" class="zadmin-card zadmin-detail" aria-labelledby="adminDetailTitle">
+            <div id="adminDetailPlaceholder" class="zadmin-empty-state">
+              <p class="eyebrow">DETALLE</p>
+              <h3 id="adminDetailTitle">Selecciona una entidad</h3>
+              <p>Verás correlaciones, distribución del riesgo, intentos recientes y restricciones.</p>
+            </div>
+            <div id="adminDetailContent" hidden>
+              <div class="zadmin-card-heading">
+                <div>
+                  <p class="eyebrow">DETALLE</p>
+                  <h3 id="adminDetailHeading"></h3>
+                  <p id="adminDetailMeta" class="zadmin-muted"></p>
+                </div>
+                <span id="adminRiskBadge" class="zadmin-risk-badge"></span>
+              </div>
+
+              <div id="adminDetailSummary" class="zadmin-summary zadmin-summary-compact"></div>
+
+              <section aria-labelledby="adminRiskDistributionTitle">
+                <h4 id="adminRiskDistributionTitle">Distribución del riesgo</h4>
+                <p class="zadmin-muted">Puntuación del motor de integridad 0–100. No es una probabilidad estadística de trampa.</p>
+                <div id="adminRiskDistribution" class="zadmin-risk-chart"></div>
+              </section>
+
+              <section aria-labelledby="adminCorrelationsTitle">
+                <h4 id="adminCorrelationsTitle">Correlaciones</h4>
+                <div id="adminCorrelations" class="zadmin-correlations"></div>
+              </section>
+
+              <section aria-labelledby="adminBanActionTitle">
+                <h4 id="adminBanActionTitle">Aplicar restricción manual</h4>
+                <form id="adminBanForm" class="zadmin-ban-form">
+                  <label>
+                    Duración
+                    <select id="adminBanDuration" required></select>
+                  </label>
+                  <label class="zadmin-ban-reason">
+                    Motivo
+                    <textarea id="adminBanReason" rows="3" minlength="3" maxlength="500" required placeholder="Describe la evidencia que justifica la medida"></textarea>
+                  </label>
+                  <button id="adminBanButton" class="zadmin-danger" type="submit">Aplicar ban</button>
+                </form>
+                <p id="adminBanStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+              </section>
+
+              <section aria-labelledby="adminActiveBansTitle">
+                <h4 id="adminActiveBansTitle">Bans de esta entidad</h4>
+                <div id="adminEntityBans" class="zadmin-ban-list"></div>
+              </section>
+
+              <section aria-labelledby="adminAttemptsTitle">
+                <h4 id="adminAttemptsTitle">Intentos recientes</h4>
+                <div id="adminAttemptList" class="zadmin-attempt-list"></div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="adminBansView" class="zadmin-view" data-admin-panel="bans" hidden aria-labelledby="adminBansTitle">
+        <section class="zadmin-card">
+          <div class="zadmin-card-heading">
+            <div>
+              <p class="eyebrow">RESTRICCIONES MANUALES</p>
+              <h3 id="adminBansTitle">Historial de bans</h3>
+            </div>
+            <button id="adminReloadBans" class="secondary" type="button">Actualizar</button>
+          </div>
+          <p class="zadmin-muted">Los bans automáticos del motor antifraude se conservan por separado y no se modifican desde aquí.</p>
+          <div id="adminBansList" class="zadmin-ban-list"></div>
+          <p id="adminBansStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        </section>
+      </section>
+
+      <section id="adminAuditView" class="zadmin-view" data-admin-panel="audit" hidden aria-labelledby="adminAuditTitle">
+        <section class="zadmin-card">
+          <div class="zadmin-card-heading">
+            <div>
+              <p class="eyebrow">TRAZABILIDAD</p>
+              <h3 id="adminAuditTitle">Auditoría de acciones</h3>
+            </div>
+            <button id="adminReloadAudit" class="secondary" type="button">Actualizar</button>
+          </div>
+          <div id="adminAuditList" class="zadmin-audit-list"></div>
+          <p id="adminAuditStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="../config.js"></script>
+  <script type="module" src="./zadmin.js"></script>
+</body>
+</html>
