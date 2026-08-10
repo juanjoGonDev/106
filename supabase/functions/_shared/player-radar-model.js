@@ -1,6 +1,6 @@
 // Generated from shared/player-radar-model.js. Run `node scripts/sync-player-radar-model.mjs`; do not edit directly.
 // Global card cache revision. Keep it strictly newer than every database migration.
-export const PLAYER_CARD_RENDERER_REVISION = 20260810002001;
+export const PLAYER_CARD_RENDERER_REVISION = 20260810030201;
 
 export const PLAYER_RADAR_POLICY = Object.freeze({
   precisionMaximumDifferenceMs: 1000,

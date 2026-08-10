@@ -83,9 +83,12 @@ function policyDecision(databaseUrl, evidence = null) {
 
 function expectDecision(databaseUrl, name, evidence, expected) {
   const decision = policyDecision(databaseUrl, evidence);
-  assert.equal(decision.policyVersion, 2, `${name}: policy version`);
+  assert.equal(decision.policyVersion, 3, `${name}: policy version`);
   assert.equal(decision.status, expected.status, `${name}: status`);
   assert.equal(decision.riskScore, expected.score, `${name}: score`);
+  if (expected.malicious !== undefined) {
+    assert.equal(decision.malicious, expected.malicious, `${name}: malicious`);
+  }
   if (expected.reasons) {
     assert.deepEqual(new Set(decision.reasons), new Set(expected.reasons), `${name}: reasons`);
   }
@@ -251,7 +254,7 @@ async function holdAdvisoryTransaction(databaseUrl, lockExpression) {
 }
 
 function testPolicyMatrix(databaseUrl) {
-  expectDecision(databaseUrl, 'null evidence', null, { status: 'eligible', score: 0, reasons: [] });
+  expectDecision(databaseUrl, 'null evidence', null, { status: 'eligible', score: 0, reasons: [], malicious: false });
   expectDecision(databaseUrl, 'negative values clamp to zero', {
     sameDeviceNearPerfect: -9,
     distinctDeviceNicks: -9,
@@ -261,46 +264,53 @@ function testPolicyMatrix(databaseUrl) {
     sameIpDevices: -9,
     fingerprintMatches: -9,
     automationShapeMatches: -9,
-  }, { status: 'eligible', score: 0, reasons: [] });
+    sessionAttempts2h: -9,
+    sessionNearPerfect2h: -9,
+    sessionVeryNear2h: -9,
+    sessionOrdinary2h: -9,
+    sessionFingerprintMatches2h: -9,
+    sessionAutomationShape2h: -9,
+    sessionNearOrdinarySwitches2h: -9,
+  }, { status: 'eligible', score: 0, reasons: [], malicious: false });
 
   for (const [value, score] of [[2, 0], [3, 10], [4, 20], [5, 20], [6, 25], [7, 25], [8, 30]]) {
     expectDecision(databaseUrl, `near-perfect branch ${value}`, { sameDeviceNearPerfect: value }, {
-      status: 'eligible', score, reasons: value >= 3 ? ['near_perfect_frequency'] : [],
+      status: 'eligible', score, reasons: value >= 3 ? ['near_perfect_frequency'] : [], malicious: false,
     });
   }
   for (const [value, score] of [[1, 0], [2, 10], [3, 25], [4, 30]]) {
     expectDecision(databaseUrl, `same-device nick branch ${value}`, { distinctDeviceNicks: value }, {
-      status: 'eligible', score, reasons: value >= 2 ? ['cross_nick_same_device'] : [],
+      status: 'eligible', score, reasons: value >= 2 ? ['cross_nick_same_device'] : [], malicious: false,
     });
   }
   for (const [value, score] of [[1, 0], [2, 10], [3, 20], [4, 25]]) {
     expectDecision(databaseUrl, `fingerprint branch ${value}`, { fingerprintMatches: value }, {
-      status: 'eligible', score, reasons: value >= 2 ? ['repeated_interaction_pattern'] : [],
+      status: 'eligible', score, reasons: value >= 2 ? ['repeated_interaction_pattern'] : [], malicious: false,
     });
   }
   for (const [value, score] of [[2, 0], [3, 15], [4, 30]]) {
     expectDecision(databaseUrl, `automation-shape branch ${value}`, { automationShapeMatches: value }, {
-      status: 'eligible', score, reasons: value >= 3 ? ['repeated_zero_motion_activation_gap'] : [],
+      status: 'eligible', score, reasons: value >= 3 ? ['repeated_zero_motion_activation_gap'] : [], malicious: false,
     });
   }
 
   expectDecision(databaseUrl, 'distinct-account identity context', { distinctDeviceAccounts: 2 }, {
-    status: 'eligible', score: 5, reasons: ['multi_identity_context'],
+    status: 'eligible', score: 5, reasons: ['multi_identity_context'], malicious: false,
   });
   expectDecision(databaseUrl, 'same-account multi-nick context', { sameAccountNicks: 3 }, {
-    status: 'eligible', score: 5, reasons: ['multi_identity_context'],
+    status: 'eligible', score: 5, reasons: ['multi_identity_context'], malicious: false,
   });
   expectDecision(databaseUrl, 'identity OR does not double-count', {
     distinctDeviceAccounts: 2, sameAccountNicks: 3,
-  }, { status: 'eligible', score: 5, reasons: ['multi_identity_context'] });
+  }, { status: 'eligible', score: 5, reasons: ['multi_identity_context'], malicious: false });
   expectDecision(databaseUrl, 'IP below near threshold', { sameIpNearPerfect: 5, sameIpDevices: 9 }, {
-    status: 'eligible', score: 0, reasons: [],
+    status: 'eligible', score: 0, reasons: [], malicious: false,
   });
   expectDecision(databaseUrl, 'IP below device threshold', { sameIpNearPerfect: 99, sameIpDevices: 2 }, {
-    status: 'eligible', score: 0, reasons: [],
+    status: 'eligible', score: 0, reasons: [], malicious: false,
   });
   expectDecision(databaseUrl, 'IP correlation is capped weak context', { sameIpNearPerfect: 6, sameIpDevices: 3 }, {
-    status: 'eligible', score: 5, reasons: ['shared_ip_context'],
+    status: 'eligible', score: 5, reasons: ['shared_ip_context'], malicious: false,
   });
 
   expectDecision(databaseUrl, 'exact watch threshold', {
@@ -312,19 +322,20 @@ function testPolicyMatrix(databaseUrl) {
   }, {
     status: 'watch', score: 35,
     reasons: ['near_perfect_frequency', 'cross_nick_same_device', 'repeated_interaction_pattern', 'shared_ip_context'],
+    malicious: false,
   });
   expectDecision(databaseUrl, 'score cannot bypass near-perfect gate', {
     sameDeviceNearPerfect: 3,
     distinctDeviceNicks: 4,
     fingerprintMatches: 4,
     automationShapeMatches: 4,
-  }, { status: 'watch', score: 95 });
+  }, { status: 'watch', score: 95, malicious: false });
   expectDecision(databaseUrl, 'score cannot bypass fingerprint gate', {
     sameDeviceNearPerfect: 8,
     distinctDeviceNicks: 4,
     fingerprintMatches: 2,
     automationShapeMatches: 4,
-  }, { status: 'watch', score: 100 });
+  }, { status: 'watch', score: 100, malicious: false });
   expectDecision(databaseUrl, 'score cannot bypass strong-identity/activation gate', {
     sameDeviceNearPerfect: 8,
     distinctDeviceNicks: 1,
@@ -332,19 +343,22 @@ function testPolicyMatrix(databaseUrl) {
     fingerprintMatches: 4,
     sameIpNearPerfect: 6,
     sameIpDevices: 3,
-  }, { status: 'watch', score: 65 });
+  }, { status: 'watch', score: 65, malicious: false });
   expectDecision(databaseUrl, 'minimal cross-nick exclusion boundary', {
+    anchorNearPerfect: true,
     sameDeviceNearPerfect: 4,
     distinctDeviceNicks: 3,
     fingerprintMatches: 3,
-  }, { status: 'excluded', score: 65 });
+  }, { status: 'excluded', score: 65, malicious: true });
   expectDecision(databaseUrl, 'activation-gap alternative exclusion', {
+    anchorNearPerfect: true,
     sameDeviceNearPerfect: 4,
     distinctDeviceNicks: 2,
     fingerprintMatches: 3,
     automationShapeMatches: 4,
-  }, { status: 'excluded', score: 80 });
+  }, { status: 'excluded', score: 80, malicious: true });
   expectDecision(databaseUrl, 'risk score is capped at 100', {
+    anchorNearPerfect: true,
     sameDeviceNearPerfect: 99,
     distinctDeviceNicks: 99,
     distinctDeviceAccounts: 99,
@@ -353,9 +367,91 @@ function testPolicyMatrix(databaseUrl) {
     sameIpDevices: 99,
     fingerprintMatches: 99,
     automationShapeMatches: 99,
-  }, { status: 'excluded', score: 100 });
+  }, { status: 'excluded', score: 100, malicious: true });
 
-  logStep('policy-v2 scoring, every threshold branch, gate, weak-IP rule, watch boundary and score cap are covered');
+  logStep('policy-v3 preserves every long-window threshold, weak-IP rule, watch boundary and corroborated exclusion gate');
+}
+
+function testSessionPolicyMatrix(databaseUrl) {
+  for (const [value, score] of [[2, 0], [3, 10], [4, 20], [5, 20], [6, 25]]) {
+    expectDecision(databaseUrl, `two-hour near-perfect branch ${value}`, { sessionNearPerfect2h: value }, {
+      status: score >= 35 ? 'watch' : 'eligible', score,
+      reasons: value >= 3 ? ['two_hour_near_perfect_frequency'] : [], malicious: false,
+    });
+  }
+  for (const [value, score] of [[2, 0], [3, 10], [4, 20]]) {
+    expectDecision(databaseUrl, `two-hour very-near branch ${value}`, { sessionVeryNear2h: value }, {
+      status: 'eligible', score,
+      reasons: value >= 3 ? ['two_hour_very_near_frequency'] : [], malicious: false,
+    });
+  }
+  for (const [value, score] of [[1, 0], [2, 10], [3, 20]]) {
+    expectDecision(databaseUrl, `two-hour fingerprint branch ${value}`, { sessionFingerprintMatches2h: value }, {
+      status: 'eligible', score,
+      reasons: value >= 2 ? ['two_hour_repeated_interaction'] : [], malicious: false,
+    });
+  }
+  for (const [value, score] of [[1, 0], [2, 15], [3, 25]]) {
+    expectDecision(databaseUrl, `two-hour automation branch ${value}`, { sessionAutomationShape2h: value }, {
+      status: 'eligible', score,
+      reasons: value >= 2 ? ['two_hour_mouse_activation_gap'] : [], malicious: false,
+    });
+  }
+
+  expectDecision(databaseUrl, 'mixed branch requires both near and ordinary sample', {
+    sessionNearPerfect2h: 2,
+    sessionOrdinary2h: 1,
+    sessionNearOrdinarySwitches2h: 9,
+  }, { status: 'eligible', score: 0, reasons: [], malicious: false });
+  expectDecision(databaseUrl, 'mixed two-hour branch', {
+    sessionNearPerfect2h: 2,
+    sessionOrdinary2h: 2,
+    sessionNearOrdinarySwitches2h: 3,
+  }, { status: 'eligible', score: 10, reasons: ['two_hour_mixed_pattern'], malicious: false });
+  expectDecision(databaseUrl, 'strong alternating branch', {
+    sessionNearPerfect2h: 3,
+    sessionOrdinary2h: 3,
+    sessionNearOrdinarySwitches2h: 5,
+  }, {
+    status: 'eligible', score: 30,
+    reasons: ['two_hour_near_perfect_frequency', 'two_hour_alternating_pattern'], malicious: false,
+  });
+
+  expectDecision(databaseUrl, 'precision-only large sample never convicts', {
+    anchorNearPerfect: true,
+    sameDeviceNearPerfect: 8,
+    sessionAttempts2h: 8,
+    sessionNearPerfect2h: 8,
+    sessionVeryNear2h: 8,
+  }, { status: 'watch', score: 75, malicious: false });
+  expectDecision(databaseUrl, 'session automation can convict one account without cross-nick churn', {
+    anchorNearPerfect: true,
+    sameDeviceNearPerfect: 4,
+    sessionAttempts2h: 5,
+    sessionNearPerfect2h: 3,
+    sessionFingerprintMatches2h: 2,
+    sessionAutomationShape2h: 3,
+  }, { status: 'excluded', score: 65, malicious: true });
+  expectDecision(databaseUrl, 'manual anchor records malicious context without revoking the manual attempt', {
+    anchorNearPerfect: false,
+    sameDeviceNearPerfect: 4,
+    sessionAttempts2h: 5,
+    sessionNearPerfect2h: 3,
+    sessionFingerprintMatches2h: 2,
+    sessionAutomationShape2h: 3,
+  }, { status: 'watch', score: 65, malicious: true });
+  expectDecision(databaseUrl, 'alternation can convict when corroborated by stable fingerprint evidence', {
+    anchorNearPerfect: true,
+    sameDeviceNearPerfect: 4,
+    fingerprintMatches: 2,
+    sessionAttempts2h: 5,
+    sessionNearPerfect2h: 3,
+    sessionOrdinary2h: 2,
+    sessionFingerprintMatches2h: 3,
+    sessionNearOrdinarySwitches2h: 3,
+  }, { status: 'excluded', score: 80, malicious: true });
+
+  logStep('policy-v3 covers every two-hour score branch, insufficient samples, precision-only safety and both malicious session gates');
 }
 
 function testHardValidityAndTelemetry(databaseUrl) {
@@ -445,6 +541,7 @@ function testEvidenceWindow(databaseUrl, prefix) {
 
   const evidence = jsonPsql(databaseUrl, `public.game_attempt_integrity_evidence(${sqlLiteral(anchorId)}::uuid)`);
   assert.equal(evidence.anchorAttemptId, anchorId);
+  assert.equal(evidence.anchorNearPerfect, true);
   assert.equal(evidence.sameDeviceNearPerfect, 3);
   assert.equal(evidence.distinctDeviceNicks, 1);
   assert.equal(evidence.distinctDeviceAccounts, 1);
@@ -453,14 +550,39 @@ function testEvidenceWindow(databaseUrl, prefix) {
   assert.equal(evidence.sameIpDevices, 1);
   assert.equal(evidence.fingerprintMatches, 3);
   assert.equal(evidence.automationShapeMatches, 0);
-  assert.equal(evidence.fingerprintAvailable, true);
+  assert.equal(evidence.sessionAttempts2h, 2);
+  assert.equal(evidence.sessionNearPerfect2h, 2);
+  assert.equal(evidence.sessionVeryNear2h, 2);
+  assert.equal(evidence.sessionOrdinary2h, 0);
+  assert.equal(evidence.sessionFingerprintMatches2h, 2);
+  assert.equal(evidence.sessionAutomationShape2h, 0);
+  assert.equal(evidence.sessionNearOrdinarySwitches2h, 0);
+  assert.equal(evidence.sessionIpDevices2h, 1);
   assert.equal(
     jsonPsql(databaseUrl, `public.game_attempt_integrity_evidence(${sqlLiteral(randomUUID())}::uuid)`).error,
     'attempt_not_found',
   );
 
-  logStep('evidence includes the exact 24-hour boundary and excludes older, future and hard-invalid attempts');
+  logStep('evidence includes exact 24-hour boundaries and computes the bounded two-hour strong-identity session');
   return anchorId;
+}
+
+function testTwoHourBoundary(databaseUrl, prefix) {
+  const day = madridDay(databaseUrl, -24);
+  const participant = createAccountPlayer(databaseUrl, prefix, 'TwoHourBoundary');
+  const anchorAt = isoAt(day, 16);
+  const exact = new Date(Date.parse(anchorAt) - 7_200_000).toISOString();
+  const outside = new Date(Date.parse(anchorAt) - 7_200_001).toISOString();
+  insertAttempt(databaseUrl, participant, { difference: 12, createdAt: exact });
+  insertAttempt(databaseUrl, participant, { difference: 1, createdAt: outside });
+  insertAttempt(databaseUrl, participant, { difference: 1, createdAt: new Date(Date.parse(anchorAt) + 1).toISOString() });
+  const anchorId = insertAttempt(databaseUrl, participant, { difference: 2, createdAt: anchorAt });
+  const evidence = jsonPsql(databaseUrl, `public.game_attempt_integrity_evidence(${sqlLiteral(anchorId)}::uuid)`);
+  assert.equal(evidence.sessionAttempts2h, 2);
+  assert.equal(evidence.sessionNearPerfect2h, 1);
+  assert.equal(evidence.sessionOrdinary2h, 1);
+  assert.equal(evidence.sessionNearOrdinarySwitches2h, 1);
+  logStep('two-hour evidence includes the exact lower boundary and excludes 1ms-older and future attempts');
 }
 
 function testReassessmentTransitions(databaseUrl, prefix) {
@@ -475,6 +597,7 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   const restored = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(legacyId)}::uuid)`);
   assert.equal(restored.hardValid, true);
   assert.equal(restored.status, 'eligible');
+  assert.equal(restored.policyVersion, 3);
   assert.equal(restored.projectionChanges, 1);
   assert.equal(attemptProjection(databaseUrl, legacyId).verified, true);
 
@@ -489,6 +612,7 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   const repaired = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(hardInvalidId)}::uuid)`);
   assert.equal(repaired.hardValid, false);
   assert.equal(repaired.status, 'excluded');
+  assert.equal(repaired.policyVersion, 3);
   assert.equal(repaired.projectionChanges, 1);
   assert.equal(attemptProjection(databaseUrl, hardInvalidId).verified, false);
 
@@ -498,6 +622,7 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   assert.equal(normalResult.status, 'eligible');
   assert.equal(normalResult.riskScore, 0);
   assert.equal(normalResult.projectionChanges, 0);
+  assert.equal(normalResult.malicious, false);
   assert.equal(
     jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(randomUUID())}::uuid)`).error,
     'attempt_not_found',
@@ -519,6 +644,7 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   ];
   const watch = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(ids.at(-1))}::uuid)`);
   assert.equal(watch.status, 'watch');
+  assert.equal(watch.malicious, false);
   for (const id of ids) {
     const state = attemptProjection(databaseUrl, id);
     assert.equal(state.status, 'watch');
@@ -529,6 +655,7 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   ids.push(fourthId);
   const excluded = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(fourthId)}::uuid)`);
   assert.equal(excluded.status, 'excluded');
+  assert.equal(excluded.malicious, true);
   assert.equal(excluded.projectionChanges, 4);
   for (const id of ids) {
     const state = attemptProjection(databaseUrl, id);
@@ -539,16 +666,263 @@ function testReassessmentTransitions(databaseUrl, prefix) {
   const eventCountBefore = Number(scalar(databaseUrl, `(
     select count(*) from public.game_attempt_integrity_events where attempt_id = any(array[${ids.map((id) => `${sqlLiteral(id)}::uuid`).join(',')}])
   )`));
+  const banCountBefore = Number(scalar(databaseUrl, `(
+    select count(*) from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(fourthId)}::uuid
+  )`));
   const repeated = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(fourthId)}::uuid)`);
   assert.equal(repeated.stateChanges, 0);
   assert.equal(repeated.projectionChanges, 0);
+  assert.equal(repeated.bansCreated, 0);
   const eventCountAfter = Number(scalar(databaseUrl, `(
     select count(*) from public.game_attempt_integrity_events where attempt_id = any(array[${ids.map((id) => `${sqlLiteral(id)}::uuid`).join(',')}])
   )`));
+  const banCountAfter = Number(scalar(databaseUrl, `(
+    select count(*) from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(fourthId)}::uuid
+  )`));
   assert.equal(eventCountAfter, eventCountBefore);
+  assert.equal(banCountAfter, banCountBefore);
 
-  logStep('reassessment covers missing/non-near anchors, legacy restoration, hard repair, watch propagation, exclusion and idempotency');
-  return { ids, anchorId: fourthId, deviceHash: sharedDevice, rawReferenceId: ids[0] };
+  logStep('reassessment covers legacy restoration, hard repair, watch propagation, exclusion, ban idempotency and projection idempotency');
+  return { ids, anchorId: fourthId, deviceHash: sharedDevice, accountId: c.accountId, rawReferenceId: ids[0] };
+}
+
+function suspiciousMouseSignals() {
+  return {
+    finishEvent: 'pointerdown',
+    pointerType: 'mouse',
+    pointerMoveCount: 0,
+    pointerTravelPx: 0,
+    pointerDwellMs: 0,
+    pressureMax: 0,
+    userActivation: false,
+    automationDetected: false,
+    automaticFinish: false,
+  };
+}
+
+function humanSignals(seed) {
+  return {
+    finishEvent: 'pointerdown',
+    pointerType: 'mouse',
+    pointerMoveCount: 4 + seed,
+    pointerTravelPx: 30 + seed * 7,
+    pointerDwellMs: 12 + seed * 3,
+    pressureMax: 0,
+    userActivation: true,
+    automationDetected: false,
+    automaticFinish: false,
+  };
+}
+
+function testAlternatingSameAccountAttack(databaseUrl, prefix) {
+  const day = madridDay(databaseUrl, -18);
+  const participant = createAccountPlayer(databaseUrl, prefix, 'Alternating');
+  const suspicious = suspiciousMouseSignals();
+  const sequence = [
+    { difference: 1, signals: suspicious },
+    { difference: 48, signals: humanSignals(1) },
+    { difference: 2, signals: suspicious },
+    { difference: 31, signals: humanSignals(2) },
+    { difference: 1, signals: suspicious },
+  ];
+  const ids = sequence.map((entry, index) => insertAttempt(databaseUrl, participant, {
+    ...entry,
+    createdAt: isoAt(day, 15, index),
+  }));
+
+  const result = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(ids.at(-1))}::uuid)`);
+  assert.equal(result.malicious, true, JSON.stringify(result));
+  assert.equal(result.status, 'excluded');
+  assert.equal(result.policyVersion, 3);
+  assert.equal(result.projectionChanges, 3);
+
+  for (const [index, id] of ids.entries()) {
+    const projection = attemptProjection(databaseUrl, id);
+    const expectedNear = sequence[index].difference <= 5;
+    assert.equal(projection.verified, !expectedNear, `${id} verified`);
+    assert.equal(projection.status, expectedNear ? 'excluded' : 'eligible', `${id} status`);
+    assert.equal(projection.policyVersion, 3);
+  }
+
+  const bans = jsonPsql(databaseUrl, `(
+    select coalesce(jsonb_agg(jsonb_build_object('scope', scope, 'expiresAt', expires_at) order by scope), '[]'::jsonb)
+    from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(ids.at(-1))}::uuid
+  )`);
+  assert.deepEqual(bans.map((ban) => ban.scope), ['account', 'device', 'ip']);
+  assert.ok(bans.every((ban) => Date.parse(ban.expiresAt) === Date.parse(isoAt(day, 15, 4)) + 48 * 60 * 60 * 1000));
+
+  const activeAt47h = jsonPsql(databaseUrl, `public.get_game_active_integrity_ban_for_account(
+    ${sqlLiteral(participant.accountId)}::uuid,
+    ${sqlLiteral(participant.deviceHash)},
+    ${sqlLiteral(participant.ipHash)},
+    ${sqlLiteral(new Date(Date.parse(isoAt(day, 15, 4)) + 48 * 60 * 60 * 1000 - 1).toISOString())}::timestamptz
+  )`);
+  assert.equal(activeAt47h.banned, true);
+  assert.equal(activeAt47h.retryAfterSeconds, 1);
+
+  const expiredExact = jsonPsql(databaseUrl, `public.get_game_active_integrity_ban_for_account(
+    ${sqlLiteral(participant.accountId)}::uuid,
+    ${sqlLiteral(participant.deviceHash)},
+    ${sqlLiteral(participant.ipHash)},
+    ${sqlLiteral(new Date(Date.parse(isoAt(day, 15, 4)) + 48 * 60 * 60 * 1000).toISOString())}::timestamptz
+  )`);
+  assert.deepEqual(expiredExact, { banned: false });
+
+  const tokenLookup = jsonPsql(databaseUrl, `public.get_game_active_integrity_ban_by_token(
+    ${sqlLiteral(participant.tokenHash)},
+    ${sqlLiteral(participant.deviceHash)},
+    ${sqlLiteral(participant.ipHash)},
+    ${sqlLiteral(new Date(Date.parse(isoAt(day, 15, 4)) + 60_000).toISOString())}::timestamptz
+  )`);
+  assert.equal(tokenLookup.banned, true);
+
+  logStep('manual attempts cannot reset a corroborated same-account/device two-hour attack; only suspicious near-perfect attempts are revoked and 48h bans are immutable projections');
+  return { participant, ids, sourceAttemptId: ids.at(-1) };
+}
+
+function testPrecisionOnlySafety(databaseUrl, prefix) {
+  const day = madridDay(databaseUrl, -17);
+  const participant = createAccountPlayer(databaseUrl, prefix, 'Skilled');
+  const ids = [];
+  for (let index = 0; index < 5; index += 1) {
+    ids.push(insertAttempt(databaseUrl, participant, {
+      difference: index + 1,
+      createdAt: isoAt(day, 12, index),
+      signals: humanSignals(index + 10),
+    }));
+  }
+  const result = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(ids.at(-1))}::uuid)`);
+  assert.equal(result.malicious, false, JSON.stringify(result));
+  assert.notEqual(result.status, 'excluded');
+  assert.equal(result.bansCreated, 0);
+  assert.equal(Number(scalar(databaseUrl, `(
+    select count(*) from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(ids.at(-1))}::uuid
+  )`)), 0);
+  for (const id of ids) assert.equal(attemptProjection(databaseUrl, id).verified, true);
+  logStep('a skilled player can repeat near-perfect results without exclusion or bans when corroborating automation evidence is absent');
+}
+
+function testSharedIpBanSuppression(databaseUrl, prefix) {
+  const day = madridDay(databaseUrl, -16);
+  const sharedIp = randomHash();
+  const attacker = createAccountPlayer(databaseUrl, prefix, 'SharedIpAttack', { ipHash: sharedIp });
+  const neighbor = createAccountPlayer(databaseUrl, prefix, 'SharedIpNeighbor', { ipHash: sharedIp });
+  insertAttempt(databaseUrl, neighbor, { difference: 80, createdAt: isoAt(day, 10, 0), signals: humanSignals(20) });
+
+  const suspicious = suspiciousMouseSignals();
+  const ids = [
+    insertAttempt(databaseUrl, attacker, { difference: 1, createdAt: isoAt(day, 10, 1), signals: suspicious }),
+    insertAttempt(databaseUrl, attacker, { difference: 42, createdAt: isoAt(day, 10, 2), signals: humanSignals(21) }),
+    insertAttempt(databaseUrl, attacker, { difference: 2, createdAt: isoAt(day, 10, 3), signals: suspicious }),
+    insertAttempt(databaseUrl, attacker, { difference: 27, createdAt: isoAt(day, 10, 4), signals: humanSignals(22) }),
+    insertAttempt(databaseUrl, attacker, { difference: 1, createdAt: isoAt(day, 10, 5), signals: suspicious }),
+  ];
+  const evidence = jsonPsql(databaseUrl, `public.game_attempt_integrity_evidence(${sqlLiteral(ids.at(-1))}::uuid)`);
+  assert.equal(evidence.sessionIpDevices2h, 2);
+  const result = jsonPsql(databaseUrl, `public.reassess_game_integrity_cluster(${sqlLiteral(ids.at(-1))}::uuid)`);
+  assert.equal(result.malicious, true);
+  const scopes = jsonPsql(databaseUrl, `(
+    select coalesce(jsonb_agg(scope order by scope), '[]'::jsonb)
+    from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(ids.at(-1))}::uuid
+  )`);
+  assert.deepEqual(scopes, ['account', 'device']);
+  assert.equal(attemptProjection(databaseUrl, ids[0]).verified, false);
+  assert.equal(Number(scalar(databaseUrl, `(
+    select count(*) from public.game_integrity_bans
+    where scope = 'ip' and ip_hash = ${sqlLiteral(sharedIp)}
+  )`)), 0);
+  assert.equal(Number(scalar(databaseUrl, `(
+    select count(*) from public.game_attempts
+    where nick_key = ${sqlLiteral(neighbor.nickKey)} and verified = true
+  )`)), 1);
+  logStep('confirmed malicious activity bans account/device while a shared IP is never used to punish the unrelated device/account');
+}
+
+function testActiveBanChallengeGuard(databaseUrl, prefix) {
+  const participant = createAccountPlayer(databaseUrl, prefix, 'ActiveGuard');
+  const sourceAttemptId = insertAttempt(databaseUrl, participant, { difference: 20 });
+  const issued = boolPsql(databaseUrl, `public.issue_game_integrity_ban(
+    'account',
+    ${sqlLiteral(participant.accountId)}::uuid,
+    null,
+    null,
+    'fixture_guard',
+    ${sqlLiteral(sourceAttemptId)}::uuid,
+    clock_timestamp(),
+    '{}'::jsonb
+  )`);
+  assert.equal(issued, true);
+  assert.equal(boolPsql(databaseUrl, `public.issue_game_integrity_ban(
+    'account',
+    ${sqlLiteral(participant.accountId)}::uuid,
+    null,
+    null,
+    'fixture_guard',
+    ${sqlLiteral(sourceAttemptId)}::uuid,
+    clock_timestamp(),
+    '{}'::jsonb
+  )`), false);
+
+  const start = jsonPsql(databaseUrl, `public.start_game_challenge_pointer_only(
+    ${sqlLiteral(participant.nick)},
+    ${sqlLiteral(participant.nickKey)},
+    'spain',
+    ${sqlLiteral(participant.deviceHash)},
+    ${sqlLiteral(participant.ipHash)},
+    null,
+    null
+  )`);
+  assert.equal(start.error, 'integrity_banned');
+
+  const prepared = jsonPsql(databaseUrl, `public.prepare_game_challenge_pointer_only(
+    ${sqlLiteral(participant.nick)},
+    ${sqlLiteral(participant.nickKey)},
+    'spain',
+    ${sqlLiteral(participant.deviceHash)},
+    ${sqlLiteral(participant.ipHash)},
+    null,
+    null
+  )`);
+  assert.equal(prepared.error, 'integrity_banned');
+  logStep('database start and prepared-start wrappers independently reject an active account ban before a ranked challenge is created');
+}
+
+function testAchievementPointPolicy(databaseUrl, prefix) {
+  const participant = createAccountPlayer(databaseUrl, prefix, 'EpicExact');
+  const expected = {
+    perfect_total_1: 100,
+    perfect_total_3: 150,
+    perfect_total_5: 225,
+    perfect_total_10: 350,
+    perfect_total_25: 650,
+    perfect_total_50: 1000,
+    perfect_total_100: 1600,
+    perfect_average: 300,
+  };
+  const actual = jsonPsql(databaseUrl, `(
+    select jsonb_object_agg(achievement_code, points order by achievement_code)
+    from public.game_achievement_point_policy
+  )`);
+  assert.deepEqual(actual, expected);
+
+  runPsql(databaseUrl, `
+    insert into public.game_player_achievements(nick_key, achievement_code, achievement_kind, title, description, points, achieved_on)
+    values (
+      ${sqlLiteral(participant.nickKey)},
+      'perfect_total_1',
+      'perfect_total',
+      '106 clavado',
+      'fixture',
+      15,
+      current_date
+    )
+    on conflict (nick_key, achievement_code) do update set points = excluded.points;
+  `);
+  assert.equal(Number(scalar(databaseUrl, `(
+    select points from public.game_player_achievements
+    where nick_key = ${sqlLiteral(participant.nickKey)} and achievement_code = 'perfect_total_1'
+  )`)), 100);
+  logStep('exact-10.600 and perfect progression points are canonicalized by the database trigger, including legacy low-point writes');
 }
 
 function testDailyNoSuccessor(databaseUrl, prefix) {
@@ -734,6 +1108,20 @@ function testLeagueReconciliation(databaseUrl, prefix) {
 }
 
 async function testAdvisoryLockSerialization(databaseUrl, cluster, referralAccountId) {
+  const canonicalIntegrityAccount = scalar(databaseUrl, `public.daily_game_account_id(${sqlLiteral(cluster.accountId)}::uuid)`);
+  const releaseAccount = await holdAdvisoryTransaction(
+    databaseUrl,
+    `hashtextextended(${sqlLiteral(`integrity-account:${canonicalIntegrityAccount}`)}, 106)`,
+  );
+  try {
+    runPsqlExpectFailure(databaseUrl, `
+      set lock_timeout = '250ms';
+      select public.reassess_game_integrity_cluster(${sqlLiteral(cluster.anchorId)}::uuid);
+    `, /lock timeout|canceling statement due to lock timeout/i);
+  } finally {
+    await releaseAccount();
+  }
+
   const releaseDevice = await holdAdvisoryTransaction(
     databaseUrl,
     `hashtextextended(${sqlLiteral(`integrity-device:${cluster.deviceHash}`)}, 106)`,
@@ -761,10 +1149,10 @@ async function testAdvisoryLockSerialization(databaseUrl, cluster, referralAccou
     await releaseReferral();
   }
 
-  logStep('runtime lock contention proves same-device reassessment and referral correction serialize on their canonical advisory keys');
+  logStep('runtime lock contention proves same-account/device reassessment and referral correction serialize on canonical advisory keys');
 }
 
-function testAuditPrivileges(databaseUrl, attemptId) {
+function testAuditPrivileges(databaseUrl, attemptId, banSourceAttemptId) {
   assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_attempt_integrity_events', 'SELECT')"), true);
   assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_attempt_integrity_events', 'INSERT')"), true);
   assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_attempt_integrity_events', 'UPDATE')"), false);
@@ -773,6 +1161,15 @@ function testAuditPrivileges(databaseUrl, attemptId) {
   assert.equal(boolPsql(databaseUrl, "has_table_privilege('authenticated', 'public.game_attempt_integrity_events', 'SELECT')"), false);
   assert.equal(boolPsql(databaseUrl, "has_function_privilege('anon', 'public.reassess_game_integrity_cluster(uuid)', 'EXECUTE')"), false);
   assert.equal(boolPsql(databaseUrl, "has_function_privilege('authenticated', 'public.reassess_game_integrity_cluster(uuid)', 'EXECUTE')"), false);
+
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_integrity_bans', 'SELECT')"), true);
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_integrity_bans', 'INSERT')"), true);
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_integrity_bans', 'UPDATE')"), false);
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('service_role', 'public.game_integrity_bans', 'DELETE')"), false);
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('anon', 'public.game_integrity_bans', 'SELECT')"), false);
+  assert.equal(boolPsql(databaseUrl, "has_table_privilege('authenticated', 'public.game_integrity_bans', 'SELECT')"), false);
+  assert.equal(boolPsql(databaseUrl, "has_function_privilege('anon', 'public.get_game_active_integrity_ban(text,text,text,timestamptz)', 'EXECUTE')"), false);
+  assert.equal(boolPsql(databaseUrl, "has_function_privilege('authenticated', 'public.get_game_active_integrity_ban_by_token(text,text,text,timestamptz)', 'EXECUTE')"), false);
 
   const eventId = scalar(databaseUrl, `(
     select id from public.game_attempt_integrity_events where attempt_id = ${sqlLiteral(attemptId)}::uuid order by id desc limit 1
@@ -783,7 +1180,20 @@ function testAuditPrivileges(databaseUrl, attemptId) {
     update public.game_attempt_integrity_events set next_score = next_score where id = ${Number(eventId)};
   `, /permission denied/i);
 
-  logStep('integrity state remains private and the audit ledger is append-only for service/API roles');
+  const banId = scalar(databaseUrl, `(
+    select id from public.game_integrity_bans where source_attempt_id = ${sqlLiteral(banSourceAttemptId)}::uuid order by id limit 1
+  )`);
+  assert.ok(banId);
+  runPsqlExpectFailure(databaseUrl, `
+    set role service_role;
+    update public.game_integrity_bans set expires_at = expires_at where id = ${Number(banId)};
+  `, /permission denied/i);
+  runPsqlExpectFailure(databaseUrl, `
+    set role service_role;
+    delete from public.game_integrity_bans where id = ${Number(banId)};
+  `, /permission denied/i);
+
+  logStep('integrity state and bans remain private; both decision and ban audit ledgers are append-only to service/API roles');
 }
 
 function testFullRebuild(databaseUrl, cluster) {
@@ -792,7 +1202,7 @@ function testFullRebuild(databaseUrl, cluster) {
   assert.equal(rawBefore.verified, false);
 
   const forced = jsonPsql(databaseUrl, 'public.rebuild_game_attempt_integrity(true)');
-  assert.equal(forced.policyVersion, 2);
+  assert.equal(forced.policyVersion, 3);
   assert.equal(forced.alreadyCurrent, false);
   assert.ok(forced.reassessed >= 1);
   assert.ok(forced.verifiedChanges >= cluster.ids.length * 2, JSON.stringify(forced));
@@ -806,26 +1216,33 @@ function testFullRebuild(databaseUrl, cluster) {
   assert.deepEqual(rawAfter.signals, rawBefore.signals);
 
   const current = jsonPsql(databaseUrl, 'public.rebuild_game_attempt_integrity(false)');
-  assert.equal(current.policyVersion, 2);
+  assert.equal(current.policyVersion, 3);
   assert.equal(current.alreadyCurrent, true);
   assert.equal(current.reassessed, 0);
   assert.equal(current.verifiedChanges, 0);
 
-  logStep('forced rebuild reports reset plus re-exclusion projection writes, preserves raw evidence and no-ops when policy is current');
+  logStep('forced policy-v3 rebuild is deterministic, preserves raw evidence, repairs projections and no-ops when current');
 }
 
 const databaseUrl = readLocalDatabaseUrl();
 const prefix = `I${Date.now().toString(36).slice(-6)}`;
 
 testPolicyMatrix(databaseUrl);
+testSessionPolicyMatrix(databaseUrl);
 testHardValidityAndTelemetry(databaseUrl);
 testEvidenceWindow(databaseUrl, prefix);
+testTwoHourBoundary(databaseUrl, prefix);
 const cluster = testReassessmentTransitions(databaseUrl, prefix);
+const alternating = testAlternatingSameAccountAttack(databaseUrl, prefix);
+testPrecisionOnlySafety(databaseUrl, prefix);
+testSharedIpBanSuppression(databaseUrl, prefix);
+testActiveBanChallengeGuard(databaseUrl, prefix);
+testAchievementPointPolicy(databaseUrl, prefix);
 testDailyNoSuccessor(databaseUrl, prefix);
 const referralAccountId = testReferralReconciliation(databaseUrl, prefix);
 testLeagueReconciliation(databaseUrl, prefix);
 await testAdvisoryLockSerialization(databaseUrl, cluster, referralAccountId);
-testAuditPrivileges(databaseUrl, cluster.anchorId);
+testAuditPrivileges(databaseUrl, cluster.anchorId, alternating.sourceAttemptId);
 testFullRebuild(databaseUrl, cluster);
 
-process.stdout.write('Integrity policy branch and edge-case coverage suite completed.\n');
+process.stdout.write('Integrity policy v3 branch and edge-case coverage suite completed.\n');

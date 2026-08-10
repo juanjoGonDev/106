@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="./v15.css">
   <link rel="stylesheet" href="./v16.css">
   <link rel="stylesheet" href="./v20.css?v=20260731-stat-accordion">
+  <link rel="stylesheet" href="./profile-pagination.css?v=20260810-profile-pagination">
 </head>
 <body>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NKZK4DC5" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -54,7 +55,9 @@
               <div class="player-section-heading"><div><p class="eyebrow">VITRINA</p><h3>Logros destacados</h3></div><p>Elegidos por el jugador</p></div>
               <ol id="playerFeatured" class="honours-featured-list"></ol>
             </section>
-            <h3>Últimos intentos</h3><ol id="playerHistory" class="player-list"></ol>
+            <h3>Últimos intentos</h3>
+            <ol id="playerHistory" class="player-list"></ol>
+            <div id="playerHistoryPager" class="collection-pager-slot"></div>
           </section>
           <section id="achievementsSection" class="player-panel player-section" data-player-section="achievements" hidden>
             <div class="player-section-heading"><div><p class="eyebrow">LOGROS</p><h2>Colección y progreso</h2></div><p id="achievementTotal"></p></div>
@@ -63,11 +66,14 @@
               <div class="featured-editor__actions"><span id="featuredAchievementCount" aria-live="polite">0 de 3</span><button id="saveFeaturedAchievements" class="primary compact" type="button" disabled>Guardar destacados</button></div>
             </section>
             <ol id="playerAchievements" class="honours-collection" aria-label="Colección completa de logros"></ol>
+            <div id="playerAchievementsPager" class="collection-pager-slot"></div>
           </section>
           <section id="trophiesSection" class="player-panel player-section" data-player-section="trophies" hidden>
             <div class="player-section-heading"><div><p class="eyebrow">TROFEOS</p><h2>Vitrina y objetivos diarios</h2></div><p id="trophyTotal"></p></div>
             <ol id="playerTrophyCollection" class="honours-collection honours-collection--trophies" aria-label="Trofeos conseguidos y pendientes"></ol>
-            <h3>Historial conseguido</h3><ol id="playerTrophies" class="player-list"></ol>
+            <h3>Historial conseguido</h3>
+            <ol id="playerTrophies" class="player-list"></ol>
+            <div id="playerTrophiesPager" class="collection-pager-slot"></div>
           </section>
         </div>
         <aside class="player-panel">
@@ -89,12 +95,13 @@
   <script src="./layout.js"></script>
   <script src="./access.js"></script>
   <script src="./nickname-policy.js"></script>
-  <script src="./player-radar-model.js?v=20260810002001"></script>
+  <script src="./player-radar-model.js?v=20260810030201"></script>
   <script src="./player-ui.js?v=20260731-card-renderer-2"></script>
   <script src="./player-stats.js?v=20260731-shared-radar"></script>
-  <script src="./honours-catalog.js"></script>
+  <script src="./honours-catalog.js?v=20260810-perfect-epic"></script>
+  <script src="./profile-collection-state.js?v=20260810-profile-pagination"></script>
   <script src="./profile-card-highlights.js"></script>
   <script src="./profile-share.js?v=20260731-card-renderer-2" data-minuto106-profile-share></script>
-  <script src="./player.js?v=20260731-card-renderer-2"></script>
+  <script src="./player.js?v=20260810-profile-pagination"></script>
 </body>
 </html>

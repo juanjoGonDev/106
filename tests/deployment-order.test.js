@@ -7,7 +7,7 @@ const readinessApi = readFileSync('supabase/functions/game-ready-api/index.ts', 
 
 describe('frontend and readiness backend deployment ordering', () => {
   it('publishes a versioned readiness compatibility contract', () => {
-    expect(readinessApi).toContain("const READINESS_CONTRACT = 'ranked-anti-cheat-v2'");
+    expect(readinessApi).toContain("const READINESS_CONTRACT = 'ranked-anti-cheat-v3'");
     expect(readinessApi).toContain("if (action === 'health')");
     expect(readinessApi).toContain('contract: READINESS_CONTRACT');
     expect(readinessApi).toContain("challengeFormat: 'raster-png-v1'");
@@ -16,7 +16,7 @@ describe('frontend and readiness backend deployment ordering', () => {
   it('blocks Pages until the compatible backend contract responds', () => {
     expect(pagesWorkflow).toContain('Wait for compatible readiness backend');
     expect(pagesWorkflow).toContain("--data '{\"action\":\"health\"}'");
-    expect(pagesWorkflow).toContain('.contract == "ranked-anti-cheat-v2"');
+    expect(pagesWorkflow).toContain('.contract == "ranked-anti-cheat-v3"');
     expect(pagesWorkflow).toContain('.challengeFormat == "raster-png-v1"');
     expect(pagesWorkflow).toContain('Waiting for compatible readiness backend');
     expect(pagesWorkflow.indexOf('Wait for compatible readiness backend'))

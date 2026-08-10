@@ -39,7 +39,7 @@ const allowedHostnames = [...allowedOrigins].flatMap((entry) => {
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-const READINESS_CONTRACT = 'ranked-anti-cheat-v2';
+const READINESS_CONTRACT = 'ranked-anti-cheat-v3';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
 const localSolutionEnabled = Deno.env.get('LOCAL_E2E_HUMAN_CHECK_SOLUTIONS') === 'true';
@@ -148,7 +148,7 @@ async function rpc(name: string, parameters = {}) {
 function statusForError(error: string) {
   if (['challenge_used', 'challenge_already_activated', 'human_check_used', 'human_check_completed', 'human_check_stale', 'turnstile_replay'].includes(error)) return 409;
   if (['device_mismatch', 'player_access_denied', 'league_membership_required', 'human_check_mismatch'].includes(error)) return 403;
-  if (['rate_limit', 'daily_limit', 'human_check_rate_limit'].includes(error)) return 429;
+  if (['rate_limit', 'daily_limit', 'human_check_rate_limit', 'integrity_banned'].includes(error)) return 429;
   if (['challenge_not_found', 'human_check_not_found'].includes(error)) return 404;
   return 400;
 }
@@ -179,6 +179,7 @@ function messageForError(error: string) {
     nick_limit: 'Has agotado los intentos disponibles en esta competición.',
     rate_limit: 'Demasiadas acciones seguidas. Espera un momento.',
     daily_limit: 'Has alcanzado el límite diario de seguridad.',
+    integrity_banned: 'El juego competitivo está bloqueado temporalmente para este acceso por actividad no válida. Podrás volver a intentarlo cuando termine la restricción.',
     turnstile_replay: 'La verificación anti-bots ya fue utilizada. Repítela.',
     turnstile_invalid: 'La verificación anti-bots no es válida.',
   };
@@ -202,6 +203,19 @@ async function getAccountHash(request: Request) {
   const rawToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
   if (!PRIVATE_TOKEN.test(rawToken)) return null;
   return await sha256(`account:${rawToken}`);
+}
+async function activeIntegrityBan(request: Request, deviceHash: string, ipHash: string) {
+  const result = await rpc('get_game_active_integrity_ban_by_token', {
+    p_account_token_hash: await getAccountHash(request),
+    p_device_hash: deviceHash,
+    p_ip_hash: ipHash,
+  });
+  if (result?.banned !== true) return null;
+  return {
+    error: 'integrity_banned',
+    expiresAt: result.expiresAt,
+    retryAfterSeconds: result.retryAfterSeconds,
+  };
 }
 async function authorizePlayer(request: Request, nick: string, deviceHash: string, ipHash: string) {
   const accountTokenHash = await getAccountHash(request);
@@ -250,6 +264,11 @@ Deno.serve(async (request) => {
       sha256(`device:${deviceId}`),
       sha256(`ip:${ip}`),
     ]);
+
+    if (['human-check', 'human-check-click', 'prepare-start', 'activate-start'].includes(action)) {
+      const ban = await activeIntegrityBan(request, deviceHash, ipHash);
+      if (ban) return safeResult(origin, ban);
+    }
 
     if (action === 'human-check') {
       const balls = createHumanCheckLayout(secureRandom);

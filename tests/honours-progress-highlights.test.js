@@ -41,14 +41,14 @@ function profile(overrides = {}) {
     },
     achievements: {
       total: 2,
-      points: 35,
+      points: 120,
       items: [
         {
           code: 'perfect_total_1',
           kind: 'perfect_total',
           title: 'Primer latido perfecto',
           description: 'Clavaste exactamente 10.600.',
-          points: 15,
+          points: 100,
           date: '2026-07-24',
         },
         {
@@ -165,7 +165,7 @@ describe('public profile honours experience', () => {
     expect(playerHtml).toContain('id="featuredAchievementsEditor"');
     expect(playerHtml).toContain('id="saveFeaturedAchievements"');
     expect(playerHtml).toContain('src="./access.js"');
-    expect(playerHtml).toContain('src="./honours-catalog.js"');
+    expect(playerHtml).toMatch(/src="\.\/honours-catalog\.js\?v=[^"]+"/);
     expect(playerCss).toContain('.honours-card.is-locked');
     expect(playerCss).toContain('filter: grayscale(1)');
     expect(player).toContain('role="progressbar"');
