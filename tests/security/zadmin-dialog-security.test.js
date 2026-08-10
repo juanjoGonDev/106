@@ -4,23 +4,26 @@ import { describe, expect, it } from 'vitest';
 const html = readFileSync('public/zadmin/index.html', 'utf8');
 const client = readFileSync('public/zadmin/zadmin.js', 'utf8');
 
-describe('zadmin destructive-action dialogs', () => {
-  it('uses accessible app dialogs instead of native alert/confirm/prompt primitives', () => {
+describe('zadmin destructive-action components', () => {
+  it('uses inline application components instead of browser alerts or modal primitives', () => {
     expect(client).not.toMatch(/(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
-    expect(client).toContain('window.Minuto106UI = Object.freeze({ ask: askAdmin })');
-    expect(html).toContain('<dialog id="adminConfirmDialog"');
-    expect(html).toContain('<dialog id="adminRevokeDialog"');
+    expect(client).not.toMatch(/\.showModal\s*\(|HTMLDialogElement/);
+    expect(html).not.toContain('<dialog');
+    expect(html).toContain('id="adminBanConfirmComponent"');
+    expect(html).toContain('id="adminRevokeComponent"');
   });
 
   it('supports keyboard cancellation and returns focus to the invoking control', () => {
-    expect(client).toContain("$('#adminConfirmDialog').addEventListener('cancel'");
-    expect(client).toContain("$('#adminRevokeDialog').addEventListener('cancel'");
+    expect(client).toContain("document.addEventListener('keydown', cancelActionComponent)");
+    expect(client).toContain("if (event.key !== 'Escape') return");
+    expect(client).toContain('if (confirmResolver)');
+    expect(client).toContain('if (revokeResolver)');
     expect(client).toContain('focusIfAvailable(returnFocus)');
-    expect(client).toContain("window.requestAnimationFrame(() => $('#adminConfirmCancel').focus())");
+    expect(client).toContain("window.requestAnimationFrame(() => $('#adminBanConfirmCancel').focus())");
     expect(client).toContain("window.requestAnimationFrame(() => $('#adminRevokeReason').focus())");
   });
 
-  it('keeps revocation reason validation recoverable inside the dialog', () => {
+  it('keeps revocation reason validation recoverable inside the inline component', () => {
     expect(client).toContain("setStatus($('#adminRevokeStatus'), 'El motivo debe tener al menos 3 caracteres.', 'error')");
     expect(client).toContain("$('#adminRevokeReason').focus()");
     expect(html).toContain('id="adminRevokeReason"');
