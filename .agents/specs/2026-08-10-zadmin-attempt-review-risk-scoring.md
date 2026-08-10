@@ -132,4 +132,4 @@ Revert frontend/API behavior normally. If the migration has been applied, use a 
 
 ## Status
 
-Implementation complete on the task branch; final PR/CI/runtime and visual-evidence validation pending.
+Implementation is complete. Merge readiness is determined exclusively by the required checks and final-head visual evidence attached to the current PR head.
