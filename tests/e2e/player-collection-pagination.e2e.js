@@ -137,8 +137,7 @@ async function installProfileMocks(page) {
 
 async function openPlayer(page, section = 'overview') {
   await installProfileMocks(page);
-  const suffix = section === 'overview' ? '' : `/${section}`;
-  await page.goto(`/jugador/PagedPlayer${suffix}`);
+  await page.goto(`/player?nick=PagedPlayer&section=${encodeURIComponent(section)}`);
   await expect(page.locator('#playerContent')).toBeVisible();
 }
 
@@ -152,7 +151,7 @@ test('attempt and trophy histories stay bounded and navigate deterministically',
   await expect(page.locator('#playerHistory > li')).toHaveCount(3);
   await expect(page.locator('#playerHistoryPager')).toContainText('21–23 de 23');
 
-  await page.goto('/jugador/PagedPlayer/trophies');
+  await page.goto('/player?nick=PagedPlayer&section=trophies');
   await expect(page.locator('#playerContent')).toBeVisible();
   await expect(page.locator('#playerTrophyCollection > li')).toHaveCount(4);
   await expect(page.locator('#playerTrophies > li')).toHaveCount(10);
