@@ -225,14 +225,14 @@ begin
   -- are review-priority signals only and cannot make a timing-only session malicious.
   v_conviction_score := least(100, v_score);
 
-  if v_session_attempts >= 3
+  if v_session_attempts between 3 and 5
      and v_session_near >= 3
      and v_session_very_near >= 2 then
     v_score := v_score + 25;
     v_reasons := array_append(v_reasons, 'two_hour_extreme_precision_burst');
   end if;
 
-  if v_session_attempts >= 3
+  if v_session_attempts between 3 and 5
      and v_session_near = v_session_attempts then
     v_score := v_score + 15;
     v_reasons := array_append(v_reasons, 'two_hour_all_near_perfect');
@@ -490,7 +490,7 @@ comment on function public.zadmin_set_attempt_review(uuid, boolean, text, uuid, 
 comment on function public.zadmin_validate_session(text, text, text, timestamptz) is
   'Validates an IP/device-bound memory-only admin token and extends its server-side 12-hour idle expiry on authenticated use.';
 comment on function public.game_attempt_integrity_decision(jsonb) is
-  'Policy-v3 enforcement with stronger review scoring for concentrated extreme precision. Review-only precision boosts cannot create a malicious verdict by themselves.';
+  'Policy-v3 enforcement with stronger review scoring for concentrated early extreme precision. Review-only precision boosts cannot create a malicious verdict by themselves.';
 comment on view public.game_admin_attempt_facts is
   'Service-role-only investigation projection with canonical integrity evidence plus the latest append-only manual attempt-review state.';
 
