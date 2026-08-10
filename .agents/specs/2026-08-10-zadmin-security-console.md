@@ -122,4 +122,4 @@ Revert the application/workflow changes. If the migration has already been appli
 
 ## Status
 
-Implementation complete; final CI and visual evidence validation are in progress.
+Complete. Acceptance criteria are implemented and validated by the repository quality, security, Supabase, Desktop/Mobile browser and platform-evidence workflows. The PR remains intentionally unmerged and production deployment still requires explicit authorization plus `ZU_ADMIN_USER` and `ZU_ADMIN_PSW`.
