@@ -204,6 +204,8 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await page.keyboard.press('Tab');
   await expect(page.locator('#adminPassword')).toBeFocused();
   await page.keyboard.press('Tab');
+  await expect(page.locator('.password-visibility-toggle')).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(page.locator('#adminLoginButton')).toBeFocused();
   await page.locator('#adminUsername').fill('operator');
   await page.locator('#adminPassword').fill('strong-test-password');
