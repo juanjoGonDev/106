@@ -21,7 +21,7 @@ import {
 } from '../supabase/functions/_shared/zadmin-core.js';
 
 test('exports the bounded admin security policy', () => {
-  assert.equal(ZADMIN_SESSION_TTL_SECONDS, 1_800);
+  assert.equal(ZADMIN_SESSION_TTL_SECONDS, 12 * 60 * 60);
   assert.equal(ZADMIN_LOGIN_LIMIT, 3);
   assert.equal(ZADMIN_LOGIN_WINDOW_SECONDS, 3_600);
   assert.equal(ZADMIN_MAX_BODY_BYTES, 32 * 1_024);
