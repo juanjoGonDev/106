@@ -3,20 +3,35 @@ import { describe, expect, it } from 'vitest';
 
 const html = readFileSync('public/zadmin/index.html', 'utf8');
 const localDev = readFileSync('scripts/local-dev.mjs', 'utf8');
+const localServer = readFileSync('scripts/serve.mjs', 'utf8');
 
 describe('zadmin entry and local-development contract', () => {
-  it('loads route-owned assets from canonical absolute paths for both /zadmin and /zadmin/', () => {
-    expect(html).toContain('href="/zadmin/zadmin.css"');
-    expect(html).toContain('href="/zadmin/zadmin-state.css"');
-    expect(html).toContain('src="/zadmin/zadmin.js"');
-    expect(html).toContain('src="/config.js"');
-    expect(html).toContain('src="/password-visibility.js"');
-    expect(html).not.toMatch(/(?:href|src)="\.\/zadmin(?:-state)?\.(?:css|js)"/);
+  it('keeps route assets inside the deployment base and canonicalizes slashless local entry', () => {
+    expect(html).toContain('href="../styles.css"');
+    expect(html).toContain('href="./zadmin.css"');
+    expect(html).toContain('href="./zadmin-state.css"');
+    expect(html).toContain('src="../config.js"');
+    expect(html).toContain('src="../password-visibility.js"');
+    expect(html).toContain('src="./zadmin.js"');
+    expect(html).not.toMatch(/(?:href|src)="\/(?:styles\.css|config\.js|password-visibility\.js|zadmin\/)/);
+
+    const projectRoute = new URL('https://example.test/106/zadmin/');
+    expect(new URL('../styles.css', projectRoute).pathname).toBe('/106/styles.css');
+    expect(new URL('./zadmin.css', projectRoute).pathname).toBe('/106/zadmin/zadmin.css');
+    expect(new URL('./zadmin-state.css', projectRoute).pathname).toBe('/106/zadmin/zadmin-state.css');
+    expect(new URL('../config.js', projectRoute).pathname).toBe('/106/config.js');
+    expect(new URL('../password-visibility.js', projectRoute).pathname).toBe('/106/password-visibility.js');
+    expect(new URL('./zadmin.js', projectRoute).pathname).toBe('/106/zadmin/zadmin.js');
+
+    expect(localServer).toContain("pathname === '/zadmin'");
+    expect(localServer).toContain("redirect(response, '/zadmin/')");
+    expect(localServer).toContain("request.method === 'GET' || request.method === 'HEAD'");
   });
 
   it('cannot leak admin credentials into the URL if the application module fails to load', () => {
-    expect(html).toMatch(/<form id="adminLoginForm" action="\/zadmin\/" method="post" novalidate>/);
+    expect(html).toMatch(/<form id="adminLoginForm" action="\.\/" method="post" novalidate>/);
     expect(html).not.toMatch(/name="(?:username|password)"/i);
+    expect(new URL('./', 'https://example.test/106/zadmin/').pathname).toBe('/106/zadmin/');
     expect(html).toContain('autocomplete="username"');
     expect(html).toContain('autocomplete="current-password"');
   });
