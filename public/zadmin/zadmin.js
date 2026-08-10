@@ -99,7 +99,7 @@ async function adminRequest(action, payload = {}, { requireSession = true } = {}
     referrerPolicy: 'no-referrer',
     signal: AbortSignal.timeout(20_000),
   });
-  let result = {};
+  let result;
   try {
     result = await response.json();
   } catch {
@@ -236,7 +236,7 @@ function renderEntities(entities = []) {
   $('#adminEntitiesEmpty').hidden = rows.length > 0;
 }
 
-async function loadOverview() {
+async function loadOverview({ preserveDetail = false } = {}) {
   const status = $('#adminOverviewStatus');
   setStatus(status, 'Cargando actividad…');
   $('#adminRefreshButton').disabled = true;
@@ -253,7 +253,7 @@ async function loadOverview() {
       ? 'Vista limitada a los 2.000 intentos más recientes del periodo. Refina la búsqueda para investigar casos concretos.'
       : `${boundedNumber(result.summary?.attempts)} intentos analizados.`;
     setStatus(status, note, result.truncated ? 'warning' : 'success');
-    if (currentTarget) resetDetail();
+    if (currentTarget && !preserveDetail) resetDetail();
   } catch (error) {
     setStatus(status, error.message, 'error');
   } finally {
@@ -445,7 +445,8 @@ async function loadDetail(scope, target) {
     renderAttempts(result.attempts);
     setStatus($('#adminBanStatus'));
     setStatus($('#adminOverviewStatus'), 'Detalle actualizado.', 'success');
-    $('#adminDetailPanel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    $('#adminDetailPanel').scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
   } catch (error) {
     setStatus($('#adminOverviewStatus'), error.message, 'error');
   }
@@ -498,7 +499,7 @@ async function applyBan(event) {
     });
     $('#adminBanReason').value = '';
     setStatus(status, 'Ban aplicado y registrado en auditoría.', 'success');
-    await Promise.all([loadDetail(currentScope, currentTarget), loadOverview()]);
+    await Promise.all([loadDetail(currentScope, currentTarget), loadOverview({ preserveDetail: true })]);
   } catch (error) {
     setStatus(status, error.message, 'error');
   } finally {
@@ -518,7 +519,7 @@ async function revokeBan(banId) {
   try {
     await adminRequest('revoke-ban', { banId, reason: normalized });
     setStatus($('#adminBanStatus'), 'Ban revocado y conservado en auditoría.', 'success');
-    const tasks = [loadBans(), loadOverview()];
+    const tasks = [loadBans(), loadOverview({ preserveDetail: true })];
     if (currentTarget) tasks.push(loadDetail(currentScope, currentTarget));
     await Promise.all(tasks);
   } catch (error) {
