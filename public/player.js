@@ -4,8 +4,11 @@
   const playerContextUrl = apiUrl.replace(/\/game-api$/, '/player-context');
   const ui = window.Minuto106PlayerUI;
   const catalog = window.Minuto106HonoursCatalog;
+  const collections = window.Minuto106ProfileCollections;
   const route = ui?.parsePlayerLocation(location) ?? { nick: '', section: 'overview' };
   const absoluteSchemePattern = /^[a-z][a-z0-9+.-]*:/i;
+  const PAGE_SIZE = 10;
+  const pages = { history: 1, achievements: 1, trophies: 1 };
   let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
   let persistedFeaturedCodes = [];
   let draftFeaturedCodes = [];
@@ -158,7 +161,33 @@
     return `<span class="honours-card__progress-label">${escape(progress?.label || 'Progreso no disponible.')}</span><span class="honours-progress" role="progressbar" aria-label="${escape(progress?.label || 'Progreso')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="--honours-progress:${percent}%"></span></span>`;
   }
 
-  function achievementCard(achievement, { compact = false, editable = false } = {}) {
+  function pagerMarkup(state, label) {
+    if (state.total <= state.pageSize) return '';
+    return `<nav class="collection-pager" aria-label="Paginación de ${escape(label)}"><button class="secondary compact" type="button" data-page-direction="previous" ${state.hasPrevious ? '' : 'disabled'} aria-label="Página anterior de ${escape(label)}">Anterior</button><span class="collection-pager__status" role="status" aria-live="polite">${state.start}–${state.end} de ${state.total} · página ${state.page} de ${state.pageCount}</span><button class="secondary compact" type="button" data-page-direction="next" ${state.hasNext ? '' : 'disabled'} aria-label="Página siguiente de ${escape(label)}">Siguiente</button></nav>`;
+  }
+
+  function bindPager(container, state, setPage, rerender) {
+    if (!container) return;
+    container.querySelectorAll('[data-page-direction]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextPage = collections.movePage(state.page, button.dataset.pageDirection, state.total, state.pageSize);
+        if (nextPage === state.page) return;
+        setPage(nextPage);
+        rerender();
+        const status = container.querySelector('.collection-pager__status');
+        status?.focus?.({ preventScroll: true });
+      });
+    });
+  }
+
+  function repeatedAchievementMarkup(achievement, player) {
+    if (!achievement.unlocked || !collections.isRepeatedAchievement(achievement)) return '';
+    const dates = collections.achievementOccurrenceDates(achievement, player?.achievements?.items);
+    if (dates.length <= 1) return '';
+    return `<details class="honours-occurrences"><summary>${dates.length.toLocaleString('es-ES')} fechas conseguidas</summary><ol>${dates.map((date) => `<li><time datetime="${escape(date)}">${escape(ui.formatDate(date))}</time></li>`).join('')}</ol></details>`;
+  }
+
+  function achievementCard(achievement, player, { compact = false, editable = false } = {}) {
     const classes = [
       'honours-card',
       achievement.unlocked ? 'is-unlocked' : 'is-locked',
@@ -181,8 +210,20 @@
       : achievement.unlocked
         ? '<span class="honours-card__badge">Desbloqueado</span>'
         : '<span class="honours-card__badge">Bloqueado</span>';
+    const occurrences = repeatedAchievementMarkup(achievement, player);
 
-    return `<li class="${classes}" data-achievement-code="${escape(achievement.code)}" data-unlocked="${achievement.unlocked}"><span class="honours-card__icon" aria-hidden="true">${achievement.unlocked ? '★' : '◇'}</span><span class="honours-card__content"><strong>${escape(achievement.title)}</strong><small>${escape(achievement.description)}</small>${achievement.unlocked ? '' : progressMarkup(achievement.progress)}<span class="honours-card__meta">${badge}${points}${date}</span></span>${toggle}</li>`;
+    return `<li class="${classes}" data-achievement-code="${escape(achievement.code)}" data-unlocked="${achievement.unlocked}"><span class="honours-card__icon" aria-hidden="true">${achievement.unlocked ? '★' : '◇'}</span><span class="honours-card__content"><strong>${escape(achievement.title)}</strong><small>${escape(achievement.description)}</small>${achievement.unlocked ? '' : progressMarkup(achievement.progress)}<span class="honours-card__meta">${badge}${points}${date}</span>${occurrences}</span>${toggle}</li>`;
+  }
+
+  function groupedAchievements(achievements) {
+    const seen = new Set();
+    return achievements.filter((achievement) => {
+      if (!collections.isRepeatedAchievement(achievement)) return true;
+      const key = collections.achievementFamilyKey(achievement);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function renderFeatured(player, achievements) {
@@ -190,7 +231,7 @@
       .sort((left, right) => Number(left.featuredPosition || 99) - Number(right.featuredPosition || 99));
     const section = $('#playerFeaturedSection');
     section.hidden = featured.length === 0;
-    $('#playerFeatured').innerHTML = featured.map((achievement) => achievementCard(achievement, { compact: true })).join('');
+    $('#playerFeatured').innerHTML = featured.map((achievement) => achievementCard(achievement, player, { compact: true })).join('');
   }
 
   function renderOverview(player, achievements) {
@@ -207,9 +248,14 @@
 
     renderFeatured(player, achievements);
     const attempts = Array.isArray(player.history) ? player.history : [];
-    $('#playerHistory').innerHTML = attempts.length
-      ? attempts.slice(0, 20).map((attempt, index) => `<li><span class="player-list__icon">${index + 1}</span><span class="player-list__copy"><strong>${ui.teamHtml(attempt.team, player)}</strong><small>${formatTime(attempt.elapsedMs)} · ${attempt.verified ? 'Válido' : 'Excluido'}</small></span><span class="player-list__metric">${formatDifference(attempt.differenceMs)}</span></li>`).join('')
+    const state = collections.paginate(attempts, pages.history, PAGE_SIZE);
+    pages.history = state.page;
+    $('#playerHistory').innerHTML = state.items.length
+      ? state.items.map((attempt, index) => `<li><span class="player-list__icon">${state.start + index}</span><span class="player-list__copy"><strong>${ui.teamHtml(attempt.team, player)}</strong><small>${formatTime(attempt.elapsedMs)} · ${attempt.verified ? 'Válido' : 'Excluido'}</small></span><span class="player-list__metric">${formatDifference(attempt.differenceMs)}</span></li>`).join('')
       : '<li class="player-empty">Todavía no hay intentos globales.</li>';
+    const pager = $('#playerHistoryPager');
+    pager.innerHTML = pagerMarkup(state, 'intentos');
+    bindPager(pager, state, (page) => { pages.history = page; }, () => renderOverview(player, achievements));
   }
 
   function updateEditorState(achievements) {
@@ -227,12 +273,15 @@
   }
 
   function renderAchievements(player, achievements) {
+    const visibleAchievements = groupedAchievements(achievements);
     const earnedCount = achievements.filter((achievement) => achievement.unlocked).length;
     const lockedCount = achievements.filter((achievement) => !achievement.unlocked).length;
     $('#achievementTotal').textContent = `${Number(player.achievements?.total || earnedCount)} desbloqueados · ${lockedCount} pendientes · ${Number(player.achievements?.points || 0)} pt`;
     updateEditorState(achievements);
     const editable = context.availability === 'owned';
-    $('#playerAchievements').innerHTML = achievements.map((achievement) => achievementCard(achievement, { editable })).join('');
+    const state = collections.paginate(visibleAchievements, pages.achievements, PAGE_SIZE);
+    pages.achievements = state.page;
+    $('#playerAchievements').innerHTML = state.items.map((achievement) => achievementCard(achievement, player, { editable })).join('');
     $('#playerAchievements').querySelectorAll('[data-featured-code]').forEach((button) => {
       button.addEventListener('click', () => {
         const code = String(button.dataset.featuredCode || '');
@@ -251,6 +300,9 @@
         }));
       });
     });
+    const pager = $('#playerAchievementsPager');
+    pager.innerHTML = pagerMarkup(state, 'logros');
+    bindPager(pager, state, (page) => { pages.achievements = page; }, () => renderAchievements(player, achievements));
   }
 
   function trophyCollectionCard(trophy) {
@@ -267,8 +319,10 @@
     const trophyCollection = catalog.buildTrophyCatalog(player);
     $('#trophyTotal').textContent = `${Number(trophies.total || 0)} trofeos · ${Number(trophies.days || 0)} días · ${Number(trophies.leagueChampion || 0)} ligas`;
     $('#playerTrophyCollection').innerHTML = trophyCollection.map(trophyCollectionCard).join('');
-    $('#playerTrophies').innerHTML = history.length
-      ? history.map((trophy) => {
+    const state = collections.paginate(history, pages.trophies, PAGE_SIZE);
+    pages.trophies = state.page;
+    $('#playerTrophies').innerHTML = state.items.length
+      ? state.items.map((trophy) => {
         const publicId = String(trophy.leaguePublicId || trophy.leagueCode || '');
         const league = trophy.leagueName && publicId
           ? `<small><a href="${escape(leagueUrl(publicId))}">${escape(trophy.leagueName)}</a> · ${escape(publicId)}</small>`
@@ -276,6 +330,9 @@
         return `<li><span class="player-list__icon">🏆</span><span class="player-list__copy"><strong>${escape(trophyName(trophy.type))}</strong>${league}<time datetime="${escape(trophy.date)}">${escape(ui.formatDate(trophy.date))}</time></span><span class="player-list__metric">${escape(trophyMetric(trophy))}</span></li>`;
       }).join('')
       : '<li class="player-empty">Todavía no tiene trofeos en el historial.</li>';
+    const pager = $('#playerTrophiesPager');
+    pager.innerHTML = pagerMarkup(state, 'trofeos');
+    bindPager(pager, state, (page) => { pages.trophies = page; }, () => renderTrophies(player));
   }
 
   function renderShareActions(player) {
@@ -385,6 +442,9 @@
 
     try {
       context = Object.freeze(await loadPublicContext());
+      pages.history = 1;
+      pages.achievements = 1;
+      pages.trophies = 1;
       persistedFeaturedCodes = featuredCodes(context.profile);
       draftFeaturedCodes = [...persistedFeaturedCodes];
       renderContext();
@@ -395,7 +455,7 @@
     }
   }
 
-  if (!ui || !catalog || route.nick.length < 2) {
+  if (!ui || !catalog || !collections || route.nick.length < 2) {
     showError(new Error('La ruta del jugador no es válida.'));
     return;
   }
