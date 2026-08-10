@@ -30,25 +30,25 @@ function profile() {
   }));
   const achievements = [
     achievement(1, {
-      code: 'daily_hat_trick_2026-08-10',
+      code: 'daily_hat_trick_2026-08-30',
       kind: 'daily_hat_trick',
       title: 'Triplete diario',
       points: 50,
-      date: '2026-08-10',
+      date: '2026-08-30',
     }),
     achievement(2, {
-      code: 'daily_hat_trick_2026-08-09',
+      code: 'daily_hat_trick_2026-08-29',
       kind: 'daily_hat_trick',
       title: 'Triplete diario',
       points: 50,
-      date: '2026-08-09',
+      date: '2026-08-29',
     }),
     achievement(3, {
-      code: 'daily_hat_trick_2026-08-08',
+      code: 'daily_hat_trick_2026-08-28',
       kind: 'daily_hat_trick',
       title: 'Triplete diario',
       points: 50,
-      date: '2026-08-08',
+      date: '2026-08-28',
     }),
     ...Array.from({ length: 18 }, (_, index) => achievement(index + 4)),
   ];
