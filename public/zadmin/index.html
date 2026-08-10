@@ -8,38 +8,42 @@
   <meta name="theme-color" content="#08090c">
   <meta name="color-scheme" content="dark">
   <title>Administración — Minuto 106</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../styles.css">
-  <link rel="stylesheet" href="./zadmin.css">
-  <link rel="stylesheet" href="./zadmin-state.css">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/zadmin/zadmin.css">
+  <link rel="stylesheet" href="/zadmin/zadmin-state.css">
 </head>
 <body class="zadmin-body">
   <main class="zadmin-shell">
-    <header class="zadmin-heading">
-      <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
-      <h1>Integridad y jugadores</h1>
-      <p>Investiga actividad correlacionada y aplica restricciones manuales solo cuando la evidencia lo justifique.</p>
-    </header>
+    <section id="adminLoginPanel" class="zadmin-login-stage" aria-labelledby="adminLoginTitle">
+      <div class="zadmin-card zadmin-login-card">
+        <header class="zadmin-login-heading">
+          <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
+          <h1>Integridad y jugadores</h1>
+          <p>Investiga actividad correlacionada y aplica restricciones manuales solo cuando la evidencia lo justifique.</p>
+        </header>
 
-    <section id="adminLoginPanel" class="zadmin-card zadmin-login" aria-labelledby="adminLoginTitle">
-      <p class="eyebrow">ACCESO RESTRINGIDO</p>
-      <h2 id="adminLoginTitle">Iniciar sesión</h2>
-      <p class="zadmin-muted">La sesión de administración no se guarda en el navegador y caduca automáticamente.</p>
-      <form id="adminLoginForm" novalidate>
-        <label for="adminUsername">Usuario</label>
-        <input id="adminUsername" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-        <label for="adminPassword">Contraseña</label>
-        <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
-        <button id="adminLoginButton" class="primary" type="submit">Entrar</button>
-      </form>
-      <p id="adminLoginStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        <div class="zadmin-login-content">
+          <p class="eyebrow">ACCESO RESTRINGIDO</p>
+          <h2 id="adminLoginTitle">Iniciar sesión</h2>
+          <p class="zadmin-muted">La sesión de administración vive solo en memoria y caduca automáticamente.</p>
+          <form id="adminLoginForm" action="/zadmin/" method="post" novalidate>
+            <label for="adminUsername">Usuario</label>
+            <input id="adminUsername" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            <label for="adminPassword">Contraseña</label>
+            <input id="adminPassword" type="password" autocomplete="current-password" required>
+            <button id="adminLoginButton" class="primary" type="submit">Entrar</button>
+          </form>
+          <p id="adminLoginStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
     </section>
 
     <section id="adminDashboard" class="zadmin-dashboard" hidden aria-labelledby="adminDashboardTitle">
       <header class="zadmin-session-bar">
         <div>
-          <p class="eyebrow">SESIÓN ACTIVA</p>
-          <h2 id="adminDashboardTitle">Panel de revisión</h2>
+          <p class="eyebrow">ADMINISTRACIÓN PRIVADA · SESIÓN ACTIVA</p>
+          <h1 class="zadmin-dashboard-title" id="adminDashboardTitle">Integridad y jugadores</h1>
           <p id="adminSessionStatus" class="zadmin-muted" role="status" aria-live="polite"></p>
         </div>
         <button id="adminLogoutButton" class="ghost" type="button">Cerrar sesión</button>
@@ -232,8 +236,8 @@
     </div>
   </main>
 
-  <script src="../config.js"></script>
-  <script type="module" src="../password-visibility.js"></script>
-  <script type="module" src="./zadmin.js"></script>
+  <script src="/config.js"></script>
+  <script type="module" src="/password-visibility.js"></script>
+  <script type="module" src="/zadmin/zadmin.js"></script>
 </body>
 </html>
