@@ -11,6 +11,7 @@
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="./zadmin.css">
+  <link rel="stylesheet" href="./zadmin-state.css">
 </head>
 <body class="zadmin-body">
   <main class="zadmin-shell">
@@ -142,7 +143,7 @@
 
               <section aria-labelledby="adminBanActionTitle">
                 <h4 id="adminBanActionTitle">Aplicar restricción manual</h4>
-                <form id="adminBanForm" class="zadmin-ban-form">
+                <form id="adminBanForm" class="zadmin-ban-form" novalidate>
                   <label>
                     Duración
                     <select id="adminBanDuration" required></select>
@@ -202,6 +203,7 @@
   </main>
 
   <script src="../config.js"></script>
+  <script type="module" src="../password-visibility.js"></script>
   <script type="module" src="./zadmin.js"></script>
 </body>
 </html>
