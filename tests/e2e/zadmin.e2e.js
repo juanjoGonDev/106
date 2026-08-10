@@ -159,6 +159,29 @@ async function login(page) {
   await expect(page.locator('#adminEntityRows tr')).toHaveCount(2);
 }
 
+function evidenceDevice(isMobile) {
+  return isMobile ? 'mobile' : 'desktop';
+}
+
+function evidenceContextOptions(isMobile, { recordVideo = false } = {}) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  const videoSize = isMobile ? { ...device.viewport } : { width: 1280, height: 800 };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    ...(recordVideo ? { recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize } } : {}),
+  };
+}
+
+async function saveVideo(context, page, isMobile) {
+  const video = page.video();
+  if (!video) throw new Error('Playwright did not create the zadmin dashboard recording.');
+  await context.close();
+  await video.saveAs(join(previewDirectory, `zadmin-dashboard-${evidenceDevice(isMobile)}.webm`));
+}
+
 test('login exposes generic failures, blocks the third attempt and preserves the form', async ({ page }) => {
   await installAdminMocks(page, { failLogins: 3 });
   await page.goto('/zadmin/');
@@ -253,21 +276,36 @@ test('zadmin remains operable without global overflow at 320px', async ({ page }
   await expect(page.locator('.zadmin-table-scroll')).toHaveCSS('overflow-x', 'auto');
 });
 
-test('records isolated login and dashboard screenshots as changed-area evidence', async ({ browser, isMobile }) => {
-  test.skip(!visualCapture, 'Visual screenshots are generated only by the PR evidence workflow.');
-  const device = isMobile
-    ? devices['Pixel 5']
-    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
-  const context = await browser.newContext({ ...device, baseURL: applicationUrl });
-  const page = await context.newPage();
-  await installAdminMocks(page);
-  await page.goto('/zadmin/');
-  const suffix = isMobile ? 'mobile' : 'desktop';
-  await page.screenshot({ path: join(previewDirectory, `zadmin-login-${suffix}.png`), animations: 'disabled', fullPage: true });
+test('records isolated login and dashboard evidence from the admin workflow', async ({ browser, isMobile }) => {
+  test.skip(!visualCapture, 'Visual evidence is generated only by the PR evidence workflow.');
+  const suffix = evidenceDevice(isMobile);
 
-  await login(page);
-  await page.locator('#adminEntityRows .zadmin-review-button').first().click();
-  await expect(page.locator('#adminDetailContent')).toBeVisible();
-  await page.screenshot({ path: join(previewDirectory, `zadmin-dashboard-${suffix}.png`), animations: 'disabled', fullPage: true });
-  await context.close();
+  const screenshotContext = await browser.newContext(evidenceContextOptions(isMobile));
+  const screenshotPage = await screenshotContext.newPage();
+  await installAdminMocks(screenshotPage);
+  await screenshotPage.goto('/zadmin/');
+  await screenshotPage.screenshot({ path: join(previewDirectory, `zadmin-login-${suffix}.png`), animations: 'disabled', fullPage: true });
+  await login(screenshotPage);
+  await screenshotPage.locator('#adminEntityRows .zadmin-review-button').first().click();
+  await expect(screenshotPage.locator('#adminDetailContent')).toBeVisible();
+  await screenshotPage.screenshot({ path: join(previewDirectory, `zadmin-dashboard-${suffix}.png`), animations: 'disabled', fullPage: true });
+  await screenshotContext.close();
+
+  const recordingContext = await browser.newContext(evidenceContextOptions(isMobile, { recordVideo: true }));
+  const recordingPage = await recordingContext.newPage();
+  await installAdminMocks(recordingPage);
+  await recordingPage.goto('/zadmin/');
+  await login(recordingPage);
+  await recordingPage.locator('#adminEntityRows .zadmin-review-button').first().click();
+  await expect(recordingPage.locator('#adminDetailContent')).toBeVisible();
+  await recordingPage.locator('#adminAttemptList details summary').first().click();
+  await expect(recordingPage.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
+  await recordingPage.locator('[data-admin-view="bans"]').click();
+  await expect(recordingPage.locator('#adminBansView')).toBeVisible();
+  await recordingPage.locator('[data-admin-view="audit"]').click();
+  await expect(recordingPage.locator('#adminAuditView')).toBeVisible();
+  await recordingPage.locator('[data-admin-view="investigation"]').click();
+  await expect(recordingPage.locator('#adminInvestigationView')).toBeVisible();
+  expect(await recordingPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  await saveVideo(recordingContext, recordingPage, isMobile);
 });
