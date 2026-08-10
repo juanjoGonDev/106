@@ -341,7 +341,7 @@ async function run() {
     `attempt_id=in.(${suspiciousIds.join(',')})&select=attempt_id,previous_status,next_status,next_score,policy_version`,
   );
   assert.ok(eventRows.length >= suspiciousIds.length);
-  assert.ok(eventRows.every((event) => event.policy_version === 2));
+  assert.ok(eventRows.every((event) => event.policy_version === 3));
   logStep('Raw attempt evidence remains intact while integrity decisions are append-only audited');
 
   // Ensure the honest fallback attempts themselves were never affected by the suspicious-device cluster.
