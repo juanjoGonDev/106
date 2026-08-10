@@ -154,6 +154,17 @@
                   </label>
                   <button id="adminBanButton" class="zadmin-danger" type="submit">Aplicar ban</button>
                 </form>
+                <section id="adminBanConfirmComponent" class="zadmin-action-component" hidden aria-labelledby="adminBanConfirmTitle" aria-describedby="adminBanConfirmMessage">
+                  <div>
+                    <p class="eyebrow">CONFIRMAR RESTRICCIÓN</p>
+                    <h5 id="adminBanConfirmTitle">Revisa la acción antes de aplicarla</h5>
+                    <p id="adminBanConfirmMessage"></p>
+                  </div>
+                  <div class="zadmin-action-component-actions">
+                    <button id="adminBanConfirmCancel" class="ghost" type="button">Cancelar</button>
+                    <button id="adminBanConfirmAccept" class="zadmin-danger" type="button">Aplicar ban</button>
+                  </div>
+                </section>
                 <p id="adminBanStatus" class="zadmin-status" role="status" aria-live="polite"></p>
               </section>
 
@@ -200,36 +211,26 @@
         </section>
       </section>
     </section>
+
+    <div id="adminActionComponentHost" hidden>
+      <section id="adminRevokeComponent" class="zadmin-action-component" hidden aria-labelledby="adminRevokeTitle">
+        <form id="adminRevokeForm" novalidate>
+          <div>
+            <p class="eyebrow">REVOCAR RESTRICCIÓN</p>
+            <h5 id="adminRevokeTitle">Indica el motivo</h5>
+            <p class="zadmin-muted">La revocación quedará registrada y no eliminará el historial del ban.</p>
+          </div>
+          <label for="adminRevokeReason">Motivo</label>
+          <textarea id="adminRevokeReason" rows="4" minlength="3" maxlength="500" required placeholder="Describe por qué debe revocarse"></textarea>
+          <p id="adminRevokeStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+          <div class="zadmin-action-component-actions">
+            <button id="adminRevokeCancel" class="ghost" type="button">Cancelar</button>
+            <button id="adminRevokeAccept" class="zadmin-danger" type="submit">Revocar ban</button>
+          </div>
+        </form>
+      </section>
+    </div>
   </main>
-
-  <dialog id="adminConfirmDialog" class="zadmin-dialog" aria-labelledby="adminConfirmTitle" aria-describedby="adminConfirmMessage">
-    <div class="zadmin-dialog-copy">
-      <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
-      <h2 id="adminConfirmTitle">Confirma la acción</h2>
-      <p id="adminConfirmMessage"></p>
-    </div>
-    <div class="zadmin-dialog-actions">
-      <button id="adminConfirmCancel" class="ghost" type="button">Cancelar</button>
-      <button id="adminConfirmAccept" class="zadmin-danger" type="button">Confirmar</button>
-    </div>
-  </dialog>
-
-  <dialog id="adminRevokeDialog" class="zadmin-dialog" aria-labelledby="adminRevokeTitle">
-    <form id="adminRevokeForm" method="dialog" novalidate>
-      <div class="zadmin-dialog-copy">
-        <p class="eyebrow">REVOCAR RESTRICCIÓN</p>
-        <h2 id="adminRevokeTitle">Indica el motivo</h2>
-        <p class="zadmin-muted">La revocación quedará registrada y no eliminará el historial del ban.</p>
-      </div>
-      <label for="adminRevokeReason">Motivo</label>
-      <textarea id="adminRevokeReason" rows="4" minlength="3" maxlength="500" required placeholder="Describe por qué debe revocarse"></textarea>
-      <p id="adminRevokeStatus" class="zadmin-status" role="status" aria-live="polite"></p>
-      <div class="zadmin-dialog-actions">
-        <button id="adminRevokeCancel" class="ghost" type="button">Cancelar</button>
-        <button id="adminRevokeAccept" class="zadmin-danger" type="submit">Revocar ban</button>
-      </div>
-    </form>
-  </dialog>
 
   <script src="../config.js"></script>
   <script type="module" src="../password-visibility.js"></script>
