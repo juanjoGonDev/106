@@ -21,8 +21,9 @@ function functionBody(source, name) {
 
 describe('zadmin frontend isolation', () => {
   it('is reachable as a standalone route without product navigation', () => {
-    expect(html).toContain('<script type="module" src="./zadmin.js"></script>');
-    expect(html).toContain('<script src="../config.js"></script>');
+    expect(html).toContain('<script type="module" src="/zadmin/zadmin.js"></script>');
+    expect(html).toContain('<script src="/config.js"></script>');
+    expect(html).toContain('<link rel="stylesheet" href="/zadmin/zadmin.css">');
     expect(html).toContain('name="robots" content="noindex,nofollow,noarchive"');
     expect(html).not.toContain('layout.js');
     expect(html).not.toContain('site-header');
