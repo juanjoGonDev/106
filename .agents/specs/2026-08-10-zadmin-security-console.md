@@ -145,4 +145,4 @@ Revert the application/workflow changes. If the migration has already been appli
 
 ## Status
 
-Follow-up regression fix implemented after local validation exposed slashless asset loading, credential-query fallback, local zadmin configuration and login-layout defects. Final CI, local-runtime contract and refreshed visual evidence are in progress; the PR remains intentionally unmerged.
+Complete. The original admin feature and the follow-up local regression fixes are implemented. `/zadmin` and `/zadmin/` are browser-tested without module MIME failures or credential query leakage, the login layout is verified on Desktop/Mobile evidence, the local development contract generates ephemeral admin credentials and probes `zadmin-api`, and repository quality/security/Supabase/browser checks passed on the implementation head. The PR remains intentionally unmerged pending explicit authorization and production secret configuration.
