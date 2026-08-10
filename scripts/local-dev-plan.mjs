@@ -49,10 +49,18 @@ export function localFunctionHealthUrl() {
   return `${LOCAL_SUPABASE_URL}/functions/v1/game-api`;
 }
 
+export function localZadminHealthUrl() {
+  return `${LOCAL_SUPABASE_URL}/functions/v1/zadmin-api`;
+}
+
 export function localWebHealthUrl() {
   return `${LOCAL_WEB_URL}/config.js`;
 }
 
 export function localAccountUrl() {
   return `${LOCAL_WEB_URL}/cuenta.html`;
+}
+
+export function localZadminUrl() {
+  return `${LOCAL_WEB_URL}/zadmin/`;
 }
