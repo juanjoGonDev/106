@@ -139,7 +139,9 @@ const rows = [
 test('aggregates accounts with correlations, risk and newest activity', () => {
   const result = aggregateIntegrityEntities(rows, 'account');
   assert.equal(result.length, 2);
-  assert.deepEqual(result[0], {
+  assert.equal(result[0].key, 'account-b');
+  assert.equal(result[0].maxRiskScore, 100);
+  assert.deepEqual(result[1], {
     key: 'account-a',
     label: 'account-a',
     attempts: 3,
@@ -154,8 +156,6 @@ test('aggregates accounts with correlations, risk and newest activity', () => {
     distinctDevices: 2,
     lastSeenAt: '2026-08-10T10:00:00Z',
   });
-  assert.equal(result[1].key, 'account-b');
-  assert.equal(result[1].maxRiskScore, 100);
 });
 
 test('aggregates nick and IP scopes and filters by normalized key or label', () => {
