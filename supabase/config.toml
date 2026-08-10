@@ -103,3 +103,6 @@ verify_jwt = false
 
 [functions.account-auth]
 verify_jwt = false
+
+[functions.zadmin-api]
+verify_jwt = false

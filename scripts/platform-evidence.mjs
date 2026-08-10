@@ -39,6 +39,8 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'ranking-tiebreak',
   'ranking-trophies',
   'shared-result',
+  'zadmin-dashboard',
+  'zadmin-login',
 ]);
 
 export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
@@ -52,6 +54,7 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'league-directory',
   'player-collections',
   'player-reliability',
+  'zadmin-dashboard',
 ]);
 
 const DEVICES = Object.freeze(['desktop', 'mobile']);

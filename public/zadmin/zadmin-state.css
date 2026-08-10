@@ -1,0 +1,101 @@
+.zadmin-body [hidden]{
+  display:none!important;
+}
+
+.zadmin-body .password-field{
+  position:relative;
+  display:block;
+}
+
+.zadmin-body .password-field>input{
+  padding-right:52px;
+}
+
+.zadmin-body .password-visibility-toggle{
+  position:absolute;
+  top:50%;
+  right:4px;
+  display:grid;
+  width:44px;
+  min-width:44px;
+  height:44px;
+  min-height:44px;
+  margin:0;
+  padding:0;
+  place-items:center;
+  transform:translateY(-50%);
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:var(--za-muted);
+  cursor:pointer;
+}
+
+.zadmin-body .password-visibility-toggle:hover,
+.zadmin-body .password-visibility-toggle[data-visible="true"]{
+  color:var(--za-text);
+  background:#ffffff0a;
+}
+
+.zadmin-body .password-visibility-toggle .password-eye-slash{
+  opacity:0;
+}
+
+.zadmin-body .password-visibility-toggle[data-visible="true"] .password-eye-slash{
+  opacity:1;
+}
+
+.zadmin-action-component{
+  display:grid;
+  gap:var(--za-space-3);
+  margin-top:var(--za-space-3);
+  border:1px solid #ffbd7355;
+  border-left:4px solid var(--za-warning);
+  border-radius:14px;
+  background:#ffbd730a;
+  padding:var(--za-space-3);
+}
+
+.zadmin-action-component h5{
+  margin:0 0 var(--za-space-1);
+  font-size:1rem;
+}
+
+.zadmin-action-component p{
+  margin-top:0;
+}
+
+.zadmin-action-component form{
+  display:grid;
+  gap:var(--za-space-3);
+}
+
+.zadmin-action-component label{
+  display:grid;
+  gap:var(--za-space-1);
+  font-weight:800;
+}
+
+.zadmin-action-component-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:var(--za-space-2);
+}
+
+.zadmin-action-component-actions .ghost,
+.zadmin-action-component-actions .zadmin-danger{
+  width:auto;
+  min-height:44px;
+  margin:0;
+}
+
+@media(max-width:520px){
+  .zadmin-action-component-actions{
+    flex-direction:column-reverse;
+  }
+
+  .zadmin-action-component-actions .ghost,
+  .zadmin-action-component-actions .zadmin-danger{
+    width:100%;
+  }
+}

@@ -41,6 +41,7 @@
     "public/stop-control.js",
     "public/v3.js",
     "public/v4.js",
+    "public/zadmin/zadmin.js",
     "scripts/*.mjs",
     "tests/**/*.test.js",
     "tests/**/*.node-test.js",
