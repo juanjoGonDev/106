@@ -45,6 +45,7 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH = /^[a-f0-9]{64}$/i;
+const ATTEMPT_FACT_COLUMNS = 'id,nick,nick_key,account_id,device_hash,ip_hash,difference_ms,verified,verification_reasons,created_at,integrity_status,risk_score,risk_reasons,integrity_evidence,integrity_policy_version,integrity_evaluated_at,manual_invalidated,manual_action,manual_action_reason,manual_action_at';
 
 function corsHeaders(origin: string | null) {
   return {
@@ -151,7 +152,7 @@ async function fetchAttemptFacts(rangeDays: number) {
   const since = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
   const { data, error } = await supabase
     .from('game_admin_attempt_facts')
-    .select('id,nick,nick_key,account_id,device_hash,ip_hash,difference_ms,verified,verification_reasons,created_at,integrity_status,risk_score,risk_reasons,integrity_evidence,integrity_policy_version,integrity_evaluated_at')
+    .select(ATTEMPT_FACT_COLUMNS)
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(2_000);
@@ -211,7 +212,7 @@ async function detail(body: Record<string, unknown>) {
 
   let query = supabase
     .from('game_admin_attempt_facts')
-    .select('id,nick,nick_key,account_id,device_hash,ip_hash,difference_ms,verified,verification_reasons,created_at,integrity_status,risk_score,risk_reasons,integrity_evidence,integrity_policy_version,integrity_evaluated_at')
+    .select(ATTEMPT_FACT_COLUMNS)
     .order('created_at', { ascending: false })
     .limit(200);
   if (scope === 'account') query = query.eq('account_id', target);
@@ -398,6 +399,28 @@ Deno.serve(async (request) => {
       if (result?.error) {
         const status = result.error === 'ban_not_found' ? 404 : result.error === 'ban_already_revoked' ? 409 : 400;
         return jsonResponse(origin, { error: 'Could not revoke the ban.', code: result.error }, status);
+      }
+      return jsonResponse(origin, result);
+    }
+    if (action === 'invalidate-attempt' || action === 'restore-attempt') {
+      const attemptId = String(body.attemptId ?? '').trim();
+      const reason = String(body.reason ?? '').trim();
+      if (!UUID.test(attemptId) || reason.length < 3 || reason.length > 500) {
+        return jsonResponse(origin, { error: 'Invalid attempt review request.', code: 'invalid_attempt_review' }, 400);
+      }
+      const result = await rpc('zadmin_set_attempt_review', {
+        p_attempt_id: attemptId,
+        p_invalidated: action === 'invalidate-attempt',
+        p_reason: reason,
+        p_actor_session_id: session.sessionId,
+      });
+      if (result?.error) {
+        const status = result.error === 'attempt_not_found'
+          ? 404
+          : ['attempt_already_invalidated', 'attempt_not_invalidated'].includes(String(result.error))
+            ? 409
+            : 400;
+        return jsonResponse(origin, { error: 'Could not update the attempt review.', code: result.error }, status);
       }
       return jsonResponse(origin, result);
     }
