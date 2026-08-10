@@ -83,8 +83,9 @@ describe('ranked integrity policy v3', () => {
     expect(readyPreflight).toBeLessThan(humanConsume);
 
     const legacyPreflight = gameApi.indexOf("if (['human-check', 'complete-human-check', 'start'].includes(action))");
-    const legacyTurnstile = gameApi.indexOf('verifyTurnstile');
+    const legacyTurnstile = gameApi.indexOf('if (!(await verifyTurnstile');
     expect(legacyPreflight).toBeGreaterThan(-1);
+    expect(legacyTurnstile).toBeGreaterThan(-1);
     expect(legacyPreflight).toBeLessThan(legacyTurnstile);
     expect(gameApi).toContain("integrity_banned: 'El juego competitivo está bloqueado temporalmente");
     expect(readyApi).toContain("integrity_banned: 'El juego competitivo está bloqueado temporalmente");
