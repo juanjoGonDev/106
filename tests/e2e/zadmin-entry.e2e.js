@@ -53,7 +53,7 @@ async function installEntryMocks(page) {
   });
 }
 
-test('slashless /zadmin loads its modules, stays centered and submits Enter without URL credentials', async ({ page }) => {
+test('slashless /zadmin canonicalizes, loads its modules and submits Enter without URL credentials', async ({ page }) => {
   const consoleErrors = [];
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
@@ -61,6 +61,7 @@ test('slashless /zadmin loads its modules, stays centered and submits Enter with
   await installEntryMocks(page);
 
   await page.goto(`${applicationUrl}/zadmin`);
+  expect(new URL(page.url()).pathname).toBe('/zadmin/');
   await expect(page.locator('#adminLoginPanel')).toBeVisible();
   await expect(page.locator('.zadmin-login-card')).toBeVisible();
   await expect(page.locator('.password-visibility-toggle')).toBeVisible();
@@ -78,6 +79,7 @@ test('slashless /zadmin loads its modules, stays centered and submits Enter with
 
   await expect(page.locator('#adminDashboard')).toBeVisible();
   const currentUrl = new URL(page.url());
+  expect(currentUrl.pathname).toBe('/zadmin/');
   expect(currentUrl.search).toBe('');
   expect(currentUrl.searchParams.has('username')).toBe(false);
   expect(currentUrl.searchParams.has('password')).toBe(false);
