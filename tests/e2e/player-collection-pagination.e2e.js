@@ -23,6 +23,17 @@ function achievement(index, overrides = {}) {
   };
 }
 
+function profileCardFixtureSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+    <rect width="1200" height="630" rx="32" fill="#090d15"/>
+    <text x="72" y="100" fill="#f4c95d" font-family="Arial" font-size="22" font-weight="700">MINUTO 106 · PERFIL GLOBAL</text>
+    <text x="72" y="190" fill="#ffffff" font-family="Arial" font-size="64" font-weight="800">PagedPlayer</text>
+    <text x="72" y="255" fill="#d4d7df" font-family="Arial" font-size="28">Logros y palmarés actualizados</text>
+    <circle cx="940" cy="315" r="160" fill="#111722" stroke="#f4c95d" stroke-width="6"/>
+    <text x="940" y="330" text-anchor="middle" fill="#ffffff" font-family="Arial" font-size="54" font-weight="800">10.600</text>
+  </svg>`;
+}
+
 function profile() {
   const history = Array.from({ length: 23 }, (_, index) => ({
     id: `attempt-${index + 1}`,
@@ -134,7 +145,7 @@ async function installProfileMocks(page) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(player) });
   });
   await page.route('**/functions/v1/player-share**', async (route) => {
-    await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: profileCardFixtureSvg() });
   });
 }
 
@@ -228,6 +239,7 @@ test('records grouped achievement disclosure and pagination as changed-area evid
   await installProfileMocks(page);
   await page.goto(playerPath('achievements'));
   await expect(page.locator('#playerContent')).toBeVisible();
+  await expect.poll(() => page.locator('#playerCardPreview').evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
 
   const repeated = page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]');
   const details = repeated.locator('details.honours-occurrences');
@@ -238,6 +250,9 @@ test('records grouped achievement disclosure and pagination as changed-area evid
   await summary.click();
   await expect(details).toHaveAttribute('open', '');
   await expect(details.locator('li')).toHaveCount(3);
+
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
   const device = evidenceDevice(isMobile);
   await page.screenshot({
