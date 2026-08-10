@@ -143,7 +143,7 @@ export function aggregateIntegrityEntities(rows, scope, search = '') {
       watchAttempts: entity.watchAttempts,
       excludedAttempts: entity.excludedAttempts,
       maxRiskScore: entity.maxRiskScore,
-      averageRiskScore: entity.attempts ? Math.round(entity.riskScoreTotal / entity.attempts) : 0,
+      averageRiskScore: Math.round(entity.riskScoreTotal / entity.attempts),
       distinctNicks: entity.nicks.size,
       distinctAccounts: entity.accounts.size,
       distinctIps: entity.ips.size,
