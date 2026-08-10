@@ -74,8 +74,20 @@ function sendRuntimeConfig(response) {
   response.end(runtimeConfigSource);
 }
 
+function redirect(response, location) {
+  response.writeHead(308, {
+    location,
+    'cache-control': 'no-store',
+  });
+  response.end();
+}
+
 createServer(async (request, response) => {
   const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+  if ((request.method === 'GET' || request.method === 'HEAD') && pathname === '/zadmin') {
+    redirect(response, '/zadmin/');
+    return;
+  }
   if (pathname === '/config.js') {
     sendRuntimeConfig(response);
     return;
