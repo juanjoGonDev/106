@@ -20,10 +20,28 @@ function functionBody(source, name) {
 }
 
 describe('zadmin frontend isolation', () => {
-  it('is reachable as a standalone route without product navigation', () => {
-    expect(html).toContain('<script type="module" src="/zadmin/zadmin.js"></script>');
-    expect(html).toContain('<script src="/config.js"></script>');
-    expect(html).toContain('<link rel="stylesheet" href="/zadmin/zadmin.css">');
+  it('is deploy-base-safe and remains standalone without product navigation', () => {
+    expect(html).toContain('<script type="module" src="./zadmin.js"></script>');
+    expect(html).toContain('<script src="../config.js"></script>');
+    expect(html).toContain('<script type="module" src="../password-visibility.js"></script>');
+    expect(html).toContain('<link rel="stylesheet" href="../styles.css">');
+    expect(html).toContain('<link rel="stylesheet" href="./zadmin/zadmin.css">'.replace('/zadmin', ''));
+    expect(html).toContain('<link rel="stylesheet" href="./zadmin-state.css">');
+    expect(html).toContain('<form id="adminLoginForm" action="./" method="post" novalidate>');
+    expect(html).not.toMatch(/<input id="adminUsername"[^>]*\bname=/);
+    expect(html).not.toMatch(/<input id="adminPassword"[^>]*\bname=/);
+    expect(html).not.toMatch(/(?:src|href)="\/(?:assets\/|styles\.css|config\.js|password-visibility\.js|zadmin\/)/);
+
+    const projectBase = new URL('https://example.test/106/zadmin/');
+    expect(new URL('../assets/favicon.svg', projectBase).pathname).toBe('/106/assets/favicon.svg');
+    expect(new URL('../styles.css', projectBase).pathname).toBe('/106/styles.css');
+    expect(new URL('./zadmin.css', projectBase).pathname).toBe('/106/zadmin/zadmin.css');
+    expect(new URL('./zadmin-state.css', projectBase).pathname).toBe('/106/zadmin/zadmin-state.css');
+    expect(new URL('../config.js', projectBase).pathname).toBe('/106/config.js');
+    expect(new URL('../password-visibility.js', projectBase).pathname).toBe('/106/password-visibility.js');
+    expect(new URL('./zadmin.js', projectBase).pathname).toBe('/106/zadmin/zadmin.js');
+    expect(new URL('./', projectBase).pathname).toBe('/106/zadmin/');
+
     expect(html).toContain('name="robots" content="noindex,nofollow,noarchive"');
     expect(html).not.toContain('layout.js');
     expect(html).not.toContain('site-header');
