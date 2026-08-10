@@ -165,7 +165,7 @@ function evidenceDevice(isMobile) {
   return isMobile ? 'mobile' : 'desktop';
 }
 
-function recordingContextOptions(isMobile) {
+function evidenceContextOptions(isMobile, { recordVideo = false } = {}) {
   const device = isMobile
     ? devices['Pixel 5']
     : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
@@ -173,8 +173,26 @@ function recordingContextOptions(isMobile) {
   return {
     ...device,
     baseURL: applicationUrl,
-    recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize },
+    ...(recordVideo ? { recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize } } : {}),
   };
+}
+
+async function expectEvidenceProfileReady(page) {
+  await expect(page.locator('#playerContent')).toBeVisible();
+  await expect.poll(() => page.locator('#playerCardPreview').evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
+}
+
+async function openRepeatedAchievement(page) {
+  const repeated = page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]');
+  const details = repeated.locator('details.honours-occurrences');
+  const summary = details.locator('summary');
+  await expect(repeated).toHaveCount(1);
+  await expect(details).not.toHaveAttribute('open', '');
+  await summary.scrollIntoViewIfNeeded();
+  await summary.click();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.locator('li')).toHaveCount(3);
+  return { details, summary };
 }
 
 async function saveVideo(context, page, area, isMobile) {
@@ -234,39 +252,39 @@ test('profile collection controls remain within a 320px viewport', async ({ page
 
 test('records grouped achievement disclosure and pagination as changed-area evidence', async ({ browser, isMobile }) => {
   test.skip(!visualCapture, 'Visual recording is generated only by the PR evidence workflow.');
-  const context = await browser.newContext(recordingContextOptions(isMobile));
-  const page = await context.newPage();
-  await installProfileMocks(page);
-  await page.goto(playerPath('achievements'));
-  await expect(page.locator('#playerContent')).toBeVisible();
-  await expect.poll(() => page.locator('#playerCardPreview').evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
-
-  const repeated = page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]');
-  const details = repeated.locator('details.honours-occurrences');
-  const summary = details.locator('summary');
-  await expect(repeated).toHaveCount(1);
-  await expect(details).not.toHaveAttribute('open', '');
-  await summary.scrollIntoViewIfNeeded();
-  await summary.click();
-  await expect(details).toHaveAttribute('open', '');
-  await expect(details.locator('li')).toHaveCount(3);
-
-  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-
   const device = evidenceDevice(isMobile);
-  await page.screenshot({
+
+  const screenshotContext = await browser.newContext(evidenceContextOptions(isMobile));
+  const screenshotPage = await screenshotContext.newPage();
+  await installProfileMocks(screenshotPage);
+  await screenshotPage.goto(playerPath('achievements'));
+  await expectEvidenceProfileReady(screenshotPage);
+  await openRepeatedAchievement(screenshotPage);
+  await screenshotPage.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await expect.poll(() => screenshotPage.evaluate(() => window.scrollY)).toBe(0);
+  await screenshotPage.screenshot({
     path: join(previewDirectory, `player-collections-${device}.png`),
     animations: 'disabled',
     fullPage: true,
   });
+  await screenshotContext.close();
 
-  await page.locator('#playerAchievementsPager [data-page-direction="next"]').click();
-  await expect(page.locator('#playerAchievementsPager')).toContainText('página 2 de');
-  await page.locator('#playerAchievementsPager [data-page-direction="previous"]').click();
-  await expect(page.locator('#playerAchievementsPager')).toContainText('página 1 de');
-  await expect(page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]')).toHaveCount(1);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  const recordingContext = await browser.newContext(evidenceContextOptions(isMobile, { recordVideo: true }));
+  const recordingPage = await recordingContext.newPage();
+  await installProfileMocks(recordingPage);
+  await recordingPage.goto(playerPath('achievements'));
+  await expectEvidenceProfileReady(recordingPage);
+  await openRepeatedAchievement(recordingPage);
+  await recordingPage.waitForTimeout(450);
 
-  await saveVideo(context, page, 'player-collections', isMobile);
+  await recordingPage.locator('#playerAchievementsPager [data-page-direction="next"]').click();
+  await expect(recordingPage.locator('#playerAchievementsPager')).toContainText('página 2 de');
+  await recordingPage.waitForTimeout(550);
+  await recordingPage.locator('#playerAchievementsPager [data-page-direction="previous"]').click();
+  await expect(recordingPage.locator('#playerAchievementsPager')).toContainText('página 1 de');
+  await expect(recordingPage.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]')).toHaveCount(1);
+  await recordingPage.waitForTimeout(550);
+  expect(await recordingPage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+
+  await saveVideo(recordingContext, recordingPage, 'player-collections', isMobile);
 });
