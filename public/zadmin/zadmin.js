@@ -10,6 +10,10 @@ let sessionTimer = null;
 let currentScope = 'account';
 let currentTarget = '';
 let currentDetail = null;
+let confirmResolver = null;
+let confirmReturnFocus = null;
+let revokeResolver = null;
+let revokeReturnFocus = null;
 
 function $(selector) {
   return document.querySelector(selector);
@@ -47,6 +51,79 @@ function setStatus(element, message = '', tone = '') {
   if (tone) element.dataset.tone = tone;
   else delete element.dataset.tone;
 }
+
+function focusIfAvailable(element) {
+  if (element instanceof HTMLElement && element.isConnected) element.focus();
+}
+
+function settleConfirm(accepted) {
+  if (!confirmResolver) return;
+  const resolve = confirmResolver;
+  const returnFocus = confirmReturnFocus;
+  confirmResolver = null;
+  confirmReturnFocus = null;
+  const dialog = $('#adminConfirmDialog');
+  if (dialog.open) dialog.close();
+  focusIfAvailable(returnFocus);
+  resolve(accepted === true);
+}
+
+function askAdmin({
+  title = 'Confirma la acción',
+  message = '',
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+} = {}) {
+  if (confirmResolver) return Promise.resolve(false);
+  const dialog = $('#adminConfirmDialog');
+  $('#adminConfirmTitle').textContent = text(title);
+  $('#adminConfirmMessage').textContent = text(message);
+  $('#adminConfirmAccept').textContent = text(confirmLabel) || 'Confirmar';
+  $('#adminConfirmCancel').textContent = text(cancelLabel) || 'Cancelar';
+  confirmReturnFocus = document.activeElement;
+  dialog.showModal();
+  window.requestAnimationFrame(() => $('#adminConfirmCancel').focus());
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+  });
+}
+
+function settleRevokeReason(value) {
+  if (!revokeResolver) return;
+  const resolve = revokeResolver;
+  const returnFocus = revokeReturnFocus;
+  revokeResolver = null;
+  revokeReturnFocus = null;
+  const dialog = $('#adminRevokeDialog');
+  if (dialog.open) dialog.close();
+  focusIfAvailable(returnFocus);
+  resolve(value);
+}
+
+function requestRevokeReason() {
+  if (revokeResolver) return Promise.resolve(null);
+  $('#adminRevokeReason').value = '';
+  setStatus($('#adminRevokeStatus'));
+  revokeReturnFocus = document.activeElement;
+  $('#adminRevokeDialog').showModal();
+  window.requestAnimationFrame(() => $('#adminRevokeReason').focus());
+  return new Promise((resolve) => {
+    revokeResolver = resolve;
+  });
+}
+
+function submitRevokeReason(event) {
+  event.preventDefault();
+  const reason = $('#adminRevokeReason').value.trim();
+  if (reason.length < 3) {
+    setStatus($('#adminRevokeStatus'), 'El motivo debe tener al menos 3 caracteres.', 'error');
+    $('#adminRevokeReason').focus();
+    return;
+  }
+  settleRevokeReason(reason);
+}
+
+window.Minuto106UI = Object.freeze({ ask: askAdmin });
 
 function apiUrl() {
   try {
@@ -486,7 +563,13 @@ async function applyBan(event) {
   }
   const duration = $('#adminBanDuration').value;
   const label = duration === 'permanent' ? 'para siempre' : durationLabel(Number(duration)).toLowerCase();
-  if (!window.confirm(`¿Banear ${scopeLabel(currentScope).toLowerCase()} ${currentScope === 'nick' ? currentTarget : shortHash(currentTarget)} ${label}?\n\nMotivo: ${reason}`)) return;
+  const approved = await window.Minuto106UI.ask({
+    title: 'Aplicar restricción manual',
+    message: `Se bloqueará ${scopeLabel(currentScope).toLowerCase()} ${currentScope === 'nick' ? currentTarget : shortHash(currentTarget)} ${label}. Motivo: ${reason}`,
+    confirmLabel: 'Aplicar ban',
+    cancelLabel: 'Cancelar',
+  });
+  if (!approved) return;
 
   $('#adminBanButton').disabled = true;
   setStatus(status, 'Aplicando restricción…');
@@ -508,16 +591,10 @@ async function applyBan(event) {
 }
 
 async function revokeBan(banId) {
-  const reason = window.prompt('Motivo de la revocación (mínimo 3 caracteres):', 'Revisión manual');
-  if (reason === null) return;
-  const normalized = reason.trim();
-  if (normalized.length < 3) {
-    setStatus($('#adminBanStatus'), 'El motivo de revocación debe tener al menos 3 caracteres.', 'error');
-    return;
-  }
-  if (!window.confirm('¿Revocar este ban? La acción quedará registrada y el historial no se borrará.')) return;
+  const reason = await requestRevokeReason();
+  if (!reason) return;
   try {
-    await adminRequest('revoke-ban', { banId, reason: normalized });
+    await adminRequest('revoke-ban', { banId, reason });
     const tasks = [loadBans(), loadOverview({ preserveDetail: true })];
     if (currentTarget) tasks.push(loadDetail(currentScope, currentTarget));
     await Promise.all(tasks);
@@ -646,6 +723,18 @@ function bindEvents() {
   $('#adminBanForm').addEventListener('submit', applyBan);
   $('#adminReloadBans').addEventListener('click', loadBans);
   $('#adminReloadAudit').addEventListener('click', loadAudit);
+  $('#adminConfirmCancel').addEventListener('click', () => settleConfirm(false));
+  $('#adminConfirmAccept').addEventListener('click', () => settleConfirm(true));
+  $('#adminConfirmDialog').addEventListener('cancel', (event) => {
+    event.preventDefault();
+    settleConfirm(false);
+  });
+  $('#adminRevokeCancel').addEventListener('click', () => settleRevokeReason(null));
+  $('#adminRevokeForm').addEventListener('submit', submitRevokeReason);
+  $('#adminRevokeDialog').addEventListener('cancel', (event) => {
+    event.preventDefault();
+    settleRevokeReason(null);
+  });
   for (const button of all('[data-admin-view]')) button.addEventListener('click', () => setView(button.dataset.adminView));
 }
 
