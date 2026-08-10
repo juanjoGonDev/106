@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 
 import { main as waitForLocalPostgrest } from './wait-for-postgrest-local.mjs';
 
@@ -29,6 +30,29 @@ async function request(url, body, headers = {}) {
   } catch {
     throw new Error(`Expected JSON from ${url}, received: ${text.slice(0, 300)}`);
   }
+}
+
+function localSupabaseEnvironment() {
+  const result = spawnSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || 'supabase status failed');
+  const environment = {};
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (!match) continue;
+    environment[match[1]] = match[2].replace(/^"|"$/g, '');
+  }
+  assert.ok(environment.API_URL, 'Local Supabase API_URL is required');
+  assert.ok(environment.SERVICE_ROLE_KEY, 'Local Supabase SERVICE_ROLE_KEY is required');
+  return environment;
+}
+
+async function serviceRpc(environment, name, parameters) {
+  const result = await request(`${environment.API_URL}/rest/v1/rpc/${name}`, parameters, {
+    apikey: environment.SERVICE_ROLE_KEY,
+    authorization: `Bearer ${environment.SERVICE_ROLE_KEY}`,
+  });
+  assert.equal(result.response.status, 200, JSON.stringify(result.payload));
+  return result.payload;
 }
 
 function log(message) {
@@ -87,6 +111,106 @@ const leagueWrite = await request(leagueEndpoint, {
 assert.equal(leagueWrite.response.status, 400, JSON.stringify(leagueWrite.payload));
 log('League mutation rejects an invalid nickname before authorization or persistence');
 
+const local = localSupabaseEnvironment();
+const ipA = '1'.repeat(64);
+const deviceA = '2'.repeat(64);
+const deviceB = '3'.repeat(64);
+const ipB = '4'.repeat(64);
+
+const firstFailure = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceA,
+  p_credentials_valid: false,
+  p_at: '2026-08-10T10:00:00Z',
+});
+assert.equal(firstFailure.blocked, false);
+assert.equal(firstFailure.attemptsRemaining, 2);
+
+const secondFailure = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceA,
+  p_credentials_valid: false,
+  p_at: '2026-08-10T10:10:00Z',
+});
+assert.equal(secondFailure.blocked, false);
+assert.equal(secondFailure.attemptsRemaining, 1);
+
+const thirdFailure = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceA,
+  p_credentials_valid: false,
+  p_at: '2026-08-10T10:20:00Z',
+});
+assert.equal(thirdFailure.blocked, true);
+assert.equal(thirdFailure.attemptsRemaining, 0);
+assert.equal(thirdFailure.retryAfterSeconds, 2_400);
+
+const validWhileBlocked = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceA,
+  p_credentials_valid: true,
+  p_at: '2026-08-10T10:30:00Z',
+});
+assert.equal(validWhileBlocked.authenticated, false);
+assert.equal(validWhileBlocked.blocked, true);
+assert.equal(validWhileBlocked.retryAfterSeconds, 1_800);
+
+const sameIpDifferentDevice = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceB,
+  p_credentials_valid: true,
+  p_at: '2026-08-10T10:30:00Z',
+});
+assert.equal(sameIpDifferentDevice.blocked, true);
+
+const differentIpSameDevice = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipB,
+  p_device_hash: deviceA,
+  p_credentials_valid: true,
+  p_at: '2026-08-10T10:30:00Z',
+});
+assert.equal(differentIpSameDevice.blocked, true);
+
+const exactWindowExpiry = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: ipA,
+  p_device_hash: deviceA,
+  p_credentials_valid: true,
+  p_at: '2026-08-10T11:00:00Z',
+});
+assert.equal(exactWindowExpiry.blocked, false);
+assert.equal(exactWindowExpiry.authenticated, true);
+assert.equal(exactWindowExpiry.attemptsRemaining, 1);
+log('Zadmin login gate enforces three rolling failures independently by IP and device and expires exactly at the one-hour boundary');
+
+const invalidSubject = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: 'invalid',
+  p_device_hash: deviceA,
+  p_credentials_valid: false,
+  p_at: '2026-08-10T11:00:00Z',
+});
+assert.equal(invalidSubject.error, 'invalid_subject');
+
+const concurrentIp = '5'.repeat(64);
+const concurrentDevice = '6'.repeat(64);
+const concurrentResults = await Promise.all(
+  Array.from({ length: 4 }, (_, index) => serviceRpc(local, 'zadmin_login_gate', {
+    p_ip_hash: concurrentIp,
+    p_device_hash: concurrentDevice,
+    p_credentials_valid: false,
+    p_at: `2026-08-10T12:0${index}:00Z`,
+  })),
+);
+assert.equal(concurrentResults.filter((result) => result.blocked === true).length, 2);
+const concurrentValid = await serviceRpc(local, 'zadmin_login_gate', {
+  p_ip_hash: concurrentIp,
+  p_device_hash: concurrentDevice,
+  p_credentials_valid: true,
+  p_at: '2026-08-10T12:04:00Z',
+});
+assert.equal(concurrentValid.blocked, true);
+assert.equal(concurrentValid.authenticated, false);
+log('Concurrent zadmin login failures serialize through the database gate and cannot race past the three-attempt limit');
+
 const statsAfter = await request(gameEndpoint, { action: 'stats' });
 assert.equal(statsAfter.response.status, 200, JSON.stringify(statsAfter.payload));
 const leaguesAfter = await request(leagueEndpoint, {
@@ -96,4 +220,4 @@ const leaguesAfter = await request(leagueEndpoint, {
 });
 assert.equal(leaguesAfter.response.status, 200, JSON.stringify(leaguesAfter.payload));
 assert.ok(Array.isArray(leaguesAfter.payload));
-log('Database and public APIs remain healthy after every injection probe');
+log('Database and public APIs remain healthy after every injection and admin-rate probe');
