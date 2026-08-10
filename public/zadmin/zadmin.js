@@ -498,8 +498,8 @@ async function applyBan(event) {
       reason,
     });
     $('#adminBanReason').value = '';
-    setStatus(status, 'Ban aplicado y registrado en auditoría.', 'success');
     await Promise.all([loadDetail(currentScope, currentTarget), loadOverview({ preserveDetail: true })]);
+    setStatus(status, 'Ban aplicado y registrado en auditoría.', 'success');
   } catch (error) {
     setStatus(status, error.message, 'error');
   } finally {
@@ -518,10 +518,11 @@ async function revokeBan(banId) {
   if (!window.confirm('¿Revocar este ban? La acción quedará registrada y el historial no se borrará.')) return;
   try {
     await adminRequest('revoke-ban', { banId, reason: normalized });
-    setStatus($('#adminBanStatus'), 'Ban revocado y conservado en auditoría.', 'success');
     const tasks = [loadBans(), loadOverview({ preserveDetail: true })];
     if (currentTarget) tasks.push(loadDetail(currentScope, currentTarget));
     await Promise.all(tasks);
+    setStatus($('#adminBanStatus'), 'Ban revocado y conservado en auditoría.', 'success');
+    setStatus($('#adminBansStatus'), 'Ban revocado y conservado en auditoría.', 'success');
   } catch (error) {
     setStatus($('#adminBanStatus'), error.message, 'error');
     setStatus($('#adminBansStatus'), error.message, 'error');
