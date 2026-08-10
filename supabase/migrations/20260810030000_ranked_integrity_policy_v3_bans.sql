@@ -589,6 +589,17 @@ begin
     v_reasons := array_append(v_reasons, 'two_hour_mixed_pattern');
   end if;
 
+  v_session_alternation_malicious := v_session_attempts >= 5
+    and v_session_near >= 3
+    and v_session_ordinary >= 2
+    and v_session_switches >= 3
+    and v_session_fingerprint >= 3;
+
+  if v_session_alternation_malicious then
+    v_score := v_score + 10;
+    v_reasons := array_append(v_reasons, 'two_hour_corroborated_alternation');
+  end if;
+
   v_score := least(100, v_score);
 
   v_legacy_malicious := v_near >= 4
@@ -598,12 +609,6 @@ begin
   v_session_automation_malicious := v_session_near >= 3
     and v_session_automation >= 3
     and v_session_fingerprint >= 2;
-
-  v_session_alternation_malicious := v_session_attempts >= 5
-    and v_session_near >= 3
-    and v_session_ordinary >= 2
-    and v_session_switches >= 3
-    and v_session_fingerprint >= 3;
 
   v_malicious := v_score >= 65
     and (v_legacy_malicious or v_session_automation_malicious or v_session_alternation_malicious);
@@ -751,7 +756,6 @@ begin
         attempt.id = v_anchor.id
         or (
           v_malicious
-          and attempt.difference_ms <= 5
           and attempt.created_at between v_anchor.created_at - interval '2 hours' and v_anchor.created_at
           and (
             attempt.device_hash = v_anchor.device_hash
