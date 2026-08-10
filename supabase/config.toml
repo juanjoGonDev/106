@@ -70,7 +70,7 @@ content_path = "./templates/notifications/mfa-factor-enrolled.html"
 
 [auth.email.notification.mfa_factor_unenrolled]
 enabled = true
-subject = "Se ha eliminado una verificación a tu cuenta de Minuto 106"
+subject = "Se ha eliminado una verificación de tu cuenta de Minuto 106"
 content_path = "./templates/notifications/mfa-factor-unenrolled.html"
 
 [auth.email.notification.identity_linked]
