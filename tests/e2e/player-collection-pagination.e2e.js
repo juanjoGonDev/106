@@ -1,11 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join, resolve } from 'node:path';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
-const { expect, test } = require(runtimePath);
-const previewDirectory = '.tmp/pr-previews';
+const { devices, expect, test } = require(runtimePath);
+const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const previewDirectory = resolve('.tmp/pr-previews');
+const applicationUrl = 'http://127.0.0.1:3000';
 mkdirSync(previewDirectory, { recursive: true });
 
 function achievement(index, overrides = {}) {
@@ -147,6 +150,29 @@ async function openPlayer(page, section = 'overview') {
   await expect(page.locator('#playerContent')).toBeVisible();
 }
 
+function evidenceDevice(isMobile) {
+  return isMobile ? 'mobile' : 'desktop';
+}
+
+function recordingContextOptions(isMobile) {
+  const device = isMobile
+    ? devices['Pixel 5']
+    : { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
+  const videoSize = isMobile ? { ...device.viewport } : { width: 1280, height: 800 };
+  return {
+    ...device,
+    baseURL: applicationUrl,
+    recordVideo: { dir: join(previewDirectory, 'recordings'), size: videoSize },
+  };
+}
+
+async function saveVideo(context, page, area, isMobile) {
+  const video = page.video();
+  if (!video) throw new Error(`Playwright did not create the ${area} recording.`);
+  await context.close();
+  await video.saveAs(join(previewDirectory, `${area}-${evidenceDevice(isMobile)}.webm`));
+}
+
 test('attempt and trophy histories stay bounded and navigate deterministically', async ({ page }) => {
   await openPlayer(page);
   await expect(page.locator('#playerHistory > li')).toHaveCount(10);
@@ -193,4 +219,39 @@ test('profile collection controls remain within a 320px viewport', async ({ page
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(page.locator('#playerAchievementsPager button')).toHaveCount(2);
   await expect(page.locator('#playerAchievementsPager button').first()).toHaveCSS('min-height', '44px');
+});
+
+test('records grouped achievement disclosure and pagination as changed-area evidence', async ({ browser, isMobile }) => {
+  test.skip(!visualCapture, 'Visual recording is generated only by the PR evidence workflow.');
+  const context = await browser.newContext(recordingContextOptions(isMobile));
+  const page = await context.newPage();
+  await installProfileMocks(page);
+  await page.goto(playerPath('achievements'));
+  await expect(page.locator('#playerContent')).toBeVisible();
+
+  const repeated = page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]');
+  const details = repeated.locator('details.honours-occurrences');
+  const summary = details.locator('summary');
+  await expect(repeated).toHaveCount(1);
+  await expect(details).not.toHaveAttribute('open', '');
+  await summary.scrollIntoViewIfNeeded();
+  await summary.click();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.locator('li')).toHaveCount(3);
+
+  const device = evidenceDevice(isMobile);
+  await page.screenshot({
+    path: join(previewDirectory, `player-collections-${device}.png`),
+    animations: 'disabled',
+    fullPage: true,
+  });
+
+  await page.locator('#playerAchievementsPager [data-page-direction="next"]').click();
+  await expect(page.locator('#playerAchievementsPager')).toContainText('página 2 de');
+  await page.locator('#playerAchievementsPager [data-page-direction="previous"]').click();
+  await expect(page.locator('#playerAchievementsPager')).toContainText('página 1 de');
+  await expect(page.locator('#playerAchievements [data-achievement-code^="daily_hat_trick"]')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+
+  await saveVideo(context, page, 'player-collections', isMobile);
 });
