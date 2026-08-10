@@ -62,8 +62,7 @@ function settleConfirm(accepted) {
   const returnFocus = confirmReturnFocus;
   confirmResolver = null;
   confirmReturnFocus = null;
-  const dialog = $('#adminConfirmDialog');
-  if (dialog.open) dialog.close();
+  $('#adminBanConfirmComponent').hidden = true;
   focusIfAvailable(returnFocus);
   resolve(accepted === true);
 }
@@ -75,14 +74,13 @@ function askAdmin({
   cancelLabel = 'Cancelar',
 } = {}) {
   if (confirmResolver) return Promise.resolve(false);
-  const dialog = $('#adminConfirmDialog');
-  $('#adminConfirmTitle').textContent = text(title);
-  $('#adminConfirmMessage').textContent = text(message);
-  $('#adminConfirmAccept').textContent = text(confirmLabel) || 'Confirmar';
-  $('#adminConfirmCancel').textContent = text(cancelLabel) || 'Cancelar';
+  $('#adminBanConfirmTitle').textContent = text(title);
+  $('#adminBanConfirmMessage').textContent = text(message);
+  $('#adminBanConfirmAccept').textContent = text(confirmLabel) || 'Confirmar';
+  $('#adminBanConfirmCancel').textContent = text(cancelLabel) || 'Cancelar';
   confirmReturnFocus = document.activeElement;
-  dialog.showModal();
-  window.requestAnimationFrame(() => $('#adminConfirmCancel').focus());
+  $('#adminBanConfirmComponent').hidden = false;
+  window.requestAnimationFrame(() => $('#adminBanConfirmCancel').focus());
   return new Promise((resolve) => {
     confirmResolver = resolve;
   });
@@ -94,18 +92,22 @@ function settleRevokeReason(value) {
   const returnFocus = revokeReturnFocus;
   revokeResolver = null;
   revokeReturnFocus = null;
-  const dialog = $('#adminRevokeDialog');
-  if (dialog.open) dialog.close();
+  const component = $('#adminRevokeComponent');
+  component.hidden = true;
+  $('#adminActionComponentHost').append(component);
   focusIfAvailable(returnFocus);
   resolve(value);
 }
 
-function requestRevokeReason() {
+function requestRevokeReason(anchor) {
   if (revokeResolver) return Promise.resolve(null);
   $('#adminRevokeReason').value = '';
   setStatus($('#adminRevokeStatus'));
   revokeReturnFocus = document.activeElement;
-  $('#adminRevokeDialog').showModal();
+  const component = $('#adminRevokeComponent');
+  const destination = anchor instanceof HTMLElement ? anchor : $('#adminBansView');
+  destination.append(component);
+  component.hidden = false;
   window.requestAnimationFrame(() => $('#adminRevokeReason').focus());
   return new Promise((resolve) => {
     revokeResolver = resolve;
@@ -122,8 +124,6 @@ function submitRevokeReason(event) {
   }
   settleRevokeReason(reason);
 }
-
-window.Minuto106UI = Object.freeze({ ask: askAdmin });
 
 function apiUrl() {
   try {
@@ -259,6 +259,8 @@ function startSessionClock() {
 }
 
 function clearSession(message = '') {
+  if (confirmResolver) settleConfirm(false);
+  if (revokeResolver) settleRevokeReason(null);
   sessionToken = '';
   sessionExpiresAt = 0;
   currentTarget = '';
@@ -432,7 +434,7 @@ function banItem(ban, { allowRevoke = true } = {}) {
   if (ban.revoked_reason) item.append(createElement('p', { className: 'zadmin-muted', textContent: `Revocación: ${text(ban.revoked_reason)}` }));
   if (allowRevoke && ban.active === true && ban.id) {
     const button = createElement('button', { className: 'zadmin-inline-button', textContent: 'Revocar ban', attributes: { type: 'button' } });
-    button.addEventListener('click', () => revokeBan(text(ban.id)));
+    button.addEventListener('click', () => revokeBan(text(ban.id), item));
     item.append(button);
   }
   return item;
@@ -494,6 +496,8 @@ function renderAttempts(attempts = []) {
 }
 
 function resetDetail() {
+  if (confirmResolver) settleConfirm(false);
+  if (revokeResolver) settleRevokeReason(null);
   currentTarget = '';
   currentDetail = null;
   $('#adminDetailPlaceholder').hidden = false;
@@ -501,6 +505,8 @@ function resetDetail() {
 }
 
 async function loadDetail(scope, target) {
+  if (confirmResolver) settleConfirm(false);
+  if (revokeResolver) settleRevokeReason(null);
   currentScope = SCOPES.has(scope) ? scope : 'nick';
   currentTarget = text(target);
   setStatus($('#adminOverviewStatus'), `Cargando detalle de ${scopeLabel(currentScope).toLowerCase()}…`);
@@ -563,7 +569,7 @@ async function applyBan(event) {
   }
   const duration = $('#adminBanDuration').value;
   const label = duration === 'permanent' ? 'para siempre' : durationLabel(Number(duration)).toLowerCase();
-  const approved = await window.Minuto106UI.ask({
+  const approved = await askAdmin({
     title: 'Aplicar restricción manual',
     message: `Se bloqueará ${scopeLabel(currentScope).toLowerCase()} ${currentScope === 'nick' ? currentTarget : shortHash(currentTarget)} ${label}. Motivo: ${reason}`,
     confirmLabel: 'Aplicar ban',
@@ -590,8 +596,8 @@ async function applyBan(event) {
   }
 }
 
-async function revokeBan(banId) {
-  const reason = await requestRevokeReason();
+async function revokeBan(banId, anchor) {
+  const reason = await requestRevokeReason(anchor);
   if (!reason) return;
   try {
     await adminRequest('revoke-ban', { banId, reason });
@@ -701,6 +707,8 @@ async function logout() {
 
 function setView(name) {
   const target = ['investigation', 'bans', 'audit'].includes(name) ? name : 'investigation';
+  if (confirmResolver && target !== 'investigation') settleConfirm(false);
+  if (revokeResolver) settleRevokeReason(null);
   for (const button of all('[data-admin-view]')) {
     const active = button.dataset.adminView === target;
     button.classList.toggle('is-active', active);
@@ -709,6 +717,19 @@ function setView(name) {
   for (const panel of all('[data-admin-panel]')) panel.hidden = panel.dataset.adminPanel !== target;
   if (target === 'bans') loadBans();
   if (target === 'audit') loadAudit();
+}
+
+function cancelActionComponent(event) {
+  if (event.key !== 'Escape') return;
+  if (confirmResolver) {
+    event.preventDefault();
+    settleConfirm(false);
+    return;
+  }
+  if (revokeResolver) {
+    event.preventDefault();
+    settleRevokeReason(null);
+  }
 }
 
 function bindEvents() {
@@ -723,18 +744,11 @@ function bindEvents() {
   $('#adminBanForm').addEventListener('submit', applyBan);
   $('#adminReloadBans').addEventListener('click', loadBans);
   $('#adminReloadAudit').addEventListener('click', loadAudit);
-  $('#adminConfirmCancel').addEventListener('click', () => settleConfirm(false));
-  $('#adminConfirmAccept').addEventListener('click', () => settleConfirm(true));
-  $('#adminConfirmDialog').addEventListener('cancel', (event) => {
-    event.preventDefault();
-    settleConfirm(false);
-  });
+  $('#adminBanConfirmCancel').addEventListener('click', () => settleConfirm(false));
+  $('#adminBanConfirmAccept').addEventListener('click', () => settleConfirm(true));
   $('#adminRevokeCancel').addEventListener('click', () => settleRevokeReason(null));
   $('#adminRevokeForm').addEventListener('submit', submitRevokeReason);
-  $('#adminRevokeDialog').addEventListener('cancel', (event) => {
-    event.preventDefault();
-    settleRevokeReason(null);
-  });
+  document.addEventListener('keydown', cancelActionComponent);
   for (const button of all('[data-admin-view]')) button.addEventListener('click', () => setView(button.dataset.adminView));
 }
 
