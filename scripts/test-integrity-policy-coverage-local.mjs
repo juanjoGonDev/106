@@ -906,7 +906,7 @@ function testAchievementPointPolicy(databaseUrl, prefix) {
   assert.deepEqual(actual, expected);
 
   runPsql(databaseUrl, `
-    insert into public.game_player_achievements(nick_key, achievement_code, achievement_kind, title, description, points, achievement_date)
+    insert into public.game_player_achievements(nick_key, achievement_code, achievement_kind, title, description, points, achieved_on)
     values (
       ${sqlLiteral(participant.nickKey)},
       'perfect_total_1',
