@@ -44,3 +44,67 @@
 .zadmin-body .password-visibility-toggle[data-visible="true"] .password-eye-slash{
   opacity:1;
 }
+
+.zadmin-dialog{
+  width:min(520px,calc(100% - 28px));
+  max-height:min(720px,calc(100dvh - 28px));
+  overflow:auto;
+  border:1px solid var(--za-border-strong);
+  border-radius:var(--za-radius);
+  background:var(--za-surface);
+  color:var(--za-text);
+  padding:var(--za-space-4);
+  box-shadow:0 24px 80px #000a;
+}
+
+.zadmin-dialog::backdrop{
+  background:#000b;
+}
+
+.zadmin-dialog-copy h2{
+  margin:0 0 var(--za-space-2);
+}
+
+.zadmin-dialog-copy p:last-child{
+  margin-bottom:0;
+}
+
+.zadmin-dialog form{
+  display:grid;
+  gap:var(--za-space-3);
+}
+
+.zadmin-dialog label{
+  display:grid;
+  gap:var(--za-space-1);
+  font-weight:800;
+}
+
+.zadmin-dialog-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:var(--za-space-2);
+  margin-top:var(--za-space-4);
+}
+
+.zadmin-dialog-actions .ghost,
+.zadmin-dialog-actions .zadmin-danger{
+  width:auto;
+  min-height:44px;
+  margin:0;
+}
+
+@media(max-width:520px){
+  .zadmin-dialog{
+    padding:var(--za-space-3);
+  }
+
+  .zadmin-dialog-actions{
+    flex-direction:column-reverse;
+  }
+
+  .zadmin-dialog-actions .ghost,
+  .zadmin-dialog-actions .zadmin-danger{
+    width:100%;
+  }
+}
