@@ -43,6 +43,7 @@ function localSupabaseEnvironment() {
   }
   assert.ok(environment.API_URL, 'Local Supabase API_URL is required');
   assert.ok(environment.SERVICE_ROLE_KEY, 'Local Supabase SERVICE_ROLE_KEY is required');
+  assert.ok(environment.ANON_KEY, 'Local Supabase ANON_KEY is required');
   return environment;
 }
 
@@ -210,6 +211,83 @@ const concurrentValid = await serviceRpc(local, 'zadmin_login_gate', {
 assert.equal(concurrentValid.blocked, true);
 assert.equal(concurrentValid.authenticated, false);
 log('Concurrent zadmin login failures serialize through the database gate and cannot race past the three-attempt limit');
+
+const sessionTokenHash = '7'.repeat(64);
+const sessionIp = '8'.repeat(64);
+const sessionDevice = '9'.repeat(64);
+const session = await serviceRpc(local, 'zadmin_create_session', {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T13:00:00Z',
+});
+assert.match(String(session.sessionId), /^[0-9a-f-]{36}$/i);
+assert.equal(session.expiresAt, '2026-08-10T13:30:00+00:00');
+
+const validSession = await serviceRpc(local, 'zadmin_validate_session', {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T13:10:00Z',
+});
+assert.equal(validSession.valid, true);
+assert.equal(validSession.sessionId, session.sessionId);
+
+const wrongIpSession = await serviceRpc(local, 'zadmin_validate_session', {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: 'a'.repeat(64),
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T13:10:00Z',
+});
+assert.equal(wrongIpSession.valid, false);
+
+const wrongDeviceSession = await serviceRpc(local, 'zadmin_validate_session', {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: 'b'.repeat(64),
+  p_at: '2026-08-10T13:10:00Z',
+});
+assert.equal(wrongDeviceSession.valid, false);
+
+const expiredSession = await serviceRpc(local, 'zadmin_validate_session', {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T13:30:00Z',
+});
+assert.equal(expiredSession.valid, false);
+
+const revocableTokenHash = 'c'.repeat(64);
+const revocableSession = await serviceRpc(local, 'zadmin_create_session', {
+  p_token_hash: revocableTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T14:00:00Z',
+});
+assert.equal(await serviceRpc(local, 'zadmin_revoke_session', {
+  p_session_id: revocableSession.sessionId,
+  p_at: '2026-08-10T14:05:00Z',
+}), true);
+const revokedSession = await serviceRpc(local, 'zadmin_validate_session', {
+  p_token_hash: revocableTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T14:06:00Z',
+});
+assert.equal(revokedSession.valid, false);
+log('Zadmin sessions are server-side, expire at 30 minutes, bind to the login IP/device fingerprints and reject revoked sessions');
+
+const anonSessionProbe = await request(`${local.API_URL}/rest/v1/rpc/zadmin_validate_session`, {
+  p_token_hash: sessionTokenHash,
+  p_ip_hash: sessionIp,
+  p_device_hash: sessionDevice,
+  p_at: '2026-08-10T13:10:00Z',
+}, {
+  apikey: local.ANON_KEY,
+  authorization: `Bearer ${local.ANON_KEY}`,
+});
+assert.ok([401, 403, 404].includes(anonSessionProbe.response.status), JSON.stringify(anonSessionProbe.payload));
+log('Anonymous browser credentials cannot invoke the privileged zadmin session RPC');
 
 const statsAfter = await request(gameEndpoint, { action: 'stats' });
 assert.equal(statsAfter.response.status, 200, JSON.stringify(statsAfter.payload));
