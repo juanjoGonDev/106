@@ -180,7 +180,7 @@ const health = await api(readyEndpoint, { action: 'health' });
 assert.equal(health.response.status, 200, JSON.stringify(health.body));
 assert.deepEqual(health.body, {
   ok: true,
-  contract: 'ranked-anti-cheat-v2',
+  contract: 'ranked-anti-cheat-v3',
   challengeFormat: 'raster-png-v1',
   progressiveHumanCheck: true,
   turnstileRequired: true,
