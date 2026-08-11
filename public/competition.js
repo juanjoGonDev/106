@@ -31,6 +31,7 @@ import {
   let lastLeagueResult = null;
   let restrictionTimer = 0;
   let restrictionRefreshPending = false;
+  let restrictionRefreshFailed = false;
 
   localStorage.setItem(deviceKey, deviceId);
 
@@ -103,6 +104,7 @@ import {
     const scope = selectedScope();
     return !contextPending
       && !restrictionRefreshPending
+      && !restrictionRefreshFailed
       && context.restriction?.active !== true
       && context.availability !== 'occupied'
       && scope.available
@@ -206,7 +208,7 @@ import {
   }
 
   function refreshExpiredRestriction() {
-    if (restrictionRefreshPending) return;
+    if (restrictionRefreshPending || restrictionRefreshFailed) return;
     restrictionRefreshPending = true;
     contextPending = true;
     clearRestrictionTimer();
@@ -217,6 +219,7 @@ import {
       .catch(() => {})
       .finally(() => {
         restrictionRefreshPending = false;
+        contextPending = false;
         renderRestriction();
         renderStatus();
         notify('restriction-expired:settled');
@@ -244,6 +247,14 @@ import {
     const end = panel.querySelector('#playRestrictionEnd');
 
     if (!restriction) {
+      clearRestrictionTimer();
+      if (restrictionRefreshFailed) {
+        if (source) source.textContent = 'Comprobación pendiente';
+        if (reason) reason.textContent = 'No se pudo confirmar con el servidor que la restricción haya terminado. El acceso seguirá bloqueado hasta una comprobación correcta.';
+        if (time) time.hidden = true;
+        if (end) end.textContent = 'Vuelve a intentarlo cuando haya conexión con el servidor.';
+        return;
+      }
       if (source) source.textContent = 'Comprobando';
       if (reason) reason.textContent = 'La restricción ha llegado a su hora de finalización. Estamos confirmando con el servidor si ya puedes volver a jugar.';
       if (time) time.hidden = true;
@@ -369,6 +380,10 @@ import {
       status.textContent = restrictionRefreshPending ? 'Comprobando si la restricción ya ha terminado…' : 'Comprobando nick y competiciones…';
       return;
     }
+    if (restrictionRefreshFailed) {
+      status.textContent = 'No se pudo confirmar que la restricción haya terminado. El acceso sigue bloqueado hasta conectar de nuevo con el servidor.';
+      return;
+    }
     if (context.availability === 'occupied') {
       status.textContent = 'Este nick ya está ocupado por otra cuenta. Importa su clave o elige otro antes de jugar.';
       return;
@@ -435,11 +450,12 @@ import {
     try {
       const response = await requestAccountContext();
       if (sequence !== requestSequence || currentNick().length >= 2) return context;
+      restrictionRefreshFailed = false;
       context = emptyContext(response.dailyAttemptPolicy ?? null, response.restriction ?? null);
       return context;
     } catch {
       if (sequence !== requestSequence || currentNick().length >= 2) return context;
-      context = emptyContext();
+      if (source === 'restriction-expired') restrictionRefreshFailed = true;
       notify(`${source}:error`);
       return context;
     } finally {
@@ -466,6 +482,7 @@ import {
     try {
       const response = await requestPlayerContext(nick);
       if (sequence !== requestSequence || nick !== currentNick()) return context;
+      restrictionRefreshFailed = false;
       context = Object.freeze({
         availability: String(response.availability || 'unknown'),
         profile: response.profile?.nick ? response.profile : null,
@@ -479,9 +496,11 @@ import {
       return context;
     } catch (error) {
       if (sequence !== requestSequence || nick !== currentNick()) return context;
-      context = emptyContext();
+      if (source === 'restriction-expired') restrictionRefreshFailed = true;
       const status = document.querySelector('#nickStatus');
-      if (status) status.textContent = error instanceof Error ? error.message : 'No se pudo comprobar el jugador.';
+      if (status && source !== 'restriction-expired') {
+        status.textContent = error instanceof Error ? error.message : 'No se pudo comprobar el jugador.';
+      }
       notify(`${source}:error`);
       return context;
     } finally {
@@ -497,6 +516,7 @@ import {
   function schedulePlayerContext(source = 'input') {
     window.clearTimeout(debounceTimer);
     requestSequence += 1;
+    restrictionRefreshFailed = false;
     contextPending = true;
     renderStatus();
     notify(`${source}:debounce`);
@@ -612,6 +632,7 @@ import {
       notify('selection');
     });
     document.addEventListener('minuto106:account-updated', () => {
+      restrictionRefreshFailed = false;
       syncPlayerContext('account-updated').catch(() => {});
     });
     syncPlayerContext('initial').catch(() => {});
