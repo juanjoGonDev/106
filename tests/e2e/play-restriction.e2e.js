@@ -185,8 +185,11 @@ test('records the live restriction countdown for platform evidence', async ({ br
   await page.goto('/');
   await page.locator('#nick').fill(`Evidence${Date.now().toString(36)}`.slice(0, 20));
   await page.locator('.team-picker [data-team="spain"]').click();
+  const restriction = page.locator('#playRestriction');
   const countdown = page.locator('#playRestrictionCountdown');
-  await expect(page.locator('#playRestriction')).toBeVisible();
+  await expect(restriction).toBeVisible();
+  await restriction.scrollIntoViewIfNeeded();
+  await expect(countdown).toBeVisible();
   await expect(page.locator('#startButton')).toBeDisabled();
   const initial = await countdown.textContent();
   await expect(countdown).not.toHaveText(initial || '', { timeout: 3_000 });
