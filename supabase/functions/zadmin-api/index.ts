@@ -135,10 +135,44 @@ function activeBan(ban: Record<string, unknown>, now = Date.now()) {
   return Number.isFinite(expiresAt) && expiresAt > now;
 }
 
+function activeIntegrityBan(ban: Record<string, unknown>, now = Date.now()) {
+  const expiresAt = Date.parse(String(ban.expires_at ?? ''));
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
 function banTarget(ban: Record<string, unknown>) {
   if (ban.scope === 'account') return String(ban.account_id ?? '');
   if (ban.scope === 'nick') return String(ban.nick_key ?? '');
   return String(ban.ip_hash ?? '');
+}
+
+function integrityBanTarget(ban: Record<string, unknown>) {
+  if (ban.scope === 'account') return String(ban.account_id ?? '');
+  if (ban.scope === 'device') return String(ban.device_hash ?? '');
+  return String(ban.ip_hash ?? '');
+}
+
+function manualRestriction(ban: Record<string, unknown>, now = Date.now()) {
+  return {
+    ...ban,
+    restriction_kind: 'manual',
+    read_only: false,
+    target: banTarget(ban),
+    active: activeBan(ban, now),
+  };
+}
+
+function automaticRestriction(ban: Record<string, unknown>, now = Date.now()) {
+  return {
+    ...ban,
+    restriction_kind: 'integrity',
+    read_only: true,
+    target: integrityBanTarget(ban),
+    active: activeIntegrityBan(ban, now),
+    created_at: ban.triggered_at,
+    revoked_at: null,
+    revoked_reason: null,
+  };
 }
 
 function validateDetailTarget(scope: string, value: unknown) {
@@ -176,15 +210,51 @@ async function fetchBans() {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchIntegrityBans() {
+  const { data, error } = await supabase
+    .from('game_integrity_bans')
+    .select('id,scope,account_id,device_hash,ip_hash,reason,source_attempt_id,triggered_at,expires_at,policy_version,evidence')
+    .order('triggered_at', { ascending: false })
+    .limit(250);
+  if (error) {
+    logError('zadmin.query.integrity_bans', error);
+    throw new Error('Could not load automatic restrictions');
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+function relatedAutomaticRestrictions(
+  facts: Record<string, unknown>[],
+  automaticBans: Record<string, unknown>[],
+  scope: string,
+  target: string,
+) {
+  const accounts = new Set(facts.map((row) => String(row.account_id ?? '')).filter(Boolean));
+  const devices = new Set(facts.map((row) => String(row.device_hash ?? '')).filter(Boolean));
+  const ips = new Set(facts.map((row) => String(row.ip_hash ?? '')).filter(Boolean));
+  if (scope === 'account') accounts.add(target);
+  if (scope === 'ip') ips.add(target);
+
+  return automaticBans.filter((ban) => (
+    (ban.scope === 'account' && accounts.has(String(ban.account_id ?? '')))
+    || (ban.scope === 'device' && devices.has(String(ban.device_hash ?? '')))
+    || (ban.scope === 'ip' && ips.has(String(ban.ip_hash ?? '')))
+  ));
+}
+
 async function overview(body: Record<string, unknown>) {
   const scope = normalizeAdminScope(body.scope) ?? 'account';
   const rangeDays = normalizeAdminRangeDays(body.rangeDays);
   const search = normalizeAdminSearch(body.search);
-  const facts = await fetchAttemptFacts(rangeDays);
+  const [facts, bans, automaticBans] = await Promise.all([
+    fetchAttemptFacts(rangeDays),
+    fetchBans(),
+    fetchIntegrityBans(),
+  ]);
   const entities = aggregateIntegrityEntities(facts, scope, search).slice(0, 250);
-  const bans = await fetchBans();
   const now = Date.now();
   const activeBans = bans.filter((ban) => activeBan(ban, now));
+  const activeAutomaticRestrictions = automaticBans.filter((ban) => activeIntegrityBan(ban, now));
 
   return {
     scope,
@@ -199,6 +269,7 @@ async function overview(body: Record<string, unknown>) {
       distinctNicks: new Set(facts.map((row) => row.nick_key).filter(Boolean)).size,
       distinctIps: new Set(facts.map((row) => row.ip_hash).filter(Boolean)).size,
       activeManualBans: activeBans.length,
+      activeAutomaticRestrictions: activeAutomaticRestrictions.length,
     },
     entities,
   };
@@ -219,15 +290,22 @@ async function detail(body: Record<string, unknown>) {
   else if (scope === 'ip') query = query.eq('ip_hash', target);
   else query = query.eq('nick_key', target);
 
-  const [{ data: rows, error: rowsError }, bans] = await Promise.all([query, fetchBans()]);
+  const [{ data: rows, error: rowsError }, bans, automaticBans] = await Promise.all([
+    query,
+    fetchBans(),
+    fetchIntegrityBans(),
+  ]);
   if (rowsError) {
     logError('zadmin.query.detail', rowsError);
     throw new Error('Could not load entity detail');
   }
   const facts = Array.isArray(rows) ? rows : [];
+  const now = Date.now();
   const matchingBans = bans
     .filter((ban) => String(ban.scope) === scope && banTarget(ban) === target)
-    .map((ban) => ({ ...ban, active: activeBan(ban) }));
+    .map((ban) => manualRestriction(ban, now));
+  const matchingAutomaticRestrictions = relatedAutomaticRestrictions(facts, automaticBans, scope, target)
+    .map((ban) => automaticRestriction(ban, now));
 
   return {
     scope,
@@ -252,12 +330,18 @@ async function detail(body: Record<string, unknown>) {
     },
     attempts: facts,
     bans: matchingBans,
+    automaticRestrictions: matchingAutomaticRestrictions,
   };
 }
 
-async function listBans() {
-  const bans = await fetchBans();
-  return bans.map((ban) => ({ ...ban, target: banTarget(ban), active: activeBan(ban) }));
+async function listRestrictions() {
+  const [bans, automaticBans] = await Promise.all([fetchBans(), fetchIntegrityBans()]);
+  const now = Date.now();
+  const combined = [
+    ...bans.map((ban) => manualRestriction(ban, now)),
+    ...automaticBans.map((ban) => automaticRestriction(ban, now)),
+  ];
+  return combined.sort((a, b) => Date.parse(String(b.created_at ?? '')) - Date.parse(String(a.created_at ?? '')));
 }
 
 async function auditLog() {
@@ -357,12 +441,15 @@ Deno.serve(async (request) => {
       await rpc('zadmin_revoke_session', { p_session_id: session.sessionId });
       return jsonResponse(origin, { loggedOut: true });
     }
+    if (action === 'session-status') {
+      return jsonResponse(origin, { valid: true, expiresAt: session.expiresAt });
+    }
     if (action === 'overview') return jsonResponse(origin, await overview(body));
     if (action === 'detail') {
       const result = await detail(body);
       return result.error ? jsonResponse(origin, { error: 'Invalid investigation target.', code: result.error }, 400) : jsonResponse(origin, result);
     }
-    if (action === 'bans') return jsonResponse(origin, { bans: await listBans() });
+    if (action === 'bans') return jsonResponse(origin, { bans: await listRestrictions() });
     if (action === 'audit') return jsonResponse(origin, { events: await auditLog() });
     if (action === 'ban') {
       const scope = normalizeAdminScope(body.scope);
