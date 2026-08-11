@@ -1,6 +1,6 @@
 # Admin pagination, persistent session and nickname lifecycle
 
-Status: implementation in progress
+Status: Complete
 Date: 2026-08-11
 Branch: `agent/feat-admin-pagination-weekly-nicknames`
 Base: `main` at `65caf9b48c0b258ed5889b70527a0519ec409d36`
@@ -184,7 +184,7 @@ Desktop + mobile + 320px must cover:
 - required rename displays original + temporary nickname;
 - shared nickname controller invalid/taken/available/pending/recovery states;
 - keyboard, focus, reduced motion and no horizontal overflow;
-- zero unexpected page/console/request errors.
+- zero unexpected page/console/request errors, except an explicitly asserted browser network-console entry for the intentional 429 cooldown response used to prove server-authoritative stale-UI recovery.
 
 ### Coverage / CI
 
@@ -194,6 +194,20 @@ Desktop + mobile + 320px must cover:
 - All maintained Supabase suites green.
 - Complete Desktop/Mobile platform evidence from the final PR head with PNG and interaction WebM/GIF for changed frontend flows.
 - PR body follows `.github/pull_request_template.md` and final visual-evidence metadata gate is green.
+
+## Completion evidence
+
+The implementation head immediately before this documentation-only completion commit was `51e59a8e405888685267f1524e59ce5d01eebcbd`.
+
+On that head:
+
+- Pull Request Quality Pipeline `31545737903` passed, including build, Vitest, ESLint, Knip, dependency/policy checks and all maintained Supabase suites.
+- Authentication Quality `31545737955`, Public Asset Audit `31545737959` and CodeQL Advanced `31545738059` passed.
+- Player Pages and Social Cards `31545737985` passed after re-running only Desktop shard 3/8 for a runner DNS failure (`ERR_NAME_NOT_RESOLVED`); all 16 Desktop/Mobile shards then passed on the unchanged head.
+- The strict frontend coverage job passed, including 100% line/function/branch coverage for `nickname-field-controller` and `zadmin/session-persistence`.
+- Platform evidence `platform-evidence-31545737985` was generated from that head and its changed-area Desktop/Mobile captures were reviewed for required nickname change and zadmin management.
+
+This specification commit is documentation-only. GitHub Actions on the resulting final head remains the authority before the PR can be reported complete, and the PR body must link the final-head platform artifact rather than the implementation-head artifact above.
 
 ## Delivery
 
