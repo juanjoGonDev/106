@@ -121,7 +121,7 @@ create or replace function public.get_game_account_player_name_states(
   p_at timestamptz default clock_timestamp()
 ) returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public, pg_temp
 as $$
