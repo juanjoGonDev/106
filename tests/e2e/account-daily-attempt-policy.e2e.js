@@ -78,6 +78,17 @@ function stats() {
 }
 
 async function installMocks(page, requests) {
+  await page.route('**/functions/v1/player-name-management', async (route) => {
+    const body = requestBody(route.request());
+    requests.playerNameManagement.push(body.action);
+    expect(route.request().headers()['x-account-token']).toBe(accountToken);
+    expect(body.action).toBe('status');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ requirement: null }),
+    });
+  });
   await page.route('**/functions/v1/player-context', async (route) => {
     const body = requestBody(route.request());
     requests.playerContext.push(body.action);
@@ -123,7 +134,7 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
   const pageErrors = [];
   const consoleErrors = [];
   const failedRequests = [];
-  const requests = { gameApi: [], playerContext: [] };
+  const requests = { gameApi: [], playerContext: [], playerNameManagement: [] };
 
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
@@ -139,6 +150,7 @@ test('confirmed account without a nick uses the canonical six-attempt policy', a
     await expect(page.locator('#competitionPicker option:checked')).toHaveText('Global · 6/6 tiros');
     await expect(page.locator('#startButton')).toBeDisabled();
     expect(requests.playerContext).toEqual(['account-context']);
+    expect(requests.playerNameManagement).toEqual(['status']);
     await assertNoHorizontalOverflow(page);
 
     if (captureEvidence) {
