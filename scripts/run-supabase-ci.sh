@@ -239,6 +239,7 @@ wait_for_edge_functions() {
 run_security_suite() {
   node scripts/test-database-permissions-local.mjs
   node scripts/test-input-security-local.mjs
+  node scripts/test-admin-management-local.mjs
   node scripts/test-migration-compatibility-local.mjs
   supabase db lint --level error
   supabase migration list --local
