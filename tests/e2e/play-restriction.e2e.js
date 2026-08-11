@@ -45,17 +45,21 @@ async function installRestrictionContext(page, restrictionFactory) {
   return { contextRequests, readyRequests };
 }
 
+function timedAutomaticRestriction(expiresAt) {
+  return {
+    active: true,
+    source: 'integrity',
+    scope: 'device',
+    permanent: false,
+    expiresAt: new Date(expiresAt).toISOString(),
+    retryAfterSeconds: Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)),
+  };
+}
+
 test('timed automatic restriction blocks Comenzar before verification and refreshes at expiry', async ({ page, isMobile }) => {
   const expiresAt = Date.now() + 2_500;
   const requests = await installRestrictionContext(page, () => Date.now() < expiresAt
-    ? {
-      active: true,
-      source: 'integrity',
-      scope: 'device',
-      permanent: false,
-      expiresAt: new Date(expiresAt).toISOString(),
-      retryAfterSeconds: Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)),
-    }
+    ? timedAutomaticRestriction(expiresAt)
     : null);
 
   await page.goto('/');
@@ -85,6 +89,46 @@ test('timed automatic restriction blocks Comenzar before verification and refres
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 7_000 });
   expect(requests.contextRequests.filter((action) => action === 'player-context').length).toBeGreaterThanOrEqual(2);
   expect(requests.readyRequests).toHaveLength(0);
+});
+
+test('expired restriction stays fail-closed when server confirmation fails', async ({ page }) => {
+  const expiresAt = Date.now() + 2_000;
+  const readyRequests = [];
+  let failedRefreshes = 0;
+  await page.route('**/functions/v1/player-context', async (route) => {
+    if (Date.now() >= expiresAt) {
+      failedRefreshes += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Servidor temporalmente no disponible.' }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(contextPayload(timedAutomaticRestriction(expiresAt))),
+    });
+  });
+  await page.route('**/functions/v1/game-ready-api', async (route) => {
+    readyRequests.push(route.request().postDataJSON?.() ?? {});
+    await route.abort();
+  });
+
+  await page.goto('/');
+  await page.locator('#nick').fill(`FailClosed${Date.now().toString(36)}`.slice(0, 20));
+  await page.locator('.team-picker [data-team="spain"]').click();
+  await expect(page.locator('#playRestriction')).toBeVisible();
+  await expect(page.locator('#startButton')).toBeDisabled();
+
+  await expect(page.locator('#playRestrictionSource')).toHaveText('Comprobación pendiente', { timeout: 7_000 });
+  await expect(page.locator('#playRestrictionReason')).toContainText('seguirá bloqueado');
+  await expect(page.locator('#nickStatus')).toContainText('sigue bloqueado');
+  await expect(page.locator('#startButton')).toBeDisabled();
+  await expect(page.locator('#startButton')).toHaveText('Acceso bloqueado');
+  expect(failedRefreshes).toBeGreaterThanOrEqual(1);
+  expect(readyRequests).toHaveLength(0);
 });
 
 test('permanent manual restriction uses a stable inline component at 320px', async ({ page }) => {
