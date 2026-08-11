@@ -54,6 +54,7 @@ function policy() {
 function loadController({ withPolicy = true, withAvailability = true } = {}) {
   const lookups = [];
   const context = {
+    Error,
     HTMLInputElement: InputStub,
     Object,
     String,
