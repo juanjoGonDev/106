@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const migrationPath = 'supabase/migrations/20260724213350_adopt_legacy_player_achievement_highlights.sql';
+const playerIdPreparationMigrationPath = 'supabase/migrations/20260811132900_prepare_legacy_player_id_backfill.sql';
 const copyNickKey = 'migration-copy';
 const preserveNickKey = 'migration-preserve';
 
@@ -54,7 +55,62 @@ function applyCompatibilityMigration(databaseUrl) {
   psql(databaseUrl, ['--file', migrationPath]);
 }
 
+function assertLegacyPlayerIdBackfillCompatibility(databaseUrl) {
+  const migration = readFileSync(playerIdPreparationMigrationPath, 'utf8');
+  assert.match(
+    migration,
+    /add column if not exists player_id uuid default gen_random_uuid\(\)/i,
+    'player_id preparation must materialize legacy IDs through ADD COLUMN DEFAULT',
+  );
+  assert.doesNotMatch(
+    migration,
+    /update\s+public\.game_players/i,
+    'player_id preparation must not UPDATE legacy game_players rows',
+  );
+
+  execute(databaseUrl, `
+    begin;
+
+    create temporary table legacy_player_id_backfill_fixture (
+      nick_key text primary key,
+      nick text not null
+    );
+
+    insert into legacy_player_id_backfill_fixture(nick_key, nick)
+    values ('ap', 'Ap');
+
+    alter table legacy_player_id_backfill_fixture
+      add constraint legacy_player_nickname_shape_check
+      check (char_length(nick) between 3 and 24) not valid;
+
+    alter table legacy_player_id_backfill_fixture
+      add column player_id uuid default gen_random_uuid();
+
+    alter table legacy_player_id_backfill_fixture
+      alter column player_id set default gen_random_uuid(),
+      alter column player_id set not null;
+
+    do $fixture$
+    begin
+      if not exists (
+        select 1
+        from legacy_player_id_backfill_fixture
+        where nick_key = 'ap'
+          and nick = 'Ap'
+          and player_id is not null
+      ) then
+        raise exception 'legacy player ID backfill did not preserve the historical nickname';
+      end if;
+    end;
+    $fixture$;
+
+    rollback;
+  `);
+}
+
 const databaseUrl = readLocalEnvironment();
+
+assertLegacyPlayerIdBackfillCompatibility(databaseUrl);
 
 execute(databaseUrl, `
   drop table if exists public.player_achievement_highlights;
@@ -210,4 +266,4 @@ execute(databaseUrl, `
   delete from public.game_players where nick_key in ('${copyNickKey}', '${preserveNickKey}');
 `);
 
-process.stdout.write('✓ Legacy player achievement highlights upgrade is data-preserving, restricted and idempotent\n');
+process.stdout.write('✓ Legacy player ID backfill and achievement-highlight upgrades are data-preserving and compatible\n');
