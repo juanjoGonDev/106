@@ -8,6 +8,7 @@ const hardeningMigration = readFileSync('supabase/migrations/20260811133200_admi
 const guardMigration = readFileSync('supabase/migrations/20260811133100_required_nickname_account_guard.sql', 'utf8');
 const weeklyMigration = readFileSync('supabase/migrations/20260811191000_admin_pagination_weekly_nicknames.sql', 'utf8');
 const adminEdge = readFileSync('supabase/functions/zadmin-management/index.ts', 'utf8');
+const zadminEdge = readFileSync('supabase/functions/zadmin-api/index.ts', 'utf8');
 const playerEdge = readFileSync('supabase/functions/player-name-management/index.ts', 'utf8');
 const nicknameOwner = readFileSync('supabase/functions/_shared/nickname-management.ts', 'utf8');
 const managementHtml = readFileSync('public/zadmin/management.html', 'utf8');
@@ -75,6 +76,13 @@ describe('stable player identity and nickname moderation', () => {
     expect(rename).toContain("p_player_id, 'owner_voluntary'");
     expect(weeklySpec).toContain('Different players on the same account may rename independently.');
   });
+
+  it('keeps account-token state lookup volatile because canonical token resolution may update usage state', () => {
+    const states = functionBody(weeklyMigration, 'get_game_account_player_name_states');
+    expect(states).toMatch(/language plpgsql\s+volatile\s+security definer/i);
+    expect(states).toContain('public.resolve_game_account_token(p_account_token_hash)');
+    expect(states).not.toMatch(/language plpgsql\s+stable/i);
+  });
 });
 
 describe('automatic restriction administration', () => {
@@ -117,6 +125,18 @@ describe('management API and frontend safety', () => {
     expect(adminEdge).toContain("action === 'rename-player'");
     expect(adminEdge).toContain("action === 'require-player-rename'");
     expect(weeklyMigration).toContain('p_page_size integer default 25');
+  });
+
+  it('paginates investigation entities in PostgreSQL instead of downloading an arbitrary Edge batch', () => {
+    const overview = functionBody(weeklyMigration, 'zadmin_investigation_overview');
+    expect(zadminEdge).toContain("rpc('zadmin_investigation_overview'");
+    expect(zadminEdge).not.toContain('.limit(2_000)');
+    expect(overview).toContain('from public.game_admin_attempt_facts fact');
+    expect(overview).toContain('offset (v_page - 1) * v_page_size');
+    expect(overview).toContain('limit v_page_size');
+    expect(overview).toContain("'pagination', jsonb_build_object(");
+    expect(weeklyMigration).toContain('revoke all on function public.zadmin_investigation_overview');
+    expect(weeklyMigration).toContain('grant execute on function public.zadmin_investigation_overview');
   });
 
   it('uses one server nickname validation and moderation owner for admin and account rename', () => {
