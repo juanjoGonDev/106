@@ -106,3 +106,9 @@ verify_jwt = false
 
 [functions.zadmin-api]
 verify_jwt = false
+
+[functions.zadmin-management]
+verify_jwt = false
+
+[functions.player-name-management]
+verify_jwt = false

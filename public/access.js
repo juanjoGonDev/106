@@ -3,6 +3,7 @@ const ACCOUNT_STORAGE_KEY = 'minuto106:account-access-v1';
 const ACCOUNT_NICKS_STORAGE_KEY = 'minuto106:account-nicks-v1';
 const ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY = 'minuto106:account-daily-attempt-policy-v1';
 const ACTIVE_NICK_STORAGE_KEY = 'minuto106:nick';
+const ACCESS_ASSET_BASE = String(document.currentScript?.src || '').replace(/[^/]*$/, '') || './';
 const protectedActions = new Set([
   'start',
   'prepare-start',
@@ -182,6 +183,18 @@ window.Minuto106Access = {
   setAccountToken,
 };
 
+function loadNicknameRequirementComponent() {
+  if (document.querySelector('script[data-minuto106-nickname-requirement]')) {
+    window.Minuto106NicknameRequirement?.refresh?.().catch?.(() => {});
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = `${ACCESS_ASSET_BASE}nickname-requirement.js?v=202608111333`;
+  script.dataset.minuto106NicknameRequirement = 'true';
+  script.async = false;
+  document.head.append(script);
+}
+
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (input, init = {}) => {
   let body;
@@ -225,6 +238,11 @@ window.fetch = async (input, init = {}) => {
   if (!response.ok) {
     response.clone().json().then((payload) => {
       const message = String(payload?.error || '');
+      const code = String(payload?.code || '');
+      if (code === 'nickname_change_required') {
+        document.dispatchEvent(new CustomEvent('minuto106:nickname-change-required', { detail: { playerId: payload?.playerId || null } }));
+        loadNicknameRequirementComponent();
+      }
       if (message.includes('cuenta') || message.includes('clave') || message.includes('pertenece a otra')) {
         document.dispatchEvent(new CustomEvent('minuto106:access-denied', { detail: { message } }));
       }
@@ -296,4 +314,5 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.addEventListener('minuto106:account-updated', refreshAccessPanel);
   refreshAccessPanel();
+  loadNicknameRequirementComponent();
 });
