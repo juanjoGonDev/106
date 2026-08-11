@@ -53,6 +53,7 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'league-detail-active',
   'league-detail-scheduled',
   'league-directory',
+  'play-restriction',
   'player-collections',
   'player-reliability',
   'zadmin-dashboard',
