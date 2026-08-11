@@ -122,13 +122,27 @@ async function linkLegacyNicks() {
   }
 }
 
+function renderPlayers(list, players, nameStates = []) {
+  list.replaceChildren();
+  const statesByKey = new Map(nameStates.map((state) => [window.Minuto106Access.normalizeAccessNick(state.nick), state]));
+  for (const player of players) list.append(createPlayerItem(player, statesByKey.get(window.Minuto106Access.normalizeAccessNick(player.nick))));
+  ensureCooldownTimer();
+}
+
 async function loadPlayers() {
   closeRenameForm({ restoreFocus: false }); const list = document.querySelector('#accountPlayers'); const status = document.querySelector('#accountPlayersStatus'); list.replaceChildren(); const access = window.Minuto106Access;
   if (!access?.getAccountToken(false)) { status.textContent = 'Crea una cuenta local, inicia sesión o vincula un proveedor para añadir nicks.'; const empty = document.createElement('li'); empty.className = 'account-empty'; empty.textContent = 'Todavía no hay una cuenta activa.'; list.append(empty); return; }
-  status.textContent = 'Sincronizando nicks vinculados…'; await linkLegacyNicks(); const [account, nameResult] = await Promise.all([accountRequest('account-players'), playerNameRequest('list')]); const players = Array.isArray(account.players) ? account.players : []; const nameStates = Array.isArray(nameResult.players) ? nameResult.players : []; const statesByKey = new Map(nameStates.map((state) => [window.Minuto106Access.normalizeAccessNick(state.nick), state]));
-  status.textContent = players.length ? `${players.length} ${players.length === 1 ? 'nick vinculado' : 'nicks vinculados'}. Cada nick puede cambiarse una vez cada 7 días de forma independiente.` : 'La cuenta todavía no tiene nicks. Puedes crear el primero desde esta página.';
-  if (!players.length) { const empty = document.createElement('li'); empty.className = 'account-empty'; empty.textContent = 'Escribe un nick arriba para añadirlo a la cuenta.'; list.append(empty); return; }
-  for (const player of players) list.append(createPlayerItem(player, statesByKey.get(window.Minuto106Access.normalizeAccessNick(player.nick)))); ensureCooldownTimer();
+  status.textContent = 'Sincronizando nicks vinculados…'; await linkLegacyNicks();
+  const account = await accountRequest('account-players'); const players = Array.isArray(account.players) ? account.players : [];
+  if (!players.length) { status.textContent = 'La cuenta todavía no tiene nicks. Puedes crear el primero desde esta página.'; const empty = document.createElement('li'); empty.className = 'account-empty'; empty.textContent = 'Escribe un nick arriba para añadirlo a la cuenta.'; list.append(empty); return; }
+  const baseStatus = `${players.length} ${players.length === 1 ? 'nick vinculado' : 'nicks vinculados'}.`;
+  status.textContent = `${baseStatus} Comprobando disponibilidad de cambio…`; renderPlayers(list, players);
+  try {
+    const nameResult = await playerNameRequest('list'); const nameStates = Array.isArray(nameResult.players) ? nameResult.players : [];
+    renderPlayers(list, players, nameStates); status.textContent = `${baseStatus} Cada nick puede cambiarse una vez cada 7 días de forma independiente.`;
+  } catch {
+    status.textContent = `${baseStatus} El cambio de nick no está disponible temporalmente; puedes seguir usando y consultando tus jugadores.`;
+  }
 }
 
 async function copyKey() { const token = window.Minuto106Access.getAccountToken(true); await navigator.clipboard.writeText(token); const button = document.querySelector('#copyAccountKey'); const original = button.textContent; button.textContent = 'Copiada'; setTimeout(() => { button.textContent = original; }, 1500); refreshAccountKey(); }
