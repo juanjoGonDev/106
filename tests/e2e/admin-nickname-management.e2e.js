@@ -13,7 +13,9 @@ const captureEvidence = process.env.PR_VISUAL_CAPTURE === '1';
 const adminSessionToken = 'b'.repeat(64);
 const accountToken = 'c'.repeat(64);
 const playerId = '10600000-0000-4000-8000-000000000074';
+const secondPlayerId = '10600000-0000-4000-8000-000000000077';
 const accountId = '10600000-0000-4000-8000-000000000075';
+const originalNick = 'JugadorAnterior';
 const temporaryNick = 'Jugador-10674abcdeff';
 
 mkdirSync(previewDirectory, { recursive: true });
@@ -48,6 +50,11 @@ function requestBody(request) {
   } catch {
     return {};
   }
+}
+
+function pageMeta(total, pageSize = 25, page = 1) {
+  const totalPages = total ? Math.ceil(total / pageSize) : 0;
+  return { page, pageSize, total, totalPages, hasPrevious: page > 1, hasNext: totalPages > page };
 }
 
 function stats() {
@@ -141,6 +148,7 @@ async function installZadminManagementMock(page, actions) {
     verifiedEmailAvailable: true,
     renameRequired: false,
     renameRequirement: null,
+    cooldown: { canRename: true, nextRenameAt: null, retryAfterSeconds: 0 },
   }];
 
   await page.route('**/functions/v1/zadmin-management', async (route) => {
@@ -152,11 +160,27 @@ async function installZadminManagementMock(page, actions) {
       return;
     }
     if (body.action === 'restrictions') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ restrictions }) });
+      expect([10, 25, 50]).toContain(body.pageSize);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: restrictions, pagination: pageMeta(restrictions.length, body.pageSize, body.page) }) });
       return;
     }
     if (body.action === 'players') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ players }) });
+      expect([10, 25, 50]).toContain(body.pageSize);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: players, pagination: pageMeta(players.length, body.pageSize, body.page) }) });
+      return;
+    }
+    if (body.action === 'check-nickname') {
+      expect(body.playerId).toBe(playerId);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: 'available', normalizedNick: body.nick }) });
+      return;
+    }
+    if (body.action === 'rename-player') {
+      expect(body.playerId).toBe(playerId);
+      expect(body.nick).toBe('JugadorAdmin');
+      expect(body.reason).toBe('Corrección administrativa verificada.');
+      players[0].nick = 'JugadorAdmin';
+      players[0].nickKey = 'jugadoradmin';
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ playerId, newNick: 'JugadorAdmin' }) });
       return;
     }
     await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test action.' }) });
@@ -164,6 +188,7 @@ async function installZadminManagementMock(page, actions) {
 }
 
 async function installRequiredRenameMocks(page, actions) {
+  let requirementActive = true;
   const accountPolicy = {
     attemptsUsed: 2,
     dailyAttemptsReserved: 0,
@@ -186,19 +211,26 @@ async function installRequiredRenameMocks(page, actions) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          requirement: {
+          requirement: requirementActive ? {
             required: true,
             playerId,
+            originalNick,
             temporaryNick,
             reason: 'Tu nombre de jugador debe cambiarse antes de continuar.',
-          },
+          } : null,
         }),
       });
+      return;
+    }
+    if (body.action === 'check') {
+      expect(body.playerId).toBe(playerId);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: 'available', normalizedNick: body.nick }) });
       return;
     }
     if (body.action === 'complete') {
       expect(body.playerId).toBe(playerId);
       expect(body.nick).toBe('JugadorNuevo');
+      requirementActive = false;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -237,7 +269,83 @@ async function installRequiredRenameMocks(page, actions) {
   });
 }
 
-test('zadmin management exposes restrictions and player identity actions accessibly', async ({ browser, isMobile }) => {
+async function installAccountNicknameMocks(page, actions) {
+  const nextRenameAt = new Date(Date.now() + (6 * 24 * 60 * 60 * 1000) + (2 * 60 * 60 * 1000)).toISOString();
+  let firstPlayerBlocked = false;
+  const accountPlayers = [
+    { playerId, nick: 'JugadorUno', team: 'spain', bestDifferenceMs: 12, attemptsLeft: 3 },
+    { playerId: secondPlayerId, nick: 'JugadorDos', team: 'argentina', bestDifferenceMs: 31, attemptsLeft: 4 },
+  ];
+
+  await page.route('**/functions/v1/game-api', async (route) => {
+    const body = requestBody(route.request());
+    if (body.action === 'account-players') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ players: accountPlayers }) });
+      return;
+    }
+    if (body.action === 'access-status') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exists: false }) });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+  });
+
+  await page.route('**/functions/v1/player-name-management', async (route) => {
+    const body = requestBody(route.request());
+    actions.push(body.action);
+    expect(route.request().headers()['x-account-token']).toBe(accountToken);
+    if (body.action === 'list') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ players: [
+          {
+            playerId,
+            nick: 'JugadorUno',
+            renameRequired: false,
+            originalNick: null,
+            cooldown: firstPlayerBlocked
+              ? { canRename: false, nextRenameAt, retryAfterSeconds: 6 * 24 * 60 * 60 }
+              : { canRename: true, nextRenameAt: null, retryAfterSeconds: 0 },
+          },
+          {
+            playerId: secondPlayerId,
+            nick: 'JugadorDos',
+            renameRequired: false,
+            originalNick: null,
+            cooldown: { canRename: true, nextRenameAt: null, retryAfterSeconds: 0 },
+          },
+        ] }),
+      });
+      return;
+    }
+    if (body.action === 'check') {
+      expect(body.playerId).toBe(playerId);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ availability: 'available', normalizedNick: body.nick }) });
+      return;
+    }
+    if (body.action === 'rename') {
+      expect(body.playerId).toBe(playerId);
+      expect(body.nick).toBe('JugadorNuevo');
+      firstPlayerBlocked = true;
+      await route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Este nick ya fue cambiado esta semana.', code: 'nickname_cooldown', nextRenameAt, retryAfterSeconds: 6 * 24 * 60 * 60 }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.route('**/functions/v1/account-auth', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: false }) });
+  });
+
+  return { nextRenameAt };
+}
+
+test('zadmin management exposes paginated restrictions and performs admin nickname rename through shared checks', async ({ browser, isMobile }) => {
   const context = await browser.newContext(contextOptions(isMobile));
   const page = await context.newPage();
   const video = captureEvidence ? page.video() : null;
@@ -253,6 +361,7 @@ test('zadmin management exposes restrictions and player identity actions accessi
     await expect(page.locator('#managementDashboard')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Restricciones y jugadores' })).toBeVisible();
     await expect(page.locator('#restrictionList .zadmin-management-item')).toHaveCount(2);
+    await expect(page.locator('#restrictionPageStatus')).toContainText('Página 1 de 1');
     await expect(page.getByText('Integridad automática').first()).toBeVisible();
 
     const automaticDetails = page.locator('#restrictionList details').first();
@@ -273,17 +382,29 @@ test('zadmin management exposes restrictions and player identity actions accessi
 
     await page.getByRole('button', { name: 'Jugadores' }).click();
     await expect(page.getByRole('heading', { name: 'Jugadores', exact: true })).toBeVisible();
+    await expect(page.locator('#playerPageStatus')).toContainText('Página 1 de 1');
     await expect(page.locator('#playerList').getByText('JugadorPrueba').first()).toBeVisible();
-    const playerDetails = page.locator('#playerList details').first();
+    let playerDetails = page.locator('#playerList details').first();
     await playerDetails.locator('summary').click();
-    await expect(playerDetails.getByRole('button', { name: 'Renombrar ahora' })).toBeVisible();
+    const renameButton = playerDetails.getByRole('button', { name: 'Renombrar ahora' });
+    await expect(renameButton).toBeVisible();
     await expect(playerDetails.getByRole('button', { name: 'Forzar cambio de nick' })).toBeVisible();
 
+    await renameButton.click();
+    const renameForm = playerDetails.locator('.zadmin-management-inline-form');
+    await renameForm.getByLabel('Nuevo nick').fill('JugadorAdmin');
+    await expect(renameForm.getByRole('button', { name: 'Guardar nuevo nick' })).toBeEnabled();
+    await renameForm.getByLabel('Motivo administrativo').fill('Corrección administrativa verificada.');
+    await renameForm.getByRole('button', { name: 'Guardar nuevo nick' }).click();
+    await expect(page.locator('#playerList').getByText('JugadorAdmin').first()).toBeVisible();
+
+    playerDetails = page.locator('#playerList details').first();
+    await playerDetails.locator('summary').click();
     await page.setViewportSize({ width: 320, height: 720 });
     await assertNoHorizontalOverflow(page);
-    await expect(page.getByRole('button', { name: 'Renombrar ahora' })).toBeVisible();
+    await expect(playerDetails.getByRole('button', { name: 'Renombrar ahora' })).toBeVisible();
 
-    expect(actions).toEqual(['session-status', 'restrictions', 'players']);
+    expect(actions).toEqual(['session-status', 'restrictions', 'players', 'check-nickname', 'rename-player', 'players']);
     expect(runtime.pageErrors).toEqual([]);
     expect(runtime.consoleErrors).toEqual([]);
     expect(runtime.failedRequests).toEqual([]);
@@ -293,7 +414,7 @@ test('zadmin management exposes restrictions and player identity actions accessi
   await saveVideo(video, 'zadmin-management', isMobile);
 });
 
-test('required nickname change traps focus, preserves state after validation and restores play after completion', async ({ browser, isMobile }) => {
+test('required nickname change shows old/current names, shares checks, traps focus and restores play', async ({ browser, isMobile }) => {
   const context = await browser.newContext(contextOptions(isMobile, { account: true }));
   const page = await context.newPage();
   const video = captureEvidence ? page.video() : null;
@@ -308,6 +429,8 @@ test('required nickname change traps focus, preserves state after validation and
     const submit = page.locator('#nicknameRequirementSubmit');
     await expect(overlay).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Elige un nuevo nombre de jugador' })).toBeVisible();
+    await expect(page.locator('#nicknameRequirementOriginal')).toHaveText(originalNick);
+    await expect(page.locator('#nicknameRequirementTemporary')).toHaveText(temporaryNick);
     await expect(input).toBeFocused();
     await expect(page.locator('#startButton')).toBeDisabled();
     await expect(page.locator('#startButton')).toHaveText('Cambia tu nick para continuar');
@@ -321,7 +444,7 @@ test('required nickname change traps focus, preserves state after validation and
     await expect(input).toBeFocused();
 
     await input.fill('x');
-    await submit.click();
+    await submit.click({ force: true });
     await expect(overlay).toBeVisible();
     await expect(input).toHaveAttribute('aria-invalid', 'true');
     await expect(input).toBeFocused();
@@ -331,11 +454,12 @@ test('required nickname change traps focus, preserves state after validation and
     await expect(overlay).toBeVisible();
 
     await input.fill('JugadorNuevo');
+    await expect(submit).toBeEnabled();
     await submit.click();
     await expect(overlay).toBeHidden();
     expect(await page.locator('main').evaluate((element) => element.inert)).toBe(false);
     expect(await page.evaluate(() => localStorage.getItem('minuto106:nick'))).toBe('JugadorNuevo');
-    expect(actions).toEqual(['status', 'complete']);
+    expect(actions.slice(0, 3)).toEqual(['status', 'check', 'complete']);
 
     expect(runtime.pageErrors).toEqual([]);
     expect(runtime.consoleErrors).toEqual([]);
@@ -344,4 +468,51 @@ test('required nickname change traps focus, preserves state after validation and
     await context.close();
   }
   await saveVideo(video, 'required-nickname-change', isMobile);
+});
+
+test('account rename reloads the authoritative per-player weekly cooldown after a rejected attempt', async ({ browser, isMobile }) => {
+  const context = await browser.newContext(contextOptions(isMobile, { account: true }));
+  const page = await context.newPage();
+  const runtime = collectRuntimeFailures(page);
+  const actions = [];
+  await installAccountNicknameMocks(page, actions);
+
+  try {
+    await page.goto('/cuenta.html');
+    const players = page.locator('#accountPlayers .account-player');
+    await expect(players).toHaveCount(2);
+    await expect(page.locator('#accountPlayersStatus')).toContainText('2 nicks vinculados');
+
+    const first = players.nth(0);
+    const second = players.nth(1);
+    const firstRename = first.getByRole('button', { name: 'Cambiar nick' });
+    const secondRename = second.getByRole('button', { name: 'Cambiar nick' });
+    await expect(firstRename).toBeEnabled();
+    await expect(secondRename).toBeEnabled();
+
+    await firstRename.click();
+    const form = first.locator('.account-player-rename-form');
+    await expect(form.getByText('Cambiar “JugadorUno”')).toBeVisible();
+    await form.getByLabel('Nuevo nick').fill('JugadorNuevo');
+    await expect(form.getByRole('button', { name: 'Guardar nick' })).toBeEnabled();
+    await form.getByRole('button', { name: 'Guardar nick' }).click();
+
+    const refreshedPlayers = page.locator('#accountPlayers .account-player');
+    const blockedPlayer = refreshedPlayers.nth(0);
+    const independentPlayer = refreshedPlayers.nth(1);
+    await expect(blockedPlayer.locator('[data-nickname-cooldown]')).toContainText('Disponible');
+    await expect(blockedPlayer.locator('[data-nickname-cooldown]')).toContainText(/\d+d \d{2}:\d{2}:\d{2}/);
+    await expect(blockedPlayer.getByRole('button', { name: 'Cambiar nick' })).toBeDisabled();
+    await expect(independentPlayer.locator('[data-nickname-cooldown]')).toHaveText('Puedes volver a cambiar este nick ahora.');
+    await expect(independentPlayer.getByRole('button', { name: 'Cambiar nick' })).toBeEnabled();
+
+    await page.setViewportSize({ width: 320, height: 720 });
+    await assertNoHorizontalOverflow(page);
+    expect(actions).toEqual(['list', 'check', 'rename', 'list']);
+    expect(runtime.pageErrors).toEqual([]);
+    expect(runtime.consoleErrors).toEqual([]);
+    expect(runtime.failedRequests).toEqual([]);
+  } finally {
+    await context.close();
+  }
 });
