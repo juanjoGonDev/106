@@ -20,6 +20,10 @@ function requestBody(route) {
   }
 }
 
+function pagination(total, pageSize = 25) {
+  return { page: 1, pageSize, total, totalPages: total ? Math.ceil(total / pageSize) : 0, hasPrevious: false, hasNext: total > pageSize };
+}
+
 function automaticRestrictionFixture() {
   return {
     id: 17,
@@ -36,8 +40,10 @@ function automaticRestrictionFixture() {
     policy_version: 3,
     evidence: { sessionAttempts2h: 7, sessionFingerprintMatches2h: 4 },
     restriction_kind: 'integrity',
-    read_only: true,
+    read_only: false,
     active: true,
+    status: 'active',
+    adminAction: null,
     revoked_at: null,
     revoked_reason: null,
   };
@@ -59,6 +65,7 @@ function overviewFixture() {
       activeManualBans: 0,
       activeAutomaticRestrictions: 1,
     },
+    pagination: pagination(2),
     entities: [
       {
         key: '11111111-1111-4111-8111-111111111111', label: '11111111-1111-4111-8111-111111111111',
@@ -116,6 +123,7 @@ function detailFixture({ attemptInvalidated = false } = {}) {
         manual_action_at: '2026-08-10T10:00:00Z',
       },
     ],
+    attemptPagination: pagination(8),
     bans: [],
     automaticRestrictions: [automaticRestrictionFixture()],
   };
@@ -168,11 +176,11 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       return;
     }
     if (body.action === 'bans') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bans: [automaticRestrictionFixture()] }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bans: [automaticRestrictionFixture()], pagination: pagination(1) }) });
       return;
     }
     if (body.action === 'audit') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [] }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [], pagination: pagination(0) }) });
       return;
     }
     if (body.action === 'ban') {
@@ -215,6 +223,10 @@ async function login(page) {
   await expect(page.locator('#adminEntityRows tr')).toHaveCount(2);
 }
 
+function attemptReviewForm(page, attemptId) {
+  return page.locator(`[data-attempt-review-id="${attemptId}"]`).locator('xpath=..').locator('form.zadmin-ban-form');
+}
+
 function evidenceDevice(isMobile) {
   return isMobile ? 'mobile' : 'desktop';
 }
@@ -253,8 +265,8 @@ test('login exposes generic failures, blocks the third attempt and preserves the
   await expect(page.locator('#adminUsername')).toHaveValue('operator');
 });
 
-test('authenticated investigation restores the tab session and explains automatic restrictions', async ({ page }) => {
-  const mocks = await installAdminMocks(page);
+test('authenticated investigation restores the persisted browser session and exposes automatic restriction actions', async ({ page }) => {
+  await installAdminMocks(page);
   await page.goto('/zadmin/');
   await page.locator('#adminUsername').focus();
   await page.keyboard.press('Tab');
@@ -271,43 +283,54 @@ test('authenticated investigation restores the tab session and explains automati
   await expect(page.locator('#adminOverviewStatus')).toContainText('14 intentos analizados');
   await expect(page.locator('#adminSummary')).toContainText('Bans manuales activos');
   await expect(page.locator('#adminSummary')).toContainText('Restricciones automáticas');
-  await expect(page.locator('#adminSessionStatus')).toContainText('Se conserva durante esta sesión del navegador');
+  await expect(page.locator('#adminSessionStatus')).toContainText('persistida en este navegador');
   await expect(page.locator('#adminSessionStatus')).not.toContainText('Caduca en');
 
   const storage = await page.evaluate(() => ({
-    local: Object.fromEntries(Object.entries(localStorage)),
-    session: Object.fromEntries(Object.entries(sessionStorage)),
+    localSession: localStorage.getItem('minuto106.zadmin.session.v1'),
+    localDevice: localStorage.getItem('minuto106.zadmin.device.v1'),
+    tabSession: sessionStorage.getItem('minuto106.zadmin.session.v1'),
   }));
-  expect(JSON.stringify(storage.local)).not.toContain(token);
-  expect(Object.keys(storage.local)).toContain('minuto106.zadmin.device.v1');
-  expect(storage.session['minuto106.zadmin.session.v1']).toBe(token);
+  expect(storage.localSession).toBe(token);
+  expect(storage.tabSession).toBe(token);
+  expect(storage.localDevice).toBeTruthy();
 
-  const beforeReload = mocks.authorizedRequests.length;
-  await page.reload();
-  await expect(page.locator('#adminDashboard')).toBeVisible();
-  await expect(page.locator('#adminEntityRows tr')).toHaveCount(2);
-  expect(mocks.authorizedRequests.length).toBeGreaterThan(beforeReload);
-  expect(mocks.authorizedRequests.slice(beforeReload).every((value) => value === `Bearer ${token}`)).toBe(true);
+  const browserContext = page.context();
+  await page.close();
+  const reopenedPage = await browserContext.newPage();
+  const reopenedMocks = await installAdminMocks(reopenedPage);
+  await reopenedPage.goto('/zadmin/');
+  await expect(reopenedPage.locator('#adminDashboard')).toBeVisible();
+  await expect(reopenedPage.locator('#adminEntityRows tr')).toHaveCount(2);
+  expect(reopenedMocks.authorizedRequests.length).toBeGreaterThan(0);
+  expect(reopenedMocks.authorizedRequests.every((value) => value === `Bearer ${token}`)).toBe(true);
+  expect(await reopenedPage.evaluate(() => sessionStorage.getItem('minuto106.zadmin.session.v1'))).toBe(token);
 
-  await page.locator('#adminEntityRows .zadmin-review-button').first().click();
-  await expect(page.locator('#adminDetailContent')).toBeVisible();
-  await expect(page.locator('#adminRiskBadge')).toHaveText('91/100');
-  await expect(page.locator('#adminRiskDistribution')).toContainText('80-100');
-  await expect(page.locator('#adminDetailContent')).toContainText('No es una probabilidad estadística de trampa.');
-  await expect(page.locator('#adminAttemptList .zadmin-attempt')).toHaveCount(2);
-  await expect(page.locator('#adminEntityBans')).toContainText('AUTOMÁTICAS · SOLO LECTURA');
-  await expect(page.locator('#adminEntityBans')).toContainText('policy_v3_confirmed_malicious_session');
-  await page.locator('#adminEntityBans details summary').click();
-  await expect(page.locator('#adminEntityBans details')).toHaveAttribute('open', '');
+  await reopenedPage.locator('#adminEntityRows .zadmin-review-button').first().click();
+  await expect(reopenedPage.locator('#adminDetailContent')).toBeVisible();
+  await expect(reopenedPage.locator('#adminRiskBadge')).toHaveText('91/100');
+  await expect(reopenedPage.locator('#adminRiskDistribution')).toContainText('80-100');
+  await expect(reopenedPage.locator('#adminDetailContent')).toContainText('No es una probabilidad estadística de trampa.');
+  await expect(reopenedPage.locator('#adminAttemptList .zadmin-attempt')).toHaveCount(2);
+  await expect(reopenedPage.locator('#adminEntityBans')).toContainText('AUTOMÁTICAS');
+  await expect(reopenedPage.locator('#adminEntityBans')).toContainText('policy_v3_confirmed_malicious_session');
+  await expect(reopenedPage.locator('#adminEntityBans')).toContainText('Quitar restricción');
+  await reopenedPage.locator('#adminEntityBans details summary').click();
+  await expect(reopenedPage.locator('#adminEntityBans details')).toHaveAttribute('open', '');
 
-  await page.locator('[data-admin-view="bans"]').click();
-  await expect(page.locator('[data-admin-view="bans"]')).toHaveText('Restricciones');
-  await expect(page.locator('#adminBansList')).toContainText('Automático · Activo');
-  await expect(page.locator('#adminBansList')).not.toContainText('Revocar ban');
+  await reopenedPage.locator('[data-admin-view="bans"]').click();
+  await expect(reopenedPage.locator('[data-admin-view="bans"]')).toHaveText('Restricciones');
+  await expect(reopenedPage.locator('#adminBansList')).toContainText('Automático · Activo');
+  await expect(reopenedPage.locator('#adminBansList')).toContainText('Quitar restricción');
+  await expect(reopenedPage.locator('#adminBansList')).not.toContainText('Revocar ban');
 
-  await page.locator('#adminLogoutButton').click();
-  await expect(page.locator('#adminLoginPanel')).toBeVisible();
-  expect(await page.evaluate(() => sessionStorage.getItem('minuto106.zadmin.session.v1'))).toBeNull();
+  await reopenedPage.locator('#adminLogoutButton').click();
+  await expect(reopenedPage.locator('#adminLoginPanel')).toBeVisible();
+  const cleared = await reopenedPage.evaluate(() => ({
+    local: localStorage.getItem('minuto106.zadmin.session.v1'),
+    session: sessionStorage.getItem('minuto106.zadmin.session.v1'),
+  }));
+  expect(cleared).toEqual({ local: null, session: null });
 });
 
 test('individual attempt review is inline, reversible and restores focus on Escape', async ({ page }) => {
@@ -319,7 +342,7 @@ test('individual attempt review is inline, reversible and restores focus on Esca
   const attemptButton = page.locator('[data-attempt-review-id="attempt-2"]');
   await expect(attemptButton).toHaveText('Invalidar tiempo');
   await attemptButton.click();
-  const form = page.locator('[data-attempt-review-form="attempt-2"]');
+  const form = attemptReviewForm(page, 'attempt-2');
   const reason = form.locator('textarea');
   await expect(form).toBeVisible();
   await expect(reason).toBeFocused();
@@ -329,7 +352,7 @@ test('individual attempt review is inline, reversible and restores focus on Esca
   expect(mocks.attemptReviewPayloads).toHaveLength(0);
 
   await attemptButton.click();
-  const reopened = page.locator('[data-attempt-review-form="attempt-2"]');
+  const reopened = attemptReviewForm(page, 'attempt-2');
   await reopened.locator('button[type="submit"]').click();
   await expect(reopened.locator('[role="status"]')).toContainText('al menos 3 caracteres');
   expect(mocks.attemptReviewPayloads).toHaveLength(0);
@@ -345,7 +368,7 @@ test('individual attempt review is inline, reversible and restores focus on Esca
   });
 
   await page.locator('[data-attempt-review-id="attempt-2"]').click();
-  const restoreForm = page.locator('[data-attempt-review-form="attempt-2"]');
+  const restoreForm = attemptReviewForm(page, 'attempt-2');
   await restoreForm.locator('textarea').fill('Anulación retirada tras revisar la evidencia.');
   await restoreForm.locator('button[type="submit"]').click();
   await expect(page.locator('[data-attempt-review-id="attempt-2"]')).toHaveText('Invalidar tiempo');
@@ -424,7 +447,7 @@ test('records isolated login and dashboard evidence from the admin workflow', as
   await screenshotPage.locator('#adminEntityRows .zadmin-review-button').first().click();
   await expect(screenshotPage.locator('#adminDetailContent')).toBeVisible();
   await screenshotPage.locator('[data-attempt-review-id="attempt-2"]').click();
-  await expect(screenshotPage.locator('[data-attempt-review-form="attempt-2"]')).toBeVisible();
+  await expect(attemptReviewForm(screenshotPage, 'attempt-2')).toBeVisible();
   await screenshotPage.screenshot({ path: join(previewDirectory, `zadmin-dashboard-${suffix}.png`), animations: 'disabled', fullPage: true });
   await screenshotContext.close();
 
@@ -436,7 +459,7 @@ test('records isolated login and dashboard evidence from the admin workflow', as
   await recordingPage.locator('#adminEntityRows .zadmin-review-button').first().click();
   await expect(recordingPage.locator('#adminDetailContent')).toBeVisible();
   await recordingPage.locator('[data-attempt-review-id="attempt-2"]').click();
-  await recordingPage.locator('[data-attempt-review-form="attempt-2"] textarea').fill('Revisión visual del intento individual.');
+  await attemptReviewForm(recordingPage, 'attempt-2').locator('textarea').fill('Revisión visual del intento individual.');
   await recordingPage.keyboard.press('Escape');
   await recordingPage.locator('#adminAttemptList details summary').first().click();
   await expect(recordingPage.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
