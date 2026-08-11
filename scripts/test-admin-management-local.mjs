@@ -58,7 +58,7 @@ async function request(path, { method = 'GET', body, headers = {}, expected = 20
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const bodyText = await response.text();
-  let payload = null;
+  let payload;
   try { payload = bodyText ? JSON.parse(bodyText) : null; } catch { payload = bodyText; }
   if (response.status !== expected) {
     throw new Error(`${method} ${path} returned ${response.status}, expected ${expected}: ${bodyText.slice(0, 700)}`);
@@ -143,17 +143,16 @@ async function ensurePlayer({ nick, accountToken, deviceHash, ipHash }) {
 async function createAttempt({ nick, nickKey, deviceHash, ipHash }) {
   const now = new Date();
   const startedAt = now.toISOString();
-  const targetAt = new Date(now.getTime() + 10_600).toISOString();
+  const completedAt = new Date(now.getTime() + 10_601).toISOString();
   const challenge = await insertOne('game_challenges', {
     nick,
     nick_key: nickKey,
     team: 'spain',
     device_hash: deviceHash,
     ip_hash: ipHash,
-    server_started_at: startedAt,
-    target_started_at: targetAt,
+    started_at: startedAt,
     expires_at: new Date(now.getTime() + 120_000).toISOString(),
-    consumed_at: new Date(now.getTime() + 10_601).toISOString(),
+    consumed_at: completedAt,
   });
   return insertOne('game_attempts', {
     challenge_id: challenge.id,
@@ -166,8 +165,8 @@ async function createAttempt({ nick, nickKey, deviceHash, ipHash }) {
     server_elapsed_ms: 10_601,
     difference_ms: 1,
     verified: true,
-    reasons: [],
-    created_at: new Date(now.getTime() + 10_601).toISOString(),
+    verification_reasons: [],
+    created_at: completedAt,
   });
 }
 
