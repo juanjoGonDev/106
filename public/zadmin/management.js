@@ -1,13 +1,19 @@
 const config = window.__MINUTO106_CONFIG__ || {};
 const DEVICE_STORAGE_KEY = 'minuto106.zadmin.device.v1';
-const SESSION_STORAGE_KEY = 'minuto106.zadmin.session.v1';
 const DEVICE_ID_PATTERN = /^[a-zA-Z0-9._:-]{16,80}$/;
 const SESSION_TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
+const persistence = window.Minuto106ZadminSessionPersistence;
+const fieldController = window.Minuto106NicknameFieldController;
 
-let sessionToken = readSessionToken();
+let sessionToken = String(persistence?.read?.() || '').trim().toLowerCase();
 let activeInlineForm = null;
 let activeInlineReturnFocus = null;
+let activeNicknameController = null;
 let activeView = 'restrictions';
+const pages = {
+  restrictions: { page: 1, pageSize: 25, pagination: null },
+  players: { page: 1, pageSize: 25, pagination: null },
+};
 
 function $(selector) { return document.querySelector(selector); }
 function all(selector) { return [...document.querySelectorAll(selector)]; }
@@ -28,17 +34,6 @@ function setStatus(element, message = '', tone = '') {
   element.textContent = message;
   if (tone) element.dataset.tone = tone;
   else delete element.dataset.tone;
-}
-
-function readSessionToken() {
-  try {
-    const token = text(sessionStorage.getItem(SESSION_STORAGE_KEY)).trim().toLowerCase();
-    if (SESSION_TOKEN_PATTERN.test(token)) return token;
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch {
-    // Hardened browsers can reject sessionStorage. Access fails closed.
-  }
-  return '';
 }
 
 function randomDeviceId() {
@@ -73,7 +68,7 @@ function apiUrl() {
 
 async function managementRequest(action, payload = {}) {
   const endpoint = apiUrl();
-  if (!endpoint || !sessionToken) throw new Error('La sesión de administración no está disponible.');
+  if (!endpoint || !SESSION_TOKEN_PATTERN.test(sessionToken)) throw new Error('La sesión de administración no está disponible.');
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -90,7 +85,7 @@ async function managementRequest(action, payload = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 && result.code === 'invalid_session') {
-      try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch { /* noop */ }
+      persistence?.clear?.();
       sessionToken = '';
       showDenied();
     }
@@ -137,9 +132,7 @@ function statusTone(status) {
   return 'warning';
 }
 
-function sourceLabel(source) {
-  return source === 'manual' ? 'Manual' : 'Integridad automática';
-}
+function sourceLabel(source) { return source === 'manual' ? 'Manual' : 'Integridad automática'; }
 
 function badge(label, tone = '') {
   return createElement('span', {
@@ -157,20 +150,14 @@ function detailCell(label, value, { code = false } = {}) {
 }
 
 function closeInlineForm({ restoreFocus = true } = {}) {
+  activeNicknameController?.destroy?.();
+  activeNicknameController = null;
   if (!(activeInlineForm instanceof HTMLElement)) return;
   const returnFocus = activeInlineReturnFocus;
   activeInlineForm.remove();
   activeInlineForm = null;
   activeInlineReturnFocus = null;
   if (restoreFocus && returnFocus instanceof HTMLElement && returnFocus.isConnected) returnFocus.focus();
-}
-
-function installEscapeCancellation(form) {
-  form.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    closeInlineForm();
-  });
 }
 
 function actionForm({ title, explanation, fields = [], acceptLabel, danger = false, onSubmit }) {
@@ -192,7 +179,8 @@ function actionForm({ title, explanation, fields = [], acceptLabel, danger = fal
         minlength: field.minlength ?? null,
         maxlength: field.maxlength ?? null,
         rows: field.multiline ? (field.rows || 3) : null,
-        autocomplete: 'off',
+        autocomplete: field.autocomplete || 'off',
+        spellcheck: field.spellcheck === false ? 'false' : null,
         placeholder: field.placeholder || null,
         required: '',
       },
@@ -208,8 +196,11 @@ function actionForm({ title, explanation, fields = [], acceptLabel, danger = fal
   cancel.addEventListener('click', () => closeInlineForm());
   actions.append(cancel, accept);
   form.append(status, actions);
-  installEscapeCancellation(form);
-
+  form.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    closeInlineForm();
+  });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(form));
@@ -217,6 +208,11 @@ function actionForm({ title, explanation, fields = [], acceptLabel, danger = fal
     if (fields.some((field) => field.name === 'reason') && (reason.length < 3 || reason.length > 500)) {
       setStatus(status, 'El motivo debe tener entre 3 y 500 caracteres.', 'error');
       form.elements.namedItem('reason')?.focus();
+      return;
+    }
+    if (activeNicknameController && !activeNicknameController.isReady()) {
+      activeNicknameController.refresh();
+      form.elements.namedItem('nick')?.focus();
       return;
     }
     accept.disabled = true;
@@ -227,97 +223,72 @@ function actionForm({ title, explanation, fields = [], acceptLabel, danger = fal
       closeInlineForm();
     } catch (error) {
       setStatus(status, error instanceof Error ? error.message : 'No se pudo completar la acción.', 'error');
-      accept.disabled = false;
+      accept.disabled = activeNicknameController ? !activeNicknameController.isReady() : false;
       cancel.disabled = false;
     }
   });
-
   activeInlineForm = form;
-  return form;
+  return { form, status, accept };
 }
 
-function appendRestrictionAction(details, restriction) {
+function restrictionAction(details, restriction) {
   const actions = createElement('div', { className: 'zadmin-management-actions' });
-  if (restriction.source === 'manual' && restriction.status === 'active') {
-    const revoke = createElement('button', { className: 'zadmin-danger', textContent: 'Revocar restricción manual', attributes: { type: 'button' } });
-    revoke.addEventListener('click', () => {
-      const form = actionForm({
-        title: 'Revocar restricción manual',
-        explanation: 'El historial del ban permanecerá en auditoría.',
-        fields: [{ name: 'reason', label: 'Motivo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Explica por qué se revoca' }],
-        acceptLabel: 'Revocar restricción',
-        danger: true,
-        onSubmit: async ({ reason }) => {
-          await managementRequest('revoke-manual-restriction', { banId: restriction.id, reason: text(reason).trim() });
-          await loadRestrictions('Restricción manual revocada.');
-        },
-      });
-      details.append(form);
-      form.querySelector('textarea')?.focus();
-    });
-    actions.append(revoke);
+  const automatic = restriction.source === 'integrity';
+  let label = '';
+  let action = '';
+  let explanation = '';
+  let success = '';
+  if (!automatic && restriction.status === 'active') {
+    label = 'Revocar restricción manual'; action = 'revoke-manual-restriction';
+    explanation = 'El historial del ban permanecerá en auditoría.'; success = 'Restricción manual revocada.';
+  } else if (automatic && restriction.status === 'active') {
+    label = 'Quitar restricción'; action = 'lift-integrity-restriction';
+    explanation = 'El ban original y su evidencia permanecerán intactos. La excepción quedará auditada.'; success = 'Restricción automática levantada.';
+  } else if (automatic && restriction.status === 'lifted' && Date.parse(text(restriction.expires_at)) > Date.now()) {
+    label = 'Restaurar restricción'; action = 'reinstate-integrity-restriction';
+    explanation = 'Se vuelve a aplicar el ban original únicamente hasta su expiración original.'; success = 'Restricción automática restaurada.';
   }
+  if (!action) return;
 
-  if (restriction.source === 'integrity' && restriction.status === 'active') {
-    const lift = createElement('button', { className: 'zadmin-danger', textContent: 'Quitar restricción', attributes: { type: 'button' } });
-    lift.addEventListener('click', () => {
-      const form = actionForm({
-        title: 'Quitar restricción automática',
-        explanation: 'El ban original y su evidencia permanecerán intactos. Esta excepción quedará auditada.',
-        fields: [{ name: 'reason', label: 'Motivo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Explica por qué se levanta la restricción' }],
-        acceptLabel: 'Quitar restricción',
-        danger: true,
-        onSubmit: async ({ reason }) => {
-          await managementRequest('lift-integrity-restriction', { banId: restriction.id, reason: text(reason).trim() });
-          await loadRestrictions('Restricción automática levantada.');
-        },
-      });
-      details.append(form);
-      form.querySelector('textarea')?.focus();
+  const button = createElement('button', {
+    className: action === 'reinstate-integrity-restriction' ? 'secondary' : 'zadmin-danger',
+    textContent: label,
+    attributes: { type: 'button' },
+  });
+  button.addEventListener('click', () => {
+    const { form } = actionForm({
+      title: label,
+      explanation,
+      fields: [{ name: 'reason', label: 'Motivo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Explica la decisión administrativa' }],
+      acceptLabel: label,
+      danger: action !== 'reinstate-integrity-restriction',
+      onSubmit: async ({ reason }) => {
+        await managementRequest(action, { banId: restriction.id, reason: text(reason).trim() });
+        await loadRestrictions(success);
+      },
     });
-    actions.append(lift);
-  } else if (restriction.source === 'integrity' && restriction.status === 'lifted' && new Date(restriction.expires_at).getTime() > Date.now()) {
-    const reinstate = createElement('button', { className: 'secondary', textContent: 'Restaurar restricción', attributes: { type: 'button' } });
-    reinstate.addEventListener('click', () => {
-      const form = actionForm({
-        title: 'Restaurar restricción automática',
-        explanation: 'Volverá a aplicarse el ban original únicamente hasta su expiración original.',
-        fields: [{ name: 'reason', label: 'Motivo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Explica por qué se restaura la restricción' }],
-        acceptLabel: 'Restaurar restricción',
-        onSubmit: async ({ reason }) => {
-          await managementRequest('reinstate-integrity-restriction', { banId: restriction.id, reason: text(reason).trim() });
-          await loadRestrictions('Restricción automática restaurada.');
-        },
-      });
-      details.append(form);
-      form.querySelector('textarea')?.focus();
-    });
-    actions.append(reinstate);
-  }
-
-  if (actions.childElementCount) details.append(actions);
+    details.append(form);
+    form.querySelector('textarea')?.focus();
+  });
+  actions.append(button);
+  details.append(actions);
 }
 
 function restrictionCard(restriction) {
   const card = createElement('article', { className: 'zadmin-management-item' });
-  const header = createElement('div', { className: 'zadmin-management-item__header' });
   const title = createElement('div', { className: 'zadmin-management-item__title' });
-  const related = Array.isArray(restriction.relatedNicks) && restriction.relatedNicks.length
-    ? restriction.relatedNicks.join(', ')
-    : shortValue(restriction.target);
   title.append(
-    createElement('strong', { textContent: related || 'Restricción' }),
+    createElement('strong', { textContent: shortValue(restriction.target) || 'Restricción' }),
     createElement('span', { className: 'zadmin-muted', textContent: `${sourceLabel(restriction.source)} · ${scopeLabel(restriction.scope)} · ${shortValue(restriction.target)}` }),
   );
   const badges = createElement('div', { className: 'zadmin-management-badges' });
   badges.append(badge(statusLabel(restriction.status), statusTone(restriction.status)), badge(sourceLabel(restriction.source)));
   if (restriction.source === 'integrity') badges.append(badge(`Policy v${Number(restriction.policy_version) || 0}`));
   title.append(badges);
-  header.append(title);
-  card.append(header);
+  card.append(title);
 
   const details = createElement('details', { className: 'zadmin-management-disclosure' });
-  details.append(createElement('summary', { textContent: restriction.source === 'integrity' ? 'Expandir detalle y evidencia' : 'Expandir detalle y acciones' }));
+  details.append(createElement('summary', { textContent: 'Expandir detalle y acciones' }));
   const grid = createElement('div', { className: 'zadmin-management-detail-grid' });
   grid.append(
     detailCell('ID de restricción', restriction.id, { code: true }),
@@ -329,25 +300,21 @@ function restrictionCard(restriction) {
     detailCell('Motivo', restriction.reason),
     detailCell('Última acción admin', restriction.adminAction?.action ? `${restriction.adminAction.action} · ${formatDate(restriction.adminAction.created_at)}` : 'Ninguna'),
   );
-  if (restriction.source === 'integrity') {
-    grid.append(detailCell('Intento origen', restriction.source_attempt_id, { code: true }));
-  }
+  if (restriction.source === 'integrity') grid.append(detailCell('Intento origen', restriction.source_attempt_id, { code: true }));
   details.append(grid);
-
   if (restriction.source === 'integrity') {
     details.append(
       createElement('strong', { textContent: 'Evidencia técnica' }),
       createElement('pre', { className: 'zadmin-management-evidence', textContent: JSON.stringify(restriction.evidence || {}, null, 2) }),
     );
   }
-  appendRestrictionAction(details, restriction);
+  restrictionAction(details, restriction);
   card.append(details);
   return card;
 }
 
 function playerCard(player) {
   const card = createElement('article', { className: 'zadmin-management-item' });
-  const header = createElement('div', { className: 'zadmin-management-item__header' });
   const title = createElement('div', { className: 'zadmin-management-item__title' });
   title.append(
     createElement('strong', { textContent: text(player.nick) || 'Jugador' }),
@@ -357,8 +324,7 @@ function playerCard(player) {
   if (player.renameRequired) badges.append(badge('Cambio de nick requerido', 'warning'));
   if (player.verifiedEmailAvailable) badges.append(badge('Email verificado disponible', 'success'));
   title.append(badges);
-  header.append(title);
-  card.append(header);
+  card.append(title);
 
   const details = createElement('details', { className: 'zadmin-management-disclosure' });
   details.append(createElement('summary', { textContent: 'Expandir jugador y acciones' }));
@@ -369,40 +335,48 @@ function playerCard(player) {
     detailCell('Nick key', player.nickKey, { code: true }),
     detailCell('Cuenta', player.accountId || 'Sin cuenta vinculada', { code: Boolean(player.accountId) }),
     detailCell('Vinculado', formatDate(player.linkedAt)),
-    detailCell('Aviso por email', player.verifiedEmailAvailable ? 'Contacto verificado disponible; todavía no hay sender transaccional de moderación.' : 'Sin contacto verificado'),
   );
+  if (player.renameRequirement?.originalNick) grid.append(detailCell('Nick anterior moderado', player.renameRequirement.originalNick));
   if (player.renameRequirement?.reason) grid.append(detailCell('Motivo del cambio requerido', player.renameRequirement.reason));
   details.append(grid);
 
   const actions = createElement('div', { className: 'zadmin-management-actions' });
   const rename = createElement('button', { className: 'secondary', textContent: 'Renombrar ahora', attributes: { type: 'button' } });
   rename.addEventListener('click', () => {
-    const form = actionForm({
+    const { form, status, accept } = actionForm({
       title: 'Renombrar jugador',
-      explanation: 'El player ID y la propiedad de la cuenta se conservan. Las referencias legacy se actualizan en la misma transacción.',
+      explanation: 'El player ID, propiedad e historial se conservan. La validación es la misma que usa el resto de la aplicación.',
       fields: [
-        { name: 'nick', label: 'Nuevo nick', minlength: 2, maxlength: 24, placeholder: 'Nuevo nombre' },
+        { name: 'nick', label: 'Nuevo nick', minlength: 3, maxlength: 24, autocomplete: 'nickname', spellcheck: false, placeholder: 'Nuevo nombre' },
         { name: 'reason', label: 'Motivo administrativo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Explica por qué se cambia el nick' },
       ],
       acceptLabel: 'Guardar nuevo nick',
       onSubmit: async ({ nick, reason }) => {
-        const normalizedNick = text(nick).trim();
-        if (normalizedNick.length < 2 || normalizedNick.length > 24) throw new Error('El nick debe tener entre 2 y 24 caracteres.');
-        await managementRequest('rename-player', { playerId: player.playerId, nick: normalizedNick, reason: text(reason).trim() });
+        await managementRequest('rename-player', { playerId: player.playerId, nick: text(nick), reason: text(reason).trim() });
         await loadPlayers('Nick actualizado.');
       },
     });
     details.append(form);
-    form.querySelector('input[name="nick"]')?.focus();
+    const input = form.querySelector('input[name="nick"]');
+    if (fieldController && input) {
+      activeNicknameController = fieldController.create({
+        input,
+        status,
+        submitButton: accept,
+        checkFn: ({ nick }) => managementRequest('check-nickname', { playerId: player.playerId, nick }),
+        readyMessage: 'Nick válido y disponible. Puedes guardar el cambio.',
+      });
+    }
+    input?.focus();
   });
 
   const requireRename = createElement('button', { className: 'zadmin-danger', textContent: player.renameRequired ? 'Reiniciar cambio obligatorio' : 'Forzar cambio de nick', attributes: { type: 'button' } });
   requireRename.disabled = !player.accountId;
   if (!player.accountId) requireRename.title = 'El jugador no tiene una cuenta vinculada capaz de completar el cambio obligatorio.';
   requireRename.addEventListener('click', () => {
-    const form = actionForm({
+    const { form } = actionForm({
       title: 'Forzar cambio de nick',
-      explanation: 'El nick público actual se sustituirá inmediatamente por uno temporal seguro. La cuenta no podrá autorizar juego normal hasta elegir un nick válido.',
+      explanation: `Se conservará el nombre anterior “${text(player.nick)}” en el estado de moderación y se asignará un alias temporal seguro.`,
       fields: [{ name: 'reason', label: 'Motivo', multiline: true, minlength: 3, maxlength: 500, placeholder: 'Describe la infracción o la razón de moderación' }],
       acceptLabel: 'Resetear y exigir cambio',
       danger: true,
@@ -414,11 +388,24 @@ function playerCard(player) {
     details.append(form);
     form.querySelector('textarea')?.focus();
   });
-
   actions.append(rename, requireRename);
   details.append(actions);
   card.append(details);
   return card;
+}
+
+function renderPagination(kind) {
+  const state = pages[kind];
+  const data = state.pagination || { page: state.page, pageSize: state.pageSize, total: 0, totalPages: 0, hasPrevious: false, hasNext: false };
+  state.page = Number(data.page) || 1;
+  state.pageSize = Number(data.pageSize) || state.pageSize;
+  const prefix = kind === 'restrictions' ? 'restriction' : 'player';
+  $(`#${prefix}Previous`).disabled = data.hasPrevious !== true;
+  $(`#${prefix}Next`).disabled = data.hasNext !== true;
+  $(`#${prefix}PageSize`).value = String(state.pageSize);
+  $(`#${prefix}PageStatus`).textContent = data.totalPages
+    ? `Página ${data.page} de ${data.totalPages} · ${data.total} resultados`
+    : 'Sin resultados';
 }
 
 async function loadRestrictions(successMessage = '') {
@@ -428,15 +415,20 @@ async function loadRestrictions(successMessage = '') {
   list.replaceChildren();
   setStatus(status, successMessage || 'Cargando restricciones…', successMessage ? 'success' : '');
   try {
+    const state = pages.restrictions;
     const result = await managementRequest('restrictions', {
       status: $('#restrictionStatusFilter').value,
       scope: $('#restrictionScopeFilter').value,
       search: $('#restrictionSearch').value,
+      page: state.page,
+      pageSize: state.pageSize,
     });
-    const restrictions = Array.isArray(result.restrictions) ? result.restrictions : [];
+    const restrictions = Array.isArray(result.items) ? result.items : Array.isArray(result.restrictions) ? result.restrictions : [];
+    state.pagination = result.pagination;
     if (!restrictions.length) list.append(createElement('p', { className: 'zadmin-management-empty', textContent: 'No hay restricciones que coincidan con estos filtros.' }));
     else list.append(...restrictions.map(restrictionCard));
-    if (!successMessage) setStatus(status, `${restrictions.length} restricciones mostradas.`);
+    renderPagination('restrictions');
+    if (!successMessage) setStatus(status, `${result.pagination?.total ?? restrictions.length} restricciones encontradas.`);
   } catch (error) {
     setStatus(status, error instanceof Error ? error.message : 'No se pudieron cargar las restricciones.', 'error');
   }
@@ -449,15 +441,20 @@ async function loadPlayers(successMessage = '') {
   list.replaceChildren();
   setStatus(status, successMessage || 'Cargando jugadores…', successMessage ? 'success' : '');
   try {
-    const result = await managementRequest('players', { search: $('#playerSearch').value });
-    const players = Array.isArray(result.players) ? result.players : [];
+    const state = pages.players;
+    const result = await managementRequest('players', { search: $('#playerSearch').value, page: state.page, pageSize: state.pageSize });
+    const players = Array.isArray(result.items) ? result.items : Array.isArray(result.players) ? result.players : [];
+    state.pagination = result.pagination;
     if (!players.length) list.append(createElement('p', { className: 'zadmin-management-empty', textContent: 'No hay jugadores que coincidan con la búsqueda.' }));
     else list.append(...players.map(playerCard));
-    if (!successMessage) setStatus(status, `${players.length} jugadores mostrados.`);
+    renderPagination('players');
+    if (!successMessage) setStatus(status, `${result.pagination?.total ?? players.length} jugadores encontrados.`);
   } catch (error) {
     setStatus(status, error instanceof Error ? error.message : 'No se pudieron cargar los jugadores.', 'error');
   }
 }
+
+function resetPage(kind) { pages[kind].page = 1; }
 
 function selectView(view) {
   if (!['restrictions', 'players'].includes(view) || activeView === view) return;
@@ -474,6 +471,7 @@ function selectView(view) {
 }
 
 function showDenied() {
+  closeInlineForm({ restoreFocus: false });
   $('#managementRestore').hidden = true;
   $('#managementDashboard').hidden = true;
   $('#managementDenied').hidden = false;
@@ -485,29 +483,40 @@ function showDashboard() {
   $('#managementDashboard').hidden = false;
 }
 
-let searchTimer = 0;
-function debounce(callback) {
-  window.clearTimeout(searchTimer);
-  searchTimer = window.setTimeout(callback, 300);
-}
-
-async function initialize() {
-  if (!sessionToken) return showDenied();
+async function restoreSession() {
+  if (!SESSION_TOKEN_PATTERN.test(sessionToken)) { showDenied(); return; }
   try {
     await managementRequest('session-status');
+    showDashboard();
+    await loadRestrictions();
   } catch {
-    return showDenied();
+    showDenied();
   }
-  showDashboard();
-  for (const button of all('[data-management-view]')) button.addEventListener('click', () => selectView(button.dataset.managementView));
-  $('#reloadRestrictions').addEventListener('click', () => loadRestrictions().catch(() => {}));
-  $('#restrictionStatusFilter').addEventListener('change', () => loadRestrictions().catch(() => {}));
-  $('#restrictionScopeFilter').addEventListener('change', () => loadRestrictions().catch(() => {}));
-  $('#restrictionSearch').addEventListener('input', () => debounce(() => loadRestrictions().catch(() => {})));
-  $('#reloadPlayers').addEventListener('click', () => loadPlayers().catch(() => {}));
-  $('#playerSearch').addEventListener('input', () => debounce(() => loadPlayers().catch(() => {})));
-  await loadRestrictions();
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => initialize().catch(showDenied), { once: true });
-else initialize().catch(showDenied);
+for (const button of all('[data-management-view]')) button.addEventListener('click', () => selectView(button.dataset.managementView));
+$('#reloadRestrictions')?.addEventListener('click', () => loadRestrictions().catch(() => {}));
+$('#reloadPlayers')?.addEventListener('click', () => loadPlayers().catch(() => {}));
+for (const selector of ['#restrictionStatusFilter', '#restrictionScopeFilter']) {
+  $(selector)?.addEventListener('change', () => { resetPage('restrictions'); loadRestrictions().catch(() => {}); });
+}
+$('#restrictionSearch')?.addEventListener('search', () => { resetPage('restrictions'); loadRestrictions().catch(() => {}); });
+$('#restrictionSearch')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); resetPage('restrictions'); loadRestrictions().catch(() => {}); }
+});
+$('#playerSearch')?.addEventListener('search', () => { resetPage('players'); loadPlayers().catch(() => {}); });
+$('#playerSearch')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); resetPage('players'); loadPlayers().catch(() => {}); }
+});
+$('#restrictionPrevious')?.addEventListener('click', () => { pages.restrictions.page = Math.max(1, pages.restrictions.page - 1); loadRestrictions().catch(() => {}); });
+$('#restrictionNext')?.addEventListener('click', () => { pages.restrictions.page += 1; loadRestrictions().catch(() => {}); });
+$('#playerPrevious')?.addEventListener('click', () => { pages.players.page = Math.max(1, pages.players.page - 1); loadPlayers().catch(() => {}); });
+$('#playerNext')?.addEventListener('click', () => { pages.players.page += 1; loadPlayers().catch(() => {}); });
+$('#restrictionPageSize')?.addEventListener('change', (event) => { pages.restrictions.pageSize = Number(event.target.value) || 25; resetPage('restrictions'); loadRestrictions().catch(() => {}); });
+$('#playerPageSize')?.addEventListener('change', (event) => { pages.players.pageSize = Number(event.target.value) || 25; resetPage('players'); loadPlayers().catch(() => {}); });
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && activeInlineForm) closeInlineForm();
+});
+
+restoreSession().catch(() => showDenied());
