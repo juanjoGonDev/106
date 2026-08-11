@@ -444,17 +444,25 @@ await serviceRpc(local, 'reassess_game_integrity_cluster', { p_anchor_attempt_id
 
 const restrictionDeviceId = `restriction-${suffix}-device-106`;
 const restrictionDeviceHash = edgeDigest('device', restrictionDeviceId);
-const issuedDeviceRestriction = await serviceRpc(local, 'issue_game_integrity_ban', {
-  p_scope: 'device',
-  p_account_id: null,
-  p_device_hash: restrictionDeviceHash,
-  p_ip_hash: null,
-  p_reason: 'integration_policy_v3_restriction',
-  p_source_attempt_id: attemptId,
-  p_triggered_at: new Date().toISOString(),
-  p_evidence: { integrationProbe: true, privateDetectorSignal: 'must-not-leak' },
+const restrictionTriggeredAt = new Date();
+const restrictionExpiresAt = new Date(restrictionTriggeredAt.getTime() + 48 * 60 * 60_000);
+const issuedDeviceRestriction = await request(`${local.API_URL}/rest/v1/game_integrity_bans`, {
+  scope: 'device',
+  account_id: null,
+  device_hash: restrictionDeviceHash,
+  ip_hash: null,
+  reason: 'integration_policy_v3_restriction',
+  source_attempt_id: attemptId,
+  triggered_at: restrictionTriggeredAt.toISOString(),
+  expires_at: restrictionExpiresAt.toISOString(),
+  policy_version: 3,
+  evidence: { integrationProbe: true, privateDetectorSignal: 'must-not-leak' },
+}, {
+  apikey: local.SERVICE_ROLE_KEY,
+  authorization: `Bearer ${local.SERVICE_ROLE_KEY}`,
+  prefer: 'return=minimal',
 });
-assert.equal(issuedDeviceRestriction, true);
+assert.equal(issuedDeviceRestriction.response.status, 201, JSON.stringify(issuedDeviceRestriction.payload));
 const publicRestrictionProbe = await request(playerContextEndpoint, { action: 'account-context' }, {
   'x-device-id': restrictionDeviceId,
 });
