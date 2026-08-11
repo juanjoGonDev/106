@@ -52,7 +52,9 @@ describe('account daily attempt policy', () => {
     expect(accountAuth.match(/dailyAttemptPolicy:/g)).toHaveLength(3);
     expect(playerContext).toContain("'account-context'");
     expect(playerContext).toContain("rpc('get_game_account_daily_attempt_policy_by_token'");
-    expect(playerContext).toContain('dailyAttemptPolicy: await accountDailyAttemptPolicy(request)');
+    expect(playerContext).toContain('accountDailyAttemptPolicy(request)');
+    expect(playerContext).toContain('effectiveRestriction(request)');
+    expect(playerContext).toContain('return jsonResponse(origin, { dailyAttemptPolicy, restriction });');
     expect(cloudService).toContain('this.access.setAccountSession(accountToken, policy)');
     expect(cloudService).toContain('this.access?.setAccountDailyAttemptPolicy?.(policy)');
     expect(competition).toContain("import { resolveDailyAttemptState } from './daily-attempt-limit.js?v=20260802-derived-budget';");
