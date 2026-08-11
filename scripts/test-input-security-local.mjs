@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 import { main as waitForLocalPostgrest } from './wait-for-postgrest-local.mjs';
 
@@ -85,6 +86,19 @@ function jsonPsql(environment, expression) {
 
 function scalarPsql(environment, expression) {
   return runPsql(environment, `select (${expression})::text;`).split(/\r?\n/).filter(Boolean).at(-1) ?? '';
+}
+
+function localFunctionSecret(name) {
+  const line = readFileSync('supabase/functions/.env', 'utf8')
+    .split(/\r?\n/)
+    .find((entry) => entry.startsWith(`${name}=`));
+  assert.ok(line, `Missing ${name} in local Edge Function environment`);
+  return line.slice(name.length + 1);
+}
+
+function edgeDigest(domain, value) {
+  const pepper = localFunctionSecret('HASH_PEPPER');
+  return createHash('sha256').update(`${pepper}:${domain}:${value}`).digest('hex');
 }
 
 function log(message) {
@@ -427,6 +441,36 @@ runPsql(local, `
   );
 `);
 await serviceRpc(local, 'reassess_game_integrity_cluster', { p_anchor_attempt_id: attemptId });
+
+const restrictionDeviceId = `restriction-${suffix}-device-106`;
+const restrictionDeviceHash = edgeDigest('device', restrictionDeviceId);
+const issuedDeviceRestriction = await serviceRpc(local, 'issue_game_integrity_ban', {
+  p_scope: 'device',
+  p_account_id: null,
+  p_device_hash: restrictionDeviceHash,
+  p_ip_hash: null,
+  p_reason: 'integration_policy_v3_restriction',
+  p_source_attempt_id: attemptId,
+  p_triggered_at: new Date().toISOString(),
+  p_evidence: { integrationProbe: true, privateDetectorSignal: 'must-not-leak' },
+});
+assert.equal(issuedDeviceRestriction, true);
+const publicRestrictionProbe = await request(playerContextEndpoint, { action: 'account-context' }, {
+  'x-device-id': restrictionDeviceId,
+});
+assert.equal(publicRestrictionProbe.response.status, 200, JSON.stringify(publicRestrictionProbe.payload));
+assert.equal(publicRestrictionProbe.payload.restriction?.active, true);
+assert.equal(publicRestrictionProbe.payload.restriction?.source, 'integrity');
+assert.equal(publicRestrictionProbe.payload.restriction?.scope, 'device');
+assert.equal(publicRestrictionProbe.payload.restriction?.permanent, false);
+assert.match(String(publicRestrictionProbe.payload.restriction?.expiresAt), /^\d{4}-\d{2}-\d{2}T/);
+assert.ok(Number(publicRestrictionProbe.payload.restriction?.retryAfterSeconds) > 0);
+assert.doesNotMatch(
+  JSON.stringify(publicRestrictionProbe.payload.restriction),
+  /evidence|reason|sourceAttempt|source_attempt|deviceHash|device_hash|ipHash|ip_hash|privateDetectorSignal/i,
+);
+log('Real player-context reports an automatic device restriction before play without leaking detector evidence');
+
 const rawBeforeReview = jsonPsql(local, `(
   select jsonb_build_object(
     'difference', difference_ms,
