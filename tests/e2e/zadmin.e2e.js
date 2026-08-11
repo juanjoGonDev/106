@@ -20,6 +20,29 @@ function requestBody(route) {
   }
 }
 
+function automaticRestrictionFixture() {
+  return {
+    id: 17,
+    scope: 'device',
+    device_hash: '3'.repeat(64),
+    account_id: null,
+    ip_hash: null,
+    target: '3'.repeat(64),
+    reason: 'policy_v3_confirmed_malicious_session',
+    source_attempt_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    triggered_at: '2026-08-10T09:59:00Z',
+    created_at: '2026-08-10T09:59:00Z',
+    expires_at: '2026-08-12T09:59:00Z',
+    policy_version: 3,
+    evidence: { sessionAttempts2h: 7, sessionFingerprintMatches2h: 4 },
+    restriction_kind: 'integrity',
+    read_only: true,
+    active: true,
+    revoked_at: null,
+    revoked_reason: null,
+  };
+}
+
 function overviewFixture() {
   return {
     scope: 'account',
@@ -33,7 +56,8 @@ function overviewFixture() {
       distinctAccounts: 3,
       distinctNicks: 5,
       distinctIps: 4,
-      activeManualBans: 1,
+      activeManualBans: 0,
+      activeAutomaticRestrictions: 1,
     },
     entities: [
       {
@@ -93,6 +117,7 @@ function detailFixture({ attemptInvalidated = false } = {}) {
       },
     ],
     bans: [],
+    automaticRestrictions: [automaticRestrictionFixture()],
   };
 }
 
@@ -126,6 +151,14 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       });
       return;
     }
+    if (body.action === 'session-status') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ valid: true, expiresAt: new Date(Date.now() + 12 * 60 * 60_000).toISOString() }),
+      });
+      return;
+    }
     if (body.action === 'overview') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overviewFixture()) });
       return;
@@ -135,7 +168,7 @@ async function installAdminMocks(page, { failLogins = 0 } = {}) {
       return;
     }
     if (body.action === 'bans') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bans: [] }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bans: [automaticRestrictionFixture()] }) });
       return;
     }
     if (body.action === 'audit') {
@@ -220,7 +253,7 @@ test('login exposes generic failures, blocks the third attempt and preserves the
   await expect(page.locator('#adminUsername')).toHaveValue('operator');
 });
 
-test('authenticated investigation keeps the bearer token memory-only and exposes evidence without fabricating probability', async ({ page }) => {
+test('authenticated investigation restores the tab session and explains automatic restrictions', async ({ page }) => {
   const mocks = await installAdminMocks(page);
   await page.goto('/zadmin/');
   await page.locator('#adminUsername').focus();
@@ -237,17 +270,24 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await expect(page.locator('#adminDashboard')).toBeVisible();
   await expect(page.locator('#adminOverviewStatus')).toContainText('14 intentos analizados');
   await expect(page.locator('#adminSummary')).toContainText('Bans manuales activos');
-  await expect(page.locator('#adminSessionStatus')).toContainText('Se renueva con cada uso');
+  await expect(page.locator('#adminSummary')).toContainText('Restricciones automáticas');
+  await expect(page.locator('#adminSessionStatus')).toContainText('Se conserva durante esta sesión del navegador');
   await expect(page.locator('#adminSessionStatus')).not.toContainText('Caduca en');
-  expect(mocks.authorizedRequests.every((value) => value === `Bearer ${token}`)).toBe(true);
 
   const storage = await page.evaluate(() => ({
     local: Object.fromEntries(Object.entries(localStorage)),
     session: Object.fromEntries(Object.entries(sessionStorage)),
   }));
-  expect(JSON.stringify(storage)).not.toContain(token);
+  expect(JSON.stringify(storage.local)).not.toContain(token);
   expect(Object.keys(storage.local)).toContain('minuto106.zadmin.device.v1');
-  expect(storage.session).toEqual({});
+  expect(storage.session['minuto106.zadmin.session.v1']).toBe(token);
+
+  const beforeReload = mocks.authorizedRequests.length;
+  await page.reload();
+  await expect(page.locator('#adminDashboard')).toBeVisible();
+  await expect(page.locator('#adminEntityRows tr')).toHaveCount(2);
+  expect(mocks.authorizedRequests.length).toBeGreaterThan(beforeReload);
+  expect(mocks.authorizedRequests.slice(beforeReload).every((value) => value === `Bearer ${token}`)).toBe(true);
 
   await page.locator('#adminEntityRows .zadmin-review-button').first().click();
   await expect(page.locator('#adminDetailContent')).toBeVisible();
@@ -255,9 +295,19 @@ test('authenticated investigation keeps the bearer token memory-only and exposes
   await expect(page.locator('#adminRiskDistribution')).toContainText('80-100');
   await expect(page.locator('#adminDetailContent')).toContainText('No es una probabilidad estadística de trampa.');
   await expect(page.locator('#adminAttemptList .zadmin-attempt')).toHaveCount(2);
-  await page.locator('#adminAttemptList details summary').first().focus();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
+  await expect(page.locator('#adminEntityBans')).toContainText('AUTOMÁTICAS · SOLO LECTURA');
+  await expect(page.locator('#adminEntityBans')).toContainText('policy_v3_confirmed_malicious_session');
+  await page.locator('#adminEntityBans details summary').click();
+  await expect(page.locator('#adminEntityBans details')).toHaveAttribute('open', '');
+
+  await page.locator('[data-admin-view="bans"]').click();
+  await expect(page.locator('[data-admin-view="bans"]')).toHaveText('Restricciones');
+  await expect(page.locator('#adminBansList')).toContainText('Automático · Activo');
+  await expect(page.locator('#adminBansList')).not.toContainText('Revocar ban');
+
+  await page.locator('#adminLogoutButton').click();
+  await expect(page.locator('#adminLoginPanel')).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('minuto106.zadmin.session.v1'))).toBeNull();
 });
 
 test('individual attempt review is inline, reversible and restores focus on Escape', async ({ page }) => {
@@ -392,6 +442,7 @@ test('records isolated login and dashboard evidence from the admin workflow', as
   await expect(recordingPage.locator('#adminAttemptList details').first()).toHaveAttribute('open', '');
   await recordingPage.locator('[data-admin-view="bans"]').click();
   await expect(recordingPage.locator('#adminBansView')).toBeVisible();
+  await expect(recordingPage.locator('#adminBansList')).toContainText('Automático · Activo');
   await recordingPage.locator('[data-admin-view="audit"]').click();
   await expect(recordingPage.locator('#adminAuditView')).toBeVisible();
   await recordingPage.locator('[data-admin-view="investigation"]').click();
