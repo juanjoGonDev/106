@@ -137,7 +137,7 @@ function askAdmin({ title, message, confirmLabel = 'Confirmar', cancelLabel = 'C
   $('#adminBanConfirmTitle').textContent = title; $('#adminBanConfirmMessage').textContent = message;
   $('#adminBanConfirmAccept').textContent = confirmLabel; $('#adminBanConfirmCancel').textContent = cancelLabel;
   confirmReturnFocus = document.activeElement; $('#adminBanConfirmComponent').hidden = false;
-  requestAnimationFrame(() => $('#adminBanConfirmCancel').focus());
+  window.requestAnimationFrame(() => $('#adminBanConfirmCancel').focus());
   return new Promise((resolve) => { confirmResolver = resolve; });
 }
 function settleRevokeReason(value) {
@@ -149,7 +149,7 @@ function requestRevokeReason(anchor) {
   if (revokeResolver) return Promise.resolve(null);
   closeInlineForm({ restoreFocus: false }); $('#adminRevokeReason').value = ''; setStatus($('#adminRevokeStatus'));
   revokeReturnFocus = document.activeElement; const component = $('#adminRevokeComponent'); (anchor instanceof HTMLElement ? anchor : $('#adminBansView')).append(component); component.hidden = false;
-  requestAnimationFrame(() => $('#adminRevokeReason').focus()); return new Promise((resolve) => { revokeResolver = resolve; });
+  window.requestAnimationFrame(() => $('#adminRevokeReason').focus()); return new Promise((resolve) => { revokeResolver = resolve; });
 }
 function submitRevokeReason(event) {
   event.preventDefault(); const reason = $('#adminRevokeReason').value.trim();
@@ -239,7 +239,7 @@ function openAutomaticAction(ban, item, trigger) {
     try { await adminRequest(action, { banId: Number(ban.id), reason }); closeInlineForm({ restoreFocus: false }); const tasks = [loadBans(), loadOverview({ preserveDetail: true })]; if (currentTarget) tasks.push(loadDetail(currentScope, currentTarget)); await Promise.all(tasks); setStatus($('#adminBansStatus'), lifting ? 'Restricción automática levantada.' : 'Restricción automática restaurada.', 'success'); }
     catch (error) { setStatus(status, error.message, 'error'); submit.disabled = false; }
   });
-  form.append(label, status, cancel, submit); activeInlineForm = form; item.append(form); requestAnimationFrame(() => textarea.focus());
+  form.append(label, status, cancel, submit); activeInlineForm = form; item.append(form); window.requestAnimationFrame(() => textarea.focus());
 }
 
 function banItem(ban, { allowRevoke = true } = {}) {
@@ -275,7 +275,7 @@ function attemptItem(attempt) {
 function openAttemptReview(attempt, item, trigger) {
   closeInlineForm({ restoreFocus: false }); activeInlineReturnFocus = trigger; const invalidating = attempt.manual_invalidated !== true;
   const form = createElement('form', { className: 'zadmin-ban-form', attributes: { novalidate: '' } }); const label = createElement('label', { textContent: 'Motivo' }); const textarea = createElement('textarea', { attributes: { maxlength: '500', rows: '3', placeholder: invalidating ? 'Describe por qué este tiempo debe dejar de contar.' : 'Describe por qué retiras la anulación manual.' } }); label.append(textarea); const status = createElement('p', { className: 'zadmin-status', attributes: { role: 'status', 'aria-live': 'polite' } }); const cancel = createElement('button', { className: 'zadmin-inline-button', textContent: 'Cancelar', attributes: { type: 'button' } }); const action = createElement('button', { className: invalidating ? 'zadmin-danger' : 'zadmin-inline-button', textContent: invalidating ? 'Invalidar tiempo' : 'Restaurar tiempo', attributes: { type: 'submit' } });
-  cancel.addEventListener('click', () => closeInlineForm()); form.addEventListener('submit', async (event) => { event.preventDefault(); const reason = textarea.value.trim(); if (reason.length < 3) { setStatus(status, 'El motivo debe tener al menos 3 caracteres.', 'error'); textarea.focus(); return; } action.disabled = true; try { await adminRequest(invalidating ? 'invalidate-attempt' : 'restore-attempt', { attemptId: attempt.id, reason }); closeInlineForm({ restoreFocus: false }); await Promise.all([loadDetail(currentScope, currentTarget), loadOverview({ preserveDetail: true })]); } catch (error) { setStatus(status, error.message, 'error'); action.disabled = false; } }); form.append(label, status, cancel, action); activeInlineForm = form; item.append(form); requestAnimationFrame(() => textarea.focus());
+  cancel.addEventListener('click', () => closeInlineForm()); form.addEventListener('submit', async (event) => { event.preventDefault(); const reason = textarea.value.trim(); if (reason.length < 3) { setStatus(status, 'El motivo debe tener al menos 3 caracteres.', 'error'); textarea.focus(); return; } action.disabled = true; try { await adminRequest(invalidating ? 'invalidate-attempt' : 'restore-attempt', { attemptId: attempt.id, reason }); closeInlineForm({ restoreFocus: false }); await Promise.all([loadDetail(currentScope, currentTarget), loadOverview({ preserveDetail: true })]); } catch (error) { setStatus(status, error.message, 'error'); action.disabled = false; } }); form.append(label, status, cancel, action); activeInlineForm = form; item.append(form); window.requestAnimationFrame(() => textarea.focus());
 }
 function renderAttempts(attempts = []) { const items = (Array.isArray(attempts) ? attempts : []).map(attemptItem); replaceChildren($('#adminAttemptList'), items.length ? items : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay intentos recientes para esta entidad.' })]); }
 
@@ -319,11 +319,29 @@ async function loadAudit() {
 async function login(event) {
   event.preventDefault(); const status = $('#adminLoginStatus'); const username = $('#adminUsername').value.trim(); const password = $('#adminPassword').value; if (!username || !password) { setStatus(status, 'Introduce usuario y contraseña.', 'error'); return; }
   $('#adminLoginButton').disabled = true; setStatus(status, 'Comprobando acceso…');
-  try { const result = await adminRequest('login', { username, password }, { requireSession: false }); if (!SESSION_TOKEN_PATTERN.test(text(result.token))) throw new Error('La API no devolvió una sesión válida.'); sessionToken = text(result.token).toLowerCase(); try { sessionStorage.setItem('minuto106.zadmin.session.v1', sessionToken); } catch {} persistence?.flush?.(); $('#adminPassword').value = ''; setStatus(status); showDashboard(); startSessionClock(); await loadOverview(); }
-  catch (error) { const suffix = Number.isFinite(Number(error.attemptsRemaining)) ? ` Intentos restantes: ${boundedNumber(error.attemptsRemaining, 0, 3)}.` : ''; setStatus(status, `${error.message}${suffix}`, error.code === 'login_rate_limited' ? 'warning' : 'error'); }
-  finally { $('#adminLoginButton').disabled = false; }
+  try {
+    const result = await adminRequest('login', { username, password }, { requireSession: false });
+    if (!SESSION_TOKEN_PATTERN.test(text(result.token))) throw new Error('La API no devolvió una sesión válida.');
+    sessionToken = text(result.token).toLowerCase();
+    const persisted = persistence?.store?.(sessionToken) === true;
+    $('#adminPassword').value = '';
+    setStatus(status, persisted ? '' : 'Sesión iniciada. Este navegador no permite conservarla después de cerrarlo.', persisted ? '' : 'warning');
+    showDashboard(); startSessionClock(); await loadOverview();
+  } catch (error) {
+    const suffix = Number.isFinite(Number(error.attemptsRemaining)) ? ` Intentos restantes: ${boundedNumber(error.attemptsRemaining, 0, 3)}.` : '';
+    setStatus(status, `${error.message}${suffix}`, error.code === 'login_rate_limited' ? 'warning' : 'error');
+  } finally { $('#adminLoginButton').disabled = false; }
 }
-async function logout() { $('#adminLogoutButton').disabled = true; try { if (sessionToken) await adminRequest('logout'); } catch {} finally { $('#adminLogoutButton').disabled = false; clearSession('Sesión cerrada.'); $('#adminUsername').focus(); } }
+async function logout() {
+  $('#adminLogoutButton').disabled = true;
+  try {
+    if (sessionToken) await adminRequest('logout');
+  } catch (error) {
+    setStatus($('#adminSessionStatus'), `No se pudo confirmar la revocación remota: ${error.message}`, 'warning');
+  } finally {
+    $('#adminLogoutButton').disabled = false; clearSession('Sesión cerrada.'); $('#adminUsername').focus();
+  }
+}
 async function restoreAdminSession() {
   if (!SESSION_TOKEN_PATTERN.test(sessionToken)) { showLogin(); return; }
   showRestoringSession(); try { await adminRequest('session-status'); if (!sessionToken) return; showDashboard(); startSessionClock(); await loadOverview(); } catch (error) { if (sessionToken) showLogin(`No se pudo validar la sesión guardada. ${error.message}`); }
