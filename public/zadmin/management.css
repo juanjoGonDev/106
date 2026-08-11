@@ -1,0 +1,213 @@
+.zadmin-management-shell {
+  max-width: 1180px;
+}
+
+.zadmin-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.zadmin-management-toolbar {
+  display: grid;
+  gap: var(--space-5, 1.25rem);
+  margin-bottom: var(--space-4, 1rem);
+}
+
+.zadmin-management-toolbar h2 {
+  margin: .25rem 0 .4rem;
+}
+
+.zadmin-management-filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .9rem;
+}
+
+.zadmin-management-filters label,
+.zadmin-management-inline-form label {
+  display: grid;
+  gap: .4rem;
+  font-weight: 700;
+}
+
+.zadmin-management-filters select,
+.zadmin-management-filters input,
+.zadmin-management-inline-form input,
+.zadmin-management-inline-form textarea {
+  width: 100%;
+}
+
+.zadmin-management-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.zadmin-management-item {
+  border: 1px solid var(--border, #2a2d35);
+  border-radius: var(--radius-card, 16px);
+  background: var(--surface, #111319);
+  padding: 1rem;
+}
+
+.zadmin-management-item__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.zadmin-management-item__title {
+  min-width: 0;
+}
+
+.zadmin-management-item__title strong,
+.zadmin-management-item__title span {
+  display: block;
+}
+
+.zadmin-management-item__title strong {
+  overflow-wrap: anywhere;
+}
+
+.zadmin-management-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-top: .65rem;
+}
+
+.zadmin-management-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid var(--border, #343842);
+  border-radius: 999px;
+  padding: .2rem .6rem;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.zadmin-management-badge[data-tone="danger"] {
+  border-color: #7b3038;
+  color: #ff9da6;
+}
+
+.zadmin-management-badge[data-tone="success"] {
+  border-color: #285844;
+  color: #8ee0b0;
+}
+
+.zadmin-management-badge[data-tone="warning"] {
+  border-color: #725a24;
+  color: #f5cf67;
+}
+
+.zadmin-management-disclosure {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border, #2a2d35);
+  padding-top: .8rem;
+}
+
+.zadmin-management-disclosure summary {
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.zadmin-management-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .7rem;
+  margin: .6rem 0 1rem;
+}
+
+.zadmin-management-detail-grid div {
+  min-width: 0;
+}
+
+.zadmin-management-detail-grid span {
+  display: block;
+  color: var(--text-muted, #a6a9b0);
+  font-size: .78rem;
+}
+
+.zadmin-management-detail-grid strong,
+.zadmin-management-detail-grid code {
+  overflow-wrap: anywhere;
+}
+
+.zadmin-management-evidence {
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border, #2a2d35);
+  border-radius: 10px;
+  padding: .75rem;
+  background: #0b0c10;
+  font-size: .78rem;
+}
+
+.zadmin-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: .8rem;
+}
+
+.zadmin-management-actions > * {
+  min-height: 44px;
+}
+
+.zadmin-management-inline-form {
+  display: grid;
+  gap: .8rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #343842);
+  border-radius: 12px;
+  background: #0d0f14;
+}
+
+.zadmin-management-inline-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+
+.zadmin-management-inline-form__actions button {
+  min-height: 44px;
+}
+
+.zadmin-management-empty {
+  padding: 1.25rem;
+  text-align: center;
+  color: var(--text-muted, #a6a9b0);
+}
+
+@media (min-width: 760px) {
+  .zadmin-management-filters {
+    grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(260px, 1.4fr) auto;
+    align-items: end;
+  }
+
+  .zadmin-management-filters--players {
+    grid-template-columns: minmax(300px, 1fr) auto;
+  }
+
+  .zadmin-management-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zadmin-management-item,
+  .zadmin-management-inline-form {
+    scroll-behavior: auto;
+  }
+}
