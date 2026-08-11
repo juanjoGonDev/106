@@ -17,22 +17,34 @@
     try {
       if (TOKEN.test(token)) storage.setItem(KEY, token);
       else storage.removeItem(KEY);
+      return true;
     } catch {
-      // Persistence is best-effort; an in-memory/server session can still work.
+      return false;
     }
+  }
+
+  function store(token) {
+    const normalized = String(token || '').trim().toLowerCase();
+    if (!TOKEN.test(normalized)) {
+      clear();
+      return false;
+    }
+    const persistent = write(localStorage, normalized);
+    write(sessionStorage, normalized);
+    return persistent;
   }
 
   function promotePersistentToken() {
     const persistent = read(localStorage);
     const tab = read(sessionStorage);
-    if (!tab && persistent) write(sessionStorage, persistent);
-    if (tab && !persistent) write(localStorage, tab);
+    if (persistent) write(sessionStorage, persistent);
+    else if (tab) write(localStorage, tab);
   }
 
   function synchronizeFromTab() {
     const tab = read(sessionStorage);
-    if (tab) write(localStorage, tab);
-    else write(localStorage, '');
+    const persistent = read(localStorage);
+    if (tab && tab !== persistent) write(localStorage, tab);
   }
 
   function clear() {
@@ -62,5 +74,6 @@
     clear,
     flush: synchronizeFromTab,
     read: () => read(localStorage) || read(sessionStorage),
+    store,
   });
 })();
