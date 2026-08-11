@@ -31,12 +31,15 @@ describe('ranked restriction public boundary', () => {
     expect(projection).not.toMatch(/evidence|source_attempt|reason|device_hash|ip_hash/i);
   });
 
-  it('keeps the start action gated while the server restriction remains active', () => {
+  it('keeps the start action gated and fails closed until server expiry confirmation succeeds', () => {
     expect(competition).toContain("context.restriction?.active !== true");
+    expect(competition).toContain('!restrictionRefreshFailed');
     expect(competition).toContain("startButton.textContent = 'Acceso bloqueado'");
     expect(competition).toContain('startButton.disabled = true');
     expect(competition).toContain("syncPlayerContext('restriction-expired')");
     expect(competition).toContain('restrictionRefreshPending = true');
+    expect(competition).toContain("if (source === 'restriction-expired') restrictionRefreshFailed = true");
+    expect(competition).toContain('No se pudo confirmar con el servidor que la restricción haya terminado.');
     expect(competition).toContain('formatRestrictionCountdown(remaining)');
     expect(competition).toContain("panel.setAttribute('aria-live', 'polite')");
   });
