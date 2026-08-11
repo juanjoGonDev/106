@@ -12,6 +12,7 @@
   const structuralControllers = new Map();
   let remoteAvailability = 'unknown';
   let remotePending = false;
+  let lastHomeNormalized = null;
   let applying = false;
   let captchaReleased = false;
 
@@ -118,8 +119,14 @@
       status,
       idleMessage: 'Escribe tu nick para comprobar su disponibilidad y tus competiciones.',
       onStateChange(validation) {
-        remoteAvailability = 'unknown';
-        remotePending = validation.valid;
+        const normalized = String(validation.normalized ?? '').trim();
+        // bindStructural also refreshes on blur/change. A blur must not invalidate a
+        // server context that was already settled for the exact same nickname.
+        if (normalized !== lastHomeNormalized) {
+          lastHomeNormalized = normalized;
+          remoteAvailability = 'unknown';
+          remotePending = validation.valid;
+        }
         applyHomeGate();
       },
     });
