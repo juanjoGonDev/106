@@ -225,6 +225,7 @@ function restrictionStatus(ban) {
   if (ban.status) return ban.status; if (ban.revoked_at) return 'revoked'; if (ban.active === true) return 'active'; return 'expired';
 }
 function restrictionStatusLabel(status) { return status === 'active' ? 'Activo' : status === 'lifted' ? 'Levantado' : status === 'revoked' ? 'Revocado' : 'Caducado'; }
+function attemptReviewActionLabel(action) { return action === 'invalidate' ? 'Invalidación manual' : action === 'restore' ? 'Restauración manual' : text(action) || 'Revisión manual'; }
 function banTargetFromRecord(ban) { if (ban.target) return text(ban.target); if (ban.scope === 'account') return text(ban.account_id); if (ban.scope === 'nick') return text(ban.nick_key); if (ban.scope === 'device') return text(ban.device_hash); return text(ban.ip_hash); }
 
 function openAutomaticAction(ban, item, trigger) {
@@ -267,7 +268,7 @@ function attemptItem(attempt) {
   const invalidated = attempt.manual_invalidated === true; const stateName = ['eligible', 'watch', 'excluded'].includes(attempt.integrity_status) ? attempt.integrity_status : 'eligible';
   header.append(title, createElement('span', { className: 'zadmin-state', textContent: invalidated ? `manual · ${boundedNumber(attempt.risk_score, 0, 100)}/100` : `${stateName} · ${boundedNumber(attempt.risk_score, 0, 100)}/100`, attributes: { 'data-state': invalidated ? 'excluded' : stateName } })); item.append(header);
   const reasons = [...new Set([...(attempt.risk_reasons || []), ...(attempt.verification_reasons || [])].map(text).filter(Boolean))]; item.append(createElement('p', { className: 'zadmin-muted', textContent: reasons.length ? `Razones: ${reasons.join(', ')}` : 'Sin razones de riesgo registradas.' }));
-  if (attempt.manual_action) item.append(createElement('p', { className: 'zadmin-muted', textContent: `Última revisión manual: ${text(attempt.manual_action)} · ${text(attempt.manual_action_reason) || '—'} · ${formatDate(attempt.manual_action_at)}.` }));
+  if (attempt.manual_action) item.append(createElement('p', { className: 'zadmin-muted', textContent: `Última revisión manual: ${attemptReviewActionLabel(attempt.manual_action)} · ${text(attempt.manual_action_reason) || '—'} · ${formatDate(attempt.manual_action_at)}.` }));
   const details = document.createElement('details'); details.append(createElement('summary', { textContent: 'Evidencia técnica' })); const pre = document.createElement('pre'); pre.textContent = JSON.stringify({ integrityEvidence: attempt.integrity_evidence || {}, policyVersion: attempt.integrity_policy_version, evaluatedAt: attempt.integrity_evaluated_at, account: attempt.account_id, ip: attempt.ip_hash, device: attempt.device_hash }, null, 2); details.append(pre); item.append(details);
   if (attempt.id) { const button = createElement('button', { className: invalidated ? 'zadmin-inline-button' : 'zadmin-danger', textContent: invalidated ? 'Restaurar tiempo' : 'Invalidar tiempo', attributes: { type: 'button', 'data-attempt-review-id': text(attempt.id) } }); button.addEventListener('click', () => openAttemptReview(attempt, item, button)); item.append(button); }
   return item;
