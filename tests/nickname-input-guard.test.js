@@ -56,7 +56,9 @@ function createObservedBoolean(initialValue, onMutation) {
 
 function runGuard({ gate, startDisabled = false } = {}) {
   const microtasks = [];
+  const documentListeners = new Map();
   let observerCallback = () => {};
+  let structuralStateChange = () => {};
   let currentGate = gate;
   let drained = 0;
   const onMutation = () => observerCallback();
@@ -64,7 +66,7 @@ function runGuard({ gate, startDisabled = false } = {}) {
   const startButton = createObservedBoolean(startDisabled, onMutation);
   const captchaContainer = createObservedBoolean(false, onMutation);
   const status = { textContent: '' };
-  const validation = { reason: null, valid: true };
+  const validation = { reason: null, valid: true, normalized: '' };
 
   const elements = new Map([
     ['#nick', homeInput],
@@ -84,7 +86,9 @@ function runGuard({ gate, startDisabled = false } = {}) {
   }
 
   const document = {
-    addEventListener() {},
+    addEventListener(type, callback) {
+      documentListeners.set(type, callback);
+    },
     head: { append() {} },
     querySelector(selector) {
       return elements.get(selector) ?? null;
@@ -99,11 +103,12 @@ function runGuard({ gate, startDisabled = false } = {}) {
     globalThis: {
       Minuto106NicknamePolicy: {
         nicknameErrorMessage: () => 'invalid',
-        resolveNicknameGate: () => currentGate,
+        resolveNicknameGate: (state) => typeof currentGate === 'function' ? currentGate(state) : currentGate,
         validateNickname: () => validation,
       },
       Minuto106NicknameFieldController: {
         bindStructural({ onStateChange }) {
+          structuralStateChange = onStateChange ?? (() => {});
           const controller = {
             getValidation: () => validation,
             refresh: () => validation,
@@ -123,7 +128,7 @@ function runGuard({ gate, startDisabled = false } = {}) {
   function drainMicrotasks() {
     while (microtasks.length) {
       drained += 1;
-      expect(drained).toBeLessThan(10);
+      expect(drained).toBeLessThan(20);
       microtasks.shift()();
     }
   }
@@ -134,12 +139,25 @@ function runGuard({ gate, startDisabled = false } = {}) {
     captchaContainer,
     get drained() { return drained; },
     homeInput,
+    ownerSetsStartDisabled(nextValue) {
+      startButton.disabled = nextValue;
+      drainMicrotasks();
+    },
+    settlePlayerContext(detail) {
+      documentListeners.get('minuto106:player-context')?.({ detail });
+      drainMicrotasks();
+    },
     setGate(nextGate) {
       currentGate = nextGate;
       observerCallback();
       drainMicrotasks();
     },
     startButton,
+    structuralRefresh(nextValidation) {
+      Object.assign(validation, nextValidation);
+      structuralStateChange(validation);
+      drainMicrotasks();
+    },
   };
 }
 
@@ -177,5 +195,25 @@ describe('nickname input guard observer stability', () => {
 
     expect(result.homeInput.customValidity).toBe('');
     expect(result.homeInput.attributes.get('aria-invalid')).toBe('false');
+  });
+
+  it('keeps a settled server context when blur refreshes the same normalized nick', () => {
+    const resolveGate = ({ validation, remoteAvailability, remotePending }) => {
+      const allowed = validation.valid && remoteAvailability === 'available' && !remotePending;
+      return { captchaAllowed: allowed, reason: allowed ? null : 'availability_pending', startAllowed: allowed };
+    };
+    const result = runGuard({ gate: resolveGate });
+
+    result.structuralRefresh({ valid: true, reason: null, normalized: 'E2EPlayer' });
+    expect(result.startButton.disabled).toBe(true);
+
+    result.settlePlayerContext({ availability: 'available', pending: false });
+    result.ownerSetsStartDisabled(false);
+    expect(result.startButton.disabled).toBe(false);
+
+    // bindStructural refreshes on change/blur as well as input. The nickname did not
+    // change, so the already-settled remote result must remain authoritative.
+    result.structuralRefresh({ valid: true, reason: null, normalized: 'E2EPlayer' });
+    expect(result.startButton.disabled).toBe(false);
   });
 });
