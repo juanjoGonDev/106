@@ -76,7 +76,7 @@ Use `sessionStorage` as the narrow persistence boundary.
 - zadmin UI for manual vs automatic restriction visibility.
 - zadmin `sessionStorage` restore/clear lifecycle.
 - Deterministic unit/security, real local Supabase and Desktop/Mobile Playwright regressions.
-- Required platform visual evidence for changed game/zadmin states.
+- Required platform PNG plus Desktop/Mobile WebM/GIF evidence for the live restriction countdown and existing zadmin changed states.
 
 ### Out of scope
 
@@ -107,7 +107,8 @@ Use `sessionStorage` as the narrow persistence boundary.
 - [x] Password/username are never persisted.
 - [x] No native browser alert/confirm/prompt/dialog is introduced.
 - [x] Desktop, Mobile and 320px layouts have no global horizontal overflow and keyboard/focus behavior remains valid in the changed journeys.
-- [x] Relevant unit/security, Supabase integration, browser, CodeQL, build, lint and Knip checks are green on the validated functional head. Final-head validation is repeated after this documentation commit.
+- [x] The live countdown is included in the maintained platform-evidence inventory as PNG plus Desktop/Mobile WebM/GIF, with the countdown itself kept in the recorded viewport.
+- [ ] All required CI and platform-evidence gates are green on the final PR head produced by this documentation commit. This is an external delivery gate and must not be marked complete from an earlier SHA.
 
 ## Test design
 
@@ -132,6 +133,7 @@ Use `sessionStorage` as the narrow persistence boundary.
 - Game Desktop/Mobile: deterministic active timed restriction renders before start, start remains disabled, countdown is derived from absolute expiry, no verification/start request fires, and server refresh occurs on expiry.
 - Game failure path: an expired restriction remains fail-closed if the server recheck fails.
 - Game permanent restriction: renders permanent state with no countdown drift and remains usable at 320px without global overflow.
+- Platform evidence records the live countdown in Desktop/Mobile contexts, scrolls the countdown itself into view, waits for an observed tick rather than a fixed sleep, and produces the required WebM/GIF pair.
 - Zadmin Desktop/Mobile: login, reload same page, restored dashboard without re-entering credentials, bearer remains authorized, logout clears restore token.
 - Zadmin automatic restriction fixture: automatic restriction visible separately from zero manual bans in overview, list and entity detail.
 - Check keyboard/focus behavior and responsive overflow for the changed flows.
@@ -143,23 +145,20 @@ Use `sessionStorage` as the narrow persistence boundary.
 - A client countdown never authorizes play; only a fresh server context after expiry can remove the UI gate.
 - Expiry revalidation fails closed: a network/server failure cannot transform an old restriction into local authorization.
 
-## Validation
+## Validation history
 
-Functional head `8edf10ca5c6aed52d6061a014f5723d215a64096`:
+Functional product head `8edf10ca5c6aed52d6061a014f5723d215a64096` established the backend/frontend behavior before the expanded interaction-evidence requirement:
 
-- Pull Request Quality Pipeline `31478986389`: success.
-  - Unit/security, build, ESLint, Knip and security policy jobs passed.
-  - Supabase `security`, `auth-browser`, `gameplay-core`, `gameplay-sharing`, `migrations`, `ready-flow` and `auth-api` jobs passed.
-  - `Supabase · security` executed the real PostgreSQL/PostgREST/Edge journey proving a device integrity restriction is returned by `player-context` without detector evidence leakage.
+- Pull Request Quality Pipeline `31478986389`: success, including all Supabase domain jobs and the real PostgreSQL/PostgREST/Edge restriction journey.
 - Player Pages and Social Cards `31478986300`: success.
 - Authentication Quality `31478986283`: success.
 - Public Asset Audit `31478986334`: success.
 - CodeQL Advanced `31478986262`: success.
-- Functional-head platform evidence artifact: `platform-evidence-31478986300`.
-  - Artifact digest: `sha256:4a41bdb90cc823d9a7d9a65708ade059eef30324b8be51a9190cdd085c2decf7`.
-  - Artifact head SHA matches `8edf10ca5c6aed52d6061a014f5723d215a64096`.
-  - Desktop/Mobile review confirms the restriction is rendered inline with source/scope, countdown and disabled start action; zadmin shows `0` active manual bans alongside `1` active automatic restriction and exposes the automatic evidence only inside the authenticated admin view.
-- Pull Request Visual Evidence on the functional head is intentionally not treated as complete because its PR-body artifact reference has not yet been updated; the final-head artifact will be linked after the documentation commit and then the gate will be revalidated.
+- Platform artifact `platform-evidence-31478986300`, digest `sha256:4a41bdb90cc823d9a7d9a65708ade059eef30324b8be51a9190cdd085c2decf7`, confirmed the inline restriction and zadmin automatic-restriction presentation in Desktop/Mobile.
+
+Subsequent evidence-only changes made the countdown a required interaction and added Desktop/Mobile recording. A manual review of the first mobile recording found the countdown itself below the fold; the final recording journey therefore scrolls `#playRestrictionCountdown` into the viewport before observing its tick. These evidence changes do not alter production behavior.
+
+The authoritative completion evidence is intentionally recorded in PR #73 after this document's commit: required workflow runs, artifact name/id/digest, final head SHA, Desktop/Mobile PNG URLs and GIF URLs must all refer to the same final head. No earlier run can satisfy that final gate.
 
 ## Rollback
 
@@ -174,4 +173,4 @@ Revert frontend/Edge changes. No database migration is required by this task. Ex
 
 ## Status
 
-Implementation and functional-head validation are complete. Final completion requires the same required checks plus final platform evidence on the documentation head created by this update.
+Implementation, regression coverage and evidence inventory changes are complete. This specification update is the final repository change for the task. Completion is determined only by required CI plus final-head platform evidence linked and embedded in PR #73; no further code or documentation commit is required to record those externally verifiable delivery IDs.
