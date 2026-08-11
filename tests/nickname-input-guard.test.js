@@ -52,6 +52,7 @@ function runGuard({ gate, startDisabled = false } = {}) {
   const startButton = createObservedBoolean(startDisabled, onMutation);
   const captchaContainer = createObservedBoolean(false, onMutation);
   const status = { textContent: '' };
+  const validation = { reason: null, valid: true };
 
   const elements = new Map([
     ['#nick', homeInput],
@@ -87,7 +88,17 @@ function runGuard({ gate, startDisabled = false } = {}) {
       Minuto106NicknamePolicy: {
         nicknameErrorMessage: () => 'invalid',
         resolveNicknameGate: () => gate,
-        validateNickname: () => ({ reason: null, valid: true }),
+        validateNickname: () => validation,
+      },
+      Minuto106NicknameFieldController: {
+        bindStructural({ onStateChange }) {
+          const controller = {
+            getValidation: () => validation,
+            refresh: () => validation,
+          };
+          onStateChange?.(validation);
+          return controller;
+        },
       },
     },
     location: { href: 'http://127.0.0.1:3000/' },
