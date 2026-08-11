@@ -1,9 +1,14 @@
+import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join, resolve } from 'node:path';
 
 const runtimePath = process.env.PLAYWRIGHT_TEST_PATH;
 if (!runtimePath) throw new Error('PLAYWRIGHT_TEST_PATH is required. Run Playwright through pnpm test:e2e.');
 const require = createRequire(import.meta.url);
 const { expect, test } = require(runtimePath);
+const visualCapture = process.env.PR_VISUAL_CAPTURE === '1';
+const previewDirectory = resolve('.tmp/pr-previews');
+mkdirSync(previewDirectory, { recursive: true });
 
 function contextPayload(restriction) {
   return {
@@ -40,7 +45,7 @@ async function installRestrictionContext(page, restrictionFactory) {
   return { contextRequests, readyRequests };
 }
 
-test('timed automatic restriction blocks Comenzar before verification and refreshes at expiry', async ({ page }) => {
+test('timed automatic restriction blocks Comenzar before verification and refreshes at expiry', async ({ page, isMobile }) => {
   const expiresAt = Date.now() + 2_500;
   const requests = await installRestrictionContext(page, () => Date.now() < expiresAt
     ? {
@@ -67,6 +72,14 @@ test('timed automatic restriction blocks Comenzar before verification and refres
   await expect(page.locator('#startButton')).toBeDisabled();
   await expect(page.locator('#startButton')).toHaveText('Acceso bloqueado');
   expect(requests.readyRequests).toHaveLength(0);
+
+  if (visualCapture) {
+    await page.screenshot({
+      path: join(previewDirectory, `play-restriction-${isMobile ? 'mobile' : 'desktop'}.png`),
+      animations: 'disabled',
+      fullPage: true,
+    });
+  }
 
   await expect(restriction).toBeHidden({ timeout: 7_000 });
   await expect(page.locator('#startButton')).toBeEnabled({ timeout: 7_000 });
