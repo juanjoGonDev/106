@@ -361,6 +361,7 @@ async function main() {
   assert.equal(ownerRename.newNick, ownerNick);
   assert.equal(ownerRename.cooldown?.canRename, false);
   assert.ok(Number(ownerRename.cooldown?.retryAfterSeconds) > 0);
+  assert.ok(ownerRename.cooldown?.nextRenameAt, 'owner rename must return the precise server cooldown boundary');
 
   const immediateRetry = await playerNameRequest(rawAccountToken, 'rename', {
     playerId: originalPlayerId,
@@ -383,7 +384,10 @@ async function main() {
   assert.equal(ownerHistory[0].old_nick, finalNick);
   assert.equal(ownerHistory[0].new_nick, ownerNick);
 
-  const exactWeekAt = new Date(Date.parse(ownerHistory[0].created_at) + (7 * 24 * 60 * 60 * 1000)).toISOString();
+  // Use the exact PostgreSQL boundary returned by the rename RPC. Round-tripping the
+  // ledger timestamp through JS Date would truncate PostgreSQL microseconds and can
+  // accidentally test a fraction of a millisecond before the seven-day boundary.
+  const exactWeekAt = ownerRename.cooldown.nextRenameAt;
   const exactWeekCooldown = await rpc('game_player_rename_cooldown', {
     p_player_id: originalPlayerId,
     p_at: exactWeekAt,
