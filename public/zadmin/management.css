@@ -190,6 +190,39 @@
   color: var(--text-muted, #a6a9b0);
 }
 
+.zadmin-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  margin-top: 1.2rem;
+  padding: .9rem;
+  border: 1px solid var(--border, #2a2d35);
+  border-radius: 12px;
+  background: var(--surface, #111319);
+}
+
+.zadmin-pagination > span {
+  min-width: 10rem;
+  text-align: center;
+  color: var(--text-muted, #a6a9b0);
+  font-size: .9rem;
+}
+
+.zadmin-pagination label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+.zadmin-pagination select {
+  min-height: 44px;
+  width: auto;
+}
+
 @media (min-width: 760px) {
   .zadmin-management-filters {
     grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(260px, 1.4fr) auto;
@@ -202,6 +235,18 @@
 
   .zadmin-management-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .zadmin-pagination > span {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .zadmin-pagination label {
+    flex-basis: 100%;
+    justify-content: center;
   }
 }
 
