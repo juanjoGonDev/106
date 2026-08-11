@@ -22,6 +22,7 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'league-directory',
   'league-waiting',
   'legal-page',
+  'play-restriction',
   'player-achievements',
   'player-collections',
   'player-honours-progress',
