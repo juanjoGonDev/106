@@ -460,7 +460,7 @@ async function loadPlayers(successMessage = '') {
 }
 
 function selectView(view) {
-  if (!['restrictions', 'players'].includes(view)) return;
+  if (!['restrictions', 'players'].includes(view) || activeView === view) return;
   closeInlineForm();
   activeView = view;
   for (const button of all('[data-management-view]')) {
