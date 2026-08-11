@@ -1,12 +1,30 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
+function localSupabaseEnvironment() {
+  try {
+    const output = execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8' });
+    return Object.fromEntries(output.split('\n').flatMap((line) => {
+      const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
+      if (!match) return [];
+      return [[match[1], match[2].replace(/^"|"$/g, '')]];
+    }));
+  } catch {
+    return {};
+  }
+}
+
+const localEnv = localSupabaseEnvironment();
+const supabaseUrl = process.env.SUPABASE_URL || localEnv.API_URL || 'http://127.0.0.1:54321';
 const serviceKey = process.env.SUPABASE_SECRET_KEY
   || process.env.SUPABASE_SERVICE_ROLE_KEY
-  || 'sb_secret_test_service_role_key_0000000000000000000000000000000000000000';
-const hashPepper = process.env.HASH_PEPPER || 'local-test-hash-pepper-00000000000000000000000000000000';
+  || localEnv.SERVICE_ROLE_KEY
+  || '';
+const hashPepper = process.env.HASH_PEPPER || 'ci-local-only-pepper-106-do-not-use-in-production';
 const origin = 'http://127.0.0.1:3000';
+
+assert.ok(serviceKey, 'Local Supabase service-role key is required.');
 
 function randomHex(bytes = 16) {
   return randomBytes(bytes).toString('hex');
@@ -39,11 +57,11 @@ async function request(path, { method = 'GET', body, headers = {}, expected = 20
     headers: serviceHeaders(headers),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const text = await response.text();
+  const bodyText = await response.text();
   let payload = null;
-  try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
+  try { payload = bodyText ? JSON.parse(bodyText) : null; } catch { payload = bodyText; }
   if (response.status !== expected) {
-    throw new Error(`${method} ${path} returned ${response.status}, expected ${expected}: ${text.slice(0, 700)}`);
+    throw new Error(`${method} ${path} returned ${response.status}, expected ${expected}: ${bodyText.slice(0, 700)}`);
   }
   return payload;
 }
@@ -159,6 +177,7 @@ async function main() {
   const renamedNick = `Ren${suffix}`;
   const finalNick = `Final${suffix}`;
   const conflictNick = `Taken${suffix}`;
+  const otherNick = `Other${suffix}`;
   const deviceHash = sha256(`device:${suffix}`);
   const ipHash = sha256(`ip:${suffix}`);
   const rawAccountToken = randomHex(32);
@@ -250,6 +269,14 @@ async function main() {
   assert.equal(renamedAttempt.nick, renamedNick);
   assert.equal(renamedAttempt.nick_key, renamedNick.toLocaleLowerCase('es'));
   assert.equal(renamedAttempt.difference_ms, 1);
+
+  const otherPlayer = await ensurePlayer({
+    nick: otherNick,
+    accountToken: wrongAccountToken,
+    deviceHash: sha256(`device-other:${suffix}`),
+    ipHash: sha256(`ip-other:${suffix}`),
+  });
+  assert.notEqual(otherPlayer.account_id, player.account_id);
 
   await managementRequest(adminToken, adminDeviceId, adminIp, 'require-player-rename', {
     playerId: originalPlayerId,
