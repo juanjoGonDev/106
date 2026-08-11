@@ -9,15 +9,25 @@ function createObservedBoolean(initialValue, onMutation) {
   let value = initialValue;
   let observed = false;
   let writes = 0;
+  let customValidity = '';
+  const attributes = new Map();
 
   return {
+    attributes,
     addEventListener() {},
     focus() {},
     reportValidity() {},
-    setAttribute() {},
-    setCustomValidity() {},
+    setAttribute(name, nextValue) {
+      attributes.set(name, String(nextValue));
+    },
+    setCustomValidity(nextValue) {
+      customValidity = String(nextValue);
+    },
     observe() {
       observed = true;
+    },
+    get customValidity() {
+      return customValidity;
     },
     get writes() {
       return writes;
@@ -47,6 +57,8 @@ function createObservedBoolean(initialValue, onMutation) {
 function runGuard({ gate, startDisabled = false } = {}) {
   const microtasks = [];
   let observerCallback = () => {};
+  let currentGate = gate;
+  let drained = 0;
   const onMutation = () => observerCallback();
   const homeInput = createObservedBoolean(false, onMutation);
   const startButton = createObservedBoolean(startDisabled, onMutation);
@@ -87,7 +99,7 @@ function runGuard({ gate, startDisabled = false } = {}) {
     globalThis: {
       Minuto106NicknamePolicy: {
         nicknameErrorMessage: () => 'invalid',
-        resolveNicknameGate: () => gate,
+        resolveNicknameGate: () => currentGate,
         validateNickname: () => validation,
       },
       Minuto106NicknameFieldController: {
@@ -108,14 +120,27 @@ function runGuard({ gate, startDisabled = false } = {}) {
     window: {},
   });
 
-  let drained = 0;
-  while (microtasks.length) {
-    drained += 1;
-    expect(drained).toBeLessThan(10);
-    microtasks.shift()();
+  function drainMicrotasks() {
+    while (microtasks.length) {
+      drained += 1;
+      expect(drained).toBeLessThan(10);
+      microtasks.shift()();
+    }
   }
 
-  return { captchaContainer, drained, startButton };
+  drainMicrotasks();
+
+  return {
+    captchaContainer,
+    get drained() { return drained; },
+    homeInput,
+    setGate(nextGate) {
+      currentGate = nextGate;
+      observerCallback();
+      drainMicrotasks();
+    },
+    startButton,
+  };
 }
 
 describe('nickname input guard observer stability', () => {
@@ -138,5 +163,19 @@ describe('nickname input guard observer stability', () => {
     expect(result.startButton.disabled).toBe(true);
     expect(result.startButton.writes).toBe(0);
     expect(result.drained).toBe(0);
+  });
+
+  it('clears stale remote validity when a structurally valid nick becomes eligible', () => {
+    const result = runGuard({
+      gate: { captchaAllowed: false, reason: 'availability_pending', startAllowed: false },
+    });
+
+    expect(result.homeInput.customValidity).toBe('invalid');
+    expect(result.homeInput.attributes.get('aria-invalid')).toBe('true');
+
+    result.setGate({ captchaAllowed: true, reason: null, startAllowed: true });
+
+    expect(result.homeInput.customValidity).toBe('');
+    expect(result.homeInput.attributes.get('aria-invalid')).toBe('false');
   });
 });
