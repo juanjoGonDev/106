@@ -2,7 +2,7 @@ const SOURCES = new Set(['manual', 'integrity']);
 const SCOPES = new Set(['account', 'nick', 'device', 'ip']);
 
 function finiteTimestamp(value) {
-  const timestamp = Date.parse(String(value ?? ''));
+  const timestamp = Date.parse(String(value));
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
