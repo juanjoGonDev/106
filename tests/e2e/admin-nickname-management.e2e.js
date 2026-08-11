@@ -439,8 +439,6 @@ test('required nickname change shows old/current names, shares checks, traps foc
     await saveEvidence(page, video, 'required-nickname-change', isMobile);
 
     await input.press('Shift+Tab');
-    await expect(submit).toBeFocused();
-    await submit.press('Tab');
     await expect(input).toBeFocused();
 
     await input.fill('x');
@@ -455,6 +453,9 @@ test('required nickname change shows old/current names, shares checks, traps foc
 
     await input.fill('JugadorNuevo');
     await expect(submit).toBeEnabled();
+    await submit.focus();
+    await submit.press('Tab');
+    await expect(input).toBeFocused();
     await submit.click();
     await expect(overlay).toBeHidden();
     expect(await page.locator('main').evaluate((element) => element.inert)).toBe(false);
@@ -508,7 +509,8 @@ test('account rename reloads the authoritative per-player weekly cooldown after 
 
     await page.setViewportSize({ width: 320, height: 720 });
     await assertNoHorizontalOverflow(page);
-    expect(actions).toEqual(['list', 'check', 'rename', 'list']);
+    expect(actions).toContain('status');
+    expect(actions.filter((action) => action !== 'status')).toEqual(['list', 'check', 'rename', 'list']);
     expect(runtime.pageErrors).toEqual([]);
     expect(runtime.consoleErrors).toEqual([]);
     expect(runtime.failedRequests).toEqual([]);
