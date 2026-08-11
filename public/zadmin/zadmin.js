@@ -1,10 +1,12 @@
 const config = window.__MINUTO106_CONFIG__ || {};
 const DEVICE_STORAGE_KEY = 'minuto106.zadmin.device.v1';
+const SESSION_STORAGE_KEY = 'minuto106.zadmin.session.v1';
 const DEVICE_ID_PATTERN = /^[a-zA-Z0-9._:-]{16,80}$/;
+const SESSION_TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 const SCOPES = new Set(['account', 'nick', 'ip']);
 const RISK_BUCKETS = ['0-19', '20-39', '40-59', '60-79', '80-100'];
 
-let sessionToken = '';
+let sessionToken = readSessionToken();
 let currentScope = 'account';
 let currentTarget = '';
 let currentDetail = null;
@@ -54,6 +56,36 @@ function setStatus(element, message = '', tone = '') {
 
 function focusIfAvailable(element) {
   if (element instanceof HTMLElement && element.isConnected) element.focus();
+}
+
+function readSessionToken() {
+  try {
+    const token = text(sessionStorage.getItem(SESSION_STORAGE_KEY)).trim().toLowerCase();
+    if (SESSION_TOKEN_PATTERN.test(token)) return token;
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Session storage may be unavailable in hardened/private browser contexts.
+  }
+  return '';
+}
+
+function persistSessionToken(token) {
+  const normalized = text(token).trim().toLowerCase();
+  if (!SESSION_TOKEN_PATTERN.test(normalized)) return false;
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, normalized);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removePersistedSessionToken() {
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // The in-memory token is still cleared even when browser storage is unavailable.
+  }
 }
 
 function settleConfirm(accepted) {
@@ -221,6 +253,7 @@ function shortHash(value) {
 function scopeLabel(scope) {
   if (scope === 'account') return 'Cuenta';
   if (scope === 'ip') return 'IP (huella)';
+  if (scope === 'device') return 'Dispositivo';
   if (scope === 'attempt') return 'Intento';
   return 'Nick';
 }
@@ -241,20 +274,44 @@ function metric(label, value) {
   return container;
 }
 
+function removeRestorePanel() {
+  $('#adminSessionRestore')?.remove();
+}
+
+function showRestoringSession() {
+  $('#adminLoginPanel').hidden = true;
+  $('#adminDashboard').hidden = true;
+  if ($('#adminSessionRestore')) return;
+  const stage = createElement('section', {
+    className: 'zadmin-login-stage',
+    attributes: { id: 'adminSessionRestore', 'aria-live': 'polite', 'aria-busy': 'true' },
+  });
+  const card = createElement('div', { className: 'zadmin-card zadmin-login-card' });
+  card.append(
+    createElement('p', { className: 'eyebrow', textContent: 'ADMINISTRACIÓN PRIVADA' }),
+    createElement('h1', { textContent: 'Comprobando sesión' }),
+    createElement('p', { className: 'zadmin-muted', textContent: 'Validando el acceso con el servidor…' }),
+  );
+  stage.append(card);
+  $('.zadmin-shell').prepend(stage);
+}
+
 function showLogin(message = '') {
+  removeRestorePanel();
   $('#adminLoginPanel').hidden = false;
   $('#adminDashboard').hidden = true;
   if (message) setStatus($('#adminLoginStatus'), message, 'warning');
 }
 
 function showDashboard() {
+  removeRestorePanel();
   $('#adminLoginPanel').hidden = true;
   $('#adminDashboard').hidden = false;
 }
 
 function updateSessionClock() {
   if (!sessionToken) return;
-  $('#adminSessionStatus').textContent = 'Sesión activa. Se renueva con cada uso y el servidor la cierra tras 12 h sin actividad. El token solo vive en memoria.';
+  $('#adminSessionStatus').textContent = 'Sesión activa. Se conserva durante esta sesión del navegador, se renueva con cada uso y el servidor la cierra tras 12 h sin actividad.';
 }
 
 function startSessionClock() {
@@ -266,6 +323,7 @@ function clearSession(message = '') {
   if (revokeResolver) settleRevokeReason(null);
   closeAttemptReview({ restoreFocus: false });
   sessionToken = '';
+  removePersistedSessionToken();
   currentTarget = '';
   currentDetail = null;
   showLogin(message);
@@ -278,6 +336,7 @@ function renderSummary(summary = {}) {
     metric('Watch', boundedNumber(summary.watchAttempts)),
     metric('Excluidos', boundedNumber(summary.excludedAttempts)),
     metric('Bans manuales activos', boundedNumber(summary.activeManualBans)),
+    metric('Restricciones automáticas', boundedNumber(summary.activeAutomaticRestrictions)),
     metric('Cuentas', boundedNumber(summary.distinctAccounts)),
     metric('Nicks', boundedNumber(summary.distinctNicks)),
     metric('Huellas IP', boundedNumber(summary.distinctIps)),
@@ -334,8 +393,10 @@ async function loadOverview({ preserveDetail = false } = {}) {
       : `${boundedNumber(result.summary?.attempts)} intentos analizados.`;
     setStatus(status, note, result.truncated ? 'warning' : 'success');
     if (currentTarget && !preserveDetail) resetDetail();
+    return true;
   } catch (error) {
     setStatus(status, error.message, 'error');
+    return false;
   } finally {
     $('#adminRefreshButton').disabled = false;
   }
@@ -413,8 +474,14 @@ function banStateLabel(ban) {
   return 'Caducado';
 }
 
+function isAutomaticRestriction(ban) {
+  return ban.restriction_kind === 'integrity' || ban.read_only === true;
+}
+
 function banItem(ban, { allowRevoke = true } = {}) {
+  const automatic = isAutomaticRestriction(ban);
   const item = createElement('article', { className: 'zadmin-ban-item' });
+  if (automatic) item.dataset.restrictionKind = 'integrity';
   const header = document.createElement('header');
   const heading = document.createElement('div');
   heading.append(
@@ -423,17 +490,36 @@ function banItem(ban, { allowRevoke = true } = {}) {
   );
   const state = createElement('span', {
     className: 'zadmin-state',
-    textContent: banStateLabel(ban),
+    textContent: automatic ? `Automático · ${banStateLabel(ban)}` : banStateLabel(ban),
     attributes: { 'data-state': banState(ban) },
   });
   header.append(heading, state);
   item.append(
     header,
     createElement('p', { textContent: text(ban.reason) }),
-    createElement('p', { className: 'zadmin-muted', textContent: `Creado: ${formatDate(ban.created_at)} · Expira: ${ban.expires_at ? formatDate(ban.expires_at) : 'Nunca'}` }),
+    createElement('p', {
+      className: 'zadmin-muted',
+      textContent: `${automatic ? 'Detectado' : 'Creado'}: ${formatDate(ban.created_at)} · Expira: ${ban.expires_at ? formatDate(ban.expires_at) : 'Nunca'}`,
+    }),
   );
+  if (automatic) {
+    item.append(createElement('p', {
+      className: 'zadmin-muted',
+      textContent: `Política v${boundedNumber(ban.policy_version, 0)} · Intento origen: ${shortHash(ban.source_attempt_id)}`,
+    }));
+    const details = document.createElement('details');
+    details.append(createElement('summary', { textContent: 'Evidencia de la restricción automática' }));
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify({
+      policyVersion: ban.policy_version,
+      sourceAttemptId: ban.source_attempt_id,
+      evidence: ban.evidence || {},
+    }, null, 2);
+    details.append(pre);
+    item.append(details);
+  }
   if (ban.revoked_reason) item.append(createElement('p', { className: 'zadmin-muted', textContent: `Revocación: ${text(ban.revoked_reason)}` }));
-  if (allowRevoke && ban.active === true && ban.id) {
+  if (!automatic && allowRevoke && ban.active === true && ban.id) {
     const button = createElement('button', { className: 'zadmin-inline-button', textContent: 'Revocar ban', attributes: { type: 'button' } });
     button.addEventListener('click', () => revokeBan(text(ban.id), item));
     item.append(button);
@@ -444,12 +530,23 @@ function banItem(ban, { allowRevoke = true } = {}) {
 function banTargetFromRecord(ban) {
   if (ban.scope === 'account') return text(ban.account_id);
   if (ban.scope === 'nick') return text(ban.nick_key);
+  if (ban.scope === 'device') return text(ban.device_hash);
   return text(ban.ip_hash);
 }
 
-function renderEntityBans(bans = []) {
-  const items = (Array.isArray(bans) ? bans : []).map((ban) => banItem({ ...ban, target: currentTarget }));
-  replaceChildren($('#adminEntityBans'), items.length ? items : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay bans manuales registrados para esta entidad.' })]);
+function renderEntityBans(bans = [], automaticRestrictions = []) {
+  const manual = (Array.isArray(bans) ? bans : []).map((ban) => banItem({ ...ban, target: ban.target || currentTarget }));
+  const automatic = (Array.isArray(automaticRestrictions) ? automaticRestrictions : []).map((ban) => banItem(ban, { allowRevoke: false }));
+  const items = [];
+  if (manual.length) {
+    items.push(createElement('p', { className: 'eyebrow', textContent: 'MANUALES' }), ...manual);
+  }
+  if (automatic.length) {
+    items.push(createElement('p', { className: 'eyebrow', textContent: 'AUTOMÁTICAS · SOLO LECTURA' }), ...automatic);
+  }
+  replaceChildren($('#adminEntityBans'), items.length
+    ? items
+    : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay restricciones manuales ni automáticas registradas para esta entidad.' })]);
 }
 
 async function submitAttemptReview(event, attempt, form, status, actionButton) {
@@ -645,7 +742,7 @@ async function loadDetail(scope, target) {
     renderDetailSummary(result.summary);
     renderRiskDistribution(result.distribution);
     renderCorrelations(result.correlations);
-    renderEntityBans(result.bans);
+    renderEntityBans(result.bans, result.automaticRestrictions);
     renderAttempts(result.attempts);
     setStatus($('#adminBanStatus'));
     setStatus($('#adminOverviewStatus'), 'Detalle actualizado.', 'success');
@@ -736,14 +833,14 @@ async function revokeBan(banId, anchor) {
 
 async function loadBans() {
   const status = $('#adminBansStatus');
-  setStatus(status, 'Cargando bans…');
+  setStatus(status, 'Cargando restricciones…');
   try {
     const result = await adminRequest('bans');
     const bans = Array.isArray(result.bans) ? result.bans : [];
     replaceChildren($('#adminBansList'), bans.length
-      ? bans.map((ban) => banItem(ban))
-      : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay bans manuales registrados.' })]);
-    setStatus(status, `${bans.length} registros cargados.`, 'success');
+      ? bans.map((ban) => banItem(ban, { allowRevoke: !isAutomaticRestriction(ban) }))
+      : [createElement('p', { className: 'zadmin-muted', textContent: 'No hay restricciones manuales ni automáticas registradas.' })]);
+    setStatus(status, `${bans.length} restricciones cargadas.`, 'success');
   } catch (error) {
     setStatus(status, error.message, 'error');
   }
@@ -801,10 +898,11 @@ async function login(event) {
   setStatus(status, 'Verificando acceso…');
   try {
     const result = await adminRequest('login', { username, password }, { requireSession: false });
-    if (!/^[a-f0-9]{64}$/i.test(text(result.token))) throw new Error('La API no devolvió una sesión válida.');
+    if (!SESSION_TOKEN_PATTERN.test(text(result.token))) throw new Error('La API no devolvió una sesión válida.');
     const expiresAt = Date.parse(text(result.expiresAt));
     if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw new Error('La sesión recibida ya ha caducado.');
     sessionToken = text(result.token).toLowerCase();
+    persistSessionToken(sessionToken);
     $('#adminPassword').value = '';
     setStatus(status);
     showDashboard();
@@ -825,11 +923,30 @@ async function logout() {
   try {
     if (sessionToken) await adminRequest('logout');
   } catch {
-    // Local session teardown remains authoritative for this browser instance.
+    // Server revocation may fail with the network, but this browser session must still forget the token.
   } finally {
     $('#adminLogoutButton').disabled = false;
     clearSession('Sesión cerrada.');
     $('#adminUsername').focus();
+  }
+}
+
+async function restoreAdminSession() {
+  if (!sessionToken) {
+    showLogin();
+    return;
+  }
+  showRestoringSession();
+  try {
+    await adminRequest('session-status');
+    if (!sessionToken) return;
+    showDashboard();
+    startSessionClock();
+    await loadOverview();
+  } catch (error) {
+    if (sessionToken) {
+      showLogin(`No se pudo validar la sesión guardada. ${error.message}`);
+    }
   }
 }
 
@@ -866,6 +983,18 @@ function cancelActionComponent(event) {
   }
 }
 
+function updateRestrictionLabels() {
+  const bansTab = document.querySelector('[data-admin-view="bans"]');
+  if (bansTab) bansTab.textContent = 'Restricciones';
+  if ($('#adminBansTitle')) $('#adminBansTitle').textContent = 'Historial de restricciones';
+  const bansCopy = $('#adminBansView .zadmin-muted');
+  if (bansCopy) bansCopy.textContent = 'Los bans manuales son revocables. Las restricciones automáticas del motor de integridad se muestran en modo solo lectura.';
+  const detailTitle = $('#adminActiveBansTitle');
+  if (detailTitle) detailTitle.textContent = 'Restricciones de esta entidad';
+  const loginCopy = $('#adminLoginPanel .zadmin-login-content .zadmin-muted');
+  if (loginCopy) loginCopy.textContent = 'La sesión se conserva al recargar esta pestaña y caduca en el servidor tras 12 horas sin actividad.';
+}
+
 function bindEvents() {
   $('#adminLoginForm').addEventListener('submit', login);
   $('#adminLogoutButton').addEventListener('click', logout);
@@ -887,5 +1016,6 @@ function bindEvents() {
 }
 
 populateBanDurations();
+updateRestrictionLabels();
 bindEvents();
-showLogin();
+restoreAdminSession();
