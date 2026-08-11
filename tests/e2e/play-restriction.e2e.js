@@ -188,8 +188,9 @@ test('records the live restriction countdown for platform evidence', async ({ br
   const restriction = page.locator('#playRestriction');
   const countdown = page.locator('#playRestrictionCountdown');
   await expect(restriction).toBeVisible();
-  await restriction.scrollIntoViewIfNeeded();
   await expect(countdown).toBeVisible();
+  await countdown.scrollIntoViewIfNeeded();
+  await expect(countdown).toBeInViewport();
   await expect(page.locator('#startButton')).toBeDisabled();
   const initial = await countdown.textContent();
   await expect(countdown).not.toHaveText(initial || '', { timeout: 3_000 });
