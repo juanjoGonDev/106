@@ -15,6 +15,7 @@ const now = Date.parse('2026-08-11T08:00:00Z');
 
 test('normalizes active timed restrictions and rejects inactive or expired values', () => {
   assert.equal(normalizePlayRestriction(null, now), null);
+  assert.equal(normalizePlayRestriction('invalid', now), null);
   assert.equal(normalizePlayRestriction({}, now), null);
   assert.equal(normalizePlayRestriction({ active: false }, now), null);
   assert.equal(normalizePlayRestriction({ active: true, expiresAt: 'invalid' }, now), null);
@@ -69,6 +70,7 @@ test('derives remaining time from the absolute expiry without drift', () => {
   assert.equal(restrictionRemainingSeconds(restriction, now), 93_723);
   assert.equal(restrictionRemainingSeconds(restriction, Date.parse('2026-08-12T10:02:03Z')), 0);
   assert.equal(restrictionRemainingSeconds({ active: true, permanent: true }, now), null);
+  assert.equal(restrictionRemainingSeconds({ active: true, permanent: false, expiresAtMs: Number.NaN }, now), null);
   assert.equal(restrictionRemainingSeconds(null, now), null);
 });
 
