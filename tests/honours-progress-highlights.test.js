@@ -186,7 +186,7 @@ describe('public profile honours experience', () => {
     expect(player).not.toContain('degraded');
     expect(access).toContain("'player-context'");
     expect(access).toContain("headers.set('x-account-token', accountToken)");
-    expect(playerContext).toContain("'Access-Control-Allow-Headers': 'content-type, x-account-token'");
+    expect(playerContext).toContain("'Access-Control-Allow-Headers': 'content-type, x-account-token, x-device-id'");
   });
 
   it('uses the highlighted achievement card for profile sharing and generated previews', () => {
