@@ -29,34 +29,33 @@ alter table public.game_account_players
 create unique index if not exists game_account_players_player_id_key
   on public.game_account_players(player_id);
 
--- Existing nickname-key foreign keys remain as a compatibility projection. Make
--- them deferrable so a single transaction can rename the compatibility key and
--- all direct children atomically while player_id remains stable.
-do $$
-declare
-  constraint_row record;
-begin
-  for constraint_row in
-    select
-      constraint_data.conrelid::regclass as child_table,
-      constraint_data.conname
-    from pg_constraint constraint_data
-    join pg_attribute parent_column
-      on parent_column.attrelid = constraint_data.confrelid
-     and parent_column.attnum = constraint_data.confkey[1]
-    where constraint_data.contype = 'f'
-      and constraint_data.confrelid = 'public.game_players'::regclass
-      and array_length(constraint_data.confkey, 1) = 1
-      and parent_column.attname = 'nick_key'
-  loop
-    execute format(
-      'alter table %s alter constraint %I deferrable initially immediate',
-      constraint_row.child_table,
-      constraint_row.conname
-    );
-  end loop;
-end;
-$$;
+-- Existing nickname-key FKs remain a compatibility projection during the
+-- progressive migration to player_id. Their explicit names make this boundary
+-- auditable and allow one transaction to update the parent + all children.
+alter table public.game_player_bonus
+  alter constraint game_player_bonus_nick_key_fkey deferrable initially immediate;
+alter table public.game_referrals
+  alter constraint game_referrals_referrer_nick_key_fkey deferrable initially immediate;
+alter table public.game_referrals
+  alter constraint game_referrals_referred_nick_key_fkey deferrable initially immediate;
+alter table public.game_duels
+  alter constraint game_duels_challenger_nick_key_fkey deferrable initially immediate;
+alter table public.game_duels
+  alter constraint game_duels_opponent_nick_key_fkey deferrable initially immediate;
+alter table public.game_leagues
+  alter constraint game_leagues_owner_nick_key_fkey deferrable initially immediate;
+alter table public.game_league_members
+  alter constraint game_league_members_nick_key_fkey deferrable initially immediate;
+alter table public.game_daily_trophies
+  alter constraint game_daily_trophies_nick_key_fkey deferrable initially immediate;
+alter table public.game_player_achievements
+  alter constraint game_player_achievements_nick_key_fkey deferrable initially immediate;
+alter table public.game_league_trophies
+  alter constraint game_league_trophies_nick_key_fkey deferrable initially immediate;
+alter table public.game_player_featured_achievements
+  alter constraint game_player_featured_achievements_nick_key_fkey deferrable initially immediate;
+alter table public.game_account_players
+  alter constraint game_account_players_nick_key_fkey deferrable initially immediate;
 
 do $$
 begin
@@ -175,8 +174,8 @@ as $$
   ), 'none');
 $$;
 
--- Replace only the canonical integrity lookup. Original automatic-ban rows remain
--- immutable; a latest admin lift action suppresses enforcement without deleting evidence.
+-- Original policy-v3 rows remain immutable. A latest lift action suppresses the
+-- matching ban in the canonical gameplay enforcement lookup.
 create or replace function public.get_game_active_integrity_ban_for_account(
   p_account_id uuid,
   p_device_hash text,
@@ -290,7 +289,6 @@ declare
   v_player public.game_players%rowtype;
   v_new_nick text := trim(coalesce(p_new_nick, ''));
   v_new_key text := lower(trim(coalesce(p_new_nick_key, '')));
-  child record;
 begin
   if p_player_id is null
      or char_length(v_new_nick) not between 2 and 24
@@ -343,30 +341,57 @@ begin
       nick_key = v_new_key
   where player_id = p_player_id;
 
-  -- Update every direct compatibility FK to game_players(nick_key). Constraint
-  -- checks are deferred until the transaction is internally consistent again.
-  for child in
-    select
-      constraint_data.conrelid::regclass as child_table,
-      child_column.attname as child_column
-    from pg_constraint constraint_data
-    join pg_attribute parent_column
-      on parent_column.attrelid = constraint_data.confrelid
-     and parent_column.attnum = constraint_data.confkey[1]
-    join pg_attribute child_column
-      on child_column.attrelid = constraint_data.conrelid
-     and child_column.attnum = constraint_data.conkey[1]
-    where constraint_data.contype = 'f'
-      and constraint_data.confrelid = 'public.game_players'::regclass
-      and array_length(constraint_data.confkey, 1) = 1
-      and array_length(constraint_data.conkey, 1) = 1
-      and parent_column.attname = 'nick_key'
-  loop
-    execute format('update %s set %I = $1 where %I = $2', child.child_table, child.child_column, child.child_column)
-      using v_new_key, v_player.nick_key;
-  end loop;
+  update public.game_player_bonus
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
 
-  -- These legacy history tables intentionally predate the player FK.
+  update public.game_referrals
+  set referrer_nick_key = v_new_key
+  where referrer_nick_key = v_player.nick_key;
+
+  update public.game_referrals
+  set referred_nick_key = v_new_key
+  where referred_nick_key = v_player.nick_key;
+
+  update public.game_duels
+  set challenger_nick_key = v_new_key
+  where challenger_nick_key = v_player.nick_key;
+
+  update public.game_duels
+  set opponent_nick_key = v_new_key
+  where opponent_nick_key = v_player.nick_key;
+
+  update public.game_leagues
+  set owner_nick_key = v_new_key
+  where owner_nick_key = v_player.nick_key;
+
+  update public.game_league_members
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
+
+  update public.game_daily_trophies
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
+
+  update public.game_player_achievements
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
+
+  update public.game_league_trophies
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
+
+  update public.game_player_featured_achievements
+  set nick_key = v_new_key
+  where nick_key = v_player.nick_key;
+
+  update public.game_account_players
+  set nick_key = v_new_key
+  where player_id = p_player_id;
+
+  -- Legacy attempt/challenge rows predate the game_players FK and intentionally
+  -- keep immutable timing/security evidence while their display identity follows
+  -- the current player nickname.
   update public.game_attempts
   set nick_key = v_new_key,
       nick = v_new_nick
@@ -377,8 +402,8 @@ begin
       nick = v_new_nick
   where nick_key = v_player.nick_key;
 
-  -- A manual nick ban follows the same stable player during a rename. Audit rows
-  -- intentionally preserve the historical target string.
+  -- A manual nick ban follows the same stable player during a rename. Historical
+  -- audit event target strings are intentionally retained as historical evidence.
   update public.game_admin_bans
   set nick_key = v_new_key
   where scope = 'nick'
@@ -533,7 +558,6 @@ begin
   select
     player.player_id,
     player.nick,
-    requirement.reason,
     requirement.requested_at
   into v_row
   from public.game_account_players account_player
@@ -625,58 +649,6 @@ alter table public.game_admin_audit_events
     target_scope in ('account', 'nick', 'ip', 'attempt', 'integrity', 'player')
   );
 
--- Add stable player identity to the account projection without changing the
--- public nickname URL contract.
-create or replace function public.get_game_account_players(p_account_token_hash text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = public, pg_temp
-as $$
-  with selected_account as (
-    select public.resolve_game_account_token(p_account_token_hash) as id
-  ), attempt_summary as (
-    select
-      attempt.nick_key,
-      count(*)::integer as attempts_used,
-      count(*) filter (where attempt.verified)::integer as verified_attempts,
-      min(attempt.difference_ms) filter (where attempt.verified)::integer as best_difference_ms,
-      round(avg(attempt.difference_ms) filter (where attempt.verified))::integer as average_difference_ms,
-      (array_agg(attempt.team order by attempt.created_at desc))[1] as team
-    from public.game_attempts attempt
-    join public.game_account_players account_player on account_player.nick_key = attempt.nick_key
-    join selected_account account on account.id = account_player.account_id
-    group by attempt.nick_key
-  )
-  select jsonb_build_object(
-    'exists', exists(select 1 from selected_account where id is not null),
-    'players', coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'playerId', player.player_id,
-        'nick', player.nick,
-        'nickKey', player.nick_key,
-        'team', summary.team,
-        'attemptsUsed', coalesce(summary.attempts_used, 0),
-        'verifiedAttempts', coalesce(summary.verified_attempts, 0),
-        'bestDifferenceMs', summary.best_difference_ms,
-        'averageDifferenceMs', summary.average_difference_ms,
-        'bonusAttempts', coalesce(bonus.bonus_attempts, 0),
-        'attemptsLeft', greatest(0, 5 + coalesce(bonus.bonus_attempts, 0) - coalesce(summary.attempts_used, 0)),
-        'linkedAt', account_player.linked_at,
-        'nicknameChangeRequired', coalesce(requirement.required, false)
-      ) order by account_player.linked_at desc)
-      from selected_account selected
-      join public.game_account_players account_player on account_player.account_id = selected.id
-      join public.game_players player on player.player_id = account_player.player_id
-      left join attempt_summary summary on summary.nick_key = player.nick_key
-      left join public.game_player_bonus bonus on bonus.nick_key = player.nick_key
-      left join public.game_player_name_requirements requirement on requirement.player_id = player.player_id
-      where selected.id is not null
-    ), '[]'::jsonb)
-  );
-$$;
-
 -- Existing rows linked after this migration must carry player_id too.
 create or replace function public.sync_game_account_player_id()
 returns trigger
@@ -715,4 +687,3 @@ grant execute on function public.zadmin_rename_player(uuid,text,text,text,uuid,t
 grant execute on function public.zadmin_require_player_rename(uuid,text,uuid,timestamptz) to service_role;
 grant execute on function public.get_game_account_nickname_requirement(text) to service_role;
 grant execute on function public.complete_game_player_required_rename(text,uuid,text,text,timestamptz) to service_role;
-grant execute on function public.get_game_account_players(text) to service_role;
