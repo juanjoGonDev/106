@@ -40,6 +40,10 @@ class StorageStub {
 
 class ElementStub {}
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function loadPersistence({
   local = new StorageStub(),
   session = new StorageStub(),
@@ -108,7 +112,7 @@ test('promotes a persistent token to the tab and observes authenticated UI state
   assert.equal(session.values.get(KEY), TOKEN_A);
   assert.equal(harness.observers.length, 1);
   assert.equal(harness.observers[0].observed.length, 4);
-  assert.deepEqual(harness.observers[0].observed[0].options, { attributes: true, attributeFilter: ['hidden'] });
+  assert.deepEqual(plain(harness.observers[0].observed[0].options), { attributes: true, attributeFilter: ['hidden'] });
   assert.equal(typeof harness.windowListeners.get('pagehide'), 'function');
   assert.ok(Object.isFrozen(harness.api));
 
@@ -179,7 +183,7 @@ test('defers observer wiring until DOMContentLoaded when the document is loading
   assert.equal(harness.observers.length, 0);
   const registration = harness.domListeners.get('DOMContentLoaded');
   assert.ok(registration);
-  assert.deepEqual(registration.options, { once: true });
+  assert.deepEqual(plain(registration.options), { once: true });
 
   registration.callback();
   assert.equal(harness.observers.length, 1);
