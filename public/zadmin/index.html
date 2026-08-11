@@ -26,7 +26,7 @@
         <div class="zadmin-login-content">
           <p class="eyebrow">ACCESO RESTRINGIDO</p>
           <h2 id="adminLoginTitle">Iniciar sesión</h2>
-          <p class="zadmin-muted">La sesión de administración vive solo en memoria y caduca automáticamente.</p>
+          <p class="zadmin-muted">La sesión de administración se conserva en esta pestaña y caduca por inactividad.</p>
           <form id="adminLoginForm" action="./" method="post" novalidate>
             <label for="adminUsername">Usuario</label>
             <input id="adminUsername" autocomplete="username" autocapitalize="none" spellcheck="false" required>
@@ -51,8 +51,9 @@
 
       <nav class="zadmin-tabs" aria-label="Secciones de administración">
         <button class="zadmin-tab is-active" type="button" data-admin-view="investigation" aria-pressed="true">Investigación</button>
-        <button class="zadmin-tab" type="button" data-admin-view="bans" aria-pressed="false">Bans manuales</button>
+        <button class="zadmin-tab" type="button" data-admin-view="bans" aria-pressed="false">Restricciones</button>
         <button class="zadmin-tab" type="button" data-admin-view="audit" aria-pressed="false">Auditoría</button>
+        <a class="zadmin-tab" href="./management.html">Gestión</a>
       </nav>
 
       <section id="adminInvestigationView" class="zadmin-view" data-admin-panel="investigation">
@@ -173,7 +174,7 @@
               </section>
 
               <section aria-labelledby="adminActiveBansTitle">
-                <h4 id="adminActiveBansTitle">Bans de esta entidad</h4>
+                <h4 id="adminActiveBansTitle">Restricciones de esta entidad</h4>
                 <div id="adminEntityBans" class="zadmin-ban-list"></div>
               </section>
 
@@ -190,12 +191,12 @@
         <section class="zadmin-card">
           <div class="zadmin-card-heading">
             <div>
-              <p class="eyebrow">RESTRICCIONES MANUALES</p>
-              <h3 id="adminBansTitle">Historial de bans</h3>
+              <p class="eyebrow">RESTRICCIONES</p>
+              <h3 id="adminBansTitle">Historial de restricciones</h3>
             </div>
             <button id="adminReloadBans" class="secondary" type="button">Actualizar</button>
           </div>
-          <p class="zadmin-muted">Los bans automáticos del motor antifraude se conservan por separado y no se modifican desde aquí.</p>
+          <p class="zadmin-muted">Consulta aquí el historial. Usa Gestión para levantar/restaurar restricciones automáticas o moderar jugadores.</p>
           <div id="adminBansList" class="zadmin-ban-list"></div>
           <p id="adminBansStatus" class="zadmin-status" role="status" aria-live="polite"></p>
         </section>
