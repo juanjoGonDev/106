@@ -2,11 +2,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const spec = readFileSync('.agents/specs/2026-08-11-admin-restriction-nickname-management.md', 'utf8');
+const weeklySpec = readFileSync('.agents/specs/2026-08-11-admin-pagination-weekly-nicknames.md', 'utf8');
 const migration = readFileSync('supabase/migrations/20260811133000_admin_restriction_nickname_management.sql', 'utf8');
 const hardeningMigration = readFileSync('supabase/migrations/20260811133200_admin_restriction_nickname_hardening.sql', 'utf8');
 const guardMigration = readFileSync('supabase/migrations/20260811133100_required_nickname_account_guard.sql', 'utf8');
+const weeklyMigration = readFileSync('supabase/migrations/20260811191000_admin_pagination_weekly_nicknames.sql', 'utf8');
 const adminEdge = readFileSync('supabase/functions/zadmin-management/index.ts', 'utf8');
+const zadminEdge = readFileSync('supabase/functions/zadmin-api/index.ts', 'utf8');
 const playerEdge = readFileSync('supabase/functions/player-name-management/index.ts', 'utf8');
+const nicknameOwner = readFileSync('supabase/functions/_shared/nickname-management.ts', 'utf8');
 const managementHtml = readFileSync('public/zadmin/management.html', 'utf8');
 const managementClient = readFileSync('public/zadmin/management.js', 'utf8');
 const requirementClient = readFileSync('public/nickname-requirement.js', 'utf8');
@@ -21,7 +25,6 @@ describe('stable player identity and nickname moderation', () => {
   it('introduces a stable player id while retaining the legacy nickname compatibility projection', () => {
     expect(migration).toContain('add column if not exists player_id uuid');
     expect(migration).toContain('create unique index if not exists game_players_player_id_key');
-    expect(migration).toContain('add column if not exists player_id uuid');
     expect(migration).toContain('game_account_players_player_id_fkey');
     expect(migration).toContain('alter constraint game_player_bonus_nick_key_fkey deferrable initially immediate');
     expect(migration).toContain('alter constraint game_account_players_nick_key_fkey deferrable initially immediate');
@@ -34,9 +37,9 @@ describe('stable player identity and nickname moderation', () => {
     expect(rename).toContain("pg_advisory_xact_lock(hashtextextended('player-id:' || p_player_id::text, 0))");
     expect(rename).toContain('set constraints all deferred');
     expect(rename).toContain('where player_id = p_player_id');
-    expect(rename).toContain("update public.game_attempts");
-    expect(rename).toContain("update public.game_challenges");
-    expect(rename).toContain("update public.game_admin_bans");
+    expect(rename).toContain('update public.game_attempts');
+    expect(rename).toContain('update public.game_challenges');
+    expect(rename).toContain('update public.game_admin_bans');
     expect(rename).toContain("return jsonb_build_object('error', 'nickname_taken')");
     expect(rename).not.toMatch(/update\s+public\.game_players\s+set\s+player_id/i);
   });
@@ -50,6 +53,8 @@ describe('stable player identity and nickname moderation', () => {
     expect(complete).toContain('account_player.player_id = p_player_id');
     expect(complete).toContain("return jsonb_build_object('error', 'player_access_denied')");
     expect(complete).toContain("'resolve_change'");
+    expect(weeklyMigration).toContain('add column if not exists original_nick text');
+    expect(weeklyMigration).toContain('game_admin_nickname_actions_capture_original');
   });
 
   it('blocks normal account/player authorization while a rename is required', () => {
@@ -58,6 +63,25 @@ describe('stable player identity and nickname moderation', () => {
     expect(wrapper).toContain('game_player_name_requirements');
     expect(wrapper).toContain("'error', 'nickname_change_required'");
     expect(wrapper).toContain('ensure_game_account_player_without_name_requirement');
+  });
+
+  it('tracks voluntary weekly cooldown per stable player rather than per account', () => {
+    const rename = functionBody(weeklyMigration, 'rename_game_player_by_owner');
+    expect(weeklyMigration).toContain('create table if not exists public.game_player_nickname_changes');
+    expect(weeklyMigration).toContain("source in ('owner_voluntary', 'admin', 'forced_completion')");
+    expect(weeklyMigration).toContain("where change.player_id = p_player_id");
+    expect(weeklyMigration).toContain("change.source = 'owner_voluntary'");
+    expect(rename).toContain("pg_advisory_xact_lock(hashtextextended('owner-nickname-change:' || p_player_id::text, 0))");
+    expect(rename).toContain("'error', 'nickname_cooldown'");
+    expect(rename).toContain("p_player_id, 'owner_voluntary'");
+    expect(weeklySpec).toContain('Different players on the same account may rename independently.');
+  });
+
+  it('keeps account-token state lookup volatile because canonical token resolution may update usage state', () => {
+    const states = functionBody(weeklyMigration, 'get_game_account_player_name_states');
+    expect(states).toMatch(/language plpgsql\s+volatile\s+security definer/i);
+    expect(states).toContain('public.resolve_game_account_token(p_account_token_hash)');
+    expect(states).not.toMatch(/language plpgsql\s+stable/i);
   });
 });
 
@@ -90,29 +114,51 @@ describe('automatic restriction administration', () => {
 });
 
 describe('management API and frontend safety', () => {
-  it('uses the existing server-validated zadmin session and exposes manual plus automatic management actions', () => {
+  it('uses the existing server-validated zadmin session and paginated canonical management owners', () => {
     expect(adminEdge).toContain("bearerTokenFromHeader(request.headers.get('authorization'))");
     expect(adminEdge).toContain("rpc('zadmin_validate_session'");
-    expect(adminEdge).toContain(".from('game_integrity_bans')");
-    expect(adminEdge).toContain(".from('game_admin_bans')");
+    expect(adminEdge).toContain("rpc('zadmin_management_list_restrictions'");
+    expect(adminEdge).toContain("rpc('zadmin_management_list_players'");
     expect(adminEdge).toContain("action === 'revoke-manual-restriction'");
     expect(adminEdge).toContain("action === 'lift-integrity-restriction'");
     expect(adminEdge).toContain("action === 'reinstate-integrity-restriction'");
     expect(adminEdge).toContain("action === 'rename-player'");
     expect(adminEdge).toContain("action === 'require-player-rename'");
+    expect(weeklyMigration).toContain('p_page_size integer default 25');
+  });
+
+  it('paginates investigation entities in PostgreSQL instead of downloading an arbitrary Edge batch', () => {
+    const overview = functionBody(weeklyMigration, 'zadmin_investigation_overview');
+    expect(zadminEdge).toContain("rpc('zadmin_investigation_overview'");
+    expect(zadminEdge).not.toContain('.limit(2_000)');
+    expect(overview).toContain('from public.game_admin_attempt_facts fact');
+    expect(overview).toContain('offset (v_page - 1) * v_page_size');
+    expect(overview).toContain('limit v_page_size');
+    expect(overview).toContain("'pagination', jsonb_build_object(");
+    expect(weeklyMigration).toContain('revoke all on function public.zadmin_investigation_overview');
+    expect(weeklyMigration).toContain('grant execute on function public.zadmin_investigation_overview');
+  });
+
+  it('uses one server nickname validation and moderation owner for admin and account rename', () => {
+    expect(nicknameOwner).toContain('validateNickname');
+    expect(nicknameOwner).toContain('moderateNickname');
+    expect(adminEdge).toContain('evaluateNicknameCandidate');
+    expect(playerEdge).toContain('evaluateNicknameCandidate');
+    expect(adminEdge).toContain("action === 'check-nickname'");
+    expect(playerEdge).toContain("action === 'check'");
   });
 
   it('does not claim to send moderation email without a verified transactional sender', () => {
     expect(spec).toContain('does **not** claim an email was sent');
     expect(adminEdge).not.toMatch(/send(email|mail)|resend|smtp|magic.?link|recovery/i);
-    expect(managementClient).toContain('todavía no hay sender transaccional de moderación');
+    expect(playerEdge).not.toMatch(/send(email|mail)|resend|smtp|magic.?link|recovery/i);
   });
 
   it('uses application-owned inline admin actions and no browser-native dialogs', () => {
     expect(managementHtml).toContain('data-management-panel="restrictions"');
     expect(managementHtml).toContain('data-management-panel="players"');
-    expect(managementClient).toContain("textContent: 'Quitar restricción'");
-    expect(managementClient).toContain("textContent: 'Restaurar restricción'");
+    expect(managementClient).toContain("label = 'Quitar restricción'");
+    expect(managementClient).toContain("label = 'Restaurar restricción'");
     expect(managementClient).toContain("textContent: 'Renombrar ahora'");
     expect(managementClient).toContain("textContent: player.renameRequired ? 'Reiniciar cambio obligatorio' : 'Forzar cambio de nick'");
     for (const source of [managementHtml, managementClient]) {
@@ -122,19 +168,23 @@ describe('management API and frontend safety', () => {
     }
   });
 
-  it('keeps the player-facing required rename component account-token bound and app-owned', () => {
+  it('keeps the player-facing required rename component account-token bound, shared and app-owned', () => {
     expect(playerEdge).toContain("request.headers.get('x-account-token')");
     expect(playerEdge).toContain("rpc('get_game_account_nickname_requirement'");
     expect(playerEdge).toContain("rpc('complete_game_player_required_rename'");
     expect(requirementClient).toContain("card.setAttribute('role', 'dialog')");
     expect(requirementClient).toContain("card.setAttribute('aria-modal', 'true')");
-    expect(requirementClient).toContain("setBackgroundInert(true)");
+    expect(requirementClient).toContain('nicknameRequirementOriginal');
+    expect(requirementClient).toContain('nicknameRequirementTemporary');
+    expect(requirementClient).toContain('Minuto106NicknameFieldController');
+    expect(requirementClient).toContain('setBackgroundInert(true)');
     expect(requirementClient).toContain("event.key !== 'Tab'");
     expect(requirementClient).not.toMatch(/document\.createElement\(['"]dialog['"]\)/);
     expect(requirementClient).not.toMatch(/window\.(alert|confirm|prompt)\s*\(/);
     expect(requirementClient).not.toMatch(/showModal\s*\(/);
     expect(accessClient).toContain("const ACCESS_ASSET_BASE = String(document.currentScript?.src || '').replace(/[^/]*$/, '') || './'");
-    expect(accessClient).toContain("script.src = `${ACCESS_ASSET_BASE}nickname-requirement.js?v=202608111333`");
+    expect(accessClient).toContain("ensureNicknameDependency('Minuto106NicknameFieldController', 'nickname-field-controller.js'");
+    expect(accessClient).toContain("ensureNicknameDependency('Minuto106NicknameRequirement', 'nickname-requirement.js'");
     expect(accessClient).toContain("code === 'nickname_change_required'");
   });
 });

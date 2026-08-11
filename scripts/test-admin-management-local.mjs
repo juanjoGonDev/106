@@ -175,6 +175,13 @@ async function main() {
   const originalNick = `Mgmt${suffix}`;
   const renamedNick = `Ren${suffix}`;
   const finalNick = `Final${suffix}`;
+  const ownerNick = `Owner${suffix}`;
+  const exactWeekNick = `Week${suffix}`;
+  const siblingNick = `Sib${suffix}`;
+  const siblingRenamedNick = `SibR${suffix}`;
+  const raceNick = `Race${suffix}`;
+  const raceNickA = `RaceA${suffix}`;
+  const raceNickB = `RaceB${suffix}`;
   const conflictNick = `Taken${suffix}`;
   const otherNick = `Other${suffix}`;
   const deviceHash = sha256(`device:${suffix}`);
@@ -183,6 +190,13 @@ async function main() {
   const wrongAccountToken = randomHex(32);
   const player = await ensurePlayer({ nick: originalNick, accountToken: rawAccountToken, deviceHash, ipHash });
   const originalPlayerId = player.player_id;
+  const siblingPlayer = await ensurePlayer({
+    nick: siblingNick,
+    accountToken: rawAccountToken,
+    deviceHash: sha256(`device-sibling:${suffix}`),
+    ipHash: sha256(`ip-sibling:${suffix}`),
+  });
+  assert.equal(siblingPlayer.account_id, player.account_id, 'players using the same private account token must share the account');
 
   const attempt = await createAttempt(player);
   const adminToken = randomHex(32);
@@ -219,10 +233,14 @@ async function main() {
     status: 'active',
     scope: 'account',
     search: player.account_id,
+    page: 1,
+    pageSize: 10,
   });
   const listed = restrictionList.restrictions.find((item) => String(item.id) === String(integrityBan.id));
   assert.equal(listed?.source, 'integrity');
   assert.equal(listed?.status, 'active');
+  assert.equal(restrictionList.pagination?.pageSize, 10);
+  assert.ok(restrictionList.restrictions.length <= 10);
 
   await managementRequest(adminToken, adminDeviceId, adminIp, 'lift-integrity-restriction', {
     banId: integrityBan.id,
@@ -288,6 +306,7 @@ async function main() {
   const status = await playerNameRequest(rawAccountToken, 'status');
   assert.equal(status.requirement?.required, true);
   assert.equal(status.requirement?.playerId, originalPlayerId);
+  assert.equal(status.requirement?.originalNick, renamedNick, 'forced rename UI contract must retain the moderated nickname');
   assert.equal(status.requirement?.temporaryNick, requiredPlayer.nick);
   assert.equal(status.requirement?.reason, 'Tu nombre de jugador debe cambiarse antes de continuar.');
 
@@ -321,9 +340,115 @@ async function main() {
   assert.equal(requirement.required, false);
   assert.ok(requirement.resolved_at);
 
+  const beforeVoluntaryHistory = await request(`/rest/v1/game_player_nickname_changes?player_id=eq.${originalPlayerId}&select=id,source`);
+  assert.deepEqual(beforeVoluntaryHistory, [], 'admin and forced moderation renames must not consume the owner cooldown');
+  const beforeOwnerList = await playerNameRequest(rawAccountToken, 'list');
+  const beforeOwnerState = beforeOwnerList.players.find((item) => item.playerId === originalPlayerId);
+  const beforeSiblingState = beforeOwnerList.players.find((item) => item.playerId === siblingPlayer.player_id);
+  assert.equal(beforeOwnerState?.cooldown?.canRename, true);
+  assert.equal(beforeSiblingState?.cooldown?.canRename, true);
+
+  await playerNameRequest(wrongAccountToken, 'rename', {
+    playerId: originalPlayerId,
+    nick: ownerNick,
+  }, 403);
+
+  const ownerRename = await playerNameRequest(rawAccountToken, 'rename', {
+    playerId: originalPlayerId,
+    nick: ownerNick,
+  });
+  assert.equal(ownerRename.playerId, originalPlayerId);
+  assert.equal(ownerRename.newNick, ownerNick);
+  assert.equal(ownerRename.cooldown?.canRename, false);
+  assert.ok(Number(ownerRename.cooldown?.retryAfterSeconds) > 0);
+  assert.ok(ownerRename.cooldown?.nextRenameAt, 'owner rename must return the precise server cooldown boundary');
+
+  const immediateRetry = await playerNameRequest(rawAccountToken, 'rename', {
+    playerId: originalPlayerId,
+    nick: `Again${suffix}`,
+  }, 429);
+  assert.equal(immediateRetry.code, 'nickname_cooldown');
+  assert.ok(Number(immediateRetry.retryAfterSeconds) > 0);
+  assert.ok(immediateRetry.nextRenameAt);
+
+  const siblingRename = await playerNameRequest(rawAccountToken, 'rename', {
+    playerId: siblingPlayer.player_id,
+    nick: siblingRenamedNick,
+  });
+  assert.equal(siblingRename.playerId, siblingPlayer.player_id, 'cooldown on one player must not block another player on the same account');
+  assert.equal(siblingRename.newNick, siblingRenamedNick);
+
+  const ownerHistory = await request(`/rest/v1/game_player_nickname_changes?player_id=eq.${originalPlayerId}&select=id,source,old_nick,new_nick,created_at&order=id.asc`);
+  assert.equal(ownerHistory.length, 1);
+  assert.equal(ownerHistory[0].source, 'owner_voluntary');
+  assert.equal(ownerHistory[0].old_nick, finalNick);
+  assert.equal(ownerHistory[0].new_nick, ownerNick);
+
+  // Use the exact PostgreSQL boundary returned by the rename RPC. Round-tripping the
+  // ledger timestamp through JS Date would truncate PostgreSQL microseconds and can
+  // accidentally test a fraction of a millisecond before the seven-day boundary.
+  const exactWeekAt = ownerRename.cooldown.nextRenameAt;
+  const exactWeekCooldown = await rpc('game_player_rename_cooldown', {
+    p_player_id: originalPlayerId,
+    p_at: exactWeekAt,
+  });
+  assert.equal(exactWeekCooldown.canRename, true, 'exactly seven days must release only this player');
+  assert.equal(exactWeekCooldown.retryAfterSeconds, 0);
+  const exactWeekRename = await rpc('rename_game_player_by_owner', {
+    p_account_token_hash: accountTokenHash(rawAccountToken),
+    p_player_id: originalPlayerId,
+    p_new_nick: exactWeekNick,
+    p_new_nick_key: exactWeekNick.toLocaleLowerCase('es'),
+    p_at: exactWeekAt,
+  });
+  assert.equal(exactWeekRename.error, undefined, `exact-week rename failed: ${JSON.stringify(exactWeekRename)}`);
+  assert.equal(exactWeekRename.newNick, exactWeekNick);
+
+  const racePlayer = await ensurePlayer({
+    nick: raceNick,
+    accountToken: rawAccountToken,
+    deviceHash: sha256(`device-race:${suffix}`),
+    ipHash: sha256(`ip-race:${suffix}`),
+  });
+  assert.equal(racePlayer.account_id, player.account_id);
+  const raceAt = new Date().toISOString();
+  const raceResults = await Promise.all([
+    rpc('rename_game_player_by_owner', {
+      p_account_token_hash: accountTokenHash(rawAccountToken),
+      p_player_id: racePlayer.player_id,
+      p_new_nick: raceNickA,
+      p_new_nick_key: raceNickA.toLocaleLowerCase('es'),
+      p_at: raceAt,
+    }),
+    rpc('rename_game_player_by_owner', {
+      p_account_token_hash: accountTokenHash(rawAccountToken),
+      p_player_id: racePlayer.player_id,
+      p_new_nick: raceNickB,
+      p_new_nick_key: raceNickB.toLocaleLowerCase('es'),
+      p_at: raceAt,
+    }),
+  ]);
+  assert.equal(raceResults.filter((result) => !result.error).length, 1, 'only one concurrent rename may commit for the same player');
+  assert.deepEqual(raceResults.filter((result) => result.error).map((result) => result.error), ['nickname_cooldown']);
+  const raceHistory = await request(`/rest/v1/game_player_nickname_changes?player_id=eq.${racePlayer.player_id}&select=id,source,new_nick&order=id.asc`);
+  assert.equal(raceHistory.length, 1, 'serialized concurrent requests must append exactly one voluntary change');
+
+  const overview = await rpc('zadmin_investigation_overview', {
+    p_scope: 'account',
+    p_range_days: 1,
+    p_search: player.account_id,
+    p_page: 1,
+    p_page_size: 10,
+    p_at: new Date(Date.now() + 60_000).toISOString(),
+  });
+  assert.equal(overview.pagination?.pageSize, 10);
+  assert.ok(overview.pagination?.total >= 1);
+  assert.ok(overview.items.length <= 10);
+  assert.equal(overview.items[0]?.key, player.account_id);
+
   const unblockedEnsure = await rpc('ensure_game_account_player', {
-    p_nick: finalNick,
-    p_nick_key: finalNick.toLocaleLowerCase('es'),
+    p_nick: exactWeekNick,
+    p_nick_key: exactWeekNick.toLocaleLowerCase('es'),
     p_device_hash: deviceHash,
     p_ip_hash: ipHash,
     p_account_token_hash: accountTokenHash(rawAccountToken),
@@ -347,7 +472,7 @@ async function main() {
   }, 409);
   assert.equal(conflict.code, 'nickname_taken');
   const afterConflict = await selectOne('game_players', `player_id=eq.${originalPlayerId}&select=player_id,nick`);
-  assert.equal(afterConflict.nick, finalNick, 'failed rename must not partially mutate the current player');
+  assert.equal(afterConflict.nick, exactWeekNick, 'failed rename must not partially mutate the current player');
 
   const actions = await request(`/rest/v1/game_integrity_ban_admin_actions?ban_id=eq.${integrityBan.id}&select=action,reason&order=id.asc`);
   assert.deepEqual(actions.map((item) => item.action), ['lift', 'reinstate']);
@@ -366,6 +491,12 @@ async function main() {
     headers: serviceHeaders({ Prefer: 'return=minimal' }),
   });
   assert.ok(nicknameUpdate.status >= 400, 'append-only nickname action history must reject DELETE');
+
+  const voluntaryDelete = await fetch(`${supabaseUrl}/rest/v1/game_player_nickname_changes?player_id=eq.${originalPlayerId}`, {
+    method: 'DELETE',
+    headers: serviceHeaders({ Prefer: 'return=minimal' }),
+  });
+  assert.ok(voluntaryDelete.status >= 400, 'append-only voluntary nickname history must reject DELETE');
 
   assert.match(String(adminSession.id), /^[0-9a-f-]{36}$/i);
   console.log('✓ admin restriction + nickname management integration passed');

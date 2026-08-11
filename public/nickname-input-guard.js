@@ -1,5 +1,6 @@
 (() => {
   const policy = globalThis.Minuto106NicknamePolicy;
+  const controllerOwner = globalThis.Minuto106NicknameFieldController;
   if (!policy) return;
 
   const homeInput = document.querySelector('#nick');
@@ -8,13 +9,16 @@
   const captchaContainer = document.querySelector('#turnstileContainer');
   const nativeHeadAppend = document.head.append;
   const deferredCaptchaNodes = [];
+  const structuralControllers = new Map();
   let remoteAvailability = 'unknown';
   let remotePending = false;
+  let lastHomeNormalized = null;
   let applying = false;
   let captchaReleased = false;
 
   function structuralState(input) {
-    return policy.validateNickname(input?.value ?? '');
+    const controller = structuralControllers.get(input);
+    return controller?.getValidation?.() ?? policy.validateNickname(input?.value ?? '');
   }
 
   function currentGate() {
@@ -49,30 +53,27 @@
     };
   }
 
-  function setInputValidity(input, validation) {
-    if (!input) return;
-    const message = validation.valid ? '' : policy.nicknameErrorMessage(validation.reason);
-    input.setCustomValidity(message);
-    input.setAttribute('aria-invalid', String(!validation.valid));
-  }
-
   function applyHomeGate() {
     if (!homeInput || applying) return;
     applying = true;
     const validation = structuralState(homeInput);
     const gate = currentGate();
-    setInputValidity(homeInput, validation);
-
     if (gate.reason && status) {
       const message = policy.nicknameErrorMessage(gate.reason);
       status.textContent = message;
       homeInput.setCustomValidity(message);
       homeInput.setAttribute('aria-invalid', 'true');
+    } else if (validation.valid) {
+      // A pending/remote error can mark a structurally valid value as invalid.
+      // Clear that stale browser validity once the canonical context accepts it,
+      // without replacing the status copy owned by player-context.
+      homeInput.setCustomValidity('');
+      homeInput.setAttribute('aria-invalid', 'false');
     }
 
-    if (startButton && !gate.startAllowed && !startButton.disabled) {
-      startButton.disabled = true;
-    }
+    // This guard may block Start, but it never enables it. Competition, daily-limit
+    // and readiness owners remain authoritative for releasing the control.
+    if (startButton && !gate.startAllowed && !startButton.disabled) startButton.disabled = true;
     if (captchaContainer && captchaContainer.hidden !== !gate.captchaAllowed) {
       captchaContainer.hidden = !gate.captchaAllowed;
     }
@@ -85,27 +86,50 @@
     if (validation.valid) return false;
     event.preventDefault();
     event.stopImmediatePropagation();
-    setInputValidity(input, validation);
+    structuralControllers.get(input)?.refresh?.();
     input.focus();
     input.reportValidity();
     return true;
   }
 
-  function bindSimpleInput(input) {
-    if (!input) return;
-    const refresh = () => setInputValidity(input, structuralState(input));
-    input.addEventListener('input', refresh, { capture: true });
-    input.addEventListener('change', refresh, { capture: true });
-    refresh();
+  function bindStructural(input, options = {}) {
+    if (!input || !controllerOwner) return null;
+    const controller = controllerOwner.bindStructural({ input, ...options });
+    structuralControllers.set(input, controller);
+    return controller;
+  }
+
+  deferCaptchaScripts();
+
+  if (!controllerOwner) {
+    if (homeInput) {
+      if (startButton && !startButton.disabled) startButton.disabled = true;
+      if (captchaContainer && !captchaContainer.hidden) captchaContainer.hidden = true;
+      if (status) status.textContent = 'No se pudo cargar la validación del nick. Recarga la página para continuar.';
+    }
+    return;
   }
 
   if (homeInput) {
-    deferCaptchaScripts();
-    homeInput.addEventListener('input', () => {
-      remoteAvailability = 'unknown';
-      remotePending = structuralState(homeInput).valid;
-      applyHomeGate();
-    }, { capture: true });
+    const observer = new MutationObserver(() => queueMicrotask(applyHomeGate));
+    if (startButton) observer.observe(startButton, { attributes: true, attributeFilter: ['disabled'] });
+    if (captchaContainer) observer.observe(captchaContainer, { attributes: true, attributeFilter: ['hidden'] });
+
+    bindStructural(homeInput, {
+      status,
+      idleMessage: 'Escribe tu nick para comprobar su disponibilidad y tus competiciones.',
+      onStateChange(validation) {
+        const normalized = String(validation.normalized ?? '').trim();
+        // bindStructural also refreshes on blur/change. A blur must not invalidate a
+        // server context that was already settled for the exact same nickname.
+        if (normalized !== lastHomeNormalized) {
+          lastHomeNormalized = normalized;
+          remoteAvailability = 'unknown';
+          remotePending = validation.valid;
+        }
+        applyHomeGate();
+      },
+    });
 
     document.addEventListener('minuto106:player-context', (event) => {
       const detail = event.detail ?? {};
@@ -123,14 +147,11 @@
       homeInput.reportValidity();
     }, { capture: true });
 
-    const observer = new MutationObserver(() => queueMicrotask(applyHomeGate));
-    if (startButton) observer.observe(startButton, { attributes: true, attributeFilter: ['disabled'] });
-    if (captchaContainer) observer.observe(captchaContainer, { attributes: true, attributeFilter: ['hidden'] });
     applyHomeGate();
   }
 
   const rankingInput = document.querySelector('#rankingSearch');
-  bindSimpleInput(rankingInput);
+  bindStructural(rankingInput);
   document.querySelector('#rankingSearchButton')?.addEventListener('click', (event) => {
     rejectInvalidEvent(event, rankingInput);
   }, { capture: true });
@@ -139,13 +160,12 @@
   }, { capture: true });
 
   for (const selector of ['#leagueNick', '#leagueDetailNick']) {
-    bindSimpleInput(document.querySelector(selector));
+    bindStructural(document.querySelector(selector));
   }
   for (const formSelector of ['#createLeagueForm', '#joinLeagueForm']) {
     document.querySelector(formSelector)?.addEventListener('submit', (event) => {
-      const input = document.querySelector('#leagueDetailNick')?.value
-        ? document.querySelector('#leagueDetailNick')
-        : document.querySelector('#leagueNick');
+      const detailNick = document.querySelector('#leagueDetailNick');
+      const input = detailNick?.value ? detailNick : document.querySelector('#leagueNick');
       rejectInvalidEvent(event, input);
     }, { capture: true });
   }

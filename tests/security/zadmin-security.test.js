@@ -5,6 +5,7 @@ const spec = readFileSync('.agents/specs/2026-08-10-zadmin-security-console.md',
 const attemptReviewSpec = readFileSync('.agents/specs/2026-08-10-zadmin-attempt-review-risk-scoring.md', 'utf8');
 const html = readFileSync('public/zadmin/index.html', 'utf8');
 const client = readFileSync('public/zadmin/zadmin.js', 'utf8');
+const sessionPersistence = readFileSync('public/zadmin/session-persistence.js', 'utf8');
 const edge = readFileSync('supabase/functions/zadmin-api/index.ts', 'utf8');
 const core = readFileSync('supabase/functions/_shared/zadmin-core.js', 'utf8');
 const migration = readFileSync('supabase/migrations/20260810110000_zadmin_security_console.sql', 'utf8');
@@ -12,13 +13,8 @@ const retryMigration = readFileSync('supabase/migrations/20260810110100_zadmin_l
 const nullableAccountMigration = readFileSync('supabase/migrations/20260810110200_zadmin_nullable_account_ban_lookup.sql', 'utf8');
 const unlinkedNickMigration = readFileSync('supabase/migrations/20260810110300_zadmin_unlinked_nick_bans.sql', 'utf8');
 const attemptReviewMigration = readFileSync('supabase/migrations/20260810183000_zadmin_attempt_review_risk_scoring.sql', 'utf8');
-const effectiveMigration = [
-  migration,
-  retryMigration,
-  nullableAccountMigration,
-  unlinkedNickMigration,
-  attemptReviewMigration,
-].join('\n');
+const weeklyMigration = readFileSync('supabase/migrations/20260811191000_admin_pagination_weekly_nicknames.sql', 'utf8');
+const effectiveMigration = [migration, retryMigration, nullableAccountMigration, unlinkedNickMigration, attemptReviewMigration].join('\n');
 const supabaseConfig = readFileSync('supabase/config.toml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/supabase.yml', 'utf8');
 
@@ -31,6 +27,7 @@ describe('zadmin frontend isolation', () => {
   it('is deploy-base-safe and remains standalone without product navigation', () => {
     expect(html).toContain('<script type="module" src="./zadmin.js"></script>');
     expect(html).toContain('<script src="../config.js"></script>');
+    expect(html).toContain('<script src="./session-persistence.js"></script>');
     expect(html).toContain('<script type="module" src="../password-visibility.js"></script>');
     expect(html).toContain('<link rel="stylesheet" href="../styles.css">');
     expect(html).toContain('<link rel="stylesheet" href="./zadmin/zadmin.css">'.replace('/zadmin', ''));
@@ -57,19 +54,23 @@ describe('zadmin frontend isolation', () => {
     expect(spec).toContain('absent from normal navigation/layout');
   });
 
-  it('never embeds credentials and persists only the opaque admin token for the browser session', () => {
+  it('never embeds credentials and persists only the opaque admin token', () => {
     expect(html).not.toMatch(/ZU_ADMIN_(USER|PSW)/);
     expect(client).not.toMatch(/ZU_ADMIN_(USER|PSW)/);
-    expect(client).toContain("const SESSION_STORAGE_KEY = 'minuto106.zadmin.session.v1'");
-    expect(client).toContain('let sessionToken = readSessionToken()');
+    expect(sessionPersistence).toContain("const KEY = 'minuto106.zadmin.session.v1'");
+    expect(sessionPersistence).toContain('write(localStorage, normalized)');
+    expect(sessionPersistence).toContain('write(sessionStorage, normalized)');
+    expect(sessionPersistence).toContain('promotePersistentToken()');
+    expect(sessionPersistence).toContain('clear,');
+    expect(client).toContain('let sessionToken = String(persistence?.read?.()');
     expect(client).toContain("const DEVICE_STORAGE_KEY = 'minuto106.zadmin.device.v1'");
     expect(client).toContain('localStorage.setItem(DEVICE_STORAGE_KEY, generated)');
-    expect(client).toContain('sessionStorage.setItem(SESSION_STORAGE_KEY, normalized)');
-    expect(client).toContain('sessionStorage.removeItem(SESSION_STORAGE_KEY)');
-    expect(client).not.toMatch(/localStorage\.setItem\([^\n]*(session|token)/i);
-    expect(client).not.toMatch(/sessionStorage\.setItem\([^\n]*(username|password)/i);
-    expect(client).not.toMatch(/document\.cookie/i);
-    expect(client).not.toMatch(/indexedDB/i);
+    for (const source of [client, sessionPersistence]) {
+      expect(source).not.toMatch(/localStorage\.setItem\([^\n]*(username|password)/i);
+      expect(source).not.toMatch(/sessionStorage\.setItem\([^\n]*(username|password)/i);
+      expect(source).not.toMatch(/document\.cookie/i);
+      expect(source).not.toMatch(/indexedDB/i);
+    }
   });
 
   it('uses text nodes rather than injecting investigation data as HTML', () => {
@@ -122,7 +123,7 @@ describe('zadmin authentication and brute-force boundary', () => {
     expect(gate.indexOf('if v_ip_count >= 3 or v_device_count >= 3 then')).toBeLessThan(gate.indexOf('if coalesce(p_credentials_valid, false) then'));
   });
 
-  it('uses random server-bound sessions with sliding idle expiry and reload-safe tab persistence', () => {
+  it('uses random server-bound sessions with sliding idle expiry and browser-reopen persistence', () => {
     expect(edge).toContain('const sessionToken = randomHex()');
     expect(edge).toContain("pepperedDigest(sessionToken, hashPepper, 'zadmin-session')");
     expect(edge).toContain("bearerTokenFromHeader(request.headers.get('authorization'))");
@@ -137,14 +138,15 @@ describe('zadmin authentication and brute-force boundary', () => {
     expect(validateSession).toContain('and revoked_at is null');
     expect(validateSession).toContain('and expires_at > v_now');
     expect(client).toContain("await adminRequest('session-status')");
-    expect(client).toContain('removePersistedSessionToken()');
-    expect(client).toContain('Se conserva durante esta sesión del navegador');
+    expect(client).toContain('persistence?.store?.(sessionToken)');
+    expect(client).toContain('persistence?.clear?.()');
+    expect(client).toContain('Sesión activa y persistida en este navegador');
     expect(client).not.toContain('Caduca en ${minutes}');
   });
 
   it('bounds origins, body size and malformed input before privileged actions', () => {
     expect(edge).toContain('if (origin && !allowedOrigins.has(origin))');
-    expect(edge).toContain('declaredLength > ZADMIN_MAX_BODY_BYTES');
+    expect(edge).toMatch(/content-length[^\n]*ZADMIN_MAX_BODY_BYTES/);
     expect(edge).toContain("new TextEncoder().encode(source).byteLength > ZADMIN_MAX_BODY_BYTES");
     expect(edge).toContain("return jsonResponse(origin, { error: 'Invalid JSON body.' }, 400)");
     expect(edge).toContain("normalizeAdminDeviceId(request.headers.get('x-device-id'))");
@@ -185,14 +187,16 @@ describe('zadmin data and mutation authorization', () => {
     expect(functionBody(effectiveMigration, 'zadmin_revoke_manual_ban')).not.toMatch(/delete\s+from\s+public\.game_admin_bans/i);
   });
 
-  it('exposes automatic integrity restrictions read-only alongside manual bans', () => {
+  it('exposes automatic integrity restrictions as actionable audited overlays alongside manual bans', () => {
     expect(edge).toContain(".from('game_integrity_bans')");
     expect(edge).toContain("restriction_kind: 'integrity'");
-    expect(edge).toContain('read_only: true');
+    expect(edge).toContain('read_only: false');
     expect(edge).toContain('activeAutomaticRestrictions');
-    expect(edge).toContain('automaticRestrictions: matchingAutomaticRestrictions');
-    expect(client).toContain("ban.restriction_kind === 'integrity' || ban.read_only === true");
-    expect(client).toContain("textContent: 'AUTOMÁTICAS · SOLO LECTURA'");
+    expect(edge).toContain('automaticRestrictions: matchingAutomatic');
+    expect(edge).toContain("action === 'lift-integrity-restriction' || action === 'reinstate-integrity-restriction'");
+    expect(client).toContain("ban.restriction_kind === 'integrity'");
+    expect(client).toContain("'Quitar restricción'");
+    expect(client).toContain("'Restaurar restricción'");
     expect(client).toContain('Evidencia de la restricción automática');
     expect(client).not.toMatch(/automatic[^\n]{0,120}revoke-ban/i);
   });
@@ -273,7 +277,9 @@ describe('zadmin data and mutation authorization', () => {
 
   it('uses the existing integrity risk score as review evidence, not a fabricated cheating probability', () => {
     expect(effectiveMigration).toContain('coalesce(integrity.risk_score, 0) as risk_score');
-    expect(edge).toContain('aggregateIntegrityEntities');
+    expect(edge).toContain("rpc('zadmin_investigation_overview'");
+    expect(edge).not.toContain('.limit(2_000)');
+    expect(functionBody(weeklyMigration, 'zadmin_investigation_overview')).toContain('max_risk_score');
     expect(edge).toContain('integrityDistribution');
     expect(html).toContain('No es una probabilidad estadística de trampa.');
     expect(spec).toContain('Do not invent a new statistical probability');

@@ -1,6 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
-import { normalizeNickname } from '../_shared/nickname-policy.js';
-import { moderateNickname } from '../game-api/moderation.ts';
+import {
+  evaluateNicknameCandidate,
+  isNicknameCandidateError,
+} from '../_shared/nickname-management.ts';
 import {
   bearerTokenFromHeader,
   normalizeAdminDeviceId,
@@ -33,6 +35,7 @@ if (!supabaseUrl || !serviceKey || !hashPepper) throw new Error('Missing require
 const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_BODY_BYTES = 16_384;
+const PAGE_SIZES = new Set([10, 25, 50]);
 
 type JsonObject = Record<string, unknown>;
 type AdminSession = { sessionId: string; expiresAt?: string };
@@ -106,175 +109,47 @@ function normalizedSearch(value: unknown) {
   return String(value ?? '').normalize('NFKC').trim().toLocaleLowerCase('es').slice(0, 100);
 }
 
-function integrityTarget(row: JsonObject) {
-  if (row.scope === 'account') return String(row.account_id ?? '');
-  if (row.scope === 'device') return String(row.device_hash ?? '');
-  return String(row.ip_hash ?? '');
-}
-
-function manualTarget(row: JsonObject) {
-  if (row.scope === 'account') return String(row.account_id ?? '');
-  if (row.scope === 'nick') return String(row.nick_key ?? '');
-  return String(row.ip_hash ?? '');
-}
-
-function addLabel(map: Map<string, Set<string>>, key: string, label: string) {
-  if (!key || !label) return;
-  let values = map.get(key);
-  if (!values) {
-    values = new Set<string>();
-    map.set(key, values);
-  }
-  values.add(label);
+function pagination(body: JsonObject) {
+  const page = Math.max(1, Math.min(100_000, Math.trunc(Number(body.page) || 1)));
+  const requestedSize = Math.trunc(Number(body.pageSize) || 25);
+  return { page, pageSize: PAGE_SIZES.has(requestedSize) ? requestedSize : 25 };
 }
 
 async function listRestrictions(body: JsonObject) {
-  const search = normalizedSearch(body.search);
+  const { page, pageSize } = pagination(body);
   const requestedScope = ['account', 'nick', 'device', 'ip'].includes(String(body.scope)) ? String(body.scope) : 'all';
   const requestedStatus = ['active', 'lifted', 'revoked', 'expired'].includes(String(body.status)) ? String(body.status) : 'all';
-  const [integrityResult, actionsResult, manualResult, factsResult] = await Promise.all([
-    supabase.from('game_integrity_bans')
-      .select('id,scope,account_id,device_hash,ip_hash,reason,source_attempt_id,triggered_at,expires_at,policy_version,evidence')
-      .order('triggered_at', { ascending: false }).limit(500),
-    supabase.from('game_integrity_ban_admin_actions')
-      .select('id,ban_id,action,reason,created_at')
-      .order('created_at', { ascending: false }).limit(1_500),
-    supabase.from('game_admin_bans')
-      .select('id,scope,account_id,nick_key,ip_hash,reason,created_at,expires_at,revoked_at,revoked_reason')
-      .order('created_at', { ascending: false }).limit(500),
-    supabase.from('game_admin_attempt_facts')
-      .select('nick,nick_key,account_id,device_hash,ip_hash,created_at')
-      .order('created_at', { ascending: false }).limit(2_000),
-  ]);
-  if (integrityResult.error || actionsResult.error || manualResult.error || factsResult.error) {
-    throw new Error('Could not load restriction management data');
-  }
-
-  const latestAction = new Map<string, JsonObject>();
-  for (const action of Array.isArray(actionsResult.data) ? actionsResult.data : []) {
-    const key = String(action.ban_id ?? '');
-    if (!latestAction.has(key)) latestAction.set(key, action as JsonObject);
-  }
-
-  const factsByAccount = new Map<string, Set<string>>();
-  const factsByDevice = new Map<string, Set<string>>();
-  const factsByIp = new Map<string, Set<string>>();
-  for (const fact of Array.isArray(factsResult.data) ? factsResult.data : []) {
-    const label = String(fact.nick ?? fact.nick_key ?? '').trim();
-    addLabel(factsByAccount, String(fact.account_id ?? ''), label);
-    addLabel(factsByDevice, String(fact.device_hash ?? ''), label);
-    addLabel(factsByIp, String(fact.ip_hash ?? ''), label);
-  }
-
-  const now = Date.now();
-  const automatic = (Array.isArray(integrityResult.data) ? integrityResult.data : []).map((ban) => {
-    const id = String(ban.id ?? '');
-    const target = integrityTarget(ban as JsonObject);
-    const adminAction = latestAction.get(id) ?? null;
-    const expiresAt = Date.parse(String(ban.expires_at ?? ''));
-    const expired = !Number.isFinite(expiresAt) || expiresAt <= now;
-    const lifted = !expired && adminAction?.action === 'lift';
-    const status = expired ? 'expired' : lifted ? 'lifted' : 'active';
-    const relatedNicks = ban.scope === 'account'
-      ? [...(factsByAccount.get(target) ?? [])]
-      : ban.scope === 'device'
-        ? [...(factsByDevice.get(target) ?? [])]
-        : [...(factsByIp.get(target) ?? [])];
-    return {
-      ...ban,
-      source: 'integrity',
-      target,
-      status,
-      active: status === 'active',
-      adminAction,
-      relatedNicks: relatedNicks.slice(0, 12),
-    };
+  const result = await rpc('zadmin_management_list_restrictions', {
+    p_page: page,
+    p_page_size: pageSize,
+    p_status: requestedStatus,
+    p_scope: requestedScope,
+    p_search: normalizedSearch(body.search),
   });
-
-  const manual = (Array.isArray(manualResult.data) ? manualResult.data : []).map((ban) => {
-    const target = manualTarget(ban as JsonObject);
-    const expiresAt = ban.expires_at ? Date.parse(String(ban.expires_at)) : Number.POSITIVE_INFINITY;
-    const revoked = Boolean(ban.revoked_at);
-    const expired = !revoked && Number.isFinite(expiresAt) && expiresAt <= now;
-    const status = revoked ? 'revoked' : expired ? 'expired' : 'active';
-    const relatedNicks = ban.scope === 'nick'
-      ? [String(ban.nick_key ?? '')].filter(Boolean)
-      : ban.scope === 'account'
-        ? [...(factsByAccount.get(target) ?? [])]
-        : [...(factsByIp.get(target) ?? [])];
-    return {
-      ...ban,
-      source: 'manual',
-      target,
-      status,
-      active: status === 'active',
-      relatedNicks: relatedNicks.slice(0, 12),
-      triggered_at: ban.created_at,
-      source_attempt_id: null,
-      policy_version: null,
-      evidence: null,
-      adminAction: revoked ? { action: 'revoke', reason: ban.revoked_reason, created_at: ban.revoked_at } : null,
-    };
-  });
-
-  return [...automatic, ...manual]
-    .filter((ban) => {
-      if (requestedScope !== 'all' && ban.scope !== requestedScope) return false;
-      if (requestedStatus !== 'all' && ban.status !== requestedStatus) return false;
-      if (!search) return true;
-      return [ban.target, ban.scope, ban.reason, ban.source, ...ban.relatedNicks]
-        .some((value) => String(value ?? '').toLocaleLowerCase('es').includes(search));
-    })
-    .sort((left, right) => Date.parse(String(right.triggered_at ?? '')) - Date.parse(String(left.triggered_at ?? '')))
-    .slice(0, 250);
+  const items = Array.isArray(result?.items) ? result.items : [];
+  return { restrictions: items, items, pagination: result?.pagination ?? null };
 }
 
 async function listPlayers(body: JsonObject) {
-  const search = normalizedSearch(body.search);
-  const [playersResult, linksResult, requirementsResult, accountsResult] = await Promise.all([
-    supabase.from('game_players').select('player_id,nick,nick_key,created_at').order('created_at', { ascending: false }).limit(750),
-    supabase.from('game_account_players').select('player_id,account_id,linked_at').limit(1_000),
-    supabase.from('game_player_name_requirements').select('player_id,required,reason,requested_at,resolved_at,updated_at').limit(1_000),
-    supabase.from('game_accounts').select('id,contact_email_verified_at,merged_into_account_id').limit(1_000),
-  ]);
-  if (playersResult.error || linksResult.error || requirementsResult.error || accountsResult.error) {
-    throw new Error('Could not load player management data');
-  }
-
-  const linkByPlayer = new Map((Array.isArray(linksResult.data) ? linksResult.data : []).map((row) => [String(row.player_id), row as JsonObject]));
-  const requirementByPlayer = new Map((Array.isArray(requirementsResult.data) ? requirementsResult.data : []).map((row) => [String(row.player_id), row as JsonObject]));
-  const accountById = new Map((Array.isArray(accountsResult.data) ? accountsResult.data : []).map((row) => [String(row.id), row as JsonObject]));
-
-  return (Array.isArray(playersResult.data) ? playersResult.data : []).map((player) => {
-    const playerId = String(player.player_id ?? '');
-    const link = linkByPlayer.get(playerId) ?? null;
-    const accountId = String(link?.account_id ?? '');
-    const account = accountById.get(accountId) ?? null;
-    const requirement = requirementByPlayer.get(playerId) ?? null;
-    return {
-      playerId,
-      nick: player.nick,
-      nickKey: player.nick_key,
-      accountId: accountId || null,
-      linkedAt: link?.linked_at ?? null,
-      renameRequired: requirement?.required === true,
-      renameRequirement: requirement?.required === true ? requirement : null,
-      verifiedEmailAvailable: Boolean(account?.contact_email_verified_at),
-    };
-  }).filter((player) => {
-    if (!search) return true;
-    return [player.playerId, player.nick, player.nickKey, player.accountId]
-      .some((value) => String(value ?? '').toLocaleLowerCase('es').includes(search));
-  }).slice(0, 250);
+  const { page, pageSize } = pagination(body);
+  const result = await rpc('zadmin_management_list_players', {
+    p_page: page,
+    p_page_size: pageSize,
+    p_search: normalizedSearch(body.search),
+  });
+  const items = Array.isArray(result?.items) ? result.items : [];
+  return { players: items, items, pagination: result?.pagination ?? null };
 }
 
-function moderatedNickname(value: unknown) {
-  const moderation = moderateNickname(String(value ?? ''));
-  if (!moderation.allowed) return { error: `nick_${String(moderation.reason ?? 'invalid')}` } as const;
-  const nick = normalizeNickname(moderation.normalized);
-  const key = nick.toLocaleLowerCase('es');
-  if (nick.length < 2 || nick.length > 24 || key.length < 2 || key.length > 24) return { error: 'nick_invalid' } as const;
-  return { nick, key } as const;
+async function nicknameAvailability(playerId: string, candidate: { key: string }) {
+  const { data, error } = await supabase
+    .from('game_players')
+    .select('player_id')
+    .eq('nick_key', candidate.key)
+    .maybeSingle();
+  if (error) throw new Error('Could not check nickname availability');
+  if (!data) return 'available';
+  return String(data.player_id) === playerId ? 'owned' : 'occupied';
 }
 
 function reason(value: unknown) {
@@ -305,8 +180,23 @@ Deno.serve(async (request) => {
 
     const action = String(body.action ?? '');
     if (action === 'session-status') return jsonResponse(origin, { valid: true, expiresAt: session.expiresAt });
-    if (action === 'restrictions') return jsonResponse(origin, { restrictions: await listRestrictions(body) });
-    if (action === 'players') return jsonResponse(origin, { players: await listPlayers(body) });
+    if (action === 'restrictions') return jsonResponse(origin, await listRestrictions(body));
+    if (action === 'players') return jsonResponse(origin, await listPlayers(body));
+
+    if (action === 'check-nickname') {
+      const playerId = String(body.playerId ?? '').trim();
+      const nickname = evaluateNicknameCandidate(body.nick);
+      if (!UUID.test(playerId)) return jsonResponse(origin, { error: 'Invalid player.', code: 'invalid_player' }, 400);
+      if (isNicknameCandidateError(nickname)) {
+        return jsonResponse(origin, {
+          availability: nickname.error.replace(/^nick_/, 'invalid-'),
+          error: nickname.message,
+          code: nickname.error,
+        });
+      }
+      const availability = await nicknameAvailability(playerId, nickname);
+      return jsonResponse(origin, { availability, nick: nickname.nick, key: nickname.key });
+    }
 
     if (action === 'revoke-manual-restriction') {
       const banId = String(body.banId ?? '').trim();
@@ -341,7 +231,7 @@ Deno.serve(async (request) => {
       if (result?.error) {
         const status = result.error === 'ban_not_found' ? 404
           : ['already_lifted', 'not_lifted', 'ban_expired'].includes(String(result.error)) ? 409 : 400;
-        return jsonResponse(origin, { error: 'Could not update the automatic restriction.', code: result.error }, status);
+        return jsonResponse(origin, { error: 'No se pudo actualizar la restricción automática.', code: result.error }, status);
       }
       return jsonResponse(origin, result);
     }
@@ -349,13 +239,15 @@ Deno.serve(async (request) => {
     if (action === 'rename-player') {
       const playerId = String(body.playerId ?? '').trim();
       const actionReason = reason(body.reason);
-      const nickname = moderatedNickname(body.nick);
-      if (!UUID.test(playerId) || !actionReason || 'error' in nickname) {
+      const nickname = evaluateNicknameCandidate(body.nick);
+      if (!UUID.test(playerId) || !actionReason || isNicknameCandidateError(nickname)) {
         return jsonResponse(origin, {
-          error: 'Invalid player rename request.',
-          code: 'error' in nickname ? nickname.error : 'invalid_player_rename',
+          error: isNicknameCandidateError(nickname) ? nickname.message : 'Invalid player rename request.',
+          code: isNicknameCandidateError(nickname) ? nickname.error : 'invalid_player_rename',
         }, 400);
       }
+      const availability = await nicknameAvailability(playerId, nickname);
+      if (availability === 'occupied') return jsonResponse(origin, { error: 'Ese nick ya está ocupado.', code: 'nickname_taken' }, 409);
       const result = await rpc('zadmin_rename_player', {
         p_player_id: playerId,
         p_new_nick: nickname.nick,

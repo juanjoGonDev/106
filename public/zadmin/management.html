@@ -20,7 +20,7 @@
       <div class="zadmin-card zadmin-login-card">
         <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
         <h1>Comprobando sesión</h1>
-        <p class="zadmin-muted">Validando el acceso con el servidor…</p>
+        <p class="zadmin-muted">Validando el acceso persistido con el servidor…</p>
       </div>
     </section>
 
@@ -82,6 +82,14 @@
         </section>
         <p id="restrictionStatus" class="zadmin-status" role="status" aria-live="polite"></p>
         <div id="restrictionList" class="zadmin-management-list"></div>
+        <nav class="zadmin-pagination" aria-label="Paginación de restricciones">
+          <button id="restrictionPrevious" class="ghost compact" type="button">Anterior</button>
+          <span id="restrictionPageStatus" aria-live="polite">Página 1</span>
+          <button id="restrictionNext" class="ghost compact" type="button">Siguiente</button>
+          <label>Por página
+            <select id="restrictionPageSize"><option>10</option><option selected>25</option><option>50</option></select>
+          </label>
+        </nav>
       </section>
 
       <section class="zadmin-view" data-management-panel="players" hidden aria-labelledby="managementPlayersTitle">
@@ -100,11 +108,23 @@
         </section>
         <p id="playerStatus" class="zadmin-status" role="status" aria-live="polite"></p>
         <div id="playerList" class="zadmin-management-list"></div>
+        <nav class="zadmin-pagination" aria-label="Paginación de jugadores">
+          <button id="playerPrevious" class="ghost compact" type="button">Anterior</button>
+          <span id="playerPageStatus" aria-live="polite">Página 1</span>
+          <button id="playerNext" class="ghost compact" type="button">Siguiente</button>
+          <label>Por página
+            <select id="playerPageSize"><option>10</option><option selected>25</option><option>50</option></select>
+          </label>
+        </nav>
       </section>
     </section>
   </main>
 
   <script src="../config.js"></script>
+  <script src="../nickname-policy.js"></script>
+  <script src="../nickname-availability.js"></script>
+  <script src="../nickname-field-controller.js"></script>
+  <script src="./session-persistence.js"></script>
   <script type="module" src="./management.js"></script>
 </body>
 </html>
