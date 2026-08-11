@@ -176,11 +176,10 @@
   }
 
   function setBackgroundInert(active) {
-    for (const selector of ['.site-header', 'main.shell', '.site-footer']) {
+    for (const selector of ['.site-header', 'main', '.site-footer']) {
       const element = document.querySelector(selector);
       if (!(element instanceof HTMLElement)) continue;
-      if (active) element.inert = true;
-      else element.inert = false;
+      element.inert = active;
     }
   }
 
@@ -284,6 +283,7 @@
     document.addEventListener('minuto106:account-updated', () => refresh().catch(() => {}));
     document.addEventListener('minuto106:cloud-account-synced', () => refresh().catch(() => {}));
     document.addEventListener('minuto106:player-context', enforceBlockedControls);
+    document.addEventListener('minuto106:nickname-change-required', () => refresh().catch(() => {}));
     refresh().catch(() => {});
   }
 
