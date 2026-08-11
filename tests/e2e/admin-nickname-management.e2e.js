@@ -273,7 +273,7 @@ test('zadmin management exposes restrictions and player identity actions accessi
 
     await page.getByRole('button', { name: 'Jugadores' }).click();
     await expect(page.getByRole('heading', { name: 'Jugadores', exact: true })).toBeVisible();
-    await expect(page.getByText('JugadorPrueba').first()).toBeVisible();
+    await expect(page.locator('#playerList').getByText('JugadorPrueba').first()).toBeVisible();
     const playerDetails = page.locator('#playerList details').first();
     await playerDetails.locator('summary').click();
     await expect(playerDetails.getByRole('button', { name: 'Renombrar ahora' })).toBeVisible();
