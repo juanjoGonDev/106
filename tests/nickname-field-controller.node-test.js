@@ -82,6 +82,10 @@ function statusNode() {
   return { textContent: '', dataset: {} };
 }
 
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 test('does not publish a controller without the canonical nickname policy', () => {
   const { api } = loadController({ withPolicy: false });
   assert.equal(api, undefined);
@@ -89,11 +93,11 @@ test('does not publish a controller without the canonical nickname policy', () =
 
 test('maps every availability state to one consistent message and tone', () => {
   const { api } = loadController();
-  assert.deepEqual({ ...api.defaultAvailabilityMessage('available') }, { message: 'Nick disponible.', tone: 'success' });
-  assert.deepEqual({ ...api.defaultAvailabilityMessage('owned') }, { message: 'Ese es el nick actual de este jugador.', tone: 'warning' });
-  assert.deepEqual({ ...api.defaultAvailabilityMessage('occupied') }, { message: 'Ese nick ya está ocupado.', tone: 'error' });
-  assert.deepEqual({ ...api.defaultAvailabilityMessage('invalid-too_short') }, { message: 'error:too_short', tone: 'error' });
-  assert.deepEqual({ ...api.defaultAvailabilityMessage('unknown') }, { message: 'No se pudo confirmar la disponibilidad.', tone: 'error' });
+  assert.deepEqual(plain(api.defaultAvailabilityMessage('available')), { message: 'Nick disponible.', tone: 'success' });
+  assert.deepEqual(plain(api.defaultAvailabilityMessage('owned')), { message: 'Ese es el nick actual de este jugador.', tone: 'warning' });
+  assert.deepEqual(plain(api.defaultAvailabilityMessage('occupied')), { message: 'Ese nick ya está ocupado.', tone: 'error' });
+  assert.deepEqual(plain(api.defaultAvailabilityMessage('invalid-too_short')), { message: 'error:too_short', tone: 'error' });
+  assert.deepEqual(plain(api.defaultAvailabilityMessage('unknown')), { message: 'No se pudo confirmar la disponibilidad.', tone: 'error' });
 });
 
 test('structural binding validates, reports state and tears down idempotently', () => {
@@ -180,7 +184,7 @@ test('availability binding drives pending, success, occupied, invalid and error 
   input.emit('input');
   assert.equal(status.textContent, 'Comprobando disponibilidad y contenido…');
   assert.equal(controller.getState().pending, true);
-  assert.deepEqual(lookup.scheduled.at(-1).payload, { nick: 'Ana' });
+  assert.deepEqual(plain(lookup.scheduled.at(-1).payload), { nick: 'Ana' });
   assert.equal(controller.normalizedValue(), 'Ana');
 
   lookup.scheduled.at(-1).callbacks.onResult({ availability: 'available' });
