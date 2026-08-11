@@ -137,7 +137,7 @@ async function ensurePlayer({ nick, accountToken, deviceHash, ipHash }) {
   );
   assert.match(String(link.account_id), /^[0-9a-f-]{36}$/i);
   assert.match(String(link.player_id), /^[0-9a-f-]{36}$/i);
-  return { ...link, nick, nickKey };
+  return { ...link, nick, nickKey, deviceHash, ipHash };
 }
 
 async function createAttempt({ nick, nickKey, deviceHash, ipHash }) {
