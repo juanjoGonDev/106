@@ -57,14 +57,18 @@ describe('zadmin frontend isolation', () => {
     expect(spec).toContain('absent from normal navigation/layout');
   });
 
-  it('never embeds the configured admin credentials or persists the session token', () => {
+  it('never embeds credentials and persists only the opaque admin token for the browser session', () => {
     expect(html).not.toMatch(/ZU_ADMIN_(USER|PSW)/);
     expect(client).not.toMatch(/ZU_ADMIN_(USER|PSW)/);
-    expect(client).toContain("let sessionToken = '';");
+    expect(client).toContain("const SESSION_STORAGE_KEY = 'minuto106.zadmin.session.v1'");
+    expect(client).toContain('let sessionToken = readSessionToken()');
     expect(client).toContain("const DEVICE_STORAGE_KEY = 'minuto106.zadmin.device.v1'");
     expect(client).toContain('localStorage.setItem(DEVICE_STORAGE_KEY, generated)');
+    expect(client).toContain('sessionStorage.setItem(SESSION_STORAGE_KEY, normalized)');
+    expect(client).toContain('sessionStorage.removeItem(SESSION_STORAGE_KEY)');
     expect(client).not.toMatch(/localStorage\.setItem\([^\n]*(session|token)/i);
-    expect(client).not.toMatch(/sessionStorage\.setItem/i);
+    expect(client).not.toMatch(/sessionStorage\.setItem\([^\n]*(username|password)/i);
+    expect(client).not.toMatch(/document\.cookie/i);
     expect(client).not.toMatch(/indexedDB/i);
   });
 
@@ -118,10 +122,11 @@ describe('zadmin authentication and brute-force boundary', () => {
     expect(gate.indexOf('if v_ip_count >= 3 or v_device_count >= 3 then')).toBeLessThan(gate.indexOf('if coalesce(p_credentials_valid, false) then'));
   });
 
-  it('uses random memory-only sessions with sliding idle expiry and IP plus device binding', () => {
+  it('uses random server-bound sessions with sliding idle expiry and reload-safe tab persistence', () => {
     expect(edge).toContain('const sessionToken = randomHex()');
     expect(edge).toContain("pepperedDigest(sessionToken, hashPepper, 'zadmin-session')");
     expect(edge).toContain("bearerTokenFromHeader(request.headers.get('authorization'))");
+    expect(edge).toContain("action === 'session-status'");
     expect(core).toContain('ZADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60');
     const createSession = functionBody(effectiveMigration, 'zadmin_create_session');
     const validateSession = functionBody(effectiveMigration, 'zadmin_validate_session');
@@ -131,7 +136,9 @@ describe('zadmin authentication and brute-force boundary', () => {
     expect(validateSession).toContain('and device_hash = p_device_hash');
     expect(validateSession).toContain('and revoked_at is null');
     expect(validateSession).toContain('and expires_at > v_now');
-    expect(client).toContain('Se renueva con cada uso');
+    expect(client).toContain("await adminRequest('session-status')");
+    expect(client).toContain('removePersistedSessionToken()');
+    expect(client).toContain('Se conserva durante esta sesión del navegador');
     expect(client).not.toContain('Caduca en ${minutes}');
   });
 
@@ -176,6 +183,18 @@ describe('zadmin data and mutation authorization', () => {
     expect(migration).toContain('revoked_by_session_id uuid');
     expect(migration).toContain('create table if not exists public.game_admin_audit_events');
     expect(functionBody(effectiveMigration, 'zadmin_revoke_manual_ban')).not.toMatch(/delete\s+from\s+public\.game_admin_bans/i);
+  });
+
+  it('exposes automatic integrity restrictions read-only alongside manual bans', () => {
+    expect(edge).toContain(".from('game_integrity_bans')");
+    expect(edge).toContain("restriction_kind: 'integrity'");
+    expect(edge).toContain('read_only: true');
+    expect(edge).toContain('activeAutomaticRestrictions');
+    expect(edge).toContain('automaticRestrictions: matchingAutomaticRestrictions');
+    expect(client).toContain("ban.restriction_kind === 'integrity' || ban.read_only === true");
+    expect(client).toContain("textContent: 'AUTOMÁTICAS · SOLO LECTURA'");
+    expect(client).toContain('Evidencia de la restricción automática');
+    expect(client).not.toMatch(/automatic[^\n]{0,120}revoke-ban/i);
   });
 
   it('supports exactly hourly 1-24h, one week and permanent operator durations', () => {
