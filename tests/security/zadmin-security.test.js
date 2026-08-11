@@ -13,6 +13,7 @@ const retryMigration = readFileSync('supabase/migrations/20260810110100_zadmin_l
 const nullableAccountMigration = readFileSync('supabase/migrations/20260810110200_zadmin_nullable_account_ban_lookup.sql', 'utf8');
 const unlinkedNickMigration = readFileSync('supabase/migrations/20260810110300_zadmin_unlinked_nick_bans.sql', 'utf8');
 const attemptReviewMigration = readFileSync('supabase/migrations/20260810183000_zadmin_attempt_review_risk_scoring.sql', 'utf8');
+const weeklyMigration = readFileSync('supabase/migrations/20260811191000_admin_pagination_weekly_nicknames.sql', 'utf8');
 const effectiveMigration = [migration, retryMigration, nullableAccountMigration, unlinkedNickMigration, attemptReviewMigration].join('\n');
 const supabaseConfig = readFileSync('supabase/config.toml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/supabase.yml', 'utf8');
@@ -194,8 +195,8 @@ describe('zadmin data and mutation authorization', () => {
     expect(edge).toContain('automaticRestrictions: matchingAutomatic');
     expect(edge).toContain("action === 'lift-integrity-restriction' || action === 'reinstate-integrity-restriction'");
     expect(client).toContain("ban.restriction_kind === 'integrity'");
-    expect(client).toContain("textContent: 'Quitar restricción'");
-    expect(client).toContain("textContent: 'Restaurar restricción'");
+    expect(client).toContain("'Quitar restricción'");
+    expect(client).toContain("'Restaurar restricción'");
     expect(client).toContain('Evidencia de la restricción automática');
     expect(client).not.toMatch(/automatic[^\n]{0,120}revoke-ban/i);
   });
@@ -276,7 +277,9 @@ describe('zadmin data and mutation authorization', () => {
 
   it('uses the existing integrity risk score as review evidence, not a fabricated cheating probability', () => {
     expect(effectiveMigration).toContain('coalesce(integrity.risk_score, 0) as risk_score');
-    expect(edge).toContain('aggregateIntegrityEntities');
+    expect(edge).toContain("rpc('zadmin_investigation_overview'");
+    expect(edge).not.toContain('.limit(2_000)');
+    expect(functionBody(weeklyMigration, 'zadmin_investigation_overview')).toContain('max_risk_score');
     expect(edge).toContain('integrityDistribution');
     expect(html).toContain('No es una probabilidad estadística de trampa.');
     expect(spec).toContain('Do not invent a new statistical probability');
