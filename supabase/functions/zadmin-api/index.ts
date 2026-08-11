@@ -2,7 +2,6 @@ import { createClient } from 'npm:@supabase/supabase-js@2.95.0';
 import {
   ZADMIN_MAX_BODY_BYTES,
   adminCredentialsMatch,
-  aggregateIntegrityEntities,
   bearerTokenFromHeader,
   integrityDistribution,
   normalizeAdminDeviceId,
@@ -202,18 +201,6 @@ function automaticRestriction(ban: Row, latestAction: Row | null = null, now = D
   };
 }
 
-async function fetchAttemptFacts(rangeDays: number) {
-  const since = new Date(Date.now() - rangeDays * 86_400_000).toISOString();
-  const { data, error } = await supabase
-    .from('game_admin_attempt_facts')
-    .select(ATTEMPT_FACT_COLUMNS)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(2_000);
-  if (error) throw new Error('Could not load integrity facts');
-  return Array.isArray(data) ? data as Row[] : [];
-}
-
 async function fetchManualBans() {
   const { data, error } = await supabase.from('game_admin_bans')
     .select('id,scope,account_id,nick_key,ip_hash,reason,created_at,expires_at,revoked_at,revoked_reason')
@@ -244,29 +231,30 @@ async function overview(body: Row) {
   const rangeDays = normalizeAdminRangeDays(body.rangeDays);
   const search = normalizeAdminSearch(body.search);
   const { page, pageSize } = pageRequest(body, 'entities');
-  const [facts, bans, automatic] = await Promise.all([fetchAttemptFacts(rangeDays), fetchManualBans(), fetchAutomaticBans()]);
-  const allEntities = aggregateIntegrityEntities(facts, scope, search);
-  const pagination = pageMeta(page, pageSize, allEntities.length);
-  const start = (pagination.page - 1) * pageSize;
-  const entities = allEntities.slice(start, start + pageSize);
+  const [factsOverview, bans, automatic] = await Promise.all([
+    rpc('zadmin_investigation_overview', {
+      p_scope: scope,
+      p_range_days: rangeDays,
+      p_search: search,
+      p_page: page,
+      p_page_size: pageSize,
+    }),
+    fetchManualBans(),
+    fetchAutomaticBans(),
+  ]);
   const now = Date.now();
+  const summary = (factsOverview.summary && typeof factsOverview.summary === 'object') ? factsOverview.summary as Row : {};
   return {
     scope,
     rangeDays,
-    truncated: facts.length >= 2_000,
-    pagination,
+    truncated: false,
+    pagination: factsOverview.pagination ?? pageMeta(page, pageSize, 0),
     summary: {
-      attempts: facts.length,
-      verifiedAttempts: facts.filter((row) => row.verified === true).length,
-      watchAttempts: facts.filter((row) => row.integrity_status === 'watch').length,
-      excludedAttempts: facts.filter((row) => row.integrity_status === 'excluded').length,
-      distinctAccounts: new Set(facts.map((row) => row.account_id).filter(Boolean)).size,
-      distinctNicks: new Set(facts.map((row) => row.nick_key).filter(Boolean)).size,
-      distinctIps: new Set(facts.map((row) => row.ip_hash).filter(Boolean)).size,
+      ...summary,
       activeManualBans: bans.filter((ban) => activeBan(ban, now)).length,
       activeAutomaticRestrictions: automatic.filter((ban) => ban.active === true).length,
     },
-    entities,
+    entities: Array.isArray(factsOverview.items) ? factsOverview.items : [],
   };
 }
 
