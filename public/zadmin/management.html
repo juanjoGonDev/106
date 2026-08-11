@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#08090c">
+  <meta name="color-scheme" content="dark">
+  <title>Gestión — Administración Minuto 106</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="./zadmin.css">
+  <link rel="stylesheet" href="./zadmin-state.css">
+  <link rel="stylesheet" href="./management.css">
+</head>
+<body class="zadmin-body">
+  <main class="zadmin-shell zadmin-management-shell">
+    <section id="managementRestore" class="zadmin-login-stage" aria-live="polite" aria-busy="true">
+      <div class="zadmin-card zadmin-login-card">
+        <p class="eyebrow">ADMINISTRACIÓN PRIVADA</p>
+        <h1>Comprobando sesión</h1>
+        <p class="zadmin-muted">Validando el acceso con el servidor…</p>
+      </div>
+    </section>
+
+    <section id="managementDenied" class="zadmin-login-stage" hidden aria-labelledby="managementDeniedTitle">
+      <div class="zadmin-card zadmin-login-card">
+        <p class="eyebrow">ACCESO RESTRINGIDO</p>
+        <h1 id="managementDeniedTitle">Necesitas iniciar sesión</h1>
+        <p class="zadmin-muted">La sesión de administración no está activa o ya no es válida.</p>
+        <a class="primary zadmin-link-button" href="./">Volver al acceso de administración</a>
+      </div>
+    </section>
+
+    <section id="managementDashboard" class="zadmin-dashboard" hidden aria-labelledby="managementTitle">
+      <header class="zadmin-session-bar">
+        <div>
+          <p class="eyebrow">ADMINISTRACIÓN PRIVADA · GESTIÓN</p>
+          <h1 class="zadmin-dashboard-title" id="managementTitle">Restricciones y jugadores</h1>
+          <p class="zadmin-muted">Gestiona excepciones operativas sin borrar la evidencia original.</p>
+        </div>
+        <a class="ghost zadmin-link-button" href="./">Volver a investigación</a>
+      </header>
+
+      <nav class="zadmin-tabs" aria-label="Gestión administrativa">
+        <button class="zadmin-tab is-active" type="button" data-management-view="restrictions" aria-pressed="true">Restricciones</button>
+        <button class="zadmin-tab" type="button" data-management-view="players" aria-pressed="false">Jugadores</button>
+      </nav>
+
+      <section class="zadmin-view" data-management-panel="restrictions" aria-labelledby="managementRestrictionsTitle">
+        <section class="zadmin-card zadmin-management-toolbar">
+          <div>
+            <p class="eyebrow">CONTROL DE ACCESO</p>
+            <h2 id="managementRestrictionsTitle">Restricciones automáticas</h2>
+            <p class="zadmin-muted">Levantar una restricción no elimina el ban de integridad ni su evidencia.</p>
+          </div>
+          <div class="zadmin-management-filters">
+            <label>Estado
+              <select id="restrictionStatusFilter">
+                <option value="all">Todos</option>
+                <option value="active" selected>Activas</option>
+                <option value="lifted">Levantadas</option>
+                <option value="expired">Expiradas</option>
+              </select>
+            </label>
+            <label>Ámbito
+              <select id="restrictionScopeFilter">
+                <option value="all">Todos</option>
+                <option value="account">Cuenta</option>
+                <option value="device">Dispositivo</option>
+                <option value="ip">IP</option>
+              </select>
+            </label>
+            <label class="zadmin-management-search">Buscar
+              <input id="restrictionSearch" type="search" maxlength="100" autocomplete="off" placeholder="Cuenta, nick o huella">
+            </label>
+            <button id="reloadRestrictions" class="secondary" type="button">Actualizar</button>
+          </div>
+        </section>
+        <p id="restrictionStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        <div id="restrictionList" class="zadmin-management-list"></div>
+      </section>
+
+      <section class="zadmin-view" data-management-panel="players" hidden aria-labelledby="managementPlayersTitle">
+        <section class="zadmin-card zadmin-management-toolbar">
+          <div>
+            <p class="eyebrow">IDENTIDAD ESTABLE</p>
+            <h2 id="managementPlayersTitle">Jugadores</h2>
+            <p class="zadmin-muted">Las acciones se aplican al identificador estable del jugador, no al texto actual del nick.</p>
+          </div>
+          <div class="zadmin-management-filters zadmin-management-filters--players">
+            <label class="zadmin-management-search">Buscar
+              <input id="playerSearch" type="search" maxlength="100" autocomplete="off" placeholder="Nick, player ID o cuenta">
+            </label>
+            <button id="reloadPlayers" class="secondary" type="button">Actualizar</button>
+          </div>
+        </section>
+        <p id="playerStatus" class="zadmin-status" role="status" aria-live="polite"></p>
+        <div id="playerList" class="zadmin-management-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="../config.js"></script>
+  <script type="module" src="./management.js"></script>
+</body>
+</html>
