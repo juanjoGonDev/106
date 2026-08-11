@@ -3,7 +3,7 @@ const ACCOUNT_STORAGE_KEY = 'minuto106:account-access-v1';
 const ACCOUNT_NICKS_STORAGE_KEY = 'minuto106:account-nicks-v1';
 const ACCOUNT_DAILY_ATTEMPT_POLICY_STORAGE_KEY = 'minuto106:account-daily-attempt-policy-v1';
 const ACTIVE_NICK_STORAGE_KEY = 'minuto106:nick';
-const ACCESS_ASSET_BASE = new URL('.', document.currentScript?.src || document.baseURI).href;
+const ACCESS_ASSET_BASE = String(document.currentScript?.src || '').replace(/[^/]*$/, '') || './';
 const protectedActions = new Set([
   'start',
   'prepare-start',
@@ -189,7 +189,7 @@ function loadNicknameRequirementComponent() {
     return;
   }
   const script = document.createElement('script');
-  script.src = new URL('nickname-requirement.js', ACCESS_ASSET_BASE).href;
+  script.src = `${ACCESS_ASSET_BASE}nickname-requirement.js?v=202608111333`;
   script.dataset.minuto106NicknameRequirement = 'true';
   script.async = false;
   document.head.append(script);
