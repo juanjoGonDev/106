@@ -294,6 +294,10 @@ async function installAccountNicknameMocks(page, actions) {
     const body = requestBody(route.request());
     actions.push(body.action);
     expect(route.request().headers()['x-account-token']).toBe(accountToken);
+    if (body.action === 'status') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ requirement: null }) });
+      return;
+    }
     if (body.action === 'list') {
       await route.fulfill({
         status: 200,
@@ -442,7 +446,7 @@ test('required nickname change shows old/current names, shares checks, traps foc
     await expect(input).toBeFocused();
 
     await input.fill('x');
-    await submit.click({ force: true });
+    await expect(submit).toBeDisabled();
     await expect(overlay).toBeVisible();
     await expect(input).toHaveAttribute('aria-invalid', 'true');
     await expect(input).toBeFocused();
@@ -512,7 +516,9 @@ test('account rename reloads the authoritative per-player weekly cooldown after 
     expect(actions).toContain('status');
     expect(actions.filter((action) => action !== 'status')).toEqual(['list', 'check', 'rename', 'list']);
     expect(runtime.pageErrors).toEqual([]);
-    expect(runtime.consoleErrors).toEqual([]);
+    const unexpectedConsoleErrors = runtime.consoleErrors.filter((message) => !message.includes('status of 429'));
+    expect(unexpectedConsoleErrors).toEqual([]);
+    expect(runtime.consoleErrors.some((message) => message.includes('status of 429'))).toBe(true);
     expect(runtime.failedRequests).toEqual([]);
   } finally {
     await context.close();
