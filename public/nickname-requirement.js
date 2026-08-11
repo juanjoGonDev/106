@@ -5,6 +5,7 @@
   let checking = false;
   let submitting = false;
   let lastFocused = null;
+  let blockedControlObserver = null;
 
   function endpoint() {
     try {
@@ -159,15 +160,34 @@
     if (!requirement) return;
     const start = document.querySelector('#startButton');
     if (start) {
-      start.disabled = true;
       if (!start.dataset.nicknameRequirementPreviousLabel) {
         start.dataset.nicknameRequirementPreviousLabel = start.textContent || 'Verificar y preparar';
       }
-      start.textContent = 'Cambia tu nick para continuar';
+      if (!start.disabled) start.disabled = true;
+      if (start.textContent !== 'Cambia tu nick para continuar') {
+        start.textContent = 'Cambia tu nick para continuar';
+      }
     }
   }
 
+  function observeBlockedControls() {
+    blockedControlObserver?.disconnect();
+    blockedControlObserver = null;
+    const start = document.querySelector('#startButton');
+    if (!start || !requirement) return;
+    blockedControlObserver = new MutationObserver(() => enforceBlockedControls());
+    blockedControlObserver.observe(start, {
+      attributes: true,
+      attributeFilter: ['disabled'],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  }
+
   function restoreBlockedControls() {
+    blockedControlObserver?.disconnect();
+    blockedControlObserver = null;
     const start = document.querySelector('#startButton');
     if (start?.dataset.nicknameRequirementPreviousLabel) {
       start.textContent = start.dataset.nicknameRequirementPreviousLabel;
@@ -196,6 +216,7 @@
     setBackgroundInert(true);
     overlay.hidden = false;
     enforceBlockedControls();
+    observeBlockedControls();
     setStatus('Escribe un nuevo nick para continuar.');
     window.requestAnimationFrame(() => document.querySelector('#nicknameRequirementInput')?.focus());
   }
