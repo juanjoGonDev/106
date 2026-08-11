@@ -457,14 +457,173 @@ begin
 end;
 $$;
 
+create or replace function public.zadmin_investigation_overview(
+  p_scope text default 'account',
+  p_range_days integer default 7,
+  p_search text default '',
+  p_page integer default 1,
+  p_page_size integer default 25,
+  p_at timestamptz default clock_timestamp()
+) returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_scope text := case when p_scope in ('account', 'nick', 'ip') then p_scope else 'account' end;
+  v_range_days integer := case when p_range_days in (1, 7, 30) then p_range_days else 7 end;
+  v_search text := lower(trim(left(coalesce(p_search, ''), 80)));
+  v_page integer := greatest(1, coalesce(p_page, 1));
+  v_page_size integer := case when p_page_size in (10, 25, 50) then p_page_size else 25 end;
+  v_now timestamptz := coalesce(p_at, clock_timestamp());
+  v_since timestamptz;
+  v_total integer;
+  v_total_pages integer;
+  v_summary jsonb;
+  v_items jsonb;
+begin
+  v_since := v_now - make_interval(days => v_range_days);
+
+  select jsonb_build_object(
+    'attempts', count(*)::integer,
+    'verifiedAttempts', count(*) filter (where fact.verified = true)::integer,
+    'watchAttempts', count(*) filter (where fact.integrity_status = 'watch')::integer,
+    'excludedAttempts', count(*) filter (where fact.integrity_status = 'excluded')::integer,
+    'distinctAccounts', count(distinct fact.account_id)::integer,
+    'distinctNicks', count(distinct fact.nick_key)::integer,
+    'distinctIps', count(distinct fact.ip_hash)::integer
+  ) into v_summary
+  from public.game_admin_attempt_facts fact
+  where fact.created_at >= v_since;
+
+  with base as (
+    select fact.*,
+      case v_scope
+        when 'account' then fact.account_id::text
+        when 'ip' then fact.ip_hash
+        else fact.nick_key
+      end as entity_key
+    from public.game_admin_attempt_facts fact
+    where fact.created_at >= v_since
+  ), source as (
+    select base.*,
+      case when v_scope = 'nick' then coalesce(base.nick, base.entity_key) else base.entity_key end as entity_label
+    from base
+    where base.entity_key is not null and base.entity_key <> ''
+  ), grouped as (
+    select
+      source.entity_key as key,
+      (array_agg(source.entity_label order by source.created_at desc))[1] as label,
+      count(*)::integer as attempts,
+      count(*) filter (where source.verified = true)::integer as verified_attempts,
+      count(*) filter (where source.integrity_status = 'watch')::integer as watch_attempts,
+      count(*) filter (where source.integrity_status = 'excluded')::integer as excluded_attempts,
+      max(greatest(0, least(100, coalesce(source.risk_score, 0))))::integer as max_risk_score,
+      round(avg(greatest(0, least(100, coalesce(source.risk_score, 0)))))::integer as average_risk_score,
+      count(distinct source.nick_key)::integer as distinct_nicks,
+      count(distinct source.account_id)::integer as distinct_accounts,
+      count(distinct source.ip_hash)::integer as distinct_ips,
+      count(distinct source.device_hash)::integer as distinct_devices,
+      max(source.created_at) as last_seen_at
+    from source
+    group by source.entity_key
+  ), filtered as (
+    select * from grouped
+    where v_search = ''
+      or position(v_search in lower(grouped.key)) > 0
+      or position(v_search in lower(grouped.label)) > 0
+  )
+  select count(*)::integer into v_total from filtered;
+
+  v_total_pages := case when v_total = 0 then 0 else ceil(v_total::numeric / v_page_size)::integer end;
+  if v_total_pages > 0 then v_page := least(v_page, v_total_pages); else v_page := 1; end if;
+
+  with base as (
+    select fact.*,
+      case v_scope
+        when 'account' then fact.account_id::text
+        when 'ip' then fact.ip_hash
+        else fact.nick_key
+      end as entity_key
+    from public.game_admin_attempt_facts fact
+    where fact.created_at >= v_since
+  ), source as (
+    select base.*,
+      case when v_scope = 'nick' then coalesce(base.nick, base.entity_key) else base.entity_key end as entity_label
+    from base
+    where base.entity_key is not null and base.entity_key <> ''
+  ), grouped as (
+    select
+      source.entity_key as key,
+      (array_agg(source.entity_label order by source.created_at desc))[1] as label,
+      count(*)::integer as attempts,
+      count(*) filter (where source.verified = true)::integer as verified_attempts,
+      count(*) filter (where source.integrity_status = 'watch')::integer as watch_attempts,
+      count(*) filter (where source.integrity_status = 'excluded')::integer as excluded_attempts,
+      max(greatest(0, least(100, coalesce(source.risk_score, 0))))::integer as max_risk_score,
+      round(avg(greatest(0, least(100, coalesce(source.risk_score, 0)))))::integer as average_risk_score,
+      count(distinct source.nick_key)::integer as distinct_nicks,
+      count(distinct source.account_id)::integer as distinct_accounts,
+      count(distinct source.ip_hash)::integer as distinct_ips,
+      count(distinct source.device_hash)::integer as distinct_devices,
+      max(source.created_at) as last_seen_at
+    from source
+    group by source.entity_key
+  ), filtered as (
+    select * from grouped
+    where v_search = ''
+      or position(v_search in lower(grouped.key)) > 0
+      or position(v_search in lower(grouped.label)) > 0
+  ), page_rows as (
+    select * from filtered
+    order by max_risk_score desc, excluded_attempts desc, attempts desc, label, key
+    offset (v_page - 1) * v_page_size
+    limit v_page_size
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'key', row.key,
+    'label', row.label,
+    'attempts', row.attempts,
+    'verifiedAttempts', row.verified_attempts,
+    'watchAttempts', row.watch_attempts,
+    'excludedAttempts', row.excluded_attempts,
+    'maxRiskScore', row.max_risk_score,
+    'averageRiskScore', row.average_risk_score,
+    'distinctNicks', row.distinct_nicks,
+    'distinctAccounts', row.distinct_accounts,
+    'distinctIps', row.distinct_ips,
+    'distinctDevices', row.distinct_devices,
+    'lastSeenAt', row.last_seen_at
+  ) order by row.max_risk_score desc, row.excluded_attempts desc, row.attempts desc, row.label, row.key), '[]'::jsonb)
+  into v_items
+  from page_rows row;
+
+  return jsonb_build_object(
+    'summary', v_summary,
+    'items', v_items,
+    'pagination', jsonb_build_object(
+      'page', v_page,
+      'pageSize', v_page_size,
+      'total', v_total,
+      'totalPages', v_total_pages,
+      'hasPrevious', v_page > 1,
+      'hasNext', v_total_pages > 0 and v_page < v_total_pages
+    )
+  );
+end;
+$$;
+
 revoke all on function public.game_player_rename_cooldown(uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.get_game_account_player_name_states(text, timestamptz) from public, anon, authenticated;
 revoke all on function public.rename_game_player_by_owner(text, uuid, text, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.zadmin_management_list_players(integer, integer, text, timestamptz) from public, anon, authenticated;
 revoke all on function public.zadmin_management_list_restrictions(integer, integer, text, text, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.zadmin_investigation_overview(text, integer, text, integer, integer, timestamptz) from public, anon, authenticated;
 
 grant execute on function public.game_player_rename_cooldown(uuid, timestamptz) to service_role;
 grant execute on function public.get_game_account_player_name_states(text, timestamptz) to service_role;
 grant execute on function public.rename_game_player_by_owner(text, uuid, text, text, timestamptz) to service_role;
 grant execute on function public.zadmin_management_list_players(integer, integer, text, timestamptz) to service_role;
 grant execute on function public.zadmin_management_list_restrictions(integer, integer, text, text, text, timestamptz) to service_role;
+grant execute on function public.zadmin_investigation_overview(text, integer, text, integer, integer, timestamptz) to service_role;
