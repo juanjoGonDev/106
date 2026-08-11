@@ -55,12 +55,19 @@
   function applyHomeGate() {
     if (!homeInput || applying) return;
     applying = true;
+    const validation = structuralState(homeInput);
     const gate = currentGate();
     if (gate.reason && status) {
       const message = policy.nicknameErrorMessage(gate.reason);
       status.textContent = message;
       homeInput.setCustomValidity(message);
       homeInput.setAttribute('aria-invalid', 'true');
+    } else if (validation.valid) {
+      // A pending/remote error can mark a structurally valid value as invalid.
+      // Clear that stale browser validity once the canonical context accepts it,
+      // without replacing the status copy owned by player-context.
+      homeInput.setCustomValidity('');
+      homeInput.setAttribute('aria-invalid', 'false');
     }
 
     // This guard may block Start, but it never enables it. Competition, daily-limit
