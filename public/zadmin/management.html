@@ -52,15 +52,16 @@
         <section class="zadmin-card zadmin-management-toolbar">
           <div>
             <p class="eyebrow">CONTROL DE ACCESO</p>
-            <h2 id="managementRestrictionsTitle">Restricciones automáticas</h2>
-            <p class="zadmin-muted">Levantar una restricción no elimina el ban de integridad ni su evidencia.</p>
+            <h2 id="managementRestrictionsTitle">Restricciones</h2>
+            <p class="zadmin-muted">Revisa bans manuales y restricciones automáticas. Las automáticas se levantan sin eliminar el ban de integridad ni su evidencia.</p>
           </div>
           <div class="zadmin-management-filters">
             <label>Estado
               <select id="restrictionStatusFilter">
                 <option value="all">Todos</option>
                 <option value="active" selected>Activas</option>
-                <option value="lifted">Levantadas</option>
+                <option value="lifted">Automáticas levantadas</option>
+                <option value="revoked">Manuales revocadas</option>
                 <option value="expired">Expiradas</option>
               </select>
             </label>
@@ -68,6 +69,7 @@
               <select id="restrictionScopeFilter">
                 <option value="all">Todos</option>
                 <option value="account">Cuenta</option>
+                <option value="nick">Nick</option>
                 <option value="device">Dispositivo</option>
                 <option value="ip">IP</option>
               </select>
