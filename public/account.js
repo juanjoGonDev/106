@@ -112,7 +112,14 @@ function createPlayerItem(player, nameState) {
 
 async function linkLegacyNicks() {
   const access = window.Minuto106Access; if (!access?.getAccountToken(false)) return;
-  for (const nick of access.getLegacyLocalNicks()) { try { await accountRequest('link-account-player', { nick }); access.forgetLegacyPlayerKey(nick); } catch {} }
+  for (const nick of access.getLegacyLocalNicks()) {
+    try {
+      await accountRequest('link-account-player', { nick });
+      access.forgetLegacyPlayerKey(nick);
+    } catch {
+      continue;
+    }
+  }
 }
 
 async function loadPlayers() {
