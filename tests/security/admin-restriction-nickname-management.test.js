@@ -23,7 +23,9 @@ describe('stable player identity and nickname moderation', () => {
     expect(migration).toContain('create unique index if not exists game_players_player_id_key');
     expect(migration).toContain('add column if not exists player_id uuid');
     expect(migration).toContain('game_account_players_player_id_fkey');
-    expect(migration).toContain('alter constraint %I deferrable initially immediate');
+    expect(migration).toContain('alter constraint game_player_bonus_nick_key_fkey deferrable initially immediate');
+    expect(migration).toContain('alter constraint game_account_players_nick_key_fkey deferrable initially immediate');
+    expect(migration).not.toMatch(/execute\s+format/i);
     expect(migration).not.toMatch(/drop\s+column\s+nick_key/i);
   });
 
@@ -128,10 +130,11 @@ describe('management API and frontend safety', () => {
     expect(requirementClient).toContain("card.setAttribute('aria-modal', 'true')");
     expect(requirementClient).toContain("setBackgroundInert(true)");
     expect(requirementClient).toContain("event.key !== 'Tab'");
-    expect(requirementClient).not.toMatch(/document\.createElement\(['\"]dialog['\"]\)/);
+    expect(requirementClient).not.toMatch(/document\.createElement\(['"]dialog['"]\)/);
     expect(requirementClient).not.toMatch(/window\.(alert|confirm|prompt)\s*\(/);
     expect(requirementClient).not.toMatch(/showModal\s*\(/);
-    expect(accessClient).toContain("script.src = new URL('nickname-requirement.js', ACCESS_ASSET_BASE).href");
+    expect(accessClient).toContain("const ACCESS_ASSET_BASE = String(document.currentScript?.src || '').replace(/[^/]*$/, '') || './'");
+    expect(accessClient).toContain("script.src = `${ACCESS_ASSET_BASE}nickname-requirement.js?v=202608111333`");
     expect(accessClient).toContain("code === 'nickname_change_required'");
   });
 });
