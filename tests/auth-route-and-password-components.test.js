@@ -6,6 +6,8 @@ const read = (path) => readFileSync(path, 'utf8');
 const authEntry = read('public/auth-route-entry.js');
 const accountEntry = read('public/account-auth-entry.js');
 const accountController = read('public/account-auth.js');
+const authController = read('public/auth-page-controller.js');
+const authClient = read('public/supabase-auth-client.js');
 const passwordComponent = read('public/password-visibility.js');
 const passwordStyles = read('public/password-visibility.css');
 const authStyles = read('public/v21.css');
@@ -40,6 +42,21 @@ describe('authentication route guard wiring', () => {
     expect(accountController).toContain('clearPendingConfirmation(localStorage);');
     expect(accountController.indexOf('clearPendingConfirmation(localStorage);'))
       .toBeLessThan(accountController.indexOf('await refreshExperience();', accountController.indexOf('async function completeSignOut')));
+  });
+});
+
+describe('shared email OTP policy wiring', () => {
+  it('keeps configured digits out of static markup and consumes runtime policy at both browser boundaries', () => {
+    expect(pages.verify).toContain('id="authLead"');
+    expect(pages.verify).not.toContain('código de 6 dígitos');
+    expect(pages.verify).not.toContain('pattern="[0-9]{6}"');
+    expect(pages.verify).not.toContain('placeholder="000000"');
+    expect(authController).toContain('config.authEmailOtpLength');
+    expect(authController).toContain('sanitizeAuthEmailOtp');
+    expect(authController).toContain('elements.otp.pattern = `[0-9]{${length}}`');
+    expect(authController).not.toContain('slice(0, 6)');
+    expect(authClient).toContain('normalizeAuthEmailOtp(tokenValue, this.authEmailOtpLength)');
+    expect(authClient).not.toContain('/^\\d{6}$/u');
   });
 });
 

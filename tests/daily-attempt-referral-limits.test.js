@@ -9,12 +9,23 @@ const dailyMigrationFiles = readdirSync(migrationDirectory)
 const migration = dailyMigrationFiles
   .map((file) => readFileSync(join(migrationDirectory, file), 'utf8'))
   .join('\n');
+const spainResetMigration = readFileSync(
+  join(migrationDirectory, '20260731003000_spain_daily_reset.sql'),
+  'utf8',
+);
+const lifetimeProfileMigration = readFileSync(
+  join(migrationDirectory, '20260731020000_lifetime_profile_attempts.sql'),
+  'utf8',
+);
 const attemptRefresh = readFileSync('public/attempt-refresh.js', 'utf8');
+const competition = readFileSync('public/competition.js', 'utf8');
+const dailyLimit = readFileSync('public/daily-attempt-limit.js', 'utf8');
+const home = readFileSync('public/index.html', 'utf8');
 const ui = readFileSync('public/daily-attempt-ui.js', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
 
 describe('daily attempt and account referral limits', () => {
-  it('keeps the migration split into cohesive ordered stages', () => {
+  it('keeps the original rollout split into cohesive ordered stages', () => {
     expect(dailyMigrationFiles).toEqual([
       '20260727150000_daily_attempt_schema.sql',
       '20260727150050_daily_quota_defaults.sql',
@@ -27,14 +38,32 @@ describe('daily attempt and account referral limits', () => {
     ]);
   });
 
-  it('pins global challenges and attempts to a UTC quota day', () => {
-    expect(migration).toContain("(p_at at time zone 'UTC')::date");
+  it('pins global challenges and attempts to a quota day with forward Spain-time corrections', () => {
     expect(migration).toContain('add column if not exists quota_day date');
-    expect(migration).toContain("alter column quota_day set default ((clock_timestamp() at time zone 'UTC')::date)");
     expect(migration).toContain('game_challenges_global_quota_day_check');
     expect(migration).toContain('game_attempts_global_quota_day_check');
     expect(migration).toContain('attempt.quota_day = v_challenge.quota_day');
     expect(migration).toContain('challenge.quota_day = v_current_day');
+
+    expect(spainResetMigration).toContain("p_at at time zone 'Europe/Madrid'");
+    expect(spainResetMigration).toContain("timestamp at time zone 'Europe/Madrid'");
+    expect(spainResetMigration).toContain('alter column quota_day set default public.game_server_day(clock_timestamp())');
+    expect(spainResetMigration).toContain('set quota_day = public.game_server_day(started_at)');
+    expect(spainResetMigration).toContain('set quota_day = public.game_server_day(created_at)');
+    expect(spainResetMigration).toContain('where league_id is null');
+    expect(spainResetMigration).not.toMatch(/update public\.game_(?:challenges|attempts)[\s\S]*where league_id is not null/i);
+  });
+
+  it('keeps lifetime profile attempts separate from the current-day quota overlay', () => {
+    expect(lifetimeProfileMigration).toContain('public.get_game_player_profile_without_daily_limits(p_nick_key)');
+    expect(lifetimeProfileMigration).toContain("'lifetimeAttemptsUsed'");
+    expect(lifetimeProfileMigration).toContain("payload->>'attemptsUsed'");
+    expect(lifetimeProfileMigration.indexOf("'lifetimeAttemptsUsed'"))
+      .toBeLessThan(lifetimeProfileMigration.indexOf('public.get_game_daily_attempt_state'));
+    expect(lifetimeProfileMigration).toContain('revoke all on function public.get_game_player_profile(text)');
+    expect(lifetimeProfileMigration).toContain('grant execute on function public.get_game_player_profile(text)');
+    expect(lifetimeProfileMigration).toContain('to service_role');
+    expect(lifetimeProfileMigration).not.toMatch(/grant execute[\s\S]*to (anon|authenticated)/i);
   });
 
   it('serializes reservations, midnight activation and referral completion', () => {
@@ -63,10 +92,20 @@ describe('daily attempt and account referral limits', () => {
     expect(migration).toContain("coalesce(v_challenge.league_id::text, 'global')");
   });
 
+  it('derives the remaining budget from used and reserved capacity', () => {
+    expect(dailyLimit).toContain('const attemptsLeft = maxAttempts - attemptsUsed - attemptsReserved;');
+    expect(dailyLimit).not.toContain('finiteInteger(source.attemptsLeft');
+    expect(dailyLimit).toContain('exhausted: attemptsLeft === 0');
+    expect(competition).toContain("from './daily-attempt-limit.js?v=20260802-derived-budget'");
+    expect(competition).toContain('return resolveDailyAttemptState(context.profile, accountDailyAttemptPolicy());');
+    expect(home).toContain('<script type="module" src="./competition.js?v=20260802-derived-budget"></script>');
+  });
+
   it('ships the countdown UX and mandatory validation commands', () => {
     expect(ui).toContain("section.id = 'dailyLimitCard'");
     expect(ui).toContain("section.setAttribute('aria-labelledby', 'dailyLimitTitle')");
-    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js')");
+    expect(attemptRefresh).toContain("import('./daily-attempt-ui.js?v=20260802-derived-budget')");
+    expect(ui).toContain("from './daily-attempt-limit.js?v=20260802-derived-budget'");
     expect(ui).toContain("window.Minuto106Competition?.refresh?.('daily-limit-reset')");
     expect(packageJson.scripts['test:daily-attempts:coverage']).toContain('--test-coverage-branches=100');
     expect(packageJson.scripts['test:supabase']).toContain('test-daily-attempt-limits-local.mjs');

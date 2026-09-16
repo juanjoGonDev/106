@@ -32,7 +32,10 @@ export default defineConfig({
       cookies: [],
       origins: [{
         origin: 'http://127.0.0.1:3000',
-        localStorage: [{ name: 'minuto106:consent-v1', value: storedConsent }],
+        localStorage: [
+          { name: 'minuto106:consent-v1', value: storedConsent },
+          { name: 'minuto106:e2e-raster-fixture-v1', value: 'enabled' },
+        ],
       }],
     },
   },

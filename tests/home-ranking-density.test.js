@@ -16,9 +16,10 @@ describe('home score and ranking density', () => {
 
   it('loads the authoritative renderer before awards and responsive placement', () => {
     const html = read('public/index.html');
+    const awards = './ranking-enhancements.js?v=20260802-awards-reset';
     expect(html.indexOf('./v12.css')).toBeLessThan(html.indexOf('./v13.css'));
-    expect(html.indexOf('./home-stats.js?v=20260724')).toBeLessThan(html.indexOf('./ranking-enhancements.js?v=20260723'));
-    expect(html.indexOf('./ranking-enhancements.js?v=20260723')).toBeLessThan(html.indexOf('./home-ranking-density.js?v=20260723'));
+    expect(html.indexOf('./home-stats.js?v=20260724')).toBeLessThan(html.indexOf(awards));
+    expect(html.indexOf(awards)).toBeLessThan(html.indexOf('./home-ranking-density.js?v=20260723'));
   });
 
   it('builds complete accessible rows directly in the authoritative renderer', () => {

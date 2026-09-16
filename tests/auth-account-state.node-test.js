@@ -3,14 +3,20 @@ import test from 'node:test';
 
 import {
   AUTH_CONFIRMATION_LINK_TTL_SECONDS,
+  AUTH_EMAIL_OTP_LENGTH_MAX,
+  AUTH_EMAIL_OTP_LENGTH_MIN,
   AUTH_RESEND_COOLDOWN_SECONDS,
   PASSWORD_MIN_LENGTH,
   accountRedirectUrl,
+  authEmailOtpExpiryLabel,
   authRewardMessage,
   confirmationResendDelaySeconds,
   mergeItemText,
   neutralAuthMessage,
   normalizeAuthConfig,
+  normalizeAuthEmailOtp,
+  normalizeAuthEmailOtpExpirySeconds,
+  normalizeAuthEmailOtpLength,
   normalizeEmail,
   normalizeMergeImpact,
   normalizeProvider,
@@ -18,6 +24,7 @@ import {
   passwordProblems,
   passwordRequirements,
   registrationReadiness,
+  sanitizeAuthEmailOtp,
   sessionSummary,
 } from '../public/auth-account-state.js';
 
@@ -30,6 +37,8 @@ test('normalizes complete, local and unavailable auth configuration', () => {
     supabasePublishableKey: publishableKey,
     accountAuthApiUrl: 'https://project.supabase.co/functions/v1/account-auth/',
     publicSiteUrl: 'https://example.com/app/',
+    authEmailOtpLength: 8,
+    authEmailOtpExpirySeconds: 3600,
     turnstileSiteKey: ' turnstile ',
   }), {
     available: true,
@@ -37,6 +46,8 @@ test('normalizes complete, local and unavailable auth configuration', () => {
     publishableKey,
     accountAuthApiUrl: 'https://project.supabase.co/functions/v1/account-auth',
     publicSiteUrl: 'https://example.com/app',
+    authEmailOtpLength: 8,
+    authEmailOtpExpirySeconds: 3600,
     turnstileSiteKey: 'turnstile',
   });
 
@@ -46,9 +57,40 @@ test('normalizes complete, local and unavailable auth configuration', () => {
     accountAuthApiUrl: 'http://127.0.0.1:54321/functions/v1/account-auth',
   });
   assert.equal(local.available, true);
+  assert.equal(local.authEmailOtpLength, 0);
+  assert.equal(local.authEmailOtpExpirySeconds, 0);
   assert.equal(normalizeAuthConfig(null).available, false);
   assert.equal(normalizeAuthConfig({ supabaseUrl: 'https://evil.example', supabasePublishableKey: 'bad' }).available, false);
   assert.equal(normalizeAuthConfig({ supabaseUrl: 'http://localhost:54321', supabasePublishableKey: publishableKey }).available, false);
+});
+
+test('normalizes and formats the shared email OTP policy exhaustively', () => {
+  assert.equal(AUTH_EMAIL_OTP_LENGTH_MIN, 6);
+  assert.equal(AUTH_EMAIL_OTP_LENGTH_MAX, 10);
+  assert.equal(normalizeAuthEmailOtpLength(6), 6);
+  assert.equal(normalizeAuthEmailOtpLength('10'), 10);
+  for (const value of [5, 11, 7.5, null, 'invalid']) assert.equal(normalizeAuthEmailOtpLength(value), 0);
+
+  assert.equal(normalizeAuthEmailOtpExpirySeconds(1), 1);
+  assert.equal(normalizeAuthEmailOtpExpirySeconds('3600'), 3600);
+  for (const value of [0, -1, 1.5, null, 'invalid']) assert.equal(normalizeAuthEmailOtpExpirySeconds(value), 0);
+
+  assert.equal(sanitizeAuthEmailOtp(' 12a34-567890 ', 8), '12345678');
+  assert.equal(sanitizeAuthEmailOtp(null, 8), '');
+  assert.equal(sanitizeAuthEmailOtp('12345678', 0), '');
+  assert.equal(normalizeAuthEmailOtp(' 12345678 ', 8), '12345678');
+  for (const value of ['', '1234567', '123456789', '1234a678', null]) {
+    assert.equal(normalizeAuthEmailOtp(value, 8), '');
+  }
+  assert.equal(normalizeAuthEmailOtp('12345678', 0), '');
+
+  assert.equal(authEmailOtpExpiryLabel(0), '');
+  assert.equal(authEmailOtpExpiryLabel(3600), '1 hora');
+  assert.equal(authEmailOtpExpiryLabel(7200), '2 horas');
+  assert.equal(authEmailOtpExpiryLabel(60), '1 minuto');
+  assert.equal(authEmailOtpExpiryLabel(120), '2 minutos');
+  assert.equal(authEmailOtpExpiryLabel(1), '1 segundo');
+  assert.equal(authEmailOtpExpiryLabel(2), '2 segundos');
 });
 
 test('validates Google-only provider, email and password policy exhaustively', () => {

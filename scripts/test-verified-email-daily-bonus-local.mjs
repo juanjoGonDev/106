@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+
+const origin = 'http://127.0.0.1:3000';
+const hashPepper = 'ci-local-only-pepper-106-do-not-use-in-production';
 
 function environment() {
   const result = spawnSync('supabase', ['status', '-o', 'env'], {
@@ -14,9 +17,12 @@ function environment() {
     const match = line.match(/^([A-Z0-9_]+)=(?:"([^"]*)"|'([^']*)'|(.*))$/);
     if (match) values[match[1]] = match[2] ?? match[3] ?? match[4] ?? '';
   }
+  const apiUrl = values.API_URL || 'http://127.0.0.1:54321';
+  const anonKey = values.ANON_KEY;
+  const serviceRoleKey = values.SERVICE_ROLE_KEY;
   const databaseUrl = values.DB_URL || values.POSTGRES_URL;
-  if (!databaseUrl) throw new Error('Local Supabase database URL is unavailable.');
-  return { databaseUrl };
+  if (!anonKey || !serviceRoleKey || !databaseUrl) throw new Error('Local Supabase environment is unavailable.');
+  return { apiUrl, anonKey, serviceRoleKey, databaseUrl };
 }
 
 function literal(value) {
@@ -43,6 +49,47 @@ function json(databaseUrl, expression) {
   return JSON.parse(psql(databaseUrl, `select (${expression})::text;`));
 }
 
+async function createConfirmedAuthUser(apiUrl, serviceRoleKey, email) {
+  const response = await fetch(`${apiUrl}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      authorization: `Bearer ${serviceRoleKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password: `Local-${randomBytes(18).toString('base64url')}!1aA`,
+      email_confirm: true,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.match(String(body.id || ''), /^[a-f0-9-]{36}$/i);
+  return body.id;
+}
+
+async function jsonRequest(url, options = {}) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      origin,
+      apikey: options.anonKey,
+      'content-type': 'application/json',
+      'x-account-token': options.accountToken,
+    },
+    body: JSON.stringify(options.body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json();
+  return { response, body };
+}
+
+function accountHash(token) {
+  return createHash('sha256').update(`${hashPepper}:account:${token}`).digest('hex');
+}
+
 function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
   const nickKey = nick.toLowerCase();
   const result = json(databaseUrl, `public.ensure_game_account_player(
@@ -53,8 +100,49 @@ function createPlayer(databaseUrl, nick, tokenHash, deviceHash, ipHash) {
   return nickKey;
 }
 
-const { databaseUrl } = environment();
+const { apiUrl, anonKey, serviceRoleKey, databaseUrl } = environment();
 const suffix = Date.now().toString(36);
+
+const noPlayerEmail = `no-player-${suffix}@example.com`;
+const noPlayerAuthUserId = await createConfirmedAuthUser(apiUrl, serviceRoleKey, noPlayerEmail);
+const noPlayerToken = randomBytes(32).toString('hex');
+const noPlayerTokenHash = accountHash(noPlayerToken);
+const preparedAccount = json(databaseUrl, `public.prepare_game_auth_link(
+  ${literal(noPlayerAuthUserId)}::uuid,
+  'email',
+  ${literal(noPlayerEmail)},
+  true,
+  null,
+  ${literal(noPlayerTokenHash)}
+)`);
+assert.equal(preparedAccount.created, true, JSON.stringify(preparedAccount));
+json(databaseUrl, `public.record_game_auth_origin(${literal(noPlayerAuthUserId)}::uuid, 'email')`);
+const noPlayerReward = json(databaseUrl, `public.grant_game_auth_link_reward(${literal(noPlayerAuthUserId)}::uuid)`);
+assert.equal(noPlayerReward.dailyAttemptBonus, 1, JSON.stringify(noPlayerReward));
+const noPlayerPolicy = json(databaseUrl, `public.get_game_auth_daily_attempt_policy(${literal(noPlayerAuthUserId)}::uuid, clock_timestamp())`);
+assert.equal(noPlayerPolicy.attemptsUsed, 0, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.dailyAttemptsReserved, 0, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.attemptsLeft, 6, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.maxAttempts, 6, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.bonusAttempts, 1, JSON.stringify(noPlayerPolicy));
+assert.equal(noPlayerPolicy.authRewardBonus, 1, JSON.stringify(noPlayerPolicy));
+const noPlayerTokenPolicy = json(databaseUrl, `public.get_game_account_daily_attempt_policy_by_token(${literal(noPlayerTokenHash)}, clock_timestamp())`);
+assert.deepEqual(noPlayerTokenPolicy, noPlayerPolicy);
+const accountContext = await jsonRequest(`${apiUrl}/functions/v1/player-context`, {
+  anonKey,
+  accountToken: noPlayerToken,
+  body: { action: 'account-context' },
+});
+assert.equal(accountContext.response.status, 200, JSON.stringify(accountContext.body));
+assert.deepEqual(accountContext.body.dailyAttemptPolicy, noPlayerPolicy);
+assert.equal(psql(databaseUrl, `
+  select count(*)
+  from public.game_account_players player
+  join public.game_auth_identities identity on identity.account_id = player.account_id
+  where identity.auth_user_id = ${literal(noPlayerAuthUserId)}::uuid;
+`), '0');
+process.stdout.write('✓ confirmed authentication policy exposes six daily attempts before a nick exists\n');
+
 const tokenHash = randomBytes(32).toString('hex');
 const deviceHash = `auth-device-${suffix}-${'d'.repeat(40)}`;
 const ipHash = `auth-ip-${suffix}-${'i'.repeat(44)}`;
@@ -86,6 +174,9 @@ for (const nickKey of [firstKey, secondKey]) {
   assert.equal(state.emailVerificationBonus, 1, JSON.stringify(state));
   assert.equal(state.bonusAttempts, 1, JSON.stringify(state));
   assert.equal(state.maxAttempts, 6, JSON.stringify(state));
+  const policy = json(databaseUrl, `public.get_game_account_daily_attempt_policy(${literal(accountId)}::uuid, clock_timestamp())`);
+  assert.equal(policy.maxAttempts, state.maxAttempts, JSON.stringify({ policy, state }));
+  assert.equal(policy.bonusAttempts, state.bonusAttempts, JSON.stringify({ policy, state }));
 }
 process.stdout.write('✓ one authentication entitlement adds one daily attempt to every nick on the account\n');
 

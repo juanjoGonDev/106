@@ -179,6 +179,14 @@ test('nickname debounce rejects stale input and an exhausted global scope stays 
   await installStatsMock(page);
   await page.route('**/functions/v1/player-context', async (route) => {
     const body = bodyOf(route.request());
+    if (body.action === 'account-context') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ dailyAttemptPolicy: null, restriction: null }),
+      });
+      return;
+    }
     const nick = String(body.nick || '');
     requestedNicks.push(nick);
     if (nick === 'Ocupado') {

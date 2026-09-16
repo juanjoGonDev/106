@@ -1,3 +1,14 @@
+import { resolveDailyAttemptState } from './daily-attempt-limit.js?v=20260802-derived-budget';
+import {
+  formatRestrictionCountdown,
+  normalizePlayRestriction,
+  restrictionEndText,
+  restrictionReasonText,
+  restrictionRemainingSeconds,
+  restrictionScopeLabel,
+  restrictionSourceLabel,
+} from './play-restriction-state.js';
+
 (() => {
   const config = window.__MINUTO106_CONFIG__ ?? {};
   const gameApiUrl = String(config.apiBaseUrl ?? '').replace(/\/$/, '');
@@ -5,23 +16,49 @@
   const deviceKey = 'minuto106:device-id';
   const selectionKey = 'minuto106:competition-v1';
   const deviceId = localStorage.getItem(deviceKey) || crypto.randomUUID();
+  const restrictionStylesHref = new URL('./play-restriction.css', import.meta.url).href;
   const routeSelection = String(
     new URLSearchParams(location.search).get('competition')
     || new URLSearchParams(location.search).get('league')
     || '',
   ).trim().toUpperCase();
 
-  let context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+  let context = emptyContext();
   let selectedValue = 'global';
   let contextPending = false;
   let debounceTimer = 0;
   let requestSequence = 0;
   let lastLeagueResult = null;
+  let restrictionTimer = 0;
+  let restrictionRefreshPending = false;
+  let restrictionRefreshFailed = false;
 
   localStorage.setItem(deviceKey, deviceId);
 
+  function emptyContext(accountPolicy = null, restriction = null) {
+    return Object.freeze({
+      availability: 'unknown',
+      profile: null,
+      leagues: [],
+      accountPolicy,
+      restriction: restriction?.active === true ? Object.freeze({ ...restriction }) : null,
+    });
+  }
+
   function currentNick() {
     return String(document.querySelector('#nick')?.value || localStorage.getItem('minuto106:nick') || '').trim();
+  }
+
+  function localAccountToken() {
+    return window.Minuto106Access?.getAccountToken?.(false) || '';
+  }
+
+  function accountDailyAttemptPolicy() {
+    return context.accountPolicy ?? window.Minuto106Access?.getAccountDailyAttemptPolicy?.() ?? null;
+  }
+
+  function globalAttemptState() {
+    return resolveDailyAttemptState(context.profile, accountDailyAttemptPolicy());
   }
 
   function leaguePublicUrl(publicId) {
@@ -49,15 +86,15 @@
       });
     }
 
-    const profile = context.profile;
+    const state = globalAttemptState();
     return Object.freeze({
       type: 'global',
       publicId: '',
       competitionCode: '',
       name: 'Ranking global',
-      attemptsLeft: Number(profile?.attemptsLeft ?? 5),
-      maxAttempts: Number(profile?.maxAttempts ?? 5),
-      available: context.availability !== 'occupied' && Number(profile?.attemptsLeft ?? 5) > 0,
+      attemptsLeft: state.attemptsLeft,
+      maxAttempts: state.maxAttempts,
+      available: context.availability !== 'occupied' && state.attemptsLeft > 0,
       waiting: false,
       finished: false,
     });
@@ -66,6 +103,9 @@
   function canStart() {
     const scope = selectedScope();
     return !contextPending
+      && !restrictionRefreshPending
+      && !restrictionRefreshFailed
+      && context.restriction?.active !== true
       && context.availability !== 'occupied'
       && scope.available
       && Boolean(scope.type === 'global' || scope.competitionCode);
@@ -77,12 +117,170 @@
         availability: context.availability,
         profile: context.profile,
         leagues: context.leagues,
+        restriction: context.restriction,
+        dailyAttemptPolicy: accountDailyAttemptPolicy(),
         selected: selectedScope(),
         canStart: canStart(),
-        pending: contextPending,
+        pending: contextPending || restrictionRefreshPending,
         source,
       }),
     }));
+  }
+
+  function ensureRestrictionUi() {
+    if (!document.querySelector('link[data-play-restriction-styles]')) {
+      const stylesheet = document.createElement('link');
+      stylesheet.rel = 'stylesheet';
+      stylesheet.href = restrictionStylesHref;
+      stylesheet.dataset.playRestrictionStyles = 'true';
+      document.head.append(stylesheet);
+    }
+
+    let panel = document.querySelector('#playRestriction');
+    if (panel) return panel;
+    const startButton = document.querySelector('#startButton');
+    if (!startButton?.parentElement) return null;
+
+    panel = document.createElement('section');
+    panel.id = 'playRestriction';
+    panel.className = 'play-restriction';
+    panel.hidden = true;
+    panel.setAttribute('aria-live', 'polite');
+    panel.setAttribute('aria-labelledby', 'playRestrictionTitle');
+
+    const heading = document.createElement('div');
+    heading.className = 'play-restriction__heading';
+    const title = document.createElement('strong');
+    title.id = 'playRestrictionTitle';
+    title.textContent = 'Acceso competitivo bloqueado';
+    const source = document.createElement('span');
+    source.id = 'playRestrictionSource';
+    source.className = 'play-restriction__source';
+    heading.append(title, source);
+
+    const reason = document.createElement('p');
+    reason.id = 'playRestrictionReason';
+    reason.className = 'play-restriction__reason';
+
+    const time = document.createElement('div');
+    time.className = 'play-restriction__time';
+    const timeLabel = document.createElement('span');
+    timeLabel.textContent = 'Disponible de nuevo en';
+    const countdown = document.createElement('output');
+    countdown.id = 'playRestrictionCountdown';
+    countdown.setAttribute('aria-label', 'Tiempo restante de la restricción');
+    time.append(timeLabel, countdown);
+
+    const end = document.createElement('p');
+    end.id = 'playRestrictionEnd';
+    end.className = 'play-restriction__end';
+    panel.append(heading, reason, time, end);
+    startButton.before(panel);
+    return panel;
+  }
+
+  function restoreStartButtonLabel() {
+    const startButton = document.querySelector('#startButton');
+    if (!startButton?.dataset.restrictionPreviousLabel) return;
+    startButton.textContent = startButton.dataset.restrictionPreviousLabel;
+    delete startButton.dataset.restrictionPreviousLabel;
+  }
+
+  function markStartButtonRestricted() {
+    const startButton = document.querySelector('#startButton');
+    if (!startButton) return;
+    if (!startButton.dataset.restrictionPreviousLabel) {
+      startButton.dataset.restrictionPreviousLabel = startButton.textContent || 'Comenzar';
+    }
+    startButton.textContent = 'Acceso bloqueado';
+    startButton.disabled = true;
+  }
+
+  function clearRestrictionTimer() {
+    if (!restrictionTimer) return;
+    window.clearInterval(restrictionTimer);
+    restrictionTimer = 0;
+  }
+
+  function scheduleRestrictionTimer(restriction) {
+    if (restrictionTimer || restriction?.permanent) return;
+    restrictionTimer = window.setInterval(() => renderRestriction(), 1_000);
+  }
+
+  function refreshExpiredRestriction() {
+    if (restrictionRefreshPending || restrictionRefreshFailed) return;
+    restrictionRefreshPending = true;
+    contextPending = true;
+    clearRestrictionTimer();
+    renderRestriction();
+    renderStatus();
+    notify('restriction-expired:pending');
+    syncPlayerContext('restriction-expired')
+      .catch(() => {})
+      .finally(() => {
+        restrictionRefreshPending = false;
+        contextPending = false;
+        renderRestriction();
+        renderStatus();
+        notify('restriction-expired:settled');
+      });
+  }
+
+  function renderRestriction() {
+    const panel = ensureRestrictionUi();
+    if (!panel) return;
+    const raw = context.restriction;
+    if (raw?.active !== true) {
+      clearRestrictionTimer();
+      panel.hidden = true;
+      restoreStartButtonLabel();
+      return;
+    }
+
+    markStartButtonRestricted();
+    panel.hidden = false;
+    const restriction = normalizePlayRestriction(raw);
+    const source = panel.querySelector('#playRestrictionSource');
+    const reason = panel.querySelector('#playRestrictionReason');
+    const countdown = panel.querySelector('#playRestrictionCountdown');
+    const time = panel.querySelector('.play-restriction__time');
+    const end = panel.querySelector('#playRestrictionEnd');
+
+    if (!restriction) {
+      clearRestrictionTimer();
+      if (restrictionRefreshFailed) {
+        if (source) source.textContent = 'Comprobación pendiente';
+        if (reason) reason.textContent = 'No se pudo confirmar con el servidor que la restricción haya terminado. El acceso seguirá bloqueado hasta una comprobación correcta.';
+        if (time) time.hidden = true;
+        if (end) end.textContent = 'Vuelve a intentarlo cuando haya conexión con el servidor.';
+        return;
+      }
+      if (source) source.textContent = 'Comprobando';
+      if (reason) reason.textContent = 'La restricción ha llegado a su hora de finalización. Estamos confirmando con el servidor si ya puedes volver a jugar.';
+      if (time) time.hidden = true;
+      if (end) end.textContent = '';
+      refreshExpiredRestriction();
+      return;
+    }
+
+    if (source) source.textContent = `${restrictionSourceLabel(restriction.source)} · ${restrictionScopeLabel(restriction.scope)}`;
+    if (reason) reason.textContent = restrictionReasonText(restriction);
+    if (end) end.textContent = restrictionEndText(restriction);
+    if (restriction.permanent) {
+      clearRestrictionTimer();
+      if (time) time.hidden = false;
+      if (countdown) countdown.textContent = 'Permanente';
+      const timeLabel = time?.querySelector('span');
+      if (timeLabel) timeLabel.textContent = 'Duración';
+      return;
+    }
+
+    if (time) time.hidden = false;
+    const timeLabel = time?.querySelector('span');
+    if (timeLabel) timeLabel.textContent = 'Disponible de nuevo en';
+    const remaining = restrictionRemainingSeconds(restriction);
+    if (countdown) countdown.textContent = formatRestrictionCountdown(remaining);
+    scheduleRestrictionTimer(restriction);
   }
 
   function optionLabel(league) {
@@ -114,11 +312,10 @@
     if (!section || !select) return;
 
     const globalOption = document.createElement('option');
+    const globalState = globalAttemptState();
     globalOption.value = 'global';
-    const globalLeft = Number(context.profile?.attemptsLeft ?? 5);
-    const globalMax = Number(context.profile?.maxAttempts ?? 5);
-    globalOption.textContent = `Global · ${globalLeft}/${globalMax} tiros`;
-    globalOption.disabled = context.availability === 'occupied' || globalLeft <= 0;
+    globalOption.textContent = `Global · ${globalState.attemptsLeft}/${globalState.maxAttempts} tiros`;
+    globalOption.disabled = context.availability === 'occupied' || globalState.attemptsLeft <= 0;
 
     const leagueOptions = context.leagues.map((league) => {
       const option = document.createElement('option');
@@ -136,6 +333,7 @@
     select.disabled = contextPending || context.availability === 'occupied' || ![...select.options].some((option) => !option.disabled);
     section.hidden = false;
     renderContext();
+    renderRestriction();
   }
 
   function renderContext() {
@@ -167,20 +365,31 @@
   }
 
   function renderStatus() {
+    renderRestriction();
     const status = document.querySelector('#nickStatus');
     if (!status) return;
     const nick = currentNick();
 
     if (nick.length < 2) {
-      status.textContent = 'Escribe tu nick para comprobar su disponibilidad y tus competiciones.';
+      status.textContent = context.restriction?.active === true
+        ? 'Tu acceso competitivo está restringido. Consulta el detalle antes de elegir un nick.'
+        : 'Escribe tu nick para comprobar su disponibilidad y tus competiciones.';
       return;
     }
-    if (contextPending) {
-      status.textContent = 'Comprobando nick y competiciones…';
+    if (contextPending || restrictionRefreshPending) {
+      status.textContent = restrictionRefreshPending ? 'Comprobando si la restricción ya ha terminado…' : 'Comprobando nick y competiciones…';
+      return;
+    }
+    if (restrictionRefreshFailed) {
+      status.textContent = 'No se pudo confirmar que la restricción haya terminado. El acceso sigue bloqueado hasta conectar de nuevo con el servidor.';
       return;
     }
     if (context.availability === 'occupied') {
       status.textContent = 'Este nick ya está ocupado por otra cuenta. Importa su clave o elige otro antes de jugar.';
+      return;
+    }
+    if (context.restriction?.active === true) {
+      status.textContent = 'El juego competitivo está bloqueado para este acceso. La cuenta atrás y el motivo aparecen debajo.';
       return;
     }
 
@@ -205,18 +414,58 @@
       : `${scope.attemptsLeft} de ${scope.maxAttempts} intentos disponibles en “${scope.name}”.`;
   }
 
-  async function requestPlayerContext(nick) {
+  async function requestContext(action, nick = '') {
     if (!playerContextUrl || playerContextUrl === gameApiUrl) {
       throw new Error('No se pudo preparar la comprobación del jugador.');
     }
+    const headers = { 'content-type': 'application/json', 'x-device-id': deviceId };
+    const accountToken = localAccountToken();
+    if (accountToken) headers['x-account-token'] = accountToken;
+    const body = nick ? { action, nick } : { action };
     const response = await fetch(playerContextUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'player-context', nick }),
+      headers,
+      body: JSON.stringify(body),
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'No se pudo comprobar el jugador.');
-    return body;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'No se pudo comprobar el jugador.');
+    return payload;
+  }
+
+  function requestPlayerContext(nick) {
+    return requestContext('player-context', nick);
+  }
+
+  function requestAccountContext() {
+    return requestContext('account-context');
+  }
+
+  async function syncAccountContext(sequence, source) {
+    selectedValue = 'global';
+    contextPending = true;
+    renderSelector();
+    renderStatus();
+    notify(`${source}:pending`);
+
+    try {
+      const response = await requestAccountContext();
+      if (sequence !== requestSequence || currentNick().length >= 2) return context;
+      restrictionRefreshFailed = false;
+      context = emptyContext(response.dailyAttemptPolicy ?? null, response.restriction ?? null);
+      return context;
+    } catch {
+      if (sequence !== requestSequence || currentNick().length >= 2) return context;
+      if (source === 'restriction-expired') restrictionRefreshFailed = true;
+      notify(`${source}:error`);
+      return context;
+    } finally {
+      if (sequence === requestSequence && currentNick().length < 2) {
+        contextPending = false;
+        renderSelector();
+        renderStatus();
+        notify(`${source}:settled`);
+      }
+    }
   }
 
   async function syncPlayerContext(source = 'manual') {
@@ -224,15 +473,7 @@
     const sequence = ++requestSequence;
     window.clearTimeout(debounceTimer);
 
-    if (nick.length < 2) {
-      contextPending = false;
-      context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
-      selectedValue = 'global';
-      renderSelector();
-      renderStatus();
-      notify(source);
-      return context;
-    }
+    if (nick.length < 2) return syncAccountContext(sequence, source);
 
     contextPending = true;
     renderStatus();
@@ -241,10 +482,13 @@
     try {
       const response = await requestPlayerContext(nick);
       if (sequence !== requestSequence || nick !== currentNick()) return context;
+      restrictionRefreshFailed = false;
       context = Object.freeze({
         availability: String(response.availability || 'unknown'),
         profile: response.profile?.nick ? response.profile : null,
         leagues: Object.freeze(Array.isArray(response.leagues) ? response.leagues : []),
+        accountPolicy: response.dailyAttemptPolicy ?? null,
+        restriction: response.restriction?.active === true ? Object.freeze({ ...response.restriction }) : null,
       });
       renderSelector();
       renderStatus();
@@ -252,9 +496,11 @@
       return context;
     } catch (error) {
       if (sequence !== requestSequence || nick !== currentNick()) return context;
-      context = Object.freeze({ availability: 'unknown', profile: null, leagues: [] });
+      if (source === 'restriction-expired') restrictionRefreshFailed = true;
       const status = document.querySelector('#nickStatus');
-      if (status) status.textContent = error instanceof Error ? error.message : 'No se pudo comprobar el jugador.';
+      if (status && source !== 'restriction-expired') {
+        status.textContent = error instanceof Error ? error.message : 'No se pudo comprobar el jugador.';
+      }
       notify(`${source}:error`);
       return context;
     } finally {
@@ -270,6 +516,7 @@
   function schedulePlayerContext(source = 'input') {
     window.clearTimeout(debounceTimer);
     requestSequence += 1;
+    restrictionRefreshFailed = false;
     contextPending = true;
     renderStatus();
     notify(`${source}:debounce`);
@@ -372,6 +619,7 @@
   }
 
   function initialize() {
+    ensureRestrictionUi();
     installLeagueShareOverrides();
     const nickInput = document.querySelector('#nick');
     nickInput?.addEventListener('input', () => schedulePlayerContext('input'));
@@ -384,6 +632,7 @@
       notify('selection');
     });
     document.addEventListener('minuto106:account-updated', () => {
+      restrictionRefreshFailed = false;
       syncPlayerContext('account-updated').catch(() => {});
     });
     syncPlayerContext('initial').catch(() => {});

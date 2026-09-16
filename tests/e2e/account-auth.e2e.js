@@ -62,6 +62,8 @@ async function installRuntimeConfig(page) {
       accountAuthApiUrl: 'https://project.supabase.co/functions/v1/account-auth',
       supabaseUrl: 'https://project.supabase.co',
       supabasePublishableKey: publishableKey,
+      authEmailOtpLength: 8,
+      authEmailOtpExpirySeconds: 3600,
       turnstileSiteKey: '',
       publicSiteUrl: applicationUrl,
     })};`,
@@ -306,13 +308,17 @@ test('verification accepts a numeric code, synchronizes once and hides resend co
     initial: { accountToken, pendingEmail: 'player@example.com' },
   });
   await openApplicationPage(page, '/verificar-email.html');
-  await page.locator('#authOtp').fill('12a34-56');
-  await expect(page.locator('#authOtp')).toHaveValue('123456');
-  await expect(page.locator('#verifyEmailCode')).toBeEnabled();
-  await page.locator('#verifyEmailCode').click();
+  const otp = page.locator('#authOtp');
+  const verify = page.locator('#verifyEmailCode');
+  await otp.fill('12a34567');
+  await expect(otp).toHaveValue('1234567');
+  await expect(verify).toBeDisabled();
+  await otp.fill('12345678');
+  await expect(verify).toBeEnabled();
+  await verify.click();
   await expect(page.locator('#verificationSuccess')).toBeVisible();
   await expect(page.locator('#verificationSuccessMessage')).toContainText('+1 intento diario');
-  await expect(page.locator('#verifyEmailCode')).toBeHidden();
+  await expect(verify).toBeHidden();
   await expect(page.locator('#emailConfirmationResend')).toBeHidden();
   expect(authLog.some((entry) => entry.path.endsWith('/verify') && entry.body.type === 'email')).toBe(true);
 });

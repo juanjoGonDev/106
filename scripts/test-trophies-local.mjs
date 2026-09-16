@@ -138,7 +138,8 @@ async function runSmokeCheck() {
   const stats = await rpc('get_game_stats');
   assert.ok(Array.isArray(stats.honoursRankings?.trophies));
   assert.ok(Array.isArray(stats.honoursRankings?.achievements));
-  logStep('Trophy and achievement contracts survive a full database rebuild');
+  assert.ok(Number.isFinite(Date.parse(stats.awards?.resetAt)));
+  logStep('Trophy, achievement and award-reset contracts survive a full database rebuild');
 }
 
 async function runFixtureJourney() {
@@ -294,7 +295,11 @@ async function runFixtureJourney() {
   assert.ok(provisionalAwards.goldenBoot?.nick);
   assert.ok(provisionalAwards.goldenGlove?.nick);
   assert.ok(provisionalAwards.goldenBall?.nick);
-  logStep('The current Madrid day remains provisional and cannot be persisted early');
+  const canonicalResetAt = await rpc('game_server_reset_at', { p_day: today });
+  assert.ok(Number.isFinite(Date.parse(provisionalAwards.resetAt)));
+  assert.equal(Date.parse(provisionalAwards.resetAt), Date.parse(canonicalResetAt));
+  assert.ok(Date.parse(provisionalAwards.resetAt) > Date.now());
+  logStep('The current Madrid day remains provisional and exposes its canonical reset instant');
 }
 
 if (process.env.SUPABASE_SMOKE_ONLY === 'true') await runSmokeCheck();

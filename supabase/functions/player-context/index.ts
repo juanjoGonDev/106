@@ -31,9 +31,10 @@ const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const PRIVATE_TOKEN = /^[a-f0-9]{64}$/i;
+const DEVICE_ID = /^[a-zA-Z0-9._:-]{16,80}$/;
 const ACHIEVEMENT_CODE = /^[a-z0-9_]{1,120}$/;
 const MAX_FEATURED_ACHIEVEMENTS = 3;
-const ACTIONS = new Set(['player-context', 'set-featured-achievements']);
+const ACTIONS = new Set(['account-context', 'player-context', 'set-featured-achievements']);
 
 type JsonObject = Record<string, unknown>;
 
@@ -45,7 +46,7 @@ type AccountPlayer = {
 function corsHeaders(origin: string | null) {
   return {
     'Access-Control-Allow-Origin': origin && allowedOrigins.has(origin) ? origin : [...allowedOrigins][0],
-    'Access-Control-Allow-Headers': 'content-type, x-account-token',
+    'Access-Control-Allow-Headers': 'content-type, x-account-token, x-device-id',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -62,6 +63,13 @@ function jsonResponse(origin: string | null, body: unknown, status = 200) {
       'X-Content-Type-Options': 'nosniff',
     },
   });
+}
+
+function clientIp(request: Request) {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('cf-connecting-ip')
+    || request.headers.get('x-real-ip')
+    || 'unknown';
 }
 
 function nickKey(value: unknown) {
@@ -108,23 +116,91 @@ function playerBelongsToAccount(value: unknown, expectedKey: string) {
   });
 }
 
-async function accountOwnership(request: Request, key: string) {
+async function accountTokenHash(request: Request) {
   const rawAccountToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
-  if (!PRIVATE_TOKEN.test(rawAccountToken)) return false;
-  const accountTokenHash = await sha256(`account:${rawAccountToken}`);
+  if (!PRIVATE_TOKEN.test(rawAccountToken)) return '';
+  return sha256(`account:${rawAccountToken}`);
+}
+
+async function requestRestrictionHashes(request: Request) {
+  const deviceId = request.headers.get('x-device-id')?.trim() ?? '';
+  if (deviceId && !DEVICE_ID.test(deviceId)) throw new Error('invalid_device');
+  const [deviceHash, ipHash] = await Promise.all([
+    deviceId ? sha256(`device:${deviceId}`) : Promise.resolve(''),
+    sha256(`ip:${clientIp(request)}`),
+  ]);
+  return { deviceHash, ipHash };
+}
+
+function publicRestriction(value: unknown) {
+  if (!value || typeof value !== 'object') return null;
+  const ban = value as JsonObject;
+  if (ban.banned !== true) return null;
+  const source = ban.source === 'admin' ? 'manual' : 'integrity';
+  const scope = ['account', 'nick', 'device', 'ip'].includes(String(ban.scope))
+    ? String(ban.scope)
+    : 'account';
+  const permanent = source === 'manual' && ban.permanent === true;
+  const expiresAt = permanent || !ban.expiresAt ? null : String(ban.expiresAt);
+  return {
+    active: true,
+    source,
+    scope,
+    permanent,
+    expiresAt,
+    retryAfterSeconds: permanent ? null : Math.max(1, Number(ban.retryAfterSeconds) || 1),
+  };
+}
+
+async function effectiveRestriction(request: Request, key = '') {
+  const [{ deviceHash, ipHash }, tokenHash] = await Promise.all([
+    requestRestrictionHashes(request),
+    accountTokenHash(request),
+  ]);
+  const result = key
+    ? await rpc('get_game_active_integrity_ban', {
+      p_nick_key: key,
+      p_device_hash: deviceHash,
+      p_ip_hash: ipHash,
+    })
+    : await rpc('get_game_active_integrity_ban_by_token', {
+      p_account_token_hash: tokenHash,
+      p_device_hash: deviceHash,
+      p_ip_hash: ipHash,
+    });
+  return publicRestriction(result);
+}
+
+async function accountOwnership(request: Request, key: string) {
+  const tokenHash = await accountTokenHash(request);
+  if (!tokenHash) return false;
   const account = await rpc('get_game_account_players', {
-    p_account_token_hash: accountTokenHash,
+    p_account_token_hash: tokenHash,
   });
   return playerBelongsToAccount(account, key);
+}
+
+async function accountDailyAttemptPolicy(request: Request) {
+  const tokenHash = await accountTokenHash(request);
+  if (!tokenHash) return null;
+  return rpc('get_game_account_daily_attempt_policy_by_token', {
+    p_account_token_hash: tokenHash,
+  });
 }
 
 async function loadPlayerContext(request: Request, key: string) {
   const profile = await rpc('get_game_player_profile', { p_nick_key: key }) as JsonObject;
   if (!profile?.nick) {
+    const [dailyAttemptPolicy, restriction] = await Promise.all([
+      accountDailyAttemptPolicy(request),
+      effectiveRestriction(request, key),
+    ]);
     return {
       availability: 'available',
       profile: null,
       leagues: [],
+      dailyAttemptPolicy,
+      restriction,
     };
   }
 
@@ -134,14 +210,21 @@ async function loadPlayerContext(request: Request, key: string) {
       availability: 'occupied',
       profile,
       leagues: [],
+      restriction: await effectiveRestriction(request),
     };
   }
 
-  const leagues = await rpc('get_game_player_leagues', { p_nick_key: key });
+  const [leagues, dailyAttemptPolicy, restriction] = await Promise.all([
+    rpc('get_game_player_leagues', { p_nick_key: key }),
+    accountDailyAttemptPolicy(request),
+    effectiveRestriction(request, key),
+  ]);
   return {
     availability: 'owned',
     profile,
     leagues: Array.isArray(leagues) ? leagues : [],
+    dailyAttemptPolicy,
+    restriction,
   };
 }
 
@@ -173,6 +256,14 @@ Deno.serve(async (request) => {
     const action = String(body?.action ?? '');
     if (!ACTIONS.has(action)) {
       return jsonResponse(origin, { error: 'Acción desconocida.' }, 404);
+    }
+
+    if (action === 'account-context') {
+      const [dailyAttemptPolicy, restriction] = await Promise.all([
+        accountDailyAttemptPolicy(request),
+        effectiveRestriction(request),
+      ]);
+      return jsonResponse(origin, { dailyAttemptPolicy, restriction });
     }
 
     const moderation = moderateNickname(body.nick);
@@ -221,6 +312,9 @@ Deno.serve(async (request) => {
 
     return jsonResponse(origin, await loadPlayerContext(request, key));
   } catch (error) {
+    if (error instanceof Error && error.message === 'invalid_device') {
+      return jsonResponse(origin, { error: 'Identificador de dispositivo inválido.' }, 400);
+    }
     console.error(error instanceof Error ? error.message : error);
     return jsonResponse(origin, { error: 'Error interno. Inténtalo de nuevo.' }, 500);
   }

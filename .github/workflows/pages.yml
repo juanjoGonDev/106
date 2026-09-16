@@ -75,7 +75,7 @@ jobs:
               --data '{"action":"health"}' \
               "$readiness_url" || true)"
 
-            if jq -e '.ok == true and .contract == "prepared-countdown-v1"' <<<"$response" >/dev/null 2>&1; then
+            if jq -e '.ok == true and .contract == "ranked-anti-cheat-v3" and .challengeFormat == "raster-png-v1"' <<<"$response" >/dev/null 2>&1; then
               echo "Compatible readiness backend is available at attempt $attempt."
               exit 0
             fi
@@ -142,7 +142,7 @@ jobs:
 
       - name: Configure workflow-based Pages
         if: steps.pages-mode.outputs.build_type == 'workflow'
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload workflow-based static site
         if: steps.pages-mode.outputs.build_type == 'workflow'
