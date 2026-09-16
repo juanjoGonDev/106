@@ -12,6 +12,8 @@ import {
   localStartupPlan,
   localSupabaseStartArguments,
   localWebHealthUrl,
+  localZadminHealthUrl,
+  localZadminUrl,
 } from '../scripts/local-dev-plan.mjs';
 
 test('builds a private deterministic local function environment', () => {
@@ -55,9 +57,11 @@ test('starts only required Supabase services and supports reusable and reset flo
   ]);
 });
 
-test('exposes function, web and account readiness contracts', () => {
+test('exposes function, zadmin, web and account readiness contracts', () => {
   assert.deepEqual([...localFunctionServeArguments()], ['functions', 'serve', '--env-file', LOCAL_FUNCTION_ENV_PATH]);
   assert.equal(localFunctionHealthUrl(), 'http://127.0.0.1:54321/functions/v1/game-api');
+  assert.equal(localZadminHealthUrl(), 'http://127.0.0.1:54321/functions/v1/zadmin-api');
   assert.equal(localWebHealthUrl(), 'http://127.0.0.1:3000/config.js');
   assert.equal(localAccountUrl(), 'http://127.0.0.1:3000/cuenta.html');
+  assert.equal(localZadminUrl(), 'http://127.0.0.1:3000/zadmin/');
 });

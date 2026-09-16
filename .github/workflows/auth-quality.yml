@@ -60,6 +60,7 @@ jobs:
           node --check public/password-visibility.js
           node --check public/supabase-auth-client.js
           node --check scripts/auth-email-templates.mjs
+          node --check scripts/supabase-auth-email-policy.mjs
           node --check scripts/hosted-auth-email-sync.mjs
           node --check scripts/sync-hosted-auth-email-templates.mjs
           node --check supabase/functions/account-auth/core.js
@@ -69,6 +70,9 @@ jobs:
 
       - name: Enforce auth email renderer coverage
         run: pnpm test:auth-email-templates:coverage
+
+      - name: Enforce Supabase Auth email policy coverage
+        run: pnpm test:auth-email-policy:coverage
 
       - name: Enforce hosted Auth email sync coverage
         run: pnpm test:hosted-auth-email-sync:coverage

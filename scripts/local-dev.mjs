@@ -1,8 +1,10 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import {
+  LOCAL_FUNCTION_ENV,
   LOCAL_FUNCTION_ENV_PATH,
   localAccountUrl,
   localDevelopmentMode,
@@ -11,6 +13,8 @@ import {
   localFunctionServeArguments,
   localStartupPlan,
   localWebHealthUrl,
+  localZadminHealthUrl,
+  localZadminUrl,
 } from './local-dev-plan.mjs';
 
 const mode = localDevelopmentMode(process.argv.slice(2));
@@ -99,8 +103,16 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
 try {
+  const localAdminUser = 'local-admin';
+  const localAdminPassword = `local-${randomBytes(18).toString('base64url')}`;
+  const localFunctionEnvironment = [
+    ...LOCAL_FUNCTION_ENV,
+    ['ZU_ADMIN_USER', localAdminUser],
+    ['ZU_ADMIN_PSW', localAdminPassword],
+  ];
+
   await mkdir(dirname(LOCAL_FUNCTION_ENV_PATH), { recursive: true });
-  await writeFile(LOCAL_FUNCTION_ENV_PATH, localFunctionEnvironmentSource(), { encoding: 'utf8', mode: 0o600 });
+  await writeFile(LOCAL_FUNCTION_ENV_PATH, localFunctionEnvironmentSource(localFunctionEnvironment), { encoding: 'utf8', mode: 0o600 });
 
   const plan = localStartupPlan({
     resetDatabase: mode.resetDatabase,
@@ -117,10 +129,16 @@ try {
       headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:3000' },
       body: JSON.stringify({ action: 'stats' }),
     }),
+    waitFor(localZadminHealthUrl(), {
+      method: 'OPTIONS',
+      headers: { origin: 'http://127.0.0.1:3000' },
+    }),
     waitFor(localWebHealthUrl()),
   ]);
 
   process.stdout.write(`\n✓ Local Minuto 106 is ready: ${localAccountUrl()}\n`);
+  process.stdout.write(`✓ Local zadmin is ready: ${localZadminUrl()}\n`);
+  process.stdout.write(`  Local-only credentials: ${localAdminUser} / ${localAdminPassword}\n`);
   process.stdout.write('Press Ctrl+C to stop the web and Edge Function processes.\n');
 } catch (error) {
   process.stderr.write(`\nLocal startup failed: ${error instanceof Error ? error.message : String(error)}\n`);

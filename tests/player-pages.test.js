@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { PLAYER_CARD_RENDERER_REVISION } from '../shared/player-radar-model.js';
 
 const read = (path) => readFileSync(path, 'utf8');
 
@@ -38,6 +39,7 @@ describe('player pages and ranking links', () => {
 
   it('keeps current player sections and attaches the generated PNG through a separate progressive enhancement', () => {
     const html = read('public/player.html');
+    const config = read('public/config.js');
     const script = read('public/player.js');
     const share = read('public/profile-share.js');
     const honours = read('public/honours.js');
@@ -47,7 +49,11 @@ describe('player pages and ranking links', () => {
     expect(html).toContain('data-player-section="achievements"');
     expect(html).toContain('data-player-section="trophies"');
     expect(html).toContain('width="1200" height="630"');
-    expect(html).toContain('<script src="./profile-share.js" data-minuto106-profile-share></script>');
+    expect(html.indexOf('./config.js')).toBeLessThan(html.indexOf('./player-radar-model.js'));
+    expect(html.indexOf('./player-radar-model.js')).toBeLessThan(html.indexOf('./player-ui.js'));
+    expect(html).toContain(`<script src="./player-radar-model.js?v=${PLAYER_CARD_RENDERER_REVISION}"></script>`);
+    expect(config).not.toContain('globalThis.Minuto106PlayerRadarModel');
+    expect(html).toContain('<script src="./profile-share.js?v=20260731-card-renderer-2" data-minuto106-profile-share></script>');
     expect(html).toContain('id="sharePlayer" class="primary" type="button" disabled>Preparando...</button>');
     expect(html).not.toContain('property="og:image"');
     expect(script).toContain('ui.playerUrl(player.nick, section)');
@@ -68,6 +74,21 @@ describe('player pages and ranking links', () => {
     expect(server).toContain('/ligas\\/[A-Z0-9]{6}');
   });
 
+  it('renders one accessible native accordion entry for every radar statistic', () => {
+    const html = read('public/player.html');
+    const script = read('public/player-stats.js');
+    const styles = read('public/v20.css');
+    expect(html).toContain('Cómo se calcula cada estadística');
+    expect(html).toContain('id="playerRadarExplanations"');
+    expect(html).not.toContain('id="playerRadarExplanation"');
+    expect(script).toContain("document.createElement('details')");
+    expect(script).toContain('details.dataset.statKey = explanation.key');
+    expect(script).toContain("summary.setAttribute('aria-label'");
+    expect(script).toContain('renderStatExplanations(document.querySelector');
+    expect(styles).toContain('.player-radar-stat[open]');
+    expect(styles).toContain('.player-radar-stat summary:focus-visible');
+  });
+
   it('separates achievement descriptions and dates into semantic elements', () => {
     const honours = read('public/honours.js');
     const player = read('public/player.js');
@@ -78,12 +99,13 @@ describe('player pages and ranking links', () => {
     expect(styles).toContain('.player-list__copy time');
   });
 
-  it('audits pointer cursors for anchors and enabled controls globally', () => {
+  it('audits pointer cursors and clean-route-safe shared assets globally', () => {
     const styles = read('public/v11.css');
     const honours = read('public/honours.js');
     expect(styles).toContain('a[href],button:not(:disabled)');
     expect(styles).toContain('[role="button"]:not([aria-disabled="true"])');
-    expect(honours).toContain("stylesheet.href = './v11.css'");
+    expect(honours).toContain("stylesheet.href = appAssetUrl('v11.css')");
+    expect(honours).toContain("script.src = appAssetUrl('share-actions.js')");
   });
 });
 
@@ -127,7 +149,8 @@ describe('dynamic player social card', () => {
     expect(edge).toContain('property="og:image:secure_url"');
     expect(edge).toContain('name="twitter:image:src"');
     expect(edge).toContain('image/png');
-    expect(edge).toContain('get_game_public_profile');
+    expect(edge).toContain('get_game_player_profile');
+    expect(edge).not.toContain('get_game_public_profile');
     expect(edge).not.toContain('imageUrl.pathname.replace(/\\/?$/');
   });
 

@@ -11,6 +11,15 @@ function clamp(value, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function hasPlayerProfile(profile) {
+  return Boolean(
+    profile
+    && typeof profile === 'object'
+    && !Array.isArray(profile)
+    && String(profile.nick ?? '').trim(),
+  );
+}
+
 export function normalizeDailyAttemptProfile(profile) {
   const source = profile && typeof profile === 'object' ? profile : {};
   const bonusAttempts = clamp(
@@ -29,11 +38,7 @@ export function normalizeDailyAttemptProfile(profile) {
     0,
     Math.max(0, maxAttempts - attemptsUsed),
   );
-  const attemptsLeft = clamp(
-    finiteInteger(source.attemptsLeft, maxAttempts - attemptsUsed - attemptsReserved),
-    0,
-    maxAttempts,
-  );
+  const attemptsLeft = maxAttempts - attemptsUsed - attemptsReserved;
   const completedReferrals = Math.max(0, finiteInteger(source.completedReferrals));
   const resetAt = typeof source.dailyResetAt === 'string' ? source.dailyResetAt : '';
 
@@ -48,6 +53,10 @@ export function normalizeDailyAttemptProfile(profile) {
     exhausted: attemptsLeft === 0,
     atCeiling: maxAttempts === DAILY_ATTEMPT_CEILING,
   });
+}
+
+export function resolveDailyAttemptState(profile, accountPolicy) {
+  return normalizeDailyAttemptProfile(hasPlayerProfile(profile) ? profile : accountPolicy);
 }
 
 export function millisecondsUntilReset(resetAt, nowMs = Date.now()) {
@@ -84,9 +93,8 @@ export function dailyReferralProgress(state) {
   });
 }
 
-export function exhaustedDailyLimitCopy(profile, nowMs = Date.now()) {
+export function exhaustedDailyLimitCopy(profile) {
   const state = normalizeDailyAttemptProfile(profile);
   if (!state.exhausted) return '';
-  const countdown = formatDailyCountdown(millisecondsUntilReset(state.resetAt, nowMs));
-  return `Has agotado tus ${state.maxAttempts} intentos globales de hoy. Se reinician en ${countdown}, según la hora del servidor.`;
+  return `Has agotado tus ${state.maxAttempts} intentos globales de hoy.`;
 }

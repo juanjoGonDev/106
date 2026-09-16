@@ -11,11 +11,8 @@ const after = JSON.parse(readFileSync(afterPath, 'utf8'));
 
 const monotonicMetrics = [
   'attempts',
-  'verifiedAttempts',
   'players',
   'referrals',
-  'completedReferrals',
-  'bonusAttempts',
   'duels',
   'completedDuels',
   'leagues',
@@ -23,6 +20,16 @@ const monotonicMetrics = [
   'accounts',
   'accountPlayers',
   'trophyRuns',
+];
+
+// These values are intentionally derived from the current integrity policy.
+// A forward migration may legitimately lower or reassign them after historical
+// attempts are reassessed. Raw attempts and identity/history rows above remain
+// monotonic and are the recovery/audit boundary.
+const recomputableMetrics = [
+  'verifiedAttempts',
+  'completedReferrals',
+  'bonusAttempts',
   'trophies',
   'leagueTrophies',
   'achievements',
@@ -49,4 +56,7 @@ if (regressions.length > 0) {
 console.log('Production history verification passed.');
 for (const metric of monotonicMetrics) {
   console.log(`${metric}: ${before[metric] ?? 0} -> ${after[metric] ?? 0}`);
+}
+for (const metric of recomputableMetrics) {
+  console.log(`${metric} (derived): ${before[metric] ?? 0} -> ${after[metric] ?? 0}`);
 }

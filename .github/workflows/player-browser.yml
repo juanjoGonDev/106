@@ -53,6 +53,12 @@ jobs:
       - name: Enforce player route and flag coverage
         run: pnpm test:player-ui:coverage
 
+      - name: Enforce nickname field controller coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/nickname-field-controller.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/nickname-field-controller.node-test.js
+
+      - name: Enforce zadmin session persistence coverage
+        run: node --test --experimental-test-coverage --test-coverage-include=public/zadmin/session-persistence.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 tests/zadmin-session-persistence.node-test.js
+
       - name: Enforce completed-attempt refresh coverage
         run: pnpm test:attempt-refresh:coverage
 

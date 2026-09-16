@@ -197,7 +197,7 @@ async function rpc(name: string, parameters = {}) {
 function statusForError(error: string) {
   if (['nick_limit', 'challenge_used', 'duel_closed', 'human_check_used', 'human_check_completed'].includes(error)) return 409;
   if (['player_access_denied', 'league_membership_required', 'human_check_mismatch'].includes(error)) return 403;
-  if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit', 'human_check_rate_limit'].includes(error)) return 429;
+  if (['rate_limit', 'daily_limit', 'duel_daily_limit', 'league_limit', 'human_check_rate_limit', 'integrity_banned'].includes(error)) return 429;
   if (['challenge_not_found', 'duel_not_found', 'league_not_found', 'human_check_not_found'].includes(error)) return 404;
   return 400;
 }
@@ -207,6 +207,7 @@ function messageForError(error: string) {
     nick_limit: 'Has agotado los intentos disponibles en esta competición.',
     rate_limit: 'Demasiadas acciones seguidas. Espera un momento.',
     daily_limit: 'Has alcanzado el límite diario de seguridad.',
+    integrity_banned: 'El juego competitivo está bloqueado temporalmente para este acceso por actividad no válida. Podrás volver a intentarlo cuando termine la restricción.',
     challenge_not_found: 'El intento no existe.',
     challenge_used: 'Este intento ya fue utilizado.',
     challenge_expired: 'El intento ha caducado.',
@@ -257,6 +258,19 @@ async function getAccountHash(request: Request) {
   const rawToken = request.headers.get('x-account-token')?.trim().toLowerCase() ?? '';
   if (!PRIVATE_TOKEN.test(rawToken)) return null;
   return await sha256(`account:${rawToken}`);
+}
+async function activeIntegrityBan(request: Request, deviceHash: string, ipHash: string) {
+  const result = await rpc('get_game_active_integrity_ban_by_token', {
+    p_account_token_hash: await getAccountHash(request),
+    p_device_hash: deviceHash,
+    p_ip_hash: ipHash,
+  });
+  if (result?.banned !== true) return null;
+  return {
+    error: 'integrity_banned',
+    expiresAt: result.expiresAt,
+    retryAfterSeconds: result.retryAfterSeconds,
+  };
 }
 async function authorizePlayer(request: Request, nick: string, deviceHash: string, ipHash: string) {
   const accountTokenHash = await getAccountHash(request);
@@ -339,6 +353,11 @@ Deno.serve(async (request) => {
       sha256(`device:${deviceId}`),
       sha256(`ip:${ip}`),
     ]);
+
+    if (['human-check', 'complete-human-check', 'start'].includes(action)) {
+      const ban = await activeIntegrityBan(request, deviceHash, ipHash);
+      if (ban) return safeResult(origin, ban);
+    }
 
     if (action === 'human-check') {
       const balls = createBallLayout();

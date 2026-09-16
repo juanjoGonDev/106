@@ -3,6 +3,8 @@ import {
   AUTH_RETURN_STORAGE_KEY,
   AUTH_SESSION_STORAGE_KEY,
   accountRedirectUrl,
+  normalizeAuthEmailOtp,
+  normalizeAuthEmailOtpLength,
   normalizeEmail,
   normalizeProvider,
 } from './auth-account-state.js';
@@ -70,11 +72,6 @@ export function callbackSessionTokens(url) {
   }
 }
 
-function verificationToken(value) {
-  const token = String(value ?? '').trim();
-  return /^\d{6}$/u.test(token) ? token : '';
-}
-
 function tokenHash(value) {
   const hash = String(value ?? '').trim();
   return /^[a-zA-Z0-9_-]{20,512}$/u.test(hash) ? hash : '';
@@ -85,6 +82,7 @@ export class SupabaseAuthClient {
     this.supabaseUrl = config.supabaseUrl;
     this.publishableKey = config.publishableKey;
     this.publicSiteUrl = config.publicSiteUrl;
+    this.authEmailOtpLength = normalizeAuthEmailOtpLength(config.authEmailOtpLength);
     this.fetch = dependencies.fetch ?? window.fetch.bind(window);
     this.storage = dependencies.storage ?? window.localStorage;
     this.location = dependencies.location ?? window.location;
@@ -276,9 +274,10 @@ export class SupabaseAuthClient {
 
   async verifyEmailOtp(email, tokenValue) {
     const normalized = normalizeEmail(email);
-    const token = verificationToken(tokenValue);
     if (!normalized) throw new Error('No se encontró el email pendiente de verificación.');
-    if (!token) throw new Error('Introduce el código de 6 dígitos.');
+    if (!this.authEmailOtpLength) throw new Error('La verificación mediante código no está configurada. Abre el enlace recibido por email.');
+    const token = normalizeAuthEmailOtp(tokenValue, this.authEmailOtpLength);
+    if (!token) throw new Error(`Introduce el código de ${this.authEmailOtpLength} dígitos.`);
     const payload = await this.request('/verify', {
       body: { email: normalized, token, type: 'email' },
     });

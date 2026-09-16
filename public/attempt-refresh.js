@@ -61,5 +61,5 @@
   };
 
   loadAchievementUnlocks();
-  import('./daily-attempt-ui.js').catch(() => {});
+  import('./daily-attempt-ui.js?v=20260802-derived-budget').catch(() => {});
 })();

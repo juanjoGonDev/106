@@ -1,0 +1,67 @@
+.awards-card .section-heading {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.awards-reset {
+  display: grid;
+  min-width: 168px;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
+}
+
+.awards-reset > span {
+  color: var(--muted, #b8bdc8);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.awards-reset > output {
+  color: #f4c95d;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.awards-reset > small {
+  color: var(--muted, #b8bdc8);
+  font-size: 0.72rem;
+}
+
+.battle-track.is-empty {
+  background: linear-gradient(90deg, #242731, #30343f);
+}
+
+.battle-track.is-empty .battle-fill {
+  width: 0 !important;
+}
+
+.battle-track.is-empty span {
+  color: #d6d9e1;
+  text-shadow: none;
+}
+
+.human-check-image {
+  image-rendering: auto;
+}
+
+@media (max-width: 640px) {
+  .awards-card .section-heading {
+    display: grid;
+    gap: 12px;
+  }
+
+  .awards-reset {
+    width: 100%;
+    min-width: 0;
+    justify-items: start;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: left;
+  }
+}

@@ -1,0 +1,73 @@
+.account-player {
+  align-items: flex-start;
+}
+
+.account-player > div:first-child {
+  min-width: 0;
+}
+
+.account-player small {
+  display: block;
+}
+
+.account-player-rename-warning {
+  margin-top: .35rem;
+  color: #f5cf67;
+  font-weight: 700;
+}
+
+[data-nickname-cooldown] {
+  margin-top: .35rem;
+  color: var(--text-muted, #a6a9b0);
+}
+
+[data-nickname-cooldown][data-state="cooldown"] {
+  color: #f5cf67;
+}
+
+[data-nickname-cooldown][data-state="ready"] {
+  color: #8ee0b0;
+}
+
+.account-player-rename-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: .75rem;
+  width: 100%;
+  margin-top: .8rem;
+  padding: .9rem;
+  border: 1px solid var(--border, #30343d);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 2%);
+}
+
+.account-player-rename-form label {
+  display: grid;
+  gap: .4rem;
+  font-weight: 800;
+}
+
+.account-player-rename-form input {
+  width: 100%;
+  min-height: 46px;
+}
+
+.account-player-rename-form .account-nick-status {
+  min-height: 1.4rem;
+  margin: 0;
+}
+
+.account-nick-status[data-tone="error"] { color: #ff9da6; }
+.account-nick-status[data-tone="warning"] { color: #f5cf67; }
+.account-nick-status[data-tone="success"] { color: #8ee0b0; }
+
+@media (max-width: 420px) {
+  .account-player-actions {
+    width: 100%;
+  }
+
+  .account-player-actions > * {
+    flex: 1 1 calc(50% - .4rem);
+    justify-content: center;
+  }
+}

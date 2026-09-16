@@ -37,9 +37,9 @@
     return window.Minuto106PlayerUI?.cardUrl(apiUrl, profile.nick, 'overview', profile.profileRevision) || '';
   }
 
-  function profileShareScriptUrl() {
+  function appAssetUrl(path) {
     const appBaseUrl = window.Minuto106PlayerUI?.appBaseUrl?.();
-    return new URL('profile-share.js', appBaseUrl || location.href).toString();
+    return new URL(path, appBaseUrl || location.href).toString();
   }
 
   function ensureProfileShareModule() {
@@ -53,7 +53,7 @@
       script.addEventListener('load', finish, { once: true });
       script.addEventListener('error', () => resolve(null), { once: true });
       if (!existing) {
-        script.src = profileShareScriptUrl();
+        script.src = appAssetUrl('profile-share.js');
         script.async = false;
         script.dataset.minuto106ProfileShare = 'true';
         document.head.append(script);
@@ -148,17 +148,17 @@
   }
 
   function ensureStyles() {
-    if (document.querySelector('link[href="./v11.css"]')) return;
+    if (document.querySelector('link[href="./v11.css"], link[href$="/v11.css"]')) return;
     const stylesheet = document.createElement('link');
     stylesheet.rel = 'stylesheet';
-    stylesheet.href = './v11.css';
+    stylesheet.href = appAssetUrl('v11.css');
     document.head.append(stylesheet);
   }
 
   function ensureShareActions() {
     if (document.querySelector('script[data-minuto106-share-actions]')) return;
     const script = document.createElement('script');
-    script.src = './share-actions.js';
+    script.src = appAssetUrl('share-actions.js');
     script.async = false;
     script.dataset.minuto106ShareActions = 'true';
     document.head.append(script);

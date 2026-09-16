@@ -94,6 +94,10 @@ async function rpc(name: string, parameters: JsonObject) {
   return data as JsonObject;
 }
 
+async function dailyAttemptPolicy(authUserId: string) {
+  return rpc('get_game_auth_daily_attempt_policy', { p_auth_user_id: authUserId });
+}
+
 async function authenticatedIdentity(request: Request) {
   const token = bearerToken(request.headers.get('authorization'));
   if (!token) return { error: 'auth_required' } as const;
@@ -151,7 +155,11 @@ Deno.serve(async (request) => {
     const { identity } = authenticated;
 
     if (action === 'session') {
-      return jsonResponse(origin, { authenticated: true, auth: publicAuth(identity) });
+      return jsonResponse(origin, {
+        authenticated: true,
+        auth: publicAuth(identity),
+        dailyAttemptPolicy: await dailyAttemptPolicy(identity.id),
+      });
     }
 
     if (action === 'sync-account') {
@@ -183,9 +191,11 @@ Deno.serve(async (request) => {
       const authReward = result.mergeRequired === true
         ? pendingAuthReward(identity)
         : await rpc('grant_game_auth_link_reward', { p_auth_user_id: identity.id });
+      const accountPolicy = await dailyAttemptPolicy(identity.id);
       return safeResult(origin, successfulSync({
         ...result,
         authReward,
+        dailyAttemptPolicy: accountPolicy,
       }, newToken, identity));
     }
 
@@ -214,6 +224,7 @@ Deno.serve(async (request) => {
       ...result,
       auth: publicAuth(identity),
       authReward,
+      dailyAttemptPolicy: await dailyAttemptPolicy(identity.id),
     });
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Unknown account-auth error');

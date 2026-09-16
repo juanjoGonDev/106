@@ -5,6 +5,8 @@ export const AUTH_PENDING_CONFIRMATION_STORAGE_KEY = 'minuto106:pending-email-co
 export const AUTH_RESEND_AVAILABLE_AT_STORAGE_KEY = 'minuto106:email-resend-available-at-v1';
 export const AUTH_CONFIRMATION_LINK_TTL_SECONDS = 60 * 60;
 export const AUTH_RESEND_COOLDOWN_SECONDS = 60;
+export const AUTH_EMAIL_OTP_LENGTH_MIN = 6;
+export const AUTH_EMAIL_OTP_LENGTH_MAX = 10;
 export const PASSWORD_MIN_LENGTH = 10;
 
 const PROVIDERS = new Set(['google']);
@@ -15,6 +17,46 @@ const PASSWORD_REQUIREMENT_DEFINITIONS = Object.freeze([
   Object.freeze({ code: 'number', label: 'Un número', test: (value) => /[0-9]/.test(value) }),
   Object.freeze({ code: 'symbol', label: 'Un símbolo', test: (value) => /[^a-zA-Z0-9]/.test(value) }),
 ]);
+
+export function normalizeAuthEmailOtpLength(value) {
+  const length = Number(value);
+  return Number.isInteger(length)
+    && length >= AUTH_EMAIL_OTP_LENGTH_MIN
+    && length <= AUTH_EMAIL_OTP_LENGTH_MAX
+    ? length
+    : 0;
+}
+
+export function normalizeAuthEmailOtpExpirySeconds(value) {
+  const seconds = Number(value);
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : 0;
+}
+
+export function sanitizeAuthEmailOtp(value, lengthValue) {
+  const length = normalizeAuthEmailOtpLength(lengthValue);
+  if (!length) return '';
+  return String(value ?? '').replace(/\D/gu, '').slice(0, length);
+}
+
+export function normalizeAuthEmailOtp(value, lengthValue) {
+  const length = normalizeAuthEmailOtpLength(lengthValue);
+  const token = String(value ?? '').trim();
+  return length && token.length === length && /^\d+$/u.test(token) ? token : '';
+}
+
+export function authEmailOtpExpiryLabel(value) {
+  const seconds = normalizeAuthEmailOtpExpirySeconds(value);
+  if (!seconds) return '';
+  if (seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+  }
+  if (seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+  }
+  return `${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`;
+}
 
 export function normalizeAuthConfig(value) {
   const input = value && typeof value === 'object' ? value : {};
@@ -32,6 +74,8 @@ export function normalizeAuthConfig(value) {
     publishableKey,
     accountAuthApiUrl,
     publicSiteUrl,
+    authEmailOtpLength: normalizeAuthEmailOtpLength(input.authEmailOtpLength),
+    authEmailOtpExpirySeconds: normalizeAuthEmailOtpExpirySeconds(input.authEmailOtpExpirySeconds),
     turnstileSiteKey: String(input.turnstileSiteKey ?? '').trim(),
   };
 }

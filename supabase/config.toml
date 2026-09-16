@@ -21,6 +21,7 @@ enable_confirmations = true
 double_confirm_changes = true
 secure_password_change = true
 max_frequency = "1m"
+otp_length = 8
 otp_expiry = 3600
 
 [auth.email.template.confirmation]
@@ -101,4 +102,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.account-auth]
+verify_jwt = false
+
+[functions.zadmin-api]
+verify_jwt = false
+
+[functions.zadmin-management]
+verify_jwt = false
+
+[functions.player-name-management]
 verify_jwt = false

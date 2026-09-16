@@ -1,3 +1,9 @@
+import {
+  normalizeAuthEmailOtpExpirySeconds,
+  normalizeAuthEmailOtpLength,
+} from '../public/auth-account-state.js';
+import { SUPABASE_AUTH_EMAIL_POLICY } from './supabase-auth-email-policy.mjs';
+
 const DEFAULT_SUPABASE_PROJECT_ID = 'imtitjwgiemlaabpioed';
 const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
 const DEFAULT_API_URL = `${DEFAULT_SUPABASE_URL}/functions/v1/game-api`;
@@ -62,7 +68,7 @@ function normalizedSupabaseUrl(value) {
   return validPublicUrl(url, null, true) ? url : '';
 }
 
-export function buildRuntimeConfig(environment = process.env) {
+export function buildRuntimeConfig(environment = process.env, authEmailPolicy = SUPABASE_AUTH_EMAIL_POLICY) {
   const explicitApiUrl = normalizedUrl(environment.SUPABASE_FUNCTIONS_URL);
   const configuredProjectRef = normalizedProjectRef(
     environment.SUPABASE_PROJECT_ID || environment.PROJECT_ID,
@@ -84,6 +90,8 @@ export function buildRuntimeConfig(environment = process.env) {
     accountAuthApiUrl: `${supabaseUrl}/functions/v1/account-auth`,
     supabaseUrl,
     supabasePublishableKey: normalizedPublishableKey(environment.SUPABASE_PUBLISHABLE_KEY),
+    authEmailOtpLength: authEmailPolicy.otpLength,
+    authEmailOtpExpirySeconds: authEmailPolicy.otpExpirySeconds,
     turnstileSiteKey: String(environment.TURNSTILE_SITE_KEY ?? '').trim(),
     googleAnalyticsId: String(environment.GOOGLE_ANALYTICS_ID ?? '').trim(),
     adSenseClient: String(environment.ADSENSE_CLIENT ?? '').trim(),
@@ -105,6 +113,12 @@ export function validateRuntimeConfig(config, options = {}) {
   }
   if (!validPublicUrl(config.publicSiteUrl, null, allowLocal)) {
     errors.push('The public GitHub Pages URL could not be derived.');
+  }
+  if (!normalizeAuthEmailOtpLength(config.authEmailOtpLength)) {
+    errors.push('The generated email OTP length is invalid.');
+  }
+  if (!normalizeAuthEmailOtpExpirySeconds(config.authEmailOtpExpirySeconds)) {
+    errors.push('The generated email OTP expiry is invalid.');
   }
   if (options.requireAuth === true && !config.supabasePublishableKey) {
     errors.push('SUPABASE_PUBLISHABLE_KEY is required for the production authentication UI.');

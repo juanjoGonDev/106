@@ -12,6 +12,7 @@ import {
 
 const readRepositoryFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const publishableKey = `sb_publishable_${'a'.repeat(32)}`;
+const authEmailPolicy = { otpLength: 8, otpExpirySeconds: 3600 };
 
 describe('runtime configuration', () => {
   it('prefers an explicit Edge Function URL and derives the auth boundary', () => {
@@ -26,6 +27,8 @@ describe('runtime configuration', () => {
     expect(config.accountAuthApiUrl).toBe('https://example.supabase.co/functions/v1/account-auth');
     expect(config.supabaseUrl).toBe('https://example.supabase.co');
     expect(config.supabasePublishableKey).toBe(publishableKey);
+    expect(config.authEmailOtpLength).toBe(8);
+    expect(config.authEmailOtpExpirySeconds).toBe(3600);
     expect(config.publicSiteUrl).toBe('https://example.com');
     expect(validateRuntimeConfig(config, { requireAuth: true })).toEqual([]);
   });
@@ -42,6 +45,8 @@ describe('runtime configuration', () => {
     expect(config.accountAuthApiUrl).toBe('http://127.0.0.1:54321/functions/v1/account-auth');
     expect(config.supabaseUrl).toBe('http://127.0.0.1:54321');
     expect(config.supabasePublishableKey).toBe(anonKey);
+    expect(config.authEmailOtpLength).toBe(8);
+    expect(config.authEmailOtpExpirySeconds).toBe(3600);
     expect(config.publicSiteUrl).toBe('http://localhost:3000');
     expect(validateRuntimeConfig(config)).toContain('The generated Supabase project URL is invalid.');
     expect(validateRuntimeConfig(config, { allowLocal: true, requireAuth: true })).toEqual([]);
@@ -89,6 +94,8 @@ describe('runtime configuration', () => {
     expect(malformed.apiBaseUrl).toBe(DEFAULT_API_URL);
     expect(missing.supabasePublishableKey).toBe('');
     expect(malformed.supabasePublishableKey).toBe('');
+    expect(missing.authEmailOtpLength).toBe(8);
+    expect(missing.authEmailOtpExpirySeconds).toBe(3600);
     expect(missing.publicSiteUrl).toBe('https://juanjogondev.github.io/106');
     expect(validateRuntimeConfig(missing)).toEqual([]);
     expect(validateRuntimeConfig(malformed)).toEqual([]);
@@ -97,17 +104,23 @@ describe('runtime configuration', () => {
     );
   });
 
-  it('rejects malformed public endpoints while keeping the safe auth fallback', () => {
+  it('rejects malformed public endpoints and invalid derived OTP policy', () => {
     const config = buildRuntimeConfig({
       SUPABASE_FUNCTIONS_URL: 'https://api.example.com/not-game-api',
       SUPABASE_URL: 'not-a-url',
       PUBLIC_SITE_URL: 'invalid',
-    });
+    }, authEmailPolicy);
 
     expect(config.accountAuthApiUrl).toBe(`${DEFAULT_SUPABASE_URL}/functions/v1/account-auth`);
-    expect(validateRuntimeConfig(config)).toEqual(expect.arrayContaining([
+    expect(validateRuntimeConfig({
+      ...config,
+      authEmailOtpLength: 5,
+      authEmailOtpExpirySeconds: 0,
+    })).toEqual(expect.arrayContaining([
       'The generated Supabase Edge Function URL is invalid.',
       'The public GitHub Pages URL could not be derived.',
+      'The generated email OTP length is invalid.',
+      'The generated email OTP expiry is invalid.',
     ]));
   });
 
@@ -117,6 +130,8 @@ describe('runtime configuration', () => {
     expect(source).toContain(DEFAULT_API_URL);
     expect(source).toContain('/functions/v1/account-auth');
     expect(source).toContain('supabasePublishableKey');
+    expect(source).toContain('authEmailOtpLength: 8');
+    expect(source).toContain('authEmailOtpExpirySeconds: 3600');
     expect(source).not.toContain('YOUR_PROJECT_REF');
   });
 

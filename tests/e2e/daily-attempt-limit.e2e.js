@@ -149,10 +149,12 @@ test('exhausted daily global quota counts down and refreshes from the server at 
     await page.goto('/');
     const card = page.locator('#dailyLimitCard');
     const countdown = page.locator('#dailyLimitCountdown');
+    const nickStatus = page.locator('#nickStatus');
     await expect(card).toBeVisible();
     await expect(page.locator('#dailyLimitCount')).toHaveText('5 de 5 intentos usados hoy');
     await expect(page.locator('#dailyLimitReferral')).toContainText('todos sus nicks');
-    await expect(page.locator('#nickStatus')).toContainText('hora del servidor');
+    await expect(nickStatus).toHaveText('Has agotado tus 5 intentos globales de hoy.');
+    await expect(nickStatus).not.toContainText(/\d{2}:\d{2}:\d{2}/);
     await expect(page.locator('#startButton')).toBeDisabled();
     await expect(countdown).toHaveText(/^00:00:0[1-7]$/);
 
@@ -171,7 +173,7 @@ test('exhausted daily global quota counts down and refreshes from the server at 
     }
 
     await expect(card).toBeHidden({ timeout: 12_000 });
-    await expect(page.locator('#nickStatus')).toHaveText('5 de 5 intentos globales disponibles.');
+    await expect(nickStatus).toHaveText('5 de 5 intentos globales disponibles.');
     expect(requests.playerContext).toBeGreaterThanOrEqual(2);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);

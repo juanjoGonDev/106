@@ -85,6 +85,13 @@ const destructivePatterns = [
   { label: 'DROP TYPE', regex: /^\s*drop\s+type\b/im },
 ];
 
+const simpleSqlIdentifier = '[a-z_][a-z0-9_$]*';
+const simpleQualifiedTable = `${simpleSqlIdentifier}(?:\\.${simpleSqlIdentifier})?`;
+const safeCheckDropPattern = new RegExp(
+  `^\\s*alter\\s+table\\s+(${simpleQualifiedTable})\\s+drop\\s+constraint\\s+(?:if\\s+exists\\s+)?(${simpleSqlIdentifier})\\s*;`,
+  'gim',
+);
+
 function isIdentifierCharacter(character) {
   if (!character) return false;
   const code = character.codePointAt(0);
@@ -211,22 +218,39 @@ export function migrationExecutionSql(sql) {
   return output + source.slice(cursor);
 }
 
-function isVerifiedAchievementCheckExpansion(sql, pattern) {
-  if (pattern.label !== 'ALTER TABLE ... DROP') return false;
-  const normalized = sql.toLowerCase().replaceAll(/\s+/g, ' ').trim();
-  const droppedCheck = [
-    'alter table public.game_player_achievements',
-    'drop constraint if exists game_player_achievements_achievement_kind_check;',
-  ].join(' ');
-  const recreatedCheck = [
-    'alter table public.game_player_achievements',
-    'add constraint game_player_achievements_achievement_kind_check',
-    'check (achievement_kind in (',
-  ].join(' ');
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  return normalized.includes(droppedCheck)
-    && normalized.includes(recreatedCheck)
-    && !normalized.includes('drop column');
+function hasOnlySafeCheckConstraintReplacements(sql, pattern) {
+  if (pattern.label !== 'ALTER TABLE ... DROP') return false;
+
+  const source = String(sql ?? '');
+  const safeDrops = [...source.matchAll(safeCheckDropPattern)];
+  if (safeDrops.length === 0) return false;
+
+  const ranges = [];
+  for (const drop of safeDrops) {
+    const statement = drop[0];
+    const table = drop[1];
+    const constraint = drop[2];
+    const start = drop.index;
+
+    const laterSql = source.slice(start + statement.length);
+    const recreationPattern = new RegExp(
+      `^\\s*alter\\s+table\\s+${escapeRegExp(table)}\\s+add\\s+constraint\\s+${escapeRegExp(constraint)}\\s+check\\s*\\(`,
+      'im',
+    );
+    if (!recreationPattern.test(laterSql)) return false;
+    ranges.push({ start, end: start + statement.length });
+  }
+
+  let remainingSql = source;
+  for (const range of ranges.toReversed()) {
+    remainingSql = `${remainingSql.slice(0, range.start)}\n${remainingSql.slice(range.end)}`;
+  }
+
+  return !pattern.regex.test(remainingSql);
 }
 
 export function migrationViolations(files) {
@@ -239,7 +263,7 @@ export function migrationViolations(files) {
 
     for (const pattern of destructivePatterns) {
       if (!pattern.regex.test(executionSql)) continue;
-      if (explicitlyApproved || isVerifiedAchievementCheckExpansion(executionSql, pattern)) continue;
+      if (explicitlyApproved || hasOnlySafeCheckConstraintReplacements(executionSql, pattern)) continue;
       violations.push(`${file}: ${pattern.label}`);
     }
   }
