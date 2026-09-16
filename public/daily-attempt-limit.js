@@ -38,11 +38,7 @@ export function normalizeDailyAttemptProfile(profile) {
     0,
     Math.max(0, maxAttempts - attemptsUsed),
   );
-  const attemptsLeft = clamp(
-    finiteInteger(source.attemptsLeft, maxAttempts - attemptsUsed - attemptsReserved),
-    0,
-    maxAttempts,
-  );
+  const attemptsLeft = maxAttempts - attemptsUsed - attemptsReserved;
   const completedReferrals = Math.max(0, finiteInteger(source.completedReferrals));
   const resetAt = typeof source.dailyResetAt === 'string' ? source.dailyResetAt : '';
 

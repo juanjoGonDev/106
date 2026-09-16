@@ -14,12 +14,17 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'home-competition-selector',
   'home-ranking',
   'home-stats-synchronization',
+  'human-check-completed',
+  'human-check-initial',
+  'human-check-selected',
   'league-detail-active',
   'league-detail-scheduled',
   'league-directory',
   'league-waiting',
   'legal-page',
+  'play-restriction',
   'player-achievements',
+  'player-collections',
   'player-honours-progress',
   'player-navigation',
   'player-overview',
@@ -35,6 +40,8 @@ export const REQUIRED_PLATFORM_SNAPSHOTS = Object.freeze([
   'ranking-tiebreak',
   'ranking-trophies',
   'shared-result',
+  'zadmin-dashboard',
+  'zadmin-login',
 ]);
 
 export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
@@ -42,10 +49,14 @@ export const REQUIRED_PLATFORM_INTERACTIONS = Object.freeze([
   'cookies-page',
   'daily-awards-after-finish',
   'daily-limit-countdown',
+  'human-check-progress',
   'league-detail-active',
   'league-detail-scheduled',
   'league-directory',
+  'play-restriction',
+  'player-collections',
   'player-reliability',
+  'zadmin-dashboard',
 ]);
 
 const DEVICES = Object.freeze(['desktop', 'mobile']);

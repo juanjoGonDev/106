@@ -37,6 +37,40 @@
     target.title = fullNumber(value);
   }
 
+  function nonNegativeScore(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+  }
+
+  function resolveBattleState(spainValue, argentinaValue) {
+    const spainScore = nonNegativeScore(spainValue);
+    const argentinaScore = nonNegativeScore(argentinaValue);
+    const totalScore = spainScore + argentinaScore;
+    if (totalScore <= 0) {
+      return Object.freeze({
+        spainScore,
+        argentinaScore,
+        spainPercent: 0,
+        argentinaPercent: 0,
+        empty: true,
+        label: 'Sin puntos',
+        accessibleLabel: 'Sin puntos globales verificados',
+      });
+    }
+
+    const spainPercent = Math.max(0, Math.min(100, Math.round((spainScore / totalScore) * 100)));
+    const argentinaPercent = 100 - spainPercent;
+    return Object.freeze({
+      spainScore,
+      argentinaScore,
+      spainPercent,
+      argentinaPercent,
+      empty: false,
+      label: `${spainPercent}% · ${argentinaPercent}%`,
+      accessibleLabel: `España ${spainPercent}%, Argentina ${argentinaPercent}%`,
+    });
+  }
+
   function resolveTeam(team) {
     if (team === 'spain') return Object.freeze({ key: 'spain', name: 'España', flagClass: 'flag--spain' });
     if (team === 'argentina') return Object.freeze({ key: 'argentina', name: 'Argentina', flagClass: 'flag--argentina' });
@@ -118,27 +152,33 @@
     list.dataset.renderState = 'ready';
   }
 
-  function renderStats(stats) {
+  function renderBattle(stats) {
     const teams = Array.isArray(stats?.teams) ? stats.teams : [];
     const spain = teams.find((team) => team.team === 'spain') ?? { score: 0 };
     const argentina = teams.find((team) => team.team === 'argentina') ?? { score: 0 };
-    const spainScore = Number(spain.score || 0);
-    const argentinaScore = Number(argentina.score || 0);
-    const totalScore = spainScore + argentinaScore;
-    const spainPercent = totalScore ? Math.round((spainScore / totalScore) * 100) : 50;
+    const battle = resolveBattleState(spain.score, argentina.score);
 
-    setCompactValue('#spainScore', spainScore);
-    setCompactValue('#argentinaScore', argentinaScore);
+    setCompactValue('#spainScore', battle.spainScore);
+    setCompactValue('#argentinaScore', battle.argentinaScore);
+
+    const battleFill = document.querySelector('#battleFill');
+    if (battleFill) battleFill.style.width = `${battle.spainPercent}%`;
+    const battlePercent = document.querySelector('#battlePercent');
+    if (battlePercent) battlePercent.textContent = battle.label;
+    const battleTrack = document.querySelector('#battleTrack');
+    if (battleTrack) {
+      battleTrack.classList.toggle('is-empty', battle.empty);
+      battleTrack.setAttribute('aria-valuenow', String(battle.spainPercent));
+      battleTrack.setAttribute('aria-valuetext', battle.accessibleLabel);
+    }
+  }
+
+  function renderStats(stats) {
+    renderBattle(stats);
     setCompactValue('#globalPlayers', stats?.totalPlayers);
     setCompactValue('#verifiedAttempts', stats?.verifiedAttempts);
     setCompactValue('#perfectAttempts', stats?.perfectAttempts);
 
-    const battleFill = document.querySelector('#battleFill');
-    if (battleFill) battleFill.style.width = `${spainPercent}%`;
-    const battlePercent = document.querySelector('#battlePercent');
-    if (battlePercent) battlePercent.textContent = `${spainPercent}% · ${100 - spainPercent}%`;
-    const battleTrack = document.querySelector('#battleTrack');
-    if (battleTrack) battleTrack.setAttribute('aria-valuenow', String(spainPercent));
     const totalAttempts = document.querySelector('#totalAttempts');
     if (totalAttempts) totalAttempts.textContent = `${fullNumber(stats?.totalAttempts)} intentos`;
 

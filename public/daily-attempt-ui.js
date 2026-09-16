@@ -4,7 +4,7 @@ import {
   formatDailyCountdown,
   millisecondsUntilReset,
   normalizeDailyAttemptProfile,
-} from './daily-attempt-limit.js?v=20260731-spain-reset';
+} from './daily-attempt-limit.js?v=20260802-derived-budget';
 
 let latestDetail = null;
 let countdownTimer = 0;

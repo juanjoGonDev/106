@@ -47,6 +47,8 @@ jobs:
       PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
       HASH_PEPPER: ${{ secrets.HASH_PEPPER }}
       TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+      ZU_ADMIN_USER: ${{ secrets.ZU_ADMIN_USER }}
+      ZU_ADMIN_PSW: ${{ secrets.ZU_ADMIN_PSW }}
       ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
       PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
       GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
@@ -70,6 +72,8 @@ jobs:
           test -n "$SUPABASE_DB_PASSWORD" || (echo 'Missing SUPABASE_DB_PASSWORD secret' && exit 1)
           test -n "$PROJECT_ID" || (echo 'Missing SUPABASE_PROJECT_ID variable' && exit 1)
           test -n "$HASH_PEPPER" || (echo 'Missing HASH_PEPPER secret' && exit 1)
+          test -n "$ZU_ADMIN_USER" || (echo 'Missing ZU_ADMIN_USER secret' && exit 1)
+          test -n "$ZU_ADMIN_PSW" || (echo 'Missing ZU_ADMIN_PSW secret' && exit 1)
 
           canonical_origins="$(node scripts/build-allowed-origins.mjs)"
           pages_origin="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"
@@ -242,6 +246,8 @@ jobs:
           secrets=(
             "HASH_PEPPER=$HASH_PEPPER"
             "ALLOWED_ORIGINS=$canonical_origins"
+            "ZU_ADMIN_USER=$ZU_ADMIN_USER"
+            "ZU_ADMIN_PSW=$ZU_ADMIN_PSW"
           )
           if [ -n "$TURNSTILE_SECRET_KEY" ]; then
             secrets+=("TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY")

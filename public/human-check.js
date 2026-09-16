@@ -3,7 +3,8 @@
   const readyFlowApi = window.Minuto106HumanCheckReadyFlow;
   const START_ACTION = 'start';
   const CHECK_ACTION = 'human-check';
-  const COMPLETE_ACTION = 'complete-human-check';
+  const CLICK_ACTION = 'human-check-click';
+  const LEGACY_COMPLETE_ACTION = 'complete-human-check';
   const PREPARE_ACTION = 'prepare-start';
   const ACTIVATE_ACTION = 'activate-start';
   const COUNTDOWN_MS = 3_000;
@@ -73,6 +74,55 @@
     };
   }
 
+  function validRasterImage(image) {
+    return image?.mediaType === 'image/png'
+      && typeof image.dataUrl === 'string'
+      && image.dataUrl.startsWith('data:image/png;base64,')
+      && Number.isFinite(Number(image.width))
+      && Number.isFinite(Number(image.height))
+      && /^[a-f0-9]{64}$/.test(String(image.digest ?? ''));
+  }
+
+  function waitForPaint() {
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+    });
+  }
+
+  function applyChallengeImage(element, challengeImage) {
+    if (!validRasterImage(challengeImage)) {
+      return Promise.reject(new Error('El servidor no devolvió una verificación visual válida.'));
+    }
+    const sameSource = element.getAttribute('src') === challengeImage.dataUrl;
+    element.width = Number(challengeImage.width);
+    element.height = Number(challengeImage.height);
+    if (sameSource) {
+      element.dataset.digest = challengeImage.digest;
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        element.onload = null;
+        element.onerror = null;
+      };
+      element.onload = () => {
+        cleanup();
+        element.dataset.digest = challengeImage.digest;
+        resolve();
+      };
+      element.onerror = () => {
+        cleanup();
+        reject(new Error('No se pudo mostrar la verificación visual.'));
+      };
+      element.src = challengeImage.dataUrl;
+    });
+  }
+
+  function hitLocalFixtureBall(point, ball) {
+    return Math.hypot(point.x - Number(ball.x), point.y - Number(ball.y)) <= Number(ball.radius);
+  }
+
   function lockViewport() {
     const body = document.body;
     const previousOverflow = body.style.overflow;
@@ -103,7 +153,7 @@
     panel.className = 'human-check-panel';
     const heading = document.createElement('div');
     heading.className = 'human-check-heading';
-    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Pulsa los cuatro balones numerados en orden ascendente. Si fallas, se generará una imagen nueva.</p>';
+    heading.innerHTML = '<p class="eyebrow">VERIFICACIÓN DE JUEGO</p><h2 id="humanCheckTitle">Pulsa los balones en orden</h2><p>Pulsa los cuatro balones numerados en orden ascendente. Cada acierto se confirmará antes de continuar.</p>';
     const progress = document.createElement('strong');
     progress.className = 'human-check-progress';
     progress.setAttribute('aria-live', 'polite');
@@ -164,21 +214,20 @@
       if (cancelled) throw new HumanCheckCancelledError('Verificación visual cancelada.');
     }
 
-    function solve({ image: challengeImage, expiresAt }) {
+    async function solve(initialChallenge, submitClick) {
       assertActive();
       clearChallenge();
       hideLoading();
       overlay.dataset.phase = 'solving';
-      let completedCount = 0;
+      let challenge = initialChallenge;
+      let selectedCount = Number(challenge.selectedCount ?? 0);
+      let stateVersion = Number(challenge.stateVersion ?? 0);
+      let requestInFlight = false;
       const sequenceStartedAt = performance.now();
-      const clicks = [];
 
-      image.src = challengeImage.dataUrl;
-      image.width = Number(challengeImage.width);
-      image.height = Number(challengeImage.height);
-      image.dataset.digest = challengeImage.digest;
-      progress.textContent = `0 / ${HUMAN_CHECK_PRESS_COUNT}`;
-      status.textContent = 'Pulsa los cuatro balones en orden ascendente.';
+      await applyChallengeImage(image, challenge.image);
+      progress.textContent = `${selectedCount} / ${HUMAN_CHECK_PRESS_COUNT}`;
+      status.textContent = 'Pulsa los balones en orden ascendente.';
 
       return new Promise((resolve, reject) => {
         settledChallenge = { reject };
@@ -187,29 +236,69 @@
           clearChallenge();
           resolve(value);
         };
+        const fail = (error) => {
+          if (!settledChallenge) return;
+          clearChallenge();
+          reject(error);
+        };
         expiryTimer = window.setTimeout(
-          () => settle({ kind: 'refresh', previousDigest: challengeImage.digest }),
-          Math.max(1_000, new Date(expiresAt).getTime() - Date.now()),
+          () => settle({ kind: 'refresh', previousDigest: challenge.image.digest }),
+          Math.max(1_000, new Date(challenge.expiresAt).getTime() - Date.now()),
         );
 
-        image.onpointerdown = (event) => {
+        image.onpointerdown = async (event) => {
           event.preventDefault();
-          if (!readyFlowApi.isTrustedReadyPointer(event)) return;
+          if (requestInFlight || !readyFlowApi.isTrustedReadyPointer(event)) return;
+          requestInFlight = true;
           const point = imagePoint(image, event);
-          clicks.push({
+          const click = {
             x: Number(point.x.toFixed(2)),
             y: Number(point.y.toFixed(2)),
             atMs: Math.max(1, Math.round(performance.now() - sequenceStartedAt)),
             pointerType: event.pointerType,
-          });
-          completedCount += 1;
-          progress.textContent = `${completedCount} / ${HUMAN_CHECK_PRESS_COUNT}`;
-          status.textContent = completedCount === HUMAN_CHECK_PRESS_COUNT
-            ? 'Comprobando la secuencia…'
-            : 'Secuencia registrada. Continúa con el siguiente número.';
+          };
+          status.textContent = 'Comprobando la pulsación…';
 
-          if (completedCount === HUMAN_CHECK_PRESS_COUNT) {
-            settle({ kind: 'solved', clicks, previousDigest: challengeImage.digest });
+          try {
+            const updated = await submitClick(challenge, click, stateVersion);
+            assertActive();
+            const nextSelectedCount = Number(updated.selectedCount);
+            const nextStateVersion = Number(updated.stateVersion);
+            if (nextSelectedCount !== selectedCount + 1
+              || !Number.isInteger(nextStateVersion)
+              || nextStateVersion <= stateVersion
+              || updated.image.digest === challenge.image.digest) {
+              throw new Error('El servidor devolvió un progreso de verificación incoherente.');
+            }
+
+            await applyChallengeImage(image, updated.image);
+            challenge = updated;
+            selectedCount = nextSelectedCount;
+            stateVersion = nextStateVersion;
+            progress.textContent = `${selectedCount} / ${HUMAN_CHECK_PRESS_COUNT}`;
+            status.textContent = updated.completed
+              ? 'Verificación completada.'
+              : `${selectedCount} de ${HUMAN_CHECK_PRESS_COUNT} balones confirmados.`;
+
+            if (updated.completed) {
+              await waitForPaint();
+              settle({
+                kind: 'solved',
+                proof: {
+                  humanCheckId: updated.checkId,
+                  humanProofToken: updated.proofToken,
+                  proofExpiresAt: updated.expiresAt,
+                },
+              });
+              return;
+            }
+            requestInFlight = false;
+          } catch (error) {
+            if (isRefreshError(error)) {
+              settle({ kind: 'refresh', previousDigest: challenge.image.digest });
+              return;
+            }
+            fail(error);
           }
         };
       });
@@ -259,33 +348,85 @@
       previousDigest: previousDigest || undefined,
     });
     const created = await readJson(response);
-    const image = created?.image ?? localTestRasterFixture(created);
-    if (!image || image.mediaType !== 'image/png'
-      || typeof image.dataUrl !== 'string' || !image.dataUrl.startsWith('data:image/png;base64,')
-      || !Number.isFinite(Number(image.width)) || !Number.isFinite(Number(image.height))
-      || !/^[a-f0-9]{64}$/.test(String(image.digest ?? ''))) {
+    const fixtureImage = localTestRasterFixture(created);
+    const image = created?.image ?? fixtureImage;
+    if (!validRasterImage(image)) {
       throw new Error('El servidor no devolvió una verificación visual válida.');
     }
-    return created.image ? created : { ...created, image };
+    return {
+      ...created,
+      image,
+      selectedCount: Number(created.selectedCount ?? 0),
+      stateVersion: Number(created.stateVersion ?? 0),
+      localFixture: Boolean(fixtureImage),
+      localClicks: [],
+    };
   }
 
-  async function completeServerCheck(url, common, created, clicks) {
+  async function advanceLocalFixture(url, common, created, click, stateVersion) {
+    const balls = created?.['balls'];
+    const selectedCount = Number(created.selectedCount ?? 0);
+    const expected = Array.isArray(balls) ? balls[selectedCount] : null;
+    if (!expected || !hitLocalFixtureBall(click, expected)) {
+      throw new HumanCheckRefreshError('Orden incorrecto.');
+    }
+    const nextCount = selectedCount + 1;
+    const localClicks = [...(created.localClicks ?? []), click];
+    const image = {
+      ...created.image,
+      digest: String(Math.max(1, nextCount)).repeat(64),
+    };
+    if (nextCount < HUMAN_CHECK_PRESS_COUNT) {
+      return {
+        ...created,
+        image,
+        selectedCount: nextCount,
+        stateVersion: stateVersion + 1,
+        localClicks,
+        completed: false,
+      };
+    }
+
     const response = await readyRequest(url, common, {
-      action: COMPLETE_ACTION,
+      action: LEGACY_COMPLETE_ACTION,
       checkId: created.checkId,
-      clicks,
+      clicks: localClicks,
     });
     const completed = await readJson(response);
     return {
-      humanCheckId: completed.checkId,
-      humanProofToken: completed.proofToken,
-      proofExpiresAt: completed.expiresAt,
+      ...created,
+      image,
+      selectedCount: nextCount,
+      stateVersion: stateVersion + 1,
+      localClicks,
+      completed: true,
+      proofToken: completed.proofToken,
+      expiresAt: completed.expiresAt,
     };
+  }
+
+  async function advanceServerCheck(url, common, created, click, stateVersion) {
+    if (created.localFixture) {
+      return advanceLocalFixture(url, common, created, click, stateVersion);
+    }
+    const response = await readyRequest(url, common, {
+      action: CLICK_ACTION,
+      checkId: created.checkId,
+      click,
+      stateVersion,
+    });
+    const updated = await readJson(response);
+    if (!validRasterImage(updated.image)
+      || !Number.isInteger(Number(updated.selectedCount))
+      || !Number.isInteger(Number(updated.stateVersion))) {
+      throw new Error('El servidor devolvió un progreso de verificación inválido.');
+    }
+    return updated;
   }
 
   function isRefreshError(error) {
     if (error instanceof HumanCheckRefreshError) return true;
-    return /caduc|expir|orden|pulsaciones|secuencia/i.test(String(error instanceof Error ? error.message : error || ''));
+    return /caduc|expir|orden|pulsaciones|secuencia|ya avanzó/i.test(String(error instanceof Error ? error.message : error || ''));
   }
 
   async function obtainProof(url, common) {
@@ -302,19 +443,22 @@
           const created = await createServerCheck(url, requestCommon, previousDigest);
           dialog.assertActive();
           if (previousDigest && created.image.digest === previousDigest) continue;
-          const result = await dialog.solve(created);
+          const result = await dialog.solve(
+            created,
+            (current, click, stateVersion) => advanceServerCheck(
+              url,
+              requestCommon,
+              current,
+              click,
+              stateVersion,
+            ),
+          );
           if (result.kind === 'refresh') {
             previousDigest = result.previousDigest;
             continue;
           }
-          try {
-            const proof = await completeServerCheck(url, requestCommon, created, result.clicks);
-            dialog.destroy();
-            return proof;
-          } catch (error) {
-            if (!isRefreshError(error)) throw error;
-            previousDigest = result.previousDigest;
-          }
+          dialog.destroy();
+          return result.proof;
         } catch (error) {
           if (requestController.signal.aborted) {
             throw new HumanCheckCancelledError('Verificación visual cancelada.');

@@ -61,5 +61,5 @@
   };
 
   loadAchievementUnlocks();
-  import('./daily-attempt-ui.js?v=20260731-spain-reset').catch(() => {});
+  import('./daily-attempt-ui.js?v=20260802-derived-budget').catch(() => {});
 })();
