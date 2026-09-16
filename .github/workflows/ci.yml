@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload failed test report
         if: steps.vitest.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: vitest-results-${{ github.run_id }}
           path: vitest-results.json
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload failed ESLint report
         if: steps.eslint-check.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: eslint-results-${{ github.run_id }}
           path: eslint-results.json
@@ -175,7 +175,7 @@ jobs:
 
       - name: Upload failed Knip report
         if: steps.knip-check.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: knip-results-${{ github.run_id }}
           path: knip-results.txt
@@ -294,7 +294,7 @@ jobs:
 
       - name: Upload generated social card previews
         if: matrix.suite == 'gameplay-sharing' && steps.supabase-suite.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: social-card-previews-${{ github.run_id }}
           path: .tmp/pr-previews/social
@@ -303,7 +303,7 @@ jobs:
 
       - name: Upload failed Supabase diagnostics
         if: steps.supabase-suite.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: supabase-local-diagnostics-${{ matrix.suite }}-${{ github.run_id }}
           path: |
