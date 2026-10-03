@@ -1,0 +1,190 @@
+name: Keep Supabase active
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+      timezone: Europe/Madrid
+    - cron: '43 8 * * *'
+      timezone: Europe/Madrid
+    - cron: '11 11 * * *'
+      timezone: Europe/Madrid
+    - cron: '37 13 * * *'
+      timezone: Europe/Madrid
+    - cron: '13 16 * * *'
+      timezone: Europe/Madrid
+    - cron: '41 18 * * *'
+      timezone: Europe/Madrid
+    - cron: '19 20 * * *'
+      timezone: Europe/Madrid
+    - cron: '47 21 * * *'
+      timezone: Europe/Madrid
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22.13.0
+
+jobs:
+  keepalive:
+    name: Supabase · Keepalive candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Plan today's candidate
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEPALIVE_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -euo pipefail
+          keepalive_date="$(TZ=Europe/Madrid date +%F)"
+          artifacts_file="$RUNNER_TEMP/supabase-keepalive-artifacts.txt"
+          gh api --paginate --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[].name' > "$artifacts_file"
+
+          KEEPALIVE_DATE="$keepalive_date" \
+          KEEPALIVE_ARTIFACTS_FILE="$artifacts_file" \
+          node --input-type=module <<'NODE'
+          import { randomInt } from 'node:crypto';
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { buildKeepalivePlan } from './scripts/supabase-keepalive-plan.mjs';
+
+          const artifactNames = readFileSync(process.env.KEEPALIVE_ARTIFACTS_FILE, 'utf8')
+            .split('\n')
+            .filter(Boolean);
+          const plan = buildKeepalivePlan({
+            artifactNames,
+            date: process.env.KEEPALIVE_DATE,
+            schedule: process.env.KEEPALIVE_SCHEDULE,
+            randomValue: randomInt(0, 1_000_000) / 1_000_000,
+            modeRandomValue: randomInt(0, 1_000_000) / 1_000_000,
+            runId: process.env.GITHUB_RUN_ID,
+          });
+          const output = [
+            `execute=${plan.execute}`,
+            `completed_count=${plan.completedCount}`,
+            `slot_index=${plan.slotIndex}`,
+            `mode=${plan.mode ?? ''}`,
+            `marker_name=${plan.markerName ?? ''}`,
+            `date=${process.env.KEEPALIVE_DATE}`,
+          ].join('\n');
+          appendFileSync(process.env.GITHUB_OUTPUT, `${output}\n`);
+          console.log(`Daily keepalive count before this slot: ${plan.completedCount}/3.`);
+          console.log(plan.execute ? `Selected mode: ${plan.mode}.` : 'Candidate skipped.');
+          NODE
+
+      - name: Generate database activity
+        if: steps.plan.outputs.execute == 'true'
+        shell: bash
+        env:
+          KEEPALIVE_MODE: ${{ steps.plan.outputs.mode }}
+          SUPABASE_FUNCTIONS_URL: ${{ vars.SUPABASE_FUNCTIONS_URL }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          api_url="${SUPABASE_FUNCTIONS_URL%/}"
+          test -n "$api_url" || (echo 'Missing SUPABASE_FUNCTIONS_URL variable.' && exit 1)
+          case "$api_url" in
+            https://*) ;;
+            *) echo 'SUPABASE_FUNCTIONS_URL must use HTTPS.'; exit 1 ;;
+          esac
+
+          origin="https://${GITHUB_REPOSITORY_OWNER,,}.github.io"
+          stats_file="$RUNNER_TEMP/keepalive-stats.json"
+          status="$(curl --silent --show-error --retry 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 \
+            --output "$stats_file" --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --header "origin: $origin" \
+            --data '{"action":"stats"}' \
+            "$api_url")"
+          test "$status" = '200' || (echo "Stats keepalive returned HTTP $status." && exit 1)
+          jq -e '.leaderboard | type == "array"' "$stats_file" >/dev/null
+
+          if [ "$KEEPALIVE_MODE" = 'stats' ]; then
+            echo 'Completed stats activity.'
+            exit 0
+          fi
+
+          if [ "$KEEPALIVE_MODE" = 'leader-profile' ]; then
+            nick="$(jq -r '[.leaderboard[]?.nick | select(type == "string" and length > 0)] | .[0] // "KeepAlive106"' "$stats_file")"
+            profile_action='public-profile'
+          elif [ "$KEEPALIVE_MODE" = 'random-profile' ]; then
+            nick="$(jq -r '[.leaderboard[]?.nick | select(type == "string" and length > 0)] | if length == 0 then "KeepAlive106" else .[$RANDOM_INDEX % length] end' \
+              --argjson RANDOM_INDEX "$RANDOM" "$stats_file")"
+            profile_action='nick-status'
+          else
+            echo "Unknown keepalive mode: $KEEPALIVE_MODE"
+            exit 1
+          fi
+
+          payload="$(jq -nc --arg action "$profile_action" --arg nick "$nick" '{action: $action, nick: $nick}')"
+          profile_file="$RUNNER_TEMP/keepalive-profile.json"
+          status="$(curl --silent --show-error --retry 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 \
+            --output "$profile_file" --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --header "origin: $origin" \
+            --data "$payload" \
+            "$api_url")"
+          test "$status" = '200' || (echo "Profile keepalive returned HTTP $status." && exit 1)
+          jq -e 'type == "object"' "$profile_file" >/dev/null
+          echo "Completed $KEEPALIVE_MODE activity."
+
+      - name: Write success marker
+        if: steps.plan.outputs.execute == 'true'
+        shell: bash
+        env:
+          KEEPALIVE_DATE: ${{ steps.plan.outputs.date }}
+          KEEPALIVE_MODE: ${{ steps.plan.outputs.mode }}
+        run: |
+          set -euo pipefail
+          jq -nc \
+            --arg date "$KEEPALIVE_DATE" \
+            --arg mode "$KEEPALIVE_MODE" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            '{date: $date, mode: $mode, runId: $run_id}' \
+            > "$RUNNER_TEMP/supabase-keepalive-marker.json"
+
+      - name: Persist daily success marker
+        if: steps.plan.outputs.execute == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.plan.outputs.marker_name }}
+          path: ${{ runner.temp }}/supabase-keepalive-marker.json
+          retention-days: 2
+          if-no-files-found: error
+
+      - name: Summarize candidate
+        if: always()
+        shell: bash
+        env:
+          EXECUTE: ${{ steps.plan.outputs.execute }}
+          COMPLETED_COUNT: ${{ steps.plan.outputs.completed_count }}
+          MODE: ${{ steps.plan.outputs.mode }}
+        run: |
+          {
+            echo '### Supabase keepalive'
+            echo ''
+            echo "- Successful markers before this slot: ${COMPLETED_COUNT:-unknown}/3"
+            echo "- Candidate selected: ${EXECUTE:-unknown}"
+            if [ "${EXECUTE:-}" = 'true' ]; then
+              echo "- Activity mode: ${MODE:-unknown}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
