@@ -137,7 +137,7 @@ test('keeps workflow schedules, timezone and pinned actions aligned with the pla
     assert.equal(workflow.split(`cron: '${schedule}'`).length - 1, 1);
   }
   assert.equal(workflow.split('timezone: Europe/Madrid').length - 1, KEEPALIVE_SCHEDULES.length);
-  assert.match(workflow, /permissions:\n  actions: read\n  contents: read/);
+  assert.match(workflow, /permissions:\n {2}actions: read\n {2}contents: read/);
   assert.match(workflow, /actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803/);
   assert.match(workflow, /actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020/);
   assert.match(workflow, /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/);
