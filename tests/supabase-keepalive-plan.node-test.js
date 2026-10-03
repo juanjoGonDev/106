@@ -66,6 +66,53 @@ test('rejects invalid planner inputs', () => {
   assert.throws(() => keepaliveMode([], DATE, Number.NaN), /modeRandomValue/);
 });
 
+test('reaches exactly three successful selections for every early random decision sequence', () => {
+  for (let mask = 0; mask < (1 << KEEPALIVE_SCHEDULES.length); mask += 1) {
+    const artifactNames = [];
+
+    for (let slotIndex = 0; slotIndex < KEEPALIVE_SCHEDULES.length; slotIndex += 1) {
+      const plan = buildKeepalivePlan({
+        artifactNames,
+        date: DATE,
+        schedule: KEEPALIVE_SCHEDULES[slotIndex],
+        randomValue: (mask & (1 << slotIndex)) === 0 ? 0 : 0.999999,
+        modeRandomValue: 0,
+        runId: String(1_000 + slotIndex),
+      });
+      if (plan.execute) artifactNames.push(plan.markerName);
+    }
+
+    assert.equal(completedKeepaliveArtifacts(artifactNames, DATE).length, KEEPALIVE_TARGET);
+  }
+});
+
+test('does not count a failed selected candidate and forces later slots to recover when possible', () => {
+  const artifactNames = [];
+  const failed = buildKeepalivePlan({
+    artifactNames,
+    date: DATE,
+    schedule: KEEPALIVE_SCHEDULES[0],
+    randomValue: 0,
+    modeRandomValue: 0,
+    runId: '2000',
+  });
+  assert.equal(failed.execute, true);
+
+  for (let slotIndex = 1; slotIndex < KEEPALIVE_SCHEDULES.length; slotIndex += 1) {
+    const plan = buildKeepalivePlan({
+      artifactNames,
+      date: DATE,
+      schedule: KEEPALIVE_SCHEDULES[slotIndex],
+      randomValue: 0.999999,
+      modeRandomValue: 0,
+      runId: String(2_000 + slotIndex),
+    });
+    if (plan.execute) artifactNames.push(plan.markerName);
+  }
+
+  assert.equal(completedKeepaliveArtifacts(artifactNames, DATE).length, KEEPALIVE_TARGET);
+});
+
 test('uses each activity mode once before allowing repeats', () => {
   const names = [`${PREFIX}1-stats`];
   assert.deepEqual(unusedKeepaliveModes(names, DATE), ['leader-profile', 'random-profile']);
