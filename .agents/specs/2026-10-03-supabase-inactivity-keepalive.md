@@ -71,8 +71,8 @@ Revert this pull request. Marker artifacts expire automatically and no Supabase 
 
 ## Delivery
 
-Branch `agent/supabase-inactivity-keepalive`; one normal non-draft pull request to `main`. Do not merge, deploy, publish, or mutate production manually without explicit user authorization.
+Branch `agent/supabase-inactivity-keepalive`; normal non-draft pull request `#79` to `main`. Do not merge, deploy, publish, or mutate production manually without explicit user authorization.
 
 ## Status
 
-Implementation in progress.
+Ready for review in pull request `#79`. The final PR head and its GitHub Actions results remain the completion authority.
