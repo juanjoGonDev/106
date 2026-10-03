@@ -99,6 +99,9 @@ jobs:
           cat vitest-results.json
           exit 1
 
+      - name: Enforce Supabase keepalive planner coverage
+        run: pnpm test:supabase-keepalive:coverage
+
   eslint:
     name: 🧹 ESLint · Static analysis
     if: github.event.pull_request.draft == false
